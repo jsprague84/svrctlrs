@@ -19,8 +19,12 @@ pub fn Dashboard() -> Element {
         (0, 0, "unknown")
     };
 
-    // Task count placeholder (would come from tasks API)
-    let task_count = 0;
+    // Get real task count from API
+    let task_count = if let Some(tasks) = &data.tasks {
+        tasks.tasks.len()
+    } else {
+        0
+    };
 
     rsx! {
         div {

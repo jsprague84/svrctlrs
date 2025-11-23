@@ -49,6 +49,22 @@ pub struct ServerListResponse {
     pub servers: Vec<ServerInfo>,
 }
 
+/// Task info
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TaskInfo {
+    pub plugin_id: String,
+    pub task_id: String,
+    pub description: String,
+    pub schedule: String,
+    pub enabled: bool,
+}
+
+/// Task list response
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TaskListResponse {
+    pub tasks: Vec<TaskInfo>,
+}
+
 /// API client for server-side data fetching
 pub struct ApiClient {
     base_url: String,
@@ -91,6 +107,12 @@ impl ApiClient {
     /// Fetch server list
     pub async fn servers(&self) -> Result<ServerListResponse, reqwest::Error> {
         let url = format!("{}/api/v1/servers", self.base_url);
+        self.client.get(&url).send().await?.json().await
+    }
+
+    /// Fetch task list
+    pub async fn tasks(&self) -> Result<TaskListResponse, reqwest::Error> {
+        let url = format!("{}/api/v1/tasks", self.base_url);
         self.client.get(&url).send().await?.json().await
     }
 }

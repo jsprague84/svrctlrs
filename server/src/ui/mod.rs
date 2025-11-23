@@ -26,6 +26,7 @@ pub struct DashboardData {
     pub status: Option<api::StatusResponse>,
     pub plugins: Option<api::PluginListResponse>,
     pub servers: Option<api::ServerListResponse>,
+    pub tasks: Option<api::TaskListResponse>,
 }
 
 /// App component with data context
@@ -43,8 +44,9 @@ pub async fn serve() -> impl IntoResponse {
     let status = api_client.status().await.ok();
     let plugins = api_client.plugins().await.ok();
     let servers = api_client.servers().await.ok();
+    let tasks = api_client.tasks().await.ok();
 
-    let dashboard_data = DashboardData { status, plugins, servers };
+    let dashboard_data = DashboardData { status, plugins, servers, tasks };
 
     // Render the Dioxus app to HTML
     let mut vdom = VirtualDom::new_with_props(AppWithData, AppWithDataProps { data: dashboard_data });
