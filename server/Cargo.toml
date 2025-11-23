@@ -28,46 +28,68 @@ svrctlrs-plugin-health = { workspace = true, optional = true }
 svrctlrs-plugin-weather = { workspace = true, optional = true }
 svrctlrs-plugin-speedtest = { workspace = true, optional = true }
 
-# Async
-tokio = { workspace = true }
+# Async (optional for server)
+tokio = { workspace = true, optional = true }
 
-# Web framework
-axum = { workspace = true }
-tower = { workspace = true }
-tower-http = { workspace = true }
+# Web framework (optional for server)
+axum = { workspace = true, optional = true }
+tower = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true }
 
-# Dioxus UI
-dioxus = { workspace = true }
+# Dioxus UI (fullstack)
+dioxus = { workspace = true, features = ["fullstack"] }
 dioxus-router = "0.7"
+dioxus-fullstack = "0.7"
 dioxus-ssr = "0.7"
+dioxus-cli-config = { version = "0.7", optional = true }
 
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
 
-# Error handling
-anyhow = { workspace = true }
+# Error handling (server-only)
+anyhow = { workspace = true, optional = true }
 
-# Logging
-tracing = { workspace = true }
-tracing-subscriber = { workspace = true }
+# Logging (server-only)
+tracing = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 
-# Environment
-dotenvy = { workspace = true }
-toml = "0.8"
+# Environment (server-only)
+dotenvy = { workspace = true, optional = true }
+toml = { version = "0.8", optional = true }
 
-# CLI
-clap = { workspace = true }
+# CLI (server-only)
+clap = { workspace = true, optional = true }
 
-# HTTP client
-reqwest = { workspace = true }
+# HTTP client (server-only)
+reqwest = { workspace = true, optional = true }
 
-# Date/time
-chrono = { workspace = true }
+# Date/time (server-only)
+chrono = { workspace = true, optional = true }
 
 [features]
-# Default: Core plugins only
-default = ["plugin-docker", "plugin-updates", "plugin-health"]
+# Default: Core plugins + server mode
+default = ["plugin-docker", "plugin-updates", "plugin-health", "server"]
+
+# Dioxus target features (conditional compilation)
+server = [
+    "dioxus/server",
+    "dep:axum",
+    "dep:tokio",
+    "dep:tower",
+    "dep:tower-http",
+    "dioxus-cli-config",
+    "dep:anyhow",
+    "dep:tracing",
+    "dep:tracing-subscriber",
+    "dep:dotenvy",
+    "dep:toml",
+    "dep:clap",
+    "dep:reqwest",
+    "dep:chrono"
+]
+web = ["dioxus/web"]
+desktop = ["dioxus/desktop"]
 
 # Core plugins (default enabled)
 plugin-docker = ["dep:svrctlrs-plugin-docker"]

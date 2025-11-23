@@ -1,36 +1,47 @@
 //! SvrCtlRS Server
 //!
-//! Main server application with Axum backend.
+//! Fullstack application with conditional compilation for server/web targets.
 
-use axum::Router;
-use clap::Parser;
-use std::sync::Arc;
-use tracing::{info, instrument};
+#![allow(non_snake_case)]
 
-mod config;
-mod routes;
-mod state;
+use dioxus::prelude::*;
+
 mod ui;
 
+// Server-side modules
+#[cfg(feature = "server")]
+mod config;
+#[cfg(feature = "server")]
+mod routes;
+#[cfg(feature = "server")]
+mod state;
+
+#[cfg(feature = "server")]
 use config::Config;
+#[cfg(feature = "server")]
 use state::AppState;
 
-/// SvrCtlRS Server
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
-    /// Server address to bind to
-    #[arg(short, long, default_value = "0.0.0.0:8080")]
-    addr: String,
-
-    /// Path to configuration file
-    #[arg(short, long)]
-    config: Option<String>,
-}
-
+// Server-side entry point
+#[cfg(feature = "server")]
 #[tokio::main]
-#[instrument]
 async fn main() -> anyhow::Result<()> {
+    use axum::Router;
+    use clap::Parser;
+    use std::sync::Arc;
+    use tracing::{info, instrument};
+
+    /// SvrCtlRS Server
+    #[derive(Parser, Debug)]
+    #[command(author, version, about, long_about = None)]
+    struct Args {
+        /// Server address to bind to
+        #[arg(short, long, default_value = "0.0.0.0:8080")]
+        addr: String,
+
+        /// Path to configuration file
+        #[arg(short, long)]
+        config: Option<String>,
+    }
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -61,12 +72,13 @@ async fn main() -> anyhow::Result<()> {
     info!("Starting scheduler");
     state.start_scheduler().await?;
 
-    // Build Axum router
+    // Build Axum router with Dioxus fullstack integration
+    // Note: Using `dx serve` for development, custom fallback for production
     let app = Router::new()
         // API routes
         .nest("/api", routes::api_routes(state.clone()))
-        // Dioxus UI (fallback - serves the web app)
-        .fallback(ui::serve)
+        // Dioxus fallback handler (SSR + WASM client hydration)
+        .fallback(ui::serve_fullstack)
         // Add middleware
         .layer(
             tower_http::trace::TraceLayer::new_for_http()
@@ -88,4 +100,10 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
+}
+
+// Client-side entry point (WASM)
+#[cfg(not(feature = "server"))]
+fn main() {
+    dioxus::launch(ui::App);
 }

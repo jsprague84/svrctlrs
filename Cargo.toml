@@ -27,7 +27,7 @@ async-trait = "0.1"
 # Web framework
 axum = { version = "0.8", features = ["macros"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["trace", "cors", "compression-gzip"] }
+tower-http = { version = "0.6", features = ["trace", "cors", "compression-gzip", "fs"] }
 
 # Dioxus fullstack framework
 dioxus = { version = "0.7", features = ["fullstack"] }

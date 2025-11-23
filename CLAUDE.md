@@ -10,29 +10,32 @@ This file provides comprehensive guidance to Claude Code (claude.ai/code) when w
 
 ## 📋 Quick Context Recovery
 
-### Current Status (Updated: 2025-01-23)
+### Current Status (Updated: 2025-11-23)
 
 **✅ Completed:**
 - Project structure & Cargo workspace
 - Core plugin system (traits & types)
 - Notification backends (Gotify + ntfy)
-- Basic server with Axum
+- Axum backend server with REST API
 - Scheduler module (cron-like)
 - Database layer (SQLite)
-- Plugin stubs (Docker, Updates, Health)
+- Plugin implementations (Docker, Updates, Health)
+- **Dioxus 0.7 Fullstack UI** - SSR + WASM hydration
 - GitHub repository: https://github.com/jsprague84/svrctlrs
 
-**🔄 Current Sprint: Sprint 1 - Foundation** (60% complete)
-- ✅ Project structure
-- ✅ Notification backends
-- 🔴 Enhanced remote executor
-- 🔴 Database migrations
-- 🔴 Webhook framework
+**🎉 Current Sprint: Sprint 6 - UI Implementation** (95% complete)
+- ✅ Dioxus 0.7 fullstack setup with conditional compilation
+- ✅ Interactive UI components (Dashboard, Servers, Plugins, Tasks, Settings)
+- ✅ Server functions for backend integration
+- ✅ Docker configuration for fullstack deployment
+- ✅ Production build pipeline with `dx build`
+- 🔄 Docker image building (in progress)
 
 **📍 Next Immediate Tasks:**
-1. Enhance `core/src/remote.rs` - Add connection pooling, timeouts
-2. Add database migrations in `database/src/migrations/`
-3. Implement basic webhook framework in `server/src/routes/webhook.rs`
+1. Complete Docker image build and test
+2. Deploy v2.1.0 with fullstack UI
+3. Test client-side hydration and interactivity
+4. Implement backend API endpoints for server functions
 
 ### Key Documents to Read First
 
@@ -212,6 +215,342 @@ sqlx::query("SELECT * FROM servers")
     .await?;
 ```
 
+## 🎨 Dioxus 0.7 Fullstack Implementation
+
+### Overview
+
+The project uses **Dioxus 0.7** fullstack architecture with:
+- **Server-Side Rendering (SSR)** - Initial HTML generated on server
+- **WASM Client Hydration** - Interactive JavaScript/WASM bundle
+- **Conditional Compilation** - Same codebase compiles for server and client
+- **Server Functions** - Backend operations callable from frontend
+
+### Critical Pattern: Conditional Compilation
+
+**IMPORTANT**: Always use Context7 to verify Dioxus 0.7 best practices. The official documentation is at https://dioxuslabs.com/learn/0.7/
+
+#### Cargo.toml Structure
+
+```toml
+[dependencies]
+# Dioxus UI (always needed)
+dioxus = { workspace = true, features = ["fullstack"] }
+dioxus-router = "0.7"
+dioxus-fullstack = "0.7"
+dioxus-ssr = "0.7"
+
+# Server-only dependencies (MUST be optional)
+axum = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+tower = { workspace = true, optional = true }
+tower-http = { workspace = true, optional = true }
+anyhow = { workspace = true, optional = true }
+tracing = { workspace = true, optional = true }
+# ... all other server deps
+
+[features]
+default = ["plugin-docker", "plugin-updates", "plugin-health", "server"]
+
+# Server feature enables all server-only dependencies
+server = [
+    "dioxus/server",
+    "dep:axum",
+    "dep:tokio",
+    "dep:tower",
+    "dep:tower-http",
+    "dep:anyhow",
+    "dep:tracing",
+    # ... etc
+]
+
+# Web feature for WASM client
+web = ["dioxus/web"]
+
+# Desktop feature (if needed)
+desktop = ["dioxus/desktop"]
+```
+
+#### main.rs Structure
+
+```rust
+//! Dual entry points for server and client
+
+#![allow(non_snake_case)]
+
+use dioxus::prelude::*;
+
+mod ui;
+
+// ============================================
+// SERVER-SIDE CODE (Axum + SSR)
+// ============================================
+#[cfg(feature = "server")]
+mod config;
+#[cfg(feature = "server")]
+mod routes;
+#[cfg(feature = "server")]
+mod state;
+
+#[cfg(feature = "server")]
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    use axum::Router;
+    use clap::Parser;
+
+    // Initialize server, load config, start plugins
+    // Build Axum router with API routes + Dioxus SSR
+    let app = Router::new()
+        .nest("/api", routes::api_routes(state.clone()))
+        .fallback(ui::serve_fullstack);  // SSR + WASM serving
+
+    // Start server
+    axum::serve(listener, app).await?;
+    Ok(())
+}
+
+// ============================================
+// CLIENT-SIDE CODE (WASM)
+// ============================================
+#[cfg(not(feature = "server"))]
+fn main() {
+    // Launch Dioxus app in browser
+    dioxus::launch(ui::App);
+}
+```
+
+### Server Functions Pattern
+
+Server functions run on the backend but are callable from frontend:
+
+```rust
+// In server/src/ui/server_fns.rs
+
+use dioxus::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct ServerInfo {
+    pub name: String,
+    pub host: String,
+    pub status: String,
+}
+
+/// Get list of servers from database
+#[server(GetServers)]
+pub async fn get_servers() -> Result<Vec<ServerInfo>, ServerFnError> {
+    // This code ONLY runs on server
+    // Has access to database, file system, etc.
+
+    let db = get_db_from_context()?;
+    let servers = db.get_all_servers().await?;
+
+    Ok(servers.into_iter().map(|s| ServerInfo {
+        name: s.name,
+        host: s.host,
+        status: s.status,
+    }).collect())
+}
+
+/// Toggle plugin enabled state
+#[server(TogglePlugin)]
+pub async fn toggle_plugin(plugin_id: String, enabled: bool) -> Result<(), ServerFnError> {
+    let state = get_app_state_from_context()?;
+    state.toggle_plugin(&plugin_id, enabled).await?;
+    Ok(())
+}
+```
+
+### UI Component Pattern
+
+```rust
+use dioxus::prelude::*;
+use crate::ui::server_fns::*;
+
+#[component]
+pub fn ServerList() -> Element {
+    // Resource automatically fetches on mount and refetches on demand
+    let servers = use_resource(|| async move {
+        get_servers().await.unwrap_or_default()
+    });
+
+    rsx! {
+        div { class: "server-list",
+            match &*servers.read_unchecked() {
+                Some(servers) => rsx! {
+                    for server in servers {
+                        ServerCard { server: server.clone() }
+                    }
+                },
+                None => rsx! {
+                    div { "Loading servers..." }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn ServerCard(server: ServerInfo) -> Element {
+    rsx! {
+        div { class: "server-card",
+            h3 { "{server.name}" }
+            p { "{server.host}" }
+            span { class: "status-{server.status}",
+                "{server.status}"
+            }
+        }
+    }
+}
+```
+
+### Build Commands
+
+#### Development (with hot reload)
+```bash
+# Starts dev server with hot reload at http://localhost:8080
+dx serve --package server
+
+# Server will restart on Rust changes, browser will reload on UI changes
+```
+
+#### Production Build
+```bash
+# Builds both server binary and WASM client bundle
+dx build --release
+
+# Output:
+# - target/release/server (binary with embedded assets)
+# - dist/ (WASM bundle + JavaScript loader)
+```
+
+#### Manual Cargo Build (without Dioxus CLI)
+```bash
+# Build server binary only (no WASM client)
+cargo build --release --package server --bin server
+
+# This works but won't include WASM client assets
+# Use dx build for fullstack deployment
+```
+
+### Dioxus.toml Configuration
+
+**CRITICAL**: This file controls the entire Dioxus build process.
+
+```toml
+[application]
+name = "SvrCtlRS"
+default_platform = "fullstack"  # Must be "fullstack" not "web"
+package = "server"              # Which package to build
+out_dir = "dist"                # WASM output directory
+asset_dir = "assets"            # Static assets directory
+
+[web.app]
+title = "SvrCtlRS - Server Control & Monitoring"
+
+[web.watcher]
+reload_html = true
+watch_path = ["server/src", "assets"]
+
+[web.resource]
+# MUST be arrays, not maps
+style = []
+script = []
+
+[web.resource.dev]
+script = []
+```
+
+### Docker Deployment
+
+The Dockerfile now includes Dioxus CLI installation and fullstack build:
+
+```dockerfile
+FROM rust:bookworm AS builder
+
+# Install Dioxus CLI
+RUN cargo install dioxus-cli --version 0.7.1
+
+WORKDIR /app
+
+# Copy workspace
+COPY Cargo.toml Cargo.lock ./
+COPY core ./core
+COPY server ./server
+# ... other directories
+
+# Copy Dioxus config
+COPY Dioxus.toml ./
+COPY assets ./assets
+
+# Build with Dioxus CLI (creates server binary + WASM client)
+RUN dx build --release
+
+# Also build svrctl CLI
+RUN cargo build --release --bin svrctl
+
+# Runtime stage
+FROM debian:bookworm-slim
+
+# Copy binaries and assets
+COPY --from=builder /app/target/release/server /app/svrctlrs-server
+COPY --from=builder /app/target/release/svrctl /app/svrctl
+COPY --from=builder /app/dist /app/dist
+COPY --from=builder /app/assets /app/assets
+
+# Run server
+CMD ["/app/svrctlrs-server"]
+```
+
+### Troubleshooting Common Issues
+
+#### 1. "Cannot find dioxus/server" Error
+**Cause**: Missing `dioxus/server` feature in Cargo.toml
+**Fix**: Add to server feature: `"dioxus/server"`
+
+#### 2. "Axum not compatible with WASM" Error
+**Cause**: Server dependencies not marked as optional
+**Fix**: Make all server deps optional with `optional = true`
+
+#### 3. "DioxusRouterExt not found" Error
+**Cause**: Trying to use Axum 0.8 extension trait (deprecated in Dioxus 0.7)
+**Fix**: Use conditional compilation pattern with dual entry points
+
+#### 4. TOML Parse Errors in Dioxus.toml
+**Cause**: Incorrect syntax (maps instead of arrays, duplicate keys)
+**Fix**: Use arrays `[]` for resources, check for duplicate `[web.proxy]` sections
+
+#### 5. Application Exits Immediately
+**Cause**: Missing config.toml or database initialization
+**Fix**: Ensure config.toml exists and DATABASE_URL is set
+
+#### 6. WASM Not Hydrating
+**Cause**: Mismatch between SSR HTML and client expectations
+**Fix**: Ensure `renderer.pre_render = true` in SSR code for hydration IDs
+
+### Context7 Usage for Dioxus
+
+**Always use Context7** when working with Dioxus to get up-to-date patterns:
+
+```
+# Example queries for Context7
+- "dioxus 0.7 fullstack server functions"
+- "dioxus 0.7 use_resource pattern"
+- "dioxus 0.7 conditional compilation"
+- "dioxus 0.7 axum integration"
+```
+
+### Key Files for Dioxus Implementation
+
+- `server/Cargo.toml` - Feature flags and optional dependencies
+- `server/src/main.rs` - Dual entry points with #[cfg]
+- `server/src/ui/mod.rs` - UI module exports
+- `server/src/ui/app.rs` - Root App component with routing
+- `server/src/ui/server_fns.rs` - Server functions (backend operations)
+- `server/src/ui/pages/` - Page components
+- `server/src/ui/components/` - Reusable UI components
+- `server/src/ui/fullstack.rs` - SSR serving logic
+- `Dioxus.toml` - Build configuration
+
 ## 🔍 Feature Parity Reference
 
 ### Porting from Weatherust
@@ -241,32 +580,35 @@ When implementing a feature that exists in weatherust:
 
 ### Sprint Overview
 
-**Sprint 1: Foundation** (Current)
+**Sprint 1: Foundation** ✅ Complete
 - Week 1 - Core infrastructure
-- Status: 60% complete
-- Blockers: None
-- Next: Remote executor enhancements
+- Status: 100% complete
+- Core plugin system, notifications, scheduler, database
 
-**Sprint 2: Docker Plugin**
+**Sprint 2: Docker Plugin** ✅ Complete
 - Week 2 - Health monitoring, cleanup, updates
-- Status: Not started
-- Dependencies: Sprint 1 complete
+- Status: 100% complete
+- Full Docker monitoring and management
 
-**Sprint 3: Updates Plugin**
+**Sprint 3: Updates Plugin** ✅ Complete
 - Week 3 - OS updates, cleanup, execution
-- Status: Not started
+- Status: 100% complete
+- SSH-based update monitoring and execution
 
-**Sprint 4: Infrastructure**
+**Sprint 4: Infrastructure** ✅ Complete
 - Week 4 - Webhooks, API, CLI
-- Status: Not started
+- Status: 100% complete
+- Full REST API with Axum
 
-**Sprint 5: Polish**
+**Sprint 5: Polish** ✅ Complete
 - Week 5 - Weather, Speed test, Testing
-- Status: Not started
+- Status: 100% complete
+- Optional plugins, testing, cleanup
 
-**Sprint 6: UI**
-- Future - Dioxus dashboard
-- Status: Not started
+**Sprint 6: UI** 🔄 95% Complete
+- Dioxus 0.7 fullstack dashboard
+- Status: Nearly complete
+- Remaining: Docker image build, deployment, backend API implementation
 
 ### Recent Commits
 
@@ -446,14 +788,16 @@ pub async fn my_function(param1: &str, sensitive_param: &str) -> Result<()> {
 ### Technology Stack
 - Language: Rust (latest stable)
 - Async: Tokio
-- Web: Axum 0.8
-- UI: Dioxus 0.7 (planned)
+- Web Backend: Axum 0.8
+- **UI: Dioxus 0.7 Fullstack** - SSR + WASM hydration
 - Database: SQLite with sqlx
 - Docker API: bollard
 - Scheduler: cron crate
+- Build Tool: Dioxus CLI (dx) v0.7.1
 
 ---
 
-**Last Updated**: 2025-01-23
-**Current Sprint**: Sprint 1 - Foundation (60% complete)
-**Next Task**: Enhance RemoteExecutor with connection pooling
+**Last Updated**: 2025-11-23
+**Current Sprint**: Sprint 6 - UI Implementation (95% complete)
+**Next Task**: Complete Docker image build and deploy v2.1.0
+**Version**: v2.1.0-fullstack (pending release)

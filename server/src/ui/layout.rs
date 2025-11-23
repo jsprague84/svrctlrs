@@ -7,10 +7,47 @@ use crate::ui::{routes::Route, theme::{ThemeMode, inject_global_css}};
 /// Main application layout with header and sidebar
 #[component]
 pub fn AppLayout() -> Element {
-    let mut theme = use_signal(|| ThemeMode::Light);
+    let theme = use_signal(|| ThemeMode::Dark);
 
-    // TODO: Set theme attribute on root element using web_sys
-    // For now, theme switching is prepared but not fully implemented
+    // Load theme from localStorage on mount
+    use_effect(move || {
+        #[cfg(target_arch = "wasm32")]
+        {
+            // Try to read theme from localStorage
+            if let Ok(stored_theme) = eval(
+                r#"
+                const theme = localStorage.getItem('theme');
+                if (theme) { return theme; }
+                return 'dark';
+                "#,
+            )
+            .recv()
+            {
+                if let Some(theme_str) = stored_theme.as_str() {
+                    match theme_str {
+                        "light" => theme.set(ThemeMode::Light),
+                        _ => theme.set(ThemeMode::Dark),
+                    }
+                }
+            }
+        }
+    });
+
+    // Apply theme to document root element whenever it changes
+    use_effect(move || {
+        #[cfg(target_arch = "wasm32")]
+        {
+            let theme_str = theme().as_str();
+            let script = format!(
+                r#"
+                document.documentElement.setAttribute('data-theme', '{}');
+                localStorage.setItem('theme', '{}');
+                "#,
+                theme_str, theme_str
+            );
+            let _ = eval(&script);
+        }
+    });
 
     rsx! {
         // Inject global CSS

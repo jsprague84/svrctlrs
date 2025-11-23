@@ -20,8 +20,13 @@ services:
       - svrctlrs-data:/app/data:rw
       # SSH key for remote server access (read-only)
       - ${SSH_KEY_PATH:-~/.ssh/id_rsa}:/app/ssh_key:ro
+      # Configuration file
+      - ./config.toml:/app/config.toml:ro
 
     restart: unless-stopped
+
+    # Override default CMD to pass config file
+    command: ["/app/svrctlrs-server", "--config", "/app/config.toml"]
 
     environment:
       - DATABASE_URL=sqlite:/app/data/svrctlrs.db

@@ -1,0 +1,44 @@
+# SvrCtlRS Server Configuration Example
+#
+# Copy this file to config.toml and update values for your environment
+
+# Database configuration
+database_url = "sqlite:data/svrctlrs.db"
+
+# SSH key for remote server execution
+ssh_key_path = "/home/user/.ssh/id_rsa"
+
+# Notification configuration
+[notifications]
+# Gotify configuration (optional)
+gotify_url = "https://gotify.example.com"
+gotify_key = "your-gotify-key"
+
+# ntfy.sh configuration (optional)
+ntfy_url = "https://ntfy.sh"
+ntfy_topic = "svrctlrs-notifications"
+
+# Plugin configuration
+[plugins]
+# Core plugins (enabled by default)
+docker_enabled = true
+updates_enabled = true
+health_enabled = true
+
+# Add-on plugins (optional, disabled by default)
+# Requires building with feature flags: --features plugin-weather,plugin-speedtest
+weather_enabled = false
+speedtest_enabled = false
+
+# Servers to monitor
+[[servers]]
+name = "localhost"
+ssh_host = "localhost"
+
+[[servers]]
+name = "server1"
+ssh_host = "192.168.1.10"
+
+[[servers]]
+name = "server2"
+ssh_host = "192.168.1.11"

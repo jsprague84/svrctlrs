@@ -6,10 +6,27 @@ pub mod theme;
 pub mod pages;
 pub mod components;
 pub mod api;
+pub mod server_fns;
+mod fullstack;
 
-use axum::{extract::Request, response::{Html, IntoResponse}};
+// Re-export fullstack serving function
+pub use fullstack::serve_fullstack;
+
+use axum::{
+    extract::Request,
+    response::{Html, IntoResponse},
+};
 use dioxus::prelude::*;
+use dioxus_router::Router;
 use crate::ui::routes::Route;
+
+/// Main Dioxus App component for fullstack mode
+#[component]
+pub fn App() -> Element {
+    rsx! {
+        Router::<Route> {}
+    }
+}
 
 /// Dashboard data fetched from API
 #[derive(Clone, Debug, PartialEq)]

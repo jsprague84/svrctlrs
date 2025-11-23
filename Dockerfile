@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Dioxus CLI for fullstack build
+RUN cargo install dioxus-cli --version 0.7.1
+
 WORKDIR /app
 
 # Copy workspace files
@@ -17,9 +20,15 @@ COPY scheduler ./scheduler
 COPY database ./database
 COPY plugins ./plugins
 
-# Build release binaries (server + svrctl CLI)
-RUN cargo build --release --bin server && \
-    cargo build --release --bin svrctl
+# Copy Dioxus configuration and assets
+COPY Dioxus.toml ./
+COPY assets ./assets
+
+# Build with Dioxus CLI (creates server binary + WASM client assets)
+RUN dx build --release --package server
+
+# Also build svrctl CLI separately
+RUN cargo build --release --bin svrctl
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -37,8 +46,12 @@ RUN useradd -m -u 1000 -s /bin/bash svrctlrs
 WORKDIR /app
 
 # Copy binaries from builder
-COPY --from=builder /app/target/release/server /app/svrctlrs-server
+COPY --from=builder /app/target/dx/server/release/web/server /app/svrctlrs-server
 COPY --from=builder /app/target/release/svrctl /app/svrctl
+
+# Copy Dioxus fullstack assets (WASM client + static files)
+COPY --from=builder /app/target/dx/server/release/web/public /app/dist
+COPY --from=builder /app/assets /app/assets
 
 # Create data directory and set permissions
 RUN mkdir -p /app/data && chown -R svrctlrs:svrctlrs /app

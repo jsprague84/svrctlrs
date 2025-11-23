@@ -1,7 +1,7 @@
 //! Route definitions for the Dioxus UI
 
 use dioxus::prelude::*;
-use dioxus_router::{Routable, components::{Link, Outlet}};
+use dioxus_router::Routable;
 
 // Import layout and pages
 use crate::ui::layout::AppLayout;
