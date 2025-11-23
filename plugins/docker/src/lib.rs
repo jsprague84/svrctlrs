@@ -1,8 +1,10 @@
 //! Docker monitoring plugin
 
+mod cleanup;
 mod health;
 
 use async_trait::async_trait;
+use cleanup::CleanupManager;
 use health::HealthMonitor;
 use serde_json::json;
 use std::collections::HashMap;
@@ -112,13 +114,49 @@ impl DockerPlugin {
         })
     }
 
-    async fn analyze_cleanup(&self, _context: &PluginContext) -> Result<PluginResult> {
-        // TODO: Implement actual Docker cleanup analysis
+    #[instrument(skip(self, context))]
+    async fn analyze_cleanup(&self, context: &PluginContext) -> Result<PluginResult> {
+        info!("Running Docker cleanup analysis");
+
+        // Create cleanup manager
+        let manager = CleanupManager::new().await?;
+
+        // Analyze cleanup opportunities
+        let analysis = manager.analyze(&context.notification_manager).await?;
+
+        let message = format!(
+            "Docker cleanup analysis: {} reclaimable ({})",
+            analysis.total_items(),
+            analysis.total_space_formatted()
+        );
+
+        // Prepare structured data
+        let data = json!({
+            "images_reclaimable": analysis.images_reclaimable,
+            "images_space_bytes": analysis.images_space_bytes,
+            "containers_reclaimable": analysis.containers_reclaimable,
+            "containers_space_bytes": analysis.containers_space_bytes,
+            "volumes_reclaimable": analysis.volumes_reclaimable,
+            "volumes_space_bytes": analysis.volumes_space_bytes,
+            "networks_reclaimable": analysis.networks_reclaimable,
+            "build_cache_space_bytes": analysis.build_cache_space_bytes,
+            "total_space_bytes": analysis.total_space_bytes,
+        });
+
+        // Prepare metrics
+        let mut metrics = HashMap::new();
+        metrics.insert("images_reclaimable".to_string(), analysis.images_reclaimable as f64);
+        metrics.insert("images_space_mb".to_string(), analysis.images_space_bytes as f64 / 1024.0 / 1024.0);
+        metrics.insert("containers_reclaimable".to_string(), analysis.containers_reclaimable as f64);
+        metrics.insert("volumes_reclaimable".to_string(), analysis.volumes_reclaimable as f64);
+        metrics.insert("networks_reclaimable".to_string(), analysis.networks_reclaimable as f64);
+        metrics.insert("total_space_mb".to_string(), analysis.total_space_bytes as f64 / 1024.0 / 1024.0);
+
         Ok(PluginResult {
             success: true,
-            message: "Docker cleanup analysis placeholder".to_string(),
-            data: None,
-            metrics: None,
+            message,
+            data: Some(data),
+            metrics: Some(metrics),
         })
     }
 }

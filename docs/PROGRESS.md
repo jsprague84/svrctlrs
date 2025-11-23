@@ -53,7 +53,7 @@ None
 
 ---
 
-## Sprint 2: Docker Plugin 🔄 40% Complete
+## Sprint 2: Docker Plugin 🔄 75% Complete
 
 **Week 2 - Docker Monitoring & Management**
 
@@ -62,22 +62,25 @@ None
 - [x] Container state tracking
 - [x] CPU/Memory threshold alerts
 - [x] Integration with scheduler
-- [x] Tests (2 unit tests passing)
+- [x] Tests (7 unit tests passing)
 - [x] Service-specific notifications
 - [x] Ignore list support (with wildcards)
 - [x] Enhanced PluginContext with NotificationManager
+- [x] Docker cleanup analysis
+  - [x] Dangling images (prune API)
+  - [x] Stopped containers (prune API)
+  - [x] Unused volumes (prune API)
+  - [x] Unused networks (prune API)
+  - [x] Build cache (disk usage API)
+- [x] Cleanup reporting with formatted notifications
+- [x] Dry-run mode for safe analysis
+- [x] Space calculation and formatting
 
 ### In Progress 🔄
-- [ ] Docker cleanup analysis (9 modules)
-  - [ ] Dangling images
-  - [ ] Stopped containers
-  - [ ] Unused volumes
-  - [ ] Unused networks
-  - [ ] Build cache
-  - [ ] Container logs
-  - [ ] Image layers
-  - [ ] Cleanup profiles
 - [ ] Image update checking
+- [ ] Container logs analysis
+- [ ] Image layers sharing analysis
+- [ ] Cleanup execution (non-dry-run mode)
 
 ### Dependencies
 - bollard = "0.18" (Docker API client) ✅ Added
@@ -159,51 +162,40 @@ None
 
 ### Feature Completion
 - Sprint 1: 100% ✅
-- Sprint 2: 40% 🔄
+- Sprint 2: 75% 🔄
 - Sprint 3: 0% 🔴
 - Sprint 4: 0% 🔴
 - Sprint 5: 0% 🔴
 - Sprint 6: 0% 🔴
 
-**Overall Progress**: 23.3% (Sprint 1 complete + Sprint 2 in progress)
+**Overall Progress**: 29.2% (Sprint 1 complete + Sprint 2 nearly complete)
 
 ---
 
 ## Next Session Start Here
 
-**Current Task**: Continue Sprint 2 - Docker Cleanup Analysis
+**Current Task**: Complete Sprint 2 - Docker Plugin
 
 **What to Implement Next**:
-1. Create `plugins/docker/src/cleanup.rs` module
-2. Port 9 cleanup modules from weatherust:
-   - Dangling images
-   - Stopped containers
-   - Unused volumes
-   - Unused networks
-   - Build cache
-   - Container logs
-   - Image layers
-   - Cleanup profiles
-3. Add image update checking
+1. Add image update checking (compare local vs registry digests)
+2. Add container logs analysis (find containers with large logs)
+3. Add image layers sharing analysis (identify shared layers)
+4. Optional: Implement cleanup execution mode (set DOCKER_CLEANUP_DRY_RUN=false)
+5. Consider moving to Sprint 3 - Updates Plugin
 
 **Context Files to Read**:
 1. CLAUDE.md - Project guidance
-2. IMPLEMENTATION_PLAN.md - Sprint 2 details (page 2)
+2. IMPLEMENTATION_PLAN.md - Sprint 2/3 details
 3. This file (PROGRESS.md) - Current status
-4. `plugins/docker/src/health.rs` - Completed health monitoring example
+4. `plugins/docker/src/health.rs` - Health monitoring example
+5. `plugins/docker/src/cleanup.rs` - Cleanup analysis example
 
 **Reference Code**:
-- Weatherust cleanup: `/home/jsprague/Development/weatherust/updatectl/src/cleanup/`
-  - `dangling_images.rs`
-  - `stopped_containers.rs`
-  - `unused_volumes.rs`
-  - `unused_networks.rs`
-  - `build_cache.rs`
-  - `container_logs.rs`
-  - `image_layers.rs`
-  - `profiles.rs`
-  - `mod.rs`
-- Use Context7 for bollard cleanup examples
+- Weatherust cleanup advanced features:
+  - `/home/jsprague/Development/weatherust/updatectl/src/cleanup/logs.rs` - Container logs
+  - `/home/jsprague/Development/weatherust/updatectl/src/cleanup/layers.rs` - Layer sharing
+  - `/home/jsprague/Development/weatherust/updatectl/src/cleanup/images.rs` - Image updates
+- Use Context7 for bollard registry and inspect examples
 
 ---
 
