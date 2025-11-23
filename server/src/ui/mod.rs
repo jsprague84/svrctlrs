@@ -5,6 +5,7 @@ pub mod layout;
 pub mod theme;
 pub mod pages;
 pub mod components;
+pub mod api;
 
 use axum::response::{Html, IntoResponse};
 use dioxus::prelude::*;
@@ -19,10 +20,32 @@ pub fn App() -> Element {
     }
 }
 
+/// Dashboard data fetched from API
+#[derive(Clone, Debug, PartialEq)]
+pub struct DashboardData {
+    pub status: Option<api::StatusResponse>,
+    pub plugins: Option<api::PluginListResponse>,
+}
+
+/// App component with data context
+#[component]
+fn AppWithData(data: DashboardData) -> Element {
+    use_context_provider(|| data);
+    rsx! { Router::<Route> {} }
+}
+
 /// Serve the Dioxus UI with server-side rendering
 pub async fn serve() -> impl IntoResponse {
+    // Fetch data for the dashboard
+    let api_client = api::ApiClient::default();
+
+    let status = api_client.status().await.ok();
+    let plugins = api_client.plugins().await.ok();
+
+    let dashboard_data = DashboardData { status, plugins };
+
     // Render the Dioxus app to HTML
-    let mut vdom = VirtualDom::new(App);
+    let mut vdom = VirtualDom::new_with_props(AppWithData, AppWithDataProps { data: dashboard_data });
     vdom.rebuild_in_place();
 
     // Render to HTML string

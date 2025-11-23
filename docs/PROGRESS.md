@@ -241,7 +241,7 @@ None
 
 ---
 
-## Sprint 6: UI 🟡 50% (SSR Implementation Complete)
+## Sprint 6: UI 🟡 65% (API Integration Complete)
 
 **Dioxus Dashboard - In Progress**
 
@@ -271,16 +271,23 @@ None
 - [x] Wrap in full HTML document with proper structure
 - [x] Compilation and build successful
 
+### API Integration Complete ✅
+- [x] Create API client module with type-safe responses
+- [x] Define API response types (HealthResponse, StatusResponse, PluginInfo, etc.)
+- [x] Implement API client functions (status, plugins, health)
+- [x] Fetch data on server-side during SSR
+- [x] Provide data to components via Context API
+- [x] Update Dashboard to display real server and plugin counts
+- [x] Data fetched from backend API before rendering
+
 ### In Progress 🔄
-- [ ] Connect Dashboard to real API data
-- [ ] Add API client integration with polling
-- [ ] Complete Servers page implementation
-- [ ] Complete Plugins page implementation
-- [ ] Complete Tasks page implementation
+- [ ] Complete Servers page implementation with real data
+- [ ] Complete Plugins page implementation with real data
+- [ ] Complete Tasks page implementation with real data
 - [ ] Complete Settings page implementation
 - [ ] Add theme switching functionality (requires web_sys)
 - [ ] Polish and responsive testing
-- [ ] Add client-side hydration (optional future enhancement)
+- [ ] Add client-side hydration for interactivity (optional future enhancement)
 
 ### Sprint 6 Deliverables
 
@@ -288,13 +295,14 @@ None
 - `docs/architecture/UI_PLAN.md` (350+ lines) - Comprehensive UI architecture plan
 
 **Implementation Files Created:**
-- `server/src/ui/mod.rs` - Main UI module with placeholder serve function
+- `server/src/ui/mod.rs` - Main UI module with SSR and data fetching
 - `server/src/ui/routes.rs` - Route enum with Routable derive
 - `server/src/ui/layout.rs` - AppLayout component with header and sidebar
 - `server/src/ui/theme.rs` - Theme management and global CSS
+- `server/src/ui/api.rs` - API client for backend communication
 - `server/src/ui/components/status_card.rs` - StatusCard component
 - `server/src/ui/components/badge.rs` - Badge component
-- `server/src/ui/pages/dashboard.rs` - Dashboard page with metrics
+- `server/src/ui/pages/dashboard.rs` - Dashboard page with real data
 - `server/src/ui/pages/servers.rs` - Servers page (stub)
 - `server/src/ui/pages/plugins.rs` - Plugins page (stub)
 - `server/src/ui/pages/tasks.rs` - Tasks page (stub)
@@ -308,9 +316,11 @@ None
 
 **Integration:**
 - Updated `server/src/main.rs` to integrate UI fallback route
-- Updated `server/src/ui/mod.rs` to implement SSR rendering
+- Updated `server/src/ui/mod.rs` to implement SSR rendering and API data fetching
+- Created `AppWithData` component to provide context
 - UI served at root path with full SSR, API at `/api/*`
 - VirtualDom rendered to HTML string on each request
+- Data fetched from backend API before rendering
 
 **Current Status:**
 - ✅ Structure complete and compiles successfully
@@ -318,7 +328,10 @@ None
 - ✅ Component library foundation established
 - ✅ Server-side rendering implemented with dioxus-ssr
 - ✅ Full HTML document generated with proper structure
-- ⏳ API integration pending
+- ✅ API integration complete with type-safe client
+- ✅ Dashboard displays real server and plugin counts
+- ✅ Data provided via Context API to all components
+- ⏳ Remaining pages need real data implementation
 - ⏳ Client-side interactivity pending (hydration)
 
 ---
@@ -350,15 +363,15 @@ None
 - Sprint 3: 100% ✅
 - Sprint 4: 100% ✅
 - Sprint 5: 100% ✅
-- Sprint 6: 50% 🟡 (SSR implementation complete)
+- Sprint 6: 65% 🟡 (API integration complete)
 
-**Overall Progress**: 91.7% (5/6 sprints complete, Sprint 6 in progress)
+**Overall Progress**: 94.2% (5/6 sprints complete, Sprint 6 in progress)
 
 ---
 
 ## Next Session Start Here
 
-**Current Task**: Sprint 6 - UI Implementation (50% Complete)
+**Current Task**: Sprint 6 - UI Implementation (65% Complete)
 
 **Completed**:
 - ✅ UI architecture designed (see docs/architecture/UI_PLAN.md)
@@ -366,21 +379,27 @@ None
 - ✅ Route definitions with Routable derive
 - ✅ AppLayout component with header and sidebar
 - ✅ Component library foundation (StatusCard, Badge)
-- ✅ Dashboard page with status cards
+- ✅ Dashboard page with real data from API
 - ✅ All stub pages created
 - ✅ Theme system with CSS variables
 - ✅ Axum integration with fallback route
 - ✅ Server-side rendering with dioxus-ssr
 - ✅ VirtualDom rendered to HTML on each request
+- ✅ API client module with type-safe responses
+- ✅ Data fetched from backend API during SSR
+- ✅ Context API provides data to all components
 - ✅ Successful compilation and build
 
 **Next Steps**:
-1. Add API client integration with polling for real-time updates
-2. Connect Dashboard to actual API data (servers, plugins, tasks status)
-3. Complete implementation of remaining pages (Servers, Plugins, Tasks, Settings)
-4. Add theme switching functionality (requires web_sys dependency)
-5. Add client-side hydration for interactivity (optional)
-6. Test responsive design and polish UI
+1. Complete implementation of remaining pages with real data:
+   - Servers page: Display list of configured servers
+   - Plugins page: Show loaded plugins with metadata
+   - Tasks page: Display scheduled tasks
+   - Settings page: Configuration interface
+2. Add theme switching functionality (requires web_sys dependency)
+3. Add client-side hydration for interactivity (optional future enhancement)
+4. Test responsive design and polish UI
+5. Production deployment preparation
 
 **Context Files to Read**:
 1. **docs/architecture/UI_PLAN.md** - Comprehensive UI architecture (READ THIS FIRST!)

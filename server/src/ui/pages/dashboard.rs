@@ -1,15 +1,26 @@
 //! Dashboard page - System overview
 
 use dioxus::prelude::*;
-use crate::ui::components::{StatusCard, Badge};
+use crate::ui::{components::{StatusCard, Badge}, DashboardData};
 
 #[component]
 pub fn Dashboard() -> Element {
-    // TODO: Fetch real data from API
-    let server_count = use_signal(|| 3);
-    let plugin_count = use_signal(|| 5);
-    let task_count = use_signal(|| 12);
-    let system_status = use_signal(|| "healthy");
+    // Get data from context (provided by server)
+    let data = use_context::<DashboardData>();
+
+    // Extract values from API data
+    let (server_count, plugin_count, system_status) = if let Some(status) = &data.status {
+        (
+            status.servers,
+            status.plugins_loaded,
+            if status.status == "running" { "healthy" } else { "degraded" }
+        )
+    } else {
+        (0, 0, "unknown")
+    };
+
+    // Task count placeholder (would come from tasks API)
+    let task_count = 0;
 
     rsx! {
         div {
@@ -43,8 +54,8 @@ pub fn Dashboard() -> Element {
                 StatusCard {
                     title: "Status",
                     value: "{system_status}",
-                    icon: if system_status() == "healthy" { "✅" } else { "⚠️" },
-                    variant: if system_status() == "healthy" { "success" } else { "warning" }
+                    icon: if system_status == "healthy" { "✅" } else { "⚠️" },
+                    variant: if system_status == "healthy" { "success" } else { "warning" }
                 }
             }
 
