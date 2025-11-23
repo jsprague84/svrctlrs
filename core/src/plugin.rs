@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-use crate::{Error, Result, Server};
+use crate::{Error, NotificationManager, Result, Server};
 
 /// Plugin metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,6 +49,8 @@ pub struct PluginContext {
     pub servers: Vec<Server>,
     /// Plugin-specific configuration
     pub config: HashMap<String, String>,
+    /// Notification manager for sending alerts
+    pub notification_manager: NotificationManager,
 }
 
 /// Plugin execution result

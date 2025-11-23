@@ -53,14 +53,21 @@ None
 
 ---
 
-## Sprint 2: Docker Plugin 🔄 Next
+## Sprint 2: Docker Plugin 🔄 40% Complete
 
 **Week 2 - Docker Monitoring & Management**
 
-### Planned
-- [ ] Health monitoring (bollard integration)
-- [ ] Container state tracking
-- [ ] CPU/Memory threshold alerts
+### Completed ✅
+- [x] Health monitoring (bollard integration)
+- [x] Container state tracking
+- [x] CPU/Memory threshold alerts
+- [x] Integration with scheduler
+- [x] Tests (2 unit tests passing)
+- [x] Service-specific notifications
+- [x] Ignore list support (with wildcards)
+- [x] Enhanced PluginContext with NotificationManager
+
+### In Progress 🔄
 - [ ] Docker cleanup analysis (9 modules)
   - [ ] Dangling images
   - [ ] Stopped containers
@@ -71,11 +78,10 @@ None
   - [ ] Image layers
   - [ ] Cleanup profiles
 - [ ] Image update checking
-- [ ] Integration with scheduler
-- [ ] Tests
 
 ### Dependencies
-- bollard = "0.18" (Docker API client)
+- bollard = "0.18" (Docker API client) ✅ Added
+- futures-util = "0.3" ✅ Added
 
 ---
 
@@ -153,34 +159,51 @@ None
 
 ### Feature Completion
 - Sprint 1: 100% ✅
-- Sprint 2: 0% 🔴
+- Sprint 2: 40% 🔄
 - Sprint 3: 0% 🔴
 - Sprint 4: 0% 🔴
 - Sprint 5: 0% 🔴
 - Sprint 6: 0% 🔴
 
-**Overall Progress**: 16.7% (1/6 sprints complete)
+**Overall Progress**: 23.3% (Sprint 1 complete + Sprint 2 in progress)
 
 ---
 
 ## Next Session Start Here
 
-**Current Task**: Begin Sprint 2 - Docker Plugin
+**Current Task**: Continue Sprint 2 - Docker Cleanup Analysis
 
-**What to Implement First**:
-1. Add `bollard` dependency to `plugins/docker/Cargo.toml`
-2. Implement health monitoring in `plugins/docker/src/health.rs`
-3. Test with local Docker containers
+**What to Implement Next**:
+1. Create `plugins/docker/src/cleanup.rs` module
+2. Port 9 cleanup modules from weatherust:
+   - Dangling images
+   - Stopped containers
+   - Unused volumes
+   - Unused networks
+   - Build cache
+   - Container logs
+   - Image layers
+   - Cleanup profiles
+3. Add image update checking
 
 **Context Files to Read**:
 1. CLAUDE.md - Project guidance
 2. IMPLEMENTATION_PLAN.md - Sprint 2 details (page 2)
 3. This file (PROGRESS.md) - Current status
+4. `plugins/docker/src/health.rs` - Completed health monitoring example
 
 **Reference Code**:
-- Weatherust healthmon: `/home/jsprague/Development/weatherust/healthmon/src/main.rs`
 - Weatherust cleanup: `/home/jsprague/Development/weatherust/updatectl/src/cleanup/`
-- Use Context7 for bollard examples
+  - `dangling_images.rs`
+  - `stopped_containers.rs`
+  - `unused_volumes.rs`
+  - `unused_networks.rs`
+  - `build_cache.rs`
+  - `container_logs.rs`
+  - `image_layers.rs`
+  - `profiles.rs`
+  - `mod.rs`
+- Use Context7 for bollard cleanup examples
 
 ---
 

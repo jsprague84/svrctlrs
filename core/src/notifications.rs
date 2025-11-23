@@ -71,6 +71,7 @@ pub trait NotificationBackend: Send + Sync {
 // ============================================================================
 
 /// Gotify notification backend
+#[derive(Debug, Clone)]
 pub struct GotifyBackend {
     client: Client,
     base_url: String,
@@ -231,6 +232,7 @@ impl NotificationBackend for GotifyBackend {
 // ============================================================================
 
 /// ntfy.sh notification backend
+#[derive(Debug, Clone)]
 pub struct NtfyBackend {
     client: Client,
     base_url: String,
@@ -357,7 +359,7 @@ impl NtfyBackend {
 
 #[async_trait]
 impl NotificationBackend for NtfyBackend {
-    async fn send(&self, message: &NotificationMessage) -> Result<()> {
+    async fn send(&self, _message: &NotificationMessage) -> Result<()> {
         // ntfy requires a topic, so we can't send without one
         warn!("ntfy backend called without service context; skipping");
         Ok(())
@@ -373,6 +375,7 @@ impl NotificationBackend for NtfyBackend {
 // ============================================================================
 
 /// Manages multiple notification backends
+#[derive(Debug, Clone)]
 pub struct NotificationManager {
     gotify: Option<GotifyBackend>,
     ntfy: Option<NtfyBackend>,

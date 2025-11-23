@@ -15,3 +15,11 @@ async-trait = "0.1"
 
 # Logging
 tracing = { workspace = true }
+
+# Docker API
+bollard = "0.18"
+futures-util = "0.3"
+
+# Serialization
+serde = { workspace = true }
+serde_json = "1.0"

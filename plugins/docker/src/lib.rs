@@ -1,8 +1,13 @@
 //! Docker monitoring plugin
 
+mod health;
+
 use async_trait::async_trait;
+use health::HealthMonitor;
+use serde_json::json;
+use std::collections::HashMap;
 use svrctlrs_core::{Plugin, PluginContext, PluginMetadata, PluginResult, Result, ScheduledTask};
-use tracing::info;
+use tracing::{info, instrument};
 
 /// Docker monitoring and management plugin
 pub struct DockerPlugin {}
@@ -65,13 +70,45 @@ impl Plugin for DockerPlugin {
 }
 
 impl DockerPlugin {
-    async fn check_health(&self, _context: &PluginContext) -> Result<PluginResult> {
-        // TODO: Implement actual Docker health check
+    #[instrument(skip(self, context))]
+    async fn check_health(&self, context: &PluginContext) -> Result<PluginResult> {
+        info!("Running Docker health check");
+
+        // Create health monitor
+        let monitor = HealthMonitor::new().await?;
+
+        // Check health of all containers
+        let health_statuses = monitor.check_health(&context.notification_manager).await?;
+
+        // Count containers by status
+        let total = health_statuses.len();
+        let running = health_statuses.iter().filter(|c| c.running).count();
+        let with_issues = health_statuses.iter().filter(|c| !c.issues.is_empty()).count();
+
+        let message = format!(
+            "Docker health check complete: {} containers ({} running, {} with issues)",
+            total, running, with_issues
+        );
+
+        // Prepare structured data
+        let data = json!({
+            "total_containers": total,
+            "running_containers": running,
+            "containers_with_issues": with_issues,
+            "health_statuses": health_statuses,
+        });
+
+        // Prepare metrics
+        let mut metrics = HashMap::new();
+        metrics.insert("total_containers".to_string(), total as f64);
+        metrics.insert("running_containers".to_string(), running as f64);
+        metrics.insert("containers_with_issues".to_string(), with_issues as f64);
+
         Ok(PluginResult {
-            success: true,
-            message: "Docker health check placeholder".to_string(),
-            data: None,
-            metrics: None,
+            success: with_issues == 0,
+            message,
+            data: Some(data),
+            metrics: Some(metrics),
         })
     }
 
