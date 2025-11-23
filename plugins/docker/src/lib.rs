@@ -1,14 +1,16 @@
 //! Docker monitoring plugin
 
+mod analysis;
 mod cleanup;
 mod health;
 
+use analysis::AnalysisManager;
 use async_trait::async_trait;
 use cleanup::CleanupManager;
 use health::HealthMonitor;
 use serde_json::json;
 use std::collections::HashMap;
-use svrctlrs_core::{Plugin, PluginContext, PluginMetadata, PluginResult, Result, ScheduledTask};
+use svrctlrs_core::{Error, Plugin, PluginContext, PluginMetadata, PluginResult, Result, ScheduledTask};
 use tracing::{info, instrument};
 
 /// Docker monitoring and management plugin
@@ -52,6 +54,12 @@ impl Plugin for DockerPlugin {
                 description: "Analyze Docker cleanup opportunities".to_string(),
                 enabled: true,
             },
+            ScheduledTask {
+                id: "docker_analysis".to_string(),
+                schedule: "0 0 3 * * 0".to_string(), // Sundays at 3 AM
+                description: "Advanced Docker analysis (unused images, logs, layers)".to_string(),
+                enabled: true,
+            },
         ]
     }
 
@@ -61,6 +69,7 @@ impl Plugin for DockerPlugin {
         match task_id {
             "docker_health" => self.check_health(context).await,
             "docker_cleanup" => self.analyze_cleanup(context).await,
+            "docker_analysis" => self.advanced_analysis(context).await,
             _ => Ok(PluginResult {
                 success: false,
                 message: format!("Unknown task: {}", task_id),
@@ -158,5 +167,143 @@ impl DockerPlugin {
             data: Some(data),
             metrics: Some(metrics),
         })
+    }
+
+    #[instrument(skip(self, context))]
+    async fn advanced_analysis(&self, context: &PluginContext) -> Result<PluginResult> {
+        info!("Running advanced Docker analysis");
+
+        // Create analysis manager
+        let manager = AnalysisManager::new().await?;
+
+        // Perform all analyses
+        let unused_images = manager.analyze_unused_images().await?;
+        let container_logs = manager.analyze_container_logs().await?;
+        let image_layers = manager.analyze_image_layers().await?;
+
+        let message = format!(
+            "Docker analysis: {} unused images ({:.1} MB), {} large logs ({:.1} MB), {:.1}% layer efficiency",
+            unused_images.total_count,
+            unused_images.total_size_bytes as f64 / 1024.0 / 1024.0,
+            container_logs.containers_over_threshold,
+            container_logs.total_size_bytes as f64 / 1024.0 / 1024.0,
+            image_layers.efficiency_percent
+        );
+
+        // Prepare structured data
+        let data = json!({
+            "unused_images": {
+                "count": unused_images.total_count,
+                "total_size_bytes": unused_images.total_size_bytes,
+                "images": unused_images.images,
+            },
+            "container_logs": {
+                "total_size_bytes": container_logs.total_size_bytes,
+                "containers_over_threshold": container_logs.containers_over_threshold,
+                "containers": container_logs.containers,
+            },
+            "image_layers": {
+                "total_shared_bytes": image_layers.total_shared_bytes,
+                "total_unique_bytes": image_layers.total_unique_bytes,
+                "efficiency_percent": image_layers.efficiency_percent,
+                "shared_layers_count": image_layers.shared_layers.len(),
+            },
+        });
+
+        // Prepare metrics
+        let mut metrics = HashMap::new();
+        metrics.insert("unused_images_count".to_string(), unused_images.total_count as f64);
+        metrics.insert("unused_images_mb".to_string(), unused_images.total_size_bytes as f64 / 1024.0 / 1024.0);
+        metrics.insert("large_logs_count".to_string(), container_logs.containers_over_threshold as f64);
+        metrics.insert("total_logs_mb".to_string(), container_logs.total_size_bytes as f64 / 1024.0 / 1024.0);
+        metrics.insert("layer_efficiency_percent".to_string(), image_layers.efficiency_percent);
+        metrics.insert("shared_layers_count".to_string(), image_layers.shared_layers.len() as f64);
+
+        // Send notification with summary
+        self.send_analysis_notification(
+            &context.notification_manager,
+            &unused_images,
+            &container_logs,
+            &image_layers,
+        )
+        .await?;
+
+        Ok(PluginResult {
+            success: true,
+            message,
+            data: Some(data),
+            metrics: Some(metrics),
+        })
+    }
+
+    async fn send_analysis_notification(
+        &self,
+        notify_mgr: &svrctlrs_core::NotificationManager,
+        unused_images: &analysis::UnusedImagesAnalysis,
+        container_logs: &analysis::ContainerLogsAnalysis,
+        image_layers: &analysis::LayersAnalysis,
+    ) -> Result<()> {
+        let title = "Docker Advanced Analysis Report".to_string();
+
+        let mut body = String::new();
+        body.push_str("## Docker Resource Analysis\n\n");
+
+        // Unused images
+        if unused_images.total_count > 0 {
+            body.push_str(&format!(
+                "📦 **Unused Images**: {} images ({:.1} MB)\n",
+                unused_images.total_count,
+                unused_images.total_size_bytes as f64 / 1024.0 / 1024.0
+            ));
+            body.push_str("  Images not used by any containers (older than threshold)\n\n");
+        }
+
+        // Large logs
+        if container_logs.containers_over_threshold > 0 {
+            body.push_str(&format!(
+                "📝 **Large Logs**: {} containers ({:.1} MB total)\n",
+                container_logs.containers_over_threshold,
+                container_logs.total_size_bytes as f64 / 1024.0 / 1024.0
+            ));
+            for (i, log) in container_logs.containers.iter().take(5).enumerate() {
+                body.push_str(&format!(
+                    "  {}. {} - {:.1} MB {}\n",
+                    i + 1,
+                    log.container_name,
+                    log.log_size_bytes as f64 / 1024.0 / 1024.0,
+                    if log.has_rotation { "✓" } else { "⚠️ no rotation" }
+                ));
+            }
+            body.push_str("\n");
+        }
+
+        // Layer efficiency
+        body.push_str(&format!(
+            "🔗 **Layer Sharing**: {:.1}% efficient\n",
+            image_layers.efficiency_percent
+        ));
+        body.push_str(&format!(
+            "  {} shared layers ({:.1} MB)\n",
+            image_layers.shared_layers.len(),
+            image_layers.total_shared_bytes as f64 / 1024.0 / 1024.0
+        ));
+        body.push_str(&format!(
+            "  {:.1} MB unique layers\n",
+            image_layers.total_unique_bytes as f64 / 1024.0 / 1024.0
+        ));
+
+        let message = svrctlrs_core::NotificationMessage {
+            title,
+            body,
+            priority: 3,
+            actions: vec![],
+        };
+
+        notify_mgr
+            .send_for_service("docker", &message)
+            .await
+            .map_err(|e| Error::PluginError(format!("Failed to send notification: {}", e)))?;
+
+        Ok(())
     }
 }
