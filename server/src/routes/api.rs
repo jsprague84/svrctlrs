@@ -24,15 +24,15 @@ pub fn routes() -> Router<Arc<AppState>> {
 
         // Plugins
         .route("/plugins", get(list_plugins))
-        .route("/plugins/:plugin_id", get(plugin_info))
-        .route("/plugins/:plugin_id/tasks", get(plugin_tasks))
+        .route("/plugins/{plugin_id}", get(plugin_info))
+        .route("/plugins/{plugin_id}/tasks", get(plugin_tasks))
 
         // Servers
         .route("/servers", get(list_servers))
 
         // Metrics
         .route("/metrics", get(get_metrics))
-        .route("/metrics/:plugin_id", get(plugin_metrics))
+        .route("/metrics/{plugin_id}", get(plugin_metrics))
 
         // Tasks
         .route("/tasks", get(list_all_tasks))
