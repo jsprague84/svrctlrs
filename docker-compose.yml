@@ -1,0 +1,23 @@
+services:
+  svrctlrs:
+    image: svrctlrs:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data:rw
+      - ${SSH_KEY_PATH}:/app/ssh_key:ro
+    restart: unless-stopped
+    environment:
+      - DATABASE_URL=sqlite:/app/data/svrctlrs.db
+      - SSH_KEY_PATH=/app/ssh_key
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

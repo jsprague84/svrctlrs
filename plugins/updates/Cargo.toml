@@ -1,0 +1,17 @@
+[package]
+name = "svrctlrs-plugin-updates"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+# Core
+svrctlrs-core = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+async-trait = "0.1"
+
+# Logging
+tracing = { workspace = true }

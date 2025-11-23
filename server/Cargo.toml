@@ -1,0 +1,54 @@
+[package]
+name = "server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "server"
+path = "src/main.rs"
+
+[dependencies]
+# Internal crates
+svrctlrs-core = { workspace = true }
+svrctlrs-scheduler = { workspace = true }
+svrctlrs-database = { workspace = true }
+svrctlrs-plugin-docker = { workspace = true, optional = true }
+svrctlrs-plugin-updates = { workspace = true, optional = true }
+svrctlrs-plugin-health = { workspace = true, optional = true }
+
+# Async
+tokio = { workspace = true }
+
+# Web framework
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Dioxus
+dioxus = { workspace = true, features = ["server"] }
+dioxus-server = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Environment
+dotenvy = { workspace = true }
+
+# CLI
+clap = { workspace = true }
+
+# HTTP client
+reqwest = { workspace = true }
+
+[features]
+default = ["plugin-docker", "plugin-updates", "plugin-health"]
+plugin-docker = ["dep:svrctlrs-plugin-docker"]
+plugin-updates = ["dep:svrctlrs-plugin-updates"]
+plugin-health = ["dep:svrctlrs-plugin-health"]
