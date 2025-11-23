@@ -8,6 +8,8 @@ members = [
     "plugins/docker",
     "plugins/updates",
     "plugins/health",
+    "plugins/weather",
+    "plugins/speedtest",
 ]
 
 [workspace.package]
@@ -20,6 +22,7 @@ authors = ["Josh Sprague"]
 [workspace.dependencies]
 # Async runtime
 tokio = { version = "1", features = ["full"] }
+async-trait = "0.1"
 
 # Web framework
 axum = { version = "0.8", features = ["macros"] }
@@ -68,6 +71,8 @@ svrctlrs-database = { path = "database" }
 svrctlrs-plugin-docker = { path = "plugins/docker" }
 svrctlrs-plugin-updates = { path = "plugins/updates" }
 svrctlrs-plugin-health = { path = "plugins/health" }
+svrctlrs-plugin-weather = { path = "plugins/weather" }
+svrctlrs-plugin-speedtest = { path = "plugins/speedtest" }
 
 [profile.release]
 opt-level = 3

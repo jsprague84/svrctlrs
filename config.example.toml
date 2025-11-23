@@ -20,9 +20,15 @@ ntfy_topic = "svrctlrs-notifications"
 
 # Plugin configuration
 [plugins]
+# Core plugins (enabled by default)
 docker_enabled = true
 updates_enabled = true
 health_enabled = true
+
+# Add-on plugins (optional, disabled by default)
+# Requires building with feature flags: --features plugin-weather,plugin-speedtest
+weather_enabled = false
+speedtest_enabled = false
 
 # Servers to monitor
 [[servers]]

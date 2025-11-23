@@ -55,6 +55,21 @@ impl AppState {
             registry.register(Box::new(plugin))?;
         }
 
+        // Add-on plugins (optional, disabled by default)
+        #[cfg(feature = "plugin-weather")]
+        if self.config.plugins.weather_enabled {
+            tracing::info!("Registering Weather plugin (add-on)");
+            let plugin = svrctlrs_plugin_weather::WeatherPlugin::new();
+            registry.register(Box::new(plugin))?;
+        }
+
+        #[cfg(feature = "plugin-speedtest")]
+        if self.config.plugins.speedtest_enabled {
+            tracing::info!("Registering SpeedTest plugin (add-on)");
+            let plugin = svrctlrs_plugin_speedtest::SpeedTestPlugin::new();
+            registry.register(Box::new(plugin))?;
+        }
+
         // Initialize all registered plugins
         registry.init_all().await?;
 

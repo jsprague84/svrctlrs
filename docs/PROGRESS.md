@@ -1,11 +1,11 @@
 # Development Progress Tracker
 
-**Last Updated**: 2025-01-23 (Sprint 4 Complete!)
+**Last Updated**: 2025-01-23 (Sprint 5 Complete!)
 
 ## Current Status
 
-**Completed Sprint**: Sprint 4 - Infrastructure ✅ 100%
-**Next Sprint**: Sprint 5 - Polish
+**Completed Sprint**: Sprint 5 - Polish ✅ 100%
+**Next Sprint**: Sprint 6 - UI (Dioxus Dashboard)
 **Repository**: https://github.com/jsprague84/svrctlrs
 
 ## Sprint 1: Foundation ✅ 100% COMPLETE
@@ -184,16 +184,60 @@ None
 
 ---
 
-## Sprint 5: Polish 🔴 0%
+## Sprint 5: Polish ✅ 100% COMPLETE
 
-**Week 5 - Additional Features**
+**Week 5 - Add-on Plugins & Architecture**
 
-### Planned
-- [ ] Weather plugin
-- [ ] Speed test plugin
-- [ ] Comprehensive testing
-- [ ] Documentation
-- [ ] Docker images
+### Completed ✅
+- [x] Optional add-on plugin architecture
+  - [x] Cargo feature flags for optional plugins
+  - [x] Clear separation: core vs add-on
+  - [x] Disabled by default, explicitly enabled
+- [x] Weather plugin (add-on)
+  - [x] OpenWeatherMap API integration
+  - [x] Current conditions + 7-day forecast
+  - [x] ZIP code and location support
+  - [x] Configurable units (imperial/metric)
+  - [x] Scheduled daily notifications
+- [x] Speed test plugin (add-on)
+  - [x] Ookla speedtest CLI integration
+  - [x] Download/upload speed monitoring
+  - [x] Latency tracking
+  - [x] Threshold-based warnings
+  - [x] Scheduled every 4 hours
+- [x] Configuration updates
+  - [x] Add-on plugin config fields
+  - [x] Environment variable support
+  - [x] Updated example config
+- [x] Comprehensive testing
+  - [x] Default build (core only)
+  - [x] Individual add-on builds
+  - [x] All plugins build
+  - [x] Workspace compilation
+
+### Sprint 5 Deliverables
+**Files Created:**
+- `plugins/weather/src/lib.rs` (333 lines) - Weather monitoring plugin
+- `plugins/speedtest/src/lib.rs` (241 lines) - Speed test plugin
+- `docs/architecture/ADDON_PLUGINS.md` - Add-on architecture guide
+
+**Files Modified:**
+- `Cargo.toml` - Added weather/speedtest workspace members
+- `server/Cargo.toml` - Added add-on features
+- `server/src/config.rs` - Add-on plugin configuration
+- `server/src/state.rs` - Conditional plugin registration
+- `config.example.toml` - Add-on plugin examples
+
+**Features:**
+- 2 optional add-on plugins
+- Feature flags: `plugin-weather`, `plugin-speedtest`, `all-plugins`
+- Build flexibility: core-only or with add-ons
+- Environment-based enabling: `ENABLE_WEATHER_PLUGIN`, `ENABLE_SPEEDTEST_PLUGIN`
+
+**Architecture:**
+- Core plugins: docker, updates, health (default enabled)
+- Add-on plugins: weather, speedtest (optional)
+- Future-extensible for more add-ons
 
 ---
 
@@ -235,37 +279,38 @@ None
 - Sprint 2: 100% ✅
 - Sprint 3: 100% ✅
 - Sprint 4: 100% ✅
-- Sprint 5: 0% 🔴
+- Sprint 5: 100% ✅
 - Sprint 6: 0% 🔴
 
-**Overall Progress**: 66.7% (4/6 sprints complete)
+**Overall Progress**: 83.3% (5/6 sprints complete)
 
 ---
 
 ## Next Session Start Here
 
-**Current Task**: Begin Sprint 5 - Polish
+**Current Task**: Begin Sprint 6 - UI (Dioxus Dashboard)
 
 **What to Implement First**:
-1. Implement health plugin for system monitoring
-2. Port weather plugin from weatherust
-3. Port speed test plugin from weatherust
-4. Add comprehensive integration tests
-5. Create Docker images and docker-compose setup
+1. Set up Dioxus fullstack framework
+2. Create dashboard layout and navigation
+3. Implement server management UI
+4. Add plugin configuration interface
+5. Create task scheduling UI
+6. Build real-time status updates
 
 **Context Files to Read**:
 1. CLAUDE.md - Project guidance
-2. IMPLEMENTATION_PLAN.md - Sprint 5 details
+2. docs/architecture/ADDON_PLUGINS.md - Plugin architecture
 3. This file (PROGRESS.md) - Current status
-4. Completed infrastructure (server/src/routes/) - API patterns
+4. server/src/routes/api.rs - Available API endpoints
+5. Use Context7 for latest Dioxus patterns
 
-**Reference Code**:
-- Weatherust plugins:
-  - `/home/jsprague/Development/weatherust/weatherust/src/` - Weather monitoring
-  - `/home/jsprague/Development/weatherust/speedynotify/src/` - Speed test monitoring
-  - `/home/jsprague/Development/weatherust/healthmon/src/` - Health monitoring
-  - `/home/jsprague/Development/weatherust/common/src/` - Shared utilities
-- Use Context7 for latest Rust patterns
+**Current Architecture**:
+- **Core Plugins**: docker, updates, health (always available)
+- **Add-on Plugins**: weather, speedtest (optional)
+- **API**: REST endpoints at `/api/v1/*`
+- **Webhooks**: Trigger endpoints at `/api/webhooks/*`
+- **CLI**: `svrctl` for command-line administration
 
 ---
 

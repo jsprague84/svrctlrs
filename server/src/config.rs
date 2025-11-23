@@ -32,9 +32,16 @@ pub struct NotificationConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PluginConfig {
+    // Core plugins (enabled by default)
     pub docker_enabled: bool,
     pub updates_enabled: bool,
     pub health_enabled: bool,
+
+    // Add-on plugins (disabled by default)
+    #[serde(default)]
+    pub weather_enabled: bool,
+    #[serde(default)]
+    pub speedtest_enabled: bool,
 }
 
 impl Config {
@@ -81,6 +88,7 @@ impl Config {
                 ntfy_topic: std::env::var("NTFY_TOPIC").ok(),
             },
             plugins: PluginConfig {
+                // Core plugins (enabled by default)
                 docker_enabled: std::env::var("ENABLE_DOCKER_PLUGIN")
                     .map(|v| v == "true" || v == "1")
                     .unwrap_or(true),
@@ -90,6 +98,14 @@ impl Config {
                 health_enabled: std::env::var("ENABLE_HEALTH_PLUGIN")
                     .map(|v| v == "true" || v == "1")
                     .unwrap_or(true),
+
+                // Add-on plugins (disabled by default)
+                weather_enabled: std::env::var("ENABLE_WEATHER_PLUGIN")
+                    .map(|v| v == "true" || v == "1")
+                    .unwrap_or(false),
+                speedtest_enabled: std::env::var("ENABLE_SPEEDTEST_PLUGIN")
+                    .map(|v| v == "true" || v == "1")
+                    .unwrap_or(false),
             },
         })
     }

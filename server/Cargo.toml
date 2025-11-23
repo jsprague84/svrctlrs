@@ -18,9 +18,15 @@ path = "src/bin/svrctl.rs"
 svrctlrs-core = { workspace = true }
 svrctlrs-scheduler = { workspace = true }
 svrctlrs-database = { workspace = true }
+
+# Core plugins (default)
 svrctlrs-plugin-docker = { workspace = true, optional = true }
 svrctlrs-plugin-updates = { workspace = true, optional = true }
 svrctlrs-plugin-health = { workspace = true, optional = true }
+
+# Add-on plugins (optional, not default)
+svrctlrs-plugin-weather = { workspace = true, optional = true }
+svrctlrs-plugin-speedtest = { workspace = true, optional = true }
 
 # Async
 tokio = { workspace = true }
@@ -59,7 +65,17 @@ reqwest = { workspace = true }
 chrono = { workspace = true }
 
 [features]
+# Default: Core plugins only
 default = ["plugin-docker", "plugin-updates", "plugin-health"]
+
+# Core plugins (default enabled)
 plugin-docker = ["dep:svrctlrs-plugin-docker"]
 plugin-updates = ["dep:svrctlrs-plugin-updates"]
 plugin-health = ["dep:svrctlrs-plugin-health"]
+
+# Add-on plugins (optional, disabled by default)
+plugin-weather = ["dep:svrctlrs-plugin-weather"]
+plugin-speedtest = ["dep:svrctlrs-plugin-speedtest"]
+
+# Convenience: Enable all plugins (core + add-ons)
+all-plugins = ["plugin-docker", "plugin-updates", "plugin-health", "plugin-weather", "plugin-speedtest"]
