@@ -1,10 +1,13 @@
-name: Build and Release
+name: Release - Build and Publish (Production)
 
 on:
   push:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+
+# This workflow builds multi-platform images (amd64 + arm64) for production releases
+# For faster development builds (amd64 only), see ci.yml workflow
 
 env:
   REGISTRY: ghcr.io

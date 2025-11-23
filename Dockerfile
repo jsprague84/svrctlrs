@@ -44,9 +44,9 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Dioxus CLI using cargo-binstall (10x faster than cargo install)
-RUN cargo install cargo-binstall --locked && \
-    cargo binstall dioxus-cli --version 0.7.1 --no-confirm
+# Install Dioxus CLI from source (required for GLIBC compatibility)
+# Note: cargo-binstall binaries require newer GLIBC than Debian Bookworm provides
+RUN cargo install dioxus-cli --version 0.7.1 --locked
 
 # Copy dependency recipe from planner
 COPY --from=planner /app/recipe.json recipe.json

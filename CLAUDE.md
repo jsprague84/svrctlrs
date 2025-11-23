@@ -576,6 +576,56 @@ When implementing a feature that exists in weatherust:
 - `UPDATE_SSH_KEY` → `SSH_KEY_PATH`
 - `UPDATE_LOCAL_NAME` → Keep same
 
+## 🚀 CI/CD Workflows
+
+### Two-Workflow Strategy
+
+SvrCtlRS uses an optimized CI/CD approach with separate workflows for development and production:
+
+**CI Workflow** (`.github/workflows/ci.yml`):
+- **Triggers**: Push to `develop` branch, pull requests
+- **Platforms**: linux/amd64 only (fast builds)
+- **Build Time**: ~5-7 minutes
+- **Image Tag**: `:develop`
+- **Purpose**: Rapid iteration and testing
+- **Use**: Test server deployment
+
+**Release Workflow** (`.github/workflows/release.yml`):
+- **Triggers**: Version tags (`v*.*.*`), manual dispatch
+- **Platforms**: linux/amd64 + linux/arm64 (multi-arch)
+- **Build Time**: ~10-15 minutes
+- **Image Tags**: `:latest`, `:v2.3.0`, `:2.3`, `:2`
+- **Purpose**: Production releases
+- **Use**: Production server deployment
+
+### Development Flow
+
+```bash
+# 1. Daily development on develop branch
+git checkout develop
+git commit -am "feat: new feature"
+git push origin develop  # CI builds :develop (~7 min)
+
+# 2. Test server auto-pulls :develop tag
+ssh test-server "cd /opt/svrctlrs && docker-compose pull && docker-compose up -d"
+
+# 3. When stable, create release
+git checkout master && git merge develop
+git tag v2.3.0 && git push origin v2.3.0  # Release builds :latest (~15 min)
+
+# 4. Production pulls :latest tag
+ssh prod-server "cd /opt/svrctlrs && docker-compose pull && docker-compose up -d"
+```
+
+**Performance Benefits**:
+- Development builds: **50% faster** (single platform)
+- 10 dev commits + 1 release = **65 minutes saved** vs always building multi-arch
+- Test changes in ~10 minutes (commit → deployed)
+
+**See [docs/CI-CD.md](./docs/CI-CD.md) for complete documentation**
+
+---
+
 ## 📊 Progress Tracking
 
 ### Sprint Overview
