@@ -40,6 +40,13 @@ pub struct PluginListResponse {
 pub struct ServerInfo {
     pub name: String,
     pub ssh_host: String,
+    pub is_local: bool,
+}
+
+/// Server list response
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ServerListResponse {
+    pub servers: Vec<ServerInfo>,
 }
 
 /// API client for server-side data fetching
@@ -78,6 +85,12 @@ impl ApiClient {
     /// Fetch plugin info
     pub async fn plugin(&self, plugin_id: &str) -> Result<PluginInfo, reqwest::Error> {
         let url = format!("{}/api/v1/plugins/{}", self.base_url, plugin_id);
+        self.client.get(&url).send().await?.json().await
+    }
+
+    /// Fetch server list
+    pub async fn servers(&self) -> Result<ServerListResponse, reqwest::Error> {
+        let url = format!("{}/api/v1/servers", self.base_url);
         self.client.get(&url).send().await?.json().await
     }
 }

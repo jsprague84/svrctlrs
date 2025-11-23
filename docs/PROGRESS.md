@@ -241,9 +241,9 @@ None
 
 ---
 
-## Sprint 6: UI 🟡 65% (API Integration Complete)
+## Sprint 6: UI 🟡 80% (Core Pages Complete)
 
-**Dioxus Dashboard - In Progress**
+**Dioxus Dashboard - Near Complete**
 
 ### Planning Phase Complete ✅
 - [x] Research Dioxus 0.7 patterns (routing, state, styling)
@@ -274,15 +274,22 @@ None
 ### API Integration Complete ✅
 - [x] Create API client module with type-safe responses
 - [x] Define API response types (HealthResponse, StatusResponse, PluginInfo, etc.)
-- [x] Implement API client functions (status, plugins, health)
+- [x] Implement API client functions (status, plugins, health, servers)
 - [x] Fetch data on server-side during SSR
 - [x] Provide data to components via Context API
 - [x] Update Dashboard to display real server and plugin counts
 - [x] Data fetched from backend API before rendering
 
+### Core Pages Complete ✅
+- [x] Dashboard - Real server count, plugin count, system status
+- [x] Servers page - List all configured servers with SSH hosts
+- [x] Plugins page - Grid view of loaded plugins with metadata
+- [x] Server list displays: name, SSH host, local badge
+- [x] Plugin cards show: name, version, description, ID, author
+- [x] Graceful error handling for failed API calls
+- [x] Empty state messages for no data
+
 ### In Progress 🔄
-- [ ] Complete Servers page implementation with real data
-- [ ] Complete Plugins page implementation with real data
 - [ ] Complete Tasks page implementation with real data
 - [ ] Complete Settings page implementation
 - [ ] Add theme switching functionality (requires web_sys)
