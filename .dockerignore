@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# Documentation
+*.md
+docs/
+LICENSE
+
+# Development
+.env
+.env.*
+*.log
+
+# Build artifacts
+target/
+**/target/
+data/
+**/data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile*
+
+# Tests
+tests/
+**/tests/
+
+# Other
+*.bak
+*.tmp
