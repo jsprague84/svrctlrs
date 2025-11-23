@@ -72,7 +72,7 @@ COPY assets ./assets
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
-    dx build --release
+    dx build --release --package server
 
 # Also build svrctl CLI with cache mounts
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
