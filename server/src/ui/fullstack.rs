@@ -35,17 +35,14 @@ pub async fn serve_fullstack(request: Request) -> impl IntoResponse {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SvrCtlRS Dashboard</title>
-    <script type="module">
-        // Hydration will happen here when we build the client bundle
-        // For now, this is just SSR
-    </script>
+    <link rel="preload" href="/assets/server.js" as="script" crossorigin="anonymous">
 </head>
 <body>
     <div id="main">
         {html_body}
     </div>
-    <!-- Client bundle will be loaded here -->
-    <script type="module" src="/assets/dioxus/svrctlrs.js"></script>
+    <!-- Client bundle for hydration -->
+    <script type="module" src="/assets/server.js"></script>
 </body>
 </html>"#
     );

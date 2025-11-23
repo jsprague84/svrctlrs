@@ -77,6 +77,12 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         // API routes
         .nest("/api", routes::api_routes(state.clone()))
+        // Serve static assets (WASM client bundle)
+        .nest_service(
+            "/assets",
+            tower_http::services::ServeDir::new("dist")
+                .append_index_html_on_directories(false),
+        )
         // Dioxus fallback handler (SSR + WASM client hydration)
         .fallback(ui::serve_fullstack)
         // Add middleware
