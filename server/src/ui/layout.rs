@@ -1,7 +1,7 @@
 //! Application layout component
 
 use dioxus::prelude::*;
-use dioxus_router::components::{Link, Outlet};
+use dioxus_router::components::Outlet;
 use crate::ui::{routes::Route, theme::{ThemeMode, inject_global_css}};
 
 /// Main application layout with header and sidebar
@@ -68,45 +68,40 @@ fn Header(theme: Signal<ThemeMode>) -> Element {
 fn Sidebar() -> Element {
     rsx! {
         nav { class: "sidebar",
-            Link {
-                to: Route::Dashboard {},
+            a {
+                href: "/",
                 class: "nav-link",
-                active_class: "active",
                 "📊 Dashboard"
             }
 
-            Link {
-                to: Route::Servers {},
+            a {
+                href: "/servers",
                 class: "nav-link",
-                active_class: "active",
                 "🖥️ Servers"
             }
 
-            Link {
-                to: Route::Plugins {},
+            a {
+                href: "/plugins",
                 class: "nav-link",
-                active_class: "active",
                 "🔌 Plugins"
             }
 
-            Link {
-                to: Route::Tasks {},
+            a {
+                href: "/tasks",
                 class: "nav-link",
-                active_class: "active",
                 "⚙️ Tasks"
             }
 
-            Link {
-                to: Route::Settings {},
+            a {
+                href: "/settings",
                 class: "nav-link",
-                active_class: "active",
                 "⚙️ Settings"
             }
 
             // Version footer
             div {
                 style: "position: absolute; bottom: 16px; left: 24px; font-size: 0.75rem; color: var(--text-muted);",
-                "v0.1.0"
+                "v1.0.0"
             }
         }
     }
