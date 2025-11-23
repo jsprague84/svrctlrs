@@ -10,6 +10,7 @@ use tracing::{info, instrument};
 mod config;
 mod routes;
 mod state;
+mod ui;
 
 use config::Config;
 use state::AppState;
@@ -64,6 +65,8 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         // API routes
         .nest("/api", routes::api_routes(state.clone()))
+        // Dioxus UI (fallback - serves the web app)
+        .fallback(ui::serve)
         // Add middleware
         .layer(
             tower_http::trace::TraceLayer::new_for_http()

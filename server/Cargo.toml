@@ -36,9 +36,9 @@ axum = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
 
-# TODO: Add Dioxus UI later
-# dioxus = { workspace = true, features = ["fullstack"] }
-# dioxus-server = { workspace = true }
+# Dioxus UI
+dioxus = { workspace = true }
+dioxus-router = "0.7"
 
 # Serialization
 serde = { workspace = true }
