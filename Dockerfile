@@ -12,7 +12,6 @@ WORKDIR /app
 # Copy workspace files
 COPY Cargo.toml Cargo.lock ./
 COPY core ./core
-COPY common ./common
 COPY server ./server
 COPY scheduler ./scheduler
 COPY database ./database
