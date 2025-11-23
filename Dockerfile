@@ -74,6 +74,16 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
     dx build --release --package server
 
+# Debug: Show build output structure
+RUN echo "=== Build output structure ===" && \
+    ls -la && \
+    echo "=== dist/ contents ===" && \
+    ls -la dist/ 2>/dev/null || echo "dist/ not found" && \
+    echo "=== target/ structure ===" && \
+    find target -name "*.wasm" -o -name "*.js" | head -20 && \
+    echo "=== target/release/ ===" && \
+    ls -la target/release/ 2>/dev/null || echo "target/release/ not found"
+
 # Also build svrctl CLI with cache mounts
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
