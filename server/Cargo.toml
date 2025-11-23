@@ -9,6 +9,10 @@ authors.workspace = true
 name = "server"
 path = "src/main.rs"
 
+[[bin]]
+name = "svrctl"
+path = "src/bin/svrctl.rs"
+
 [dependencies]
 # Internal crates
 svrctlrs-core = { workspace = true }
@@ -50,6 +54,9 @@ clap = { workspace = true }
 
 # HTTP client
 reqwest = { workspace = true }
+
+# Date/time
+chrono = { workspace = true }
 
 [features]
 default = ["plugin-docker", "plugin-updates", "plugin-health"]

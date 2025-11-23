@@ -2,7 +2,6 @@
 
 use serde::{Deserialize, Serialize};
 use svrctlrs_core::{Error, Result, Server};
-use std::path::Path;
 
 /// Application configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]

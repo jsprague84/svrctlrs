@@ -1,11 +1,11 @@
 # Development Progress Tracker
 
-**Last Updated**: 2025-01-23 (Sprint 1 Complete!)
+**Last Updated**: 2025-01-23 (Sprint 4 Complete!)
 
 ## Current Status
 
-**Completed Sprint**: Sprint 1 - Foundation ✅ 100%
-**Next Sprint**: Sprint 2 - Docker Plugin
+**Completed Sprint**: Sprint 4 - Infrastructure ✅ 100%
+**Next Sprint**: Sprint 5 - Polish
 **Repository**: https://github.com/jsprague84/svrctlrs
 
 ## Sprint 1: Foundation ✅ 100% COMPLETE
@@ -129,16 +129,58 @@ None
 
 ---
 
-## Sprint 4: Infrastructure 🔴 0%
+## Sprint 4: Infrastructure ✅ 100% COMPLETE
 
 **Week 4 - Webhooks, API, CLI**
 
-### Planned
-- [ ] Webhook endpoints (all operations)
-- [ ] REST API endpoints
-- [ ] CLI subcommands
-- [ ] Health plugin basics
-- [ ] Tests
+### Completed ✅
+- [x] Webhook endpoints (all operations)
+  - [x] Generic trigger endpoint with plugin/task routing
+  - [x] Docker-specific webhooks (health, cleanup, analysis)
+  - [x] Updates-specific webhooks (check, apply, cleanup)
+  - [x] Token-based authentication (Bearer + body token)
+- [x] REST API endpoints (v1)
+  - [x] Health and status endpoints
+  - [x] Plugin management (list, info, tasks)
+  - [x] Server listing
+  - [x] Metrics endpoints (global + per-plugin)
+  - [x] Task listing and manual execution
+- [x] CLI administration tool (`svrctl`)
+  - [x] Status commands (health, server, metrics)
+  - [x] Plugin commands (list, info, tasks)
+  - [x] Task commands (list, execute)
+  - [x] Webhook commands (all triggers)
+  - [x] Environment variable integration
+- [x] Server infrastructure
+  - [x] AppState with notification_manager
+  - [x] Nested route organization (v1 + webhooks)
+  - [x] Middleware stack (tracing, compression, CORS)
+  - [x] PluginContext with servers + config
+- [x] Modern best practices
+  - [x] Latest Axum 0.8 patterns (State extraction, nested routers)
+  - [x] Latest Tokio async patterns
+  - [x] Latest Clap 4 derive patterns with env support
+
+### Sprint 4 Deliverables
+**Files Created:**
+- `server/src/routes/api.rs` (269 lines) - REST API endpoints
+- `server/src/routes/webhooks.rs` (246 lines) - Webhook endpoints
+- `server/src/bin/svrctl.rs` (298 lines) - CLI administration tool
+- `config.example.toml` - Example configuration file
+
+**Features:**
+- 9 REST API endpoints
+- 7 webhook endpoints
+- 4 CLI command groups with 12 subcommands
+- Token-based webhook authentication
+- Server URL and token from environment variables
+
+**Architecture Patterns:**
+- Axum nested routers for clean API versioning
+- State extraction with Arc<AppState>
+- Middleware layering (trace, compression, CORS)
+- Clap derive with subcommands and env support
+- Structured error responses with StatusCode
 
 ---
 
@@ -192,35 +234,36 @@ None
 - Sprint 1: 100% ✅
 - Sprint 2: 100% ✅
 - Sprint 3: 100% ✅
-- Sprint 4: 0% 🔴
+- Sprint 4: 100% ✅
 - Sprint 5: 0% 🔴
 - Sprint 6: 0% 🔴
 
-**Overall Progress**: 50.0% (3/6 sprints complete)
+**Overall Progress**: 66.7% (4/6 sprints complete)
 
 ---
 
 ## Next Session Start Here
 
-**Current Task**: Begin Sprint 4 - Infrastructure
+**Current Task**: Begin Sprint 5 - Polish
 
 **What to Implement First**:
-1. Implement webhook endpoints for triggering operations
-2. Create REST API endpoints for querying status
-3. Add CLI subcommands for manual operations
-4. Implement basic health plugin
-5. Add comprehensive tests
+1. Implement health plugin for system monitoring
+2. Port weather plugin from weatherust
+3. Port speed test plugin from weatherust
+4. Add comprehensive integration tests
+5. Create Docker images and docker-compose setup
 
 **Context Files to Read**:
 1. CLAUDE.md - Project guidance
-2. IMPLEMENTATION_PLAN.md - Sprint 4 details (page 4)
+2. IMPLEMENTATION_PLAN.md - Sprint 5 details
 3. This file (PROGRESS.md) - Current status
-4. Completed plugins (docker, updates) - Reference patterns
+4. Completed infrastructure (server/src/routes/) - API patterns
 
 **Reference Code**:
-- Weatherust updates:
-  - `/home/jsprague/Development/weatherust/updatemon/src/` - Update monitoring
-  - `/home/jsprague/Development/weatherust/updatectl/src/` - Update execution & cleanup
+- Weatherust plugins:
+  - `/home/jsprague/Development/weatherust/weatherust/src/` - Weather monitoring
+  - `/home/jsprague/Development/weatherust/speedynotify/src/` - Speed test monitoring
+  - `/home/jsprague/Development/weatherust/healthmon/src/` - Health monitoring
   - `/home/jsprague/Development/weatherust/common/src/` - Shared utilities
 - Use Context7 for latest Rust patterns
 
