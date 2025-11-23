@@ -26,13 +26,16 @@ axum = { workspace = true }
 tower = { workspace = true }
 tower-http = { workspace = true }
 
-# Dioxus
-dioxus = { workspace = true, features = ["server"] }
-dioxus-server = { workspace = true }
+# TODO: Add Dioxus UI later
+# dioxus = { workspace = true, features = ["fullstack"] }
+# dioxus-server = { workspace = true }
 
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
@@ -40,6 +43,7 @@ tracing-subscriber = { workspace = true }
 
 # Environment
 dotenvy = { workspace = true }
+toml = "0.8"
 
 # CLI
 clap = { workspace = true }

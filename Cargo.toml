@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "core",
     "server",
-    "web",
     "scheduler",
     "database",
     "plugins/docker",
@@ -28,8 +27,8 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors", "compression-gzip"] }
 
 # Dioxus fullstack framework
-dioxus = { version = "0.6", features = ["fullstack"] }
-dioxus-server = "0.6"
+dioxus = { version = "0.7", features = ["fullstack"] }
+dioxus-server = "0.7"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

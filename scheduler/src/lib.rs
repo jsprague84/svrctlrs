@@ -37,8 +37,9 @@ impl Scheduler {
         let schedule = Schedule::from_str(cron_expr)
             .map_err(|e| Error::SchedulerError(format!("Invalid cron expression: {}", e)))?;
 
+        let task_id = id.into();
         let task = Task {
-            id: id.into(),
+            id: task_id.clone(),
             schedule,
             handler: Arc::new(handler),
         };
@@ -46,7 +47,7 @@ impl Scheduler {
         let mut tasks = self.tasks.write().await;
         tasks.push(task);
 
-        info!(id = %task.id, schedule = %cron_expr, "Scheduled task added");
+        info!(id = %task_id, schedule = %cron_expr, "Scheduled task added");
 
         Ok(())
     }
