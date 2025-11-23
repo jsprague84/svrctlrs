@@ -241,15 +241,47 @@ None
 
 ---
 
-## Sprint 6: UI 🔴 0%
+## Sprint 6: UI 🟡 15% (Planning Complete)
 
 **Future - Dioxus Dashboard**
 
-### Planned
-- [ ] Dashboard page
-- [ ] Server management UI
-- [ ] Plugin configuration UI
-- [ ] Task scheduling UI
+### Planning Phase Complete ✅
+- [x] Research Dioxus 0.7 patterns (routing, state, styling)
+- [x] Design UI theme (Nord-inspired light/dark modes)
+- [x] Plan dashboard layout and navigation
+- [x] Define component library
+- [x] Architecture document created
+
+### Implementation Planned
+- [ ] Set up Dioxus fullstack project structure
+- [ ] Create AppLayout with routing
+- [ ] Build component library (StatusCard, DataTable, Modal, Button, Badge)
+- [ ] Implement Dashboard page
+- [ ] Implement Servers page
+- [ ] Implement Plugins page
+- [ ] Implement Tasks page
+- [ ] Implement Settings page
+- [ ] Add real-time updates (polling every 30s)
+- [ ] Polish and testing
+
+### Sprint 6 Deliverables (Planning)
+**Documentation Created:**
+- `docs/architecture/UI_PLAN.md` (350+ lines) - Comprehensive UI architecture plan
+
+**Key Design Decisions:**
+- Technology: Dioxus 0.7 fullstack mode with Axum backend
+- Theme: Nord-inspired color palette with light/dark modes
+- State Management: Context API with Dioxus Signals
+- Routing: Dioxus Router with nested layouts
+- Updates: Polling-based (30-second intervals)
+- Layout: Responsive header + sidebar + main content
+
+**Planned Pages:**
+1. Dashboard - System overview with key metrics
+2. Servers - Server management and status
+3. Plugins - Plugin configuration and management
+4. Tasks - Task scheduling and execution
+5. Settings - Global configuration
 
 ---
 
@@ -280,30 +312,36 @@ None
 - Sprint 3: 100% ✅
 - Sprint 4: 100% ✅
 - Sprint 5: 100% ✅
-- Sprint 6: 0% 🔴
+- Sprint 6: 15% 🟡 (Planning complete)
 
-**Overall Progress**: 83.3% (5/6 sprints complete)
+**Overall Progress**: 85.8% (5/6 sprints complete, Sprint 6 planning done)
 
 ---
 
 ## Next Session Start Here
 
-**Current Task**: Begin Sprint 6 - UI (Dioxus Dashboard)
+**Current Task**: Sprint 6 - UI Implementation (Planning Complete ✅)
+
+**Planning Status**:
+- ✅ UI architecture designed (see docs/architecture/UI_PLAN.md)
+- ✅ Theme and color palette defined (Nord-inspired)
+- ✅ Component library planned
+- ✅ Routing structure designed
+- ✅ State management approach documented
 
 **What to Implement First**:
-1. Set up Dioxus fullstack framework
-2. Create dashboard layout and navigation
-3. Implement server management UI
-4. Add plugin configuration interface
-5. Create task scheduling UI
-6. Build real-time status updates
+1. Set up Dioxus fullstack project structure
+2. Create AppLayout component with routing
+3. Build base component library (StatusCard, DataTable, Modal, Button, Badge)
+4. Implement Dashboard page (system overview)
+5. Add API client integration with polling
 
 **Context Files to Read**:
-1. CLAUDE.md - Project guidance
-2. docs/architecture/ADDON_PLUGINS.md - Plugin architecture
-3. This file (PROGRESS.md) - Current status
-4. server/src/routes/api.rs - Available API endpoints
-5. Use Context7 for latest Dioxus patterns
+1. **docs/architecture/UI_PLAN.md** - Comprehensive UI architecture (READ THIS FIRST!)
+2. CLAUDE.md - Project guidance
+3. docs/architecture/ADDON_PLUGINS.md - Plugin architecture
+4. This file (PROGRESS.md) - Current status
+5. server/src/routes/api.rs - Available API endpoints
 
 **Current Architecture**:
 - **Core Plugins**: docker, updates, health (always available)
