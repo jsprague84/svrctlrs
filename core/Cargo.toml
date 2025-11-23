@@ -10,6 +10,9 @@ authors.workspace = true
 tokio = { workspace = true }
 async-trait = "0.1"
 
+# HTTP client
+reqwest = { workspace = true }
+
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }

@@ -13,5 +13,8 @@ pub mod remote;
 pub use plugin::{Plugin, PluginInfo, PluginMetadata, PluginContext, PluginResult, ScheduledTask, PluginRegistry};
 pub use types::{Server, ServerStatus, MetricValue};
 pub use error::{Error, Result};
-pub use notifications::{NotificationBackend, NotificationMessage, NotificationAction};
+pub use notifications::{
+    NotificationBackend, NotificationMessage, NotificationAction,
+    GotifyBackend, NtfyBackend, NotificationManager,
+};
 pub use remote::RemoteExecutor;
