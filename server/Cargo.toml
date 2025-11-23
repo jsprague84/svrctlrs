@@ -39,6 +39,7 @@ tower-http = { workspace = true }
 # Dioxus UI
 dioxus = { workspace = true }
 dioxus-router = "0.7"
+dioxus-ssr = "0.7"
 
 # Serialization
 serde = { workspace = true }
