@@ -1,8 +1,6 @@
 //! 404 Not Found page
 
 use dioxus::prelude::*;
-use dioxus_router::components::Link;
-use crate::ui::routes::Route;
 
 #[component]
 pub fn NotFound(segments: Vec<String>) -> Element {
@@ -16,8 +14,8 @@ pub fn NotFound(segments: Vec<String>) -> Element {
                 style: "color: var(--text-secondary); margin: 16px 0;",
                 "The page \"/{path}\" could not be found."
             }
-            Link {
-                to: Route::Dashboard {},
+            a {
+                href: "/",
                 class: "btn btn-primary",
                 "← Back to Dashboard"
             }
