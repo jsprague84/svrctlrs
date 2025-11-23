@@ -18,7 +18,7 @@ use crate::state::AppState;
 /// Create webhook router
 pub fn routes() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/trigger/:plugin_id/:task_id", post(trigger_task))
+        .route("/trigger/{plugin_id}/{task_id}", post(trigger_task))
         .route("/docker/health", post(trigger_docker_health))
         .route("/docker/cleanup", post(trigger_docker_cleanup))
         .route("/docker/analysis", post(trigger_docker_analysis))
