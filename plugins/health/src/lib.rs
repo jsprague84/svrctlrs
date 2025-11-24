@@ -32,14 +32,12 @@ impl Plugin for HealthPlugin {
     }
 
     fn scheduled_tasks(&self) -> Vec<ScheduledTask> {
-        vec![
-            ScheduledTask {
-                id: "system_metrics".to_string(),
-                schedule: "0 */5 * * * *".to_string(), // Every 5 minutes
-                description: "Collect system metrics".to_string(),
-                enabled: true,
-            },
-        ]
+        vec![ScheduledTask {
+            id: "system_metrics".to_string(),
+            schedule: "0 */5 * * * *".to_string(), // Every 5 minutes
+            description: "Collect system metrics".to_string(),
+            enabled: true,
+        }]
     }
 
     async fn execute(&self, task_id: &str, context: &PluginContext) -> Result<PluginResult> {

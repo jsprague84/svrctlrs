@@ -1,7 +1,7 @@
 //! Reusable UI components
 
-mod status_card;
 mod badge;
+mod status_card;
 
-pub use status_card::StatusCard;
 pub use badge::Badge;
+pub use status_card::StatusCard;

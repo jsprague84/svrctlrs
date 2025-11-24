@@ -65,8 +65,8 @@ impl Config {
 
     /// Load from environment variables
     fn load_from_env() -> Result<Self> {
-        let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "sqlite:data/svrctlrs.db".to_string());
+        let database_url =
+            std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/svrctlrs.db".to_string());
 
         // Parse servers from environment
         let servers = if let Ok(server_str) = std::env::var("SERVERS") {

@@ -15,7 +15,12 @@ use tracing::{error, info};
 #[command(propagate_version = true)]
 struct Cli {
     /// Server URL to connect to
-    #[arg(short, long, default_value = "http://localhost:8080", env = "SVRCTLRS_URL")]
+    #[arg(
+        short,
+        long,
+        default_value = "http://localhost:8080",
+        env = "SVRCTLRS_URL"
+    )]
     url: String,
 
     /// API token for authentication
@@ -164,8 +169,7 @@ async fn main() {
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -185,7 +189,11 @@ async fn main() {
     }
 }
 
-async fn handle_status(client: &Client, base_url: &str, command: StatusCommands) -> anyhow::Result<()> {
+async fn handle_status(
+    client: &Client,
+    base_url: &str,
+    command: StatusCommands,
+) -> anyhow::Result<()> {
     match command {
         StatusCommands::Health => {
             let url = format!("{}/api/v1/health", base_url);
@@ -210,7 +218,11 @@ async fn handle_status(client: &Client, base_url: &str, command: StatusCommands)
     Ok(())
 }
 
-async fn handle_plugin(client: &Client, base_url: &str, command: PluginCommands) -> anyhow::Result<()> {
+async fn handle_plugin(
+    client: &Client,
+    base_url: &str,
+    command: PluginCommands,
+) -> anyhow::Result<()> {
     match command {
         PluginCommands::List => {
             let url = format!("{}/api/v1/plugins", base_url);
@@ -252,7 +264,11 @@ async fn handle_task(client: &Client, base_url: &str, command: TaskCommands) -> 
     Ok(())
 }
 
-async fn handle_webhook(client: &Client, base_url: &str, command: WebhookCommands) -> anyhow::Result<()> {
+async fn handle_webhook(
+    client: &Client,
+    base_url: &str,
+    command: WebhookCommands,
+) -> anyhow::Result<()> {
     match command {
         WebhookCommands::DockerHealth { token } => {
             trigger_webhook(client, base_url, "/api/webhooks/docker/health", token).await
@@ -272,7 +288,11 @@ async fn handle_webhook(client: &Client, base_url: &str, command: WebhookCommand
         WebhookCommands::OsCleanup { token } => {
             trigger_webhook(client, base_url, "/api/webhooks/updates/cleanup", token).await
         }
-        WebhookCommands::Trigger { plugin_id, task_id, token } => {
+        WebhookCommands::Trigger {
+            plugin_id,
+            task_id,
+            token,
+        } => {
             let path = format!("/api/webhooks/trigger/{}/{}", plugin_id, task_id);
             trigger_webhook(client, base_url, &path, token).await
         }

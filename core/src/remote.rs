@@ -131,9 +131,10 @@ impl RemoteExecutor {
         cmd: &str,
         args: &[&str],
     ) -> Result<String> {
-        let ssh_host = server.ssh_host.as_ref().ok_or_else(|| {
-            Error::RemoteExecutionError("No SSH host configured".to_string())
-        })?;
+        let ssh_host = server
+            .ssh_host
+            .as_ref()
+            .ok_or_else(|| Error::RemoteExecutionError("No SSH host configured".to_string()))?;
 
         // Build the remote command string with proper shell escaping
         let remote_cmd = self.build_remote_command(cmd, args);

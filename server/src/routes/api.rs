@@ -20,19 +20,15 @@ pub fn routes() -> Router<AppState> {
         // Health and status
         .route("/health", get(health_check))
         .route("/status", get(server_status))
-
         // Plugins
         .route("/plugins", get(list_plugins))
         .route("/plugins/{plugin_id}", get(plugin_info))
         .route("/plugins/{plugin_id}/tasks", get(plugin_tasks))
-
         // Servers
         .route("/servers", get(list_servers))
-
         // Metrics
         .route("/metrics", get(get_metrics))
         .route("/metrics/{plugin_id}", get(plugin_metrics))
-
         // Tasks
         .route("/tasks", get(list_all_tasks))
         .route("/tasks/execute", post(execute_task))
@@ -99,9 +95,12 @@ async fn plugin_info(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let registry = state.plugins.read().await;
 
-    let plugin = registry
-        .get(&plugin_id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Plugin {} not found", plugin_id)))?;
+    let plugin = registry.get(&plugin_id).ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            format!("Plugin {} not found", plugin_id),
+        )
+    })?;
 
     let meta = plugin.metadata();
     let tasks = plugin.scheduled_tasks();
@@ -131,9 +130,12 @@ async fn plugin_tasks(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let registry = state.plugins.read().await;
 
-    let plugin = registry
-        .get(&plugin_id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Plugin {} not found", plugin_id)))?;
+    let plugin = registry.get(&plugin_id).ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            format!("Plugin {} not found", plugin_id),
+        )
+    })?;
 
     let tasks = plugin.scheduled_tasks();
 
@@ -185,9 +187,12 @@ async fn plugin_metrics(
     let registry = state.plugins.read().await;
 
     // Verify plugin exists
-    registry
-        .get(&plugin_id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Plugin {} not found", plugin_id)))?;
+    registry.get(&plugin_id).ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            format!("Plugin {} not found", plugin_id),
+        )
+    })?;
 
     // TODO: Fetch actual metrics from database
     Ok(Json(json!({
@@ -239,9 +244,12 @@ async fn execute_task(
 
     let registry = state.plugins.read().await;
 
-    let plugin = registry
-        .get(&req.plugin_id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Plugin {} not found", req.plugin_id)))?;
+    let plugin = registry.get(&req.plugin_id).ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            format!("Plugin {} not found", req.plugin_id),
+        )
+    })?;
 
     // Create plugin context
     let context = svrctlrs_core::PluginContext {
@@ -251,13 +259,13 @@ async fn execute_task(
     };
 
     // Execute the task
-    let result = plugin
-        .execute(&req.task_id, &context)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Task execution failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Task execution failed: {}", e))
-        })?;
+    let result = plugin.execute(&req.task_id, &context).await.map_err(|e| {
+        error!(error = %e, "Task execution failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Task execution failed: {}", e),
+        )
+    })?;
 
     info!(success = result.success, "Task execution completed");
 

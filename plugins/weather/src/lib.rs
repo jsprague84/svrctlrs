@@ -19,8 +19,8 @@ use chrono::{FixedOffset, TimeZone};
 use reqwest::Client;
 use serde::Deserialize;
 use svrctlrs_core::{
-    Error, NotificationMessage, Plugin, PluginContext, PluginMetadata,
-    PluginResult, Result, ScheduledTask,
+    Error, NotificationMessage, Plugin, PluginContext, PluginMetadata, PluginResult, Result,
+    ScheduledTask,
 };
 use tracing::{info, warn};
 
@@ -94,14 +94,18 @@ impl WeatherPlugin {
             location: std::env::var("DEFAULT_LOCATION").ok(),
             zip: std::env::var("DEFAULT_ZIP").ok(),
             units: std::env::var("DEFAULT_UNITS").unwrap_or_else(|_| "imperial".to_string()),
-            schedule: std::env::var("WEATHER_SCHEDULE")
-                .unwrap_or_else(|_| "0 6 * * *".to_string()), // 6 AM daily
+            schedule: std::env::var("WEATHER_SCHEDULE").unwrap_or_else(|_| "0 6 * * *".to_string()), // 6 AM daily
         }
     }
 
     /// Fetch weather data and send notification
-    async fn fetch_weather(&self, notify_mgr: &svrctlrs_core::NotificationManager) -> Result<String> {
-        let api_key = self.api_key.as_ref()
+    async fn fetch_weather(
+        &self,
+        notify_mgr: &svrctlrs_core::NotificationManager,
+    ) -> Result<String> {
+        let api_key = self
+            .api_key
+            .as_ref()
             .ok_or_else(|| Error::ConfigError("OWM_API_KEY not configured".to_string()))?;
 
         // Resolve location to lat/lon
@@ -113,7 +117,8 @@ impl WeatherPlugin {
             self.units
         );
 
-        let data: OneCall = self.client
+        let data: OneCall = self
+            .client
             .get(&onecall_url)
             .send()
             .await
@@ -133,11 +138,15 @@ impl WeatherPlugin {
 
         let offset = FixedOffset::east_opt(data.timezone_offset)
             .ok_or_else(|| Error::PluginError("Invalid timezone offset".to_string()))?;
-        let current_time = offset.timestamp_opt(data.current.dt, 0)
+        let current_time = offset
+            .timestamp_opt(data.current.dt, 0)
             .single()
             .ok_or_else(|| Error::PluginError("Invalid timestamp".to_string()))?;
 
-        let current_desc = data.current.weather.get(0)
+        let current_desc = data
+            .current
+            .weather
+            .get(0)
             .map(|w| w.description.as_str())
             .unwrap_or("no description");
 
@@ -159,11 +168,14 @@ impl WeatherPlugin {
         lines.push("\nNext 7 days (high/low):".to_string());
 
         for day in data.daily.iter().skip(1).take(7) {
-            let dt = offset.timestamp_opt(day.dt, 0)
+            let dt = offset
+                .timestamp_opt(day.dt, 0)
                 .single()
                 .ok_or_else(|| Error::PluginError("Invalid timestamp".to_string()))?;
             let label = dt.format("%a %d").to_string();
-            let desc = day.weather.get(0)
+            let desc = day
+                .weather
+                .get(0)
                 .map(|w| w.description.as_str())
                 .unwrap_or("n/a");
             lines.push(format!(
@@ -193,7 +205,9 @@ impl WeatherPlugin {
             actions: vec![],
         };
 
-        notify_mgr.send_for_service("weather", &notification).await?;
+        notify_mgr
+            .send_for_service("weather", &notification)
+            .await?;
 
         Ok(summary)
     }
@@ -209,17 +223,17 @@ impl WeatherPlugin {
         }
 
         Err(Error::ConfigError(
-            "No location configured (DEFAULT_ZIP or DEFAULT_LOCATION required)".to_string()
+            "No location configured (DEFAULT_ZIP or DEFAULT_LOCATION required)".to_string(),
         ))
     }
 
     async fn geocode_zip(&self, api_key: &str, zip_in: &str) -> Result<(f64, f64, String)> {
         let (zip, cc) = self.split_zip_and_cc(zip_in);
-        let url = format!(
-            "https://api.openweathermap.org/geo/1.0/zip?zip={zip},{cc}&appid={api_key}"
-        );
+        let url =
+            format!("https://api.openweathermap.org/geo/1.0/zip?zip={zip},{cc}&appid={api_key}");
 
-        let z: ZipGeoResult = self.client
+        let z: ZipGeoResult = self
+            .client
             .get(&url)
             .send()
             .await
@@ -235,11 +249,11 @@ impl WeatherPlugin {
 
     async fn geocode_location(&self, api_key: &str, input: &str) -> Result<(f64, f64, String)> {
         let q = self.normalize_city_query(input);
-        let url = format!(
-            "https://api.openweathermap.org/geo/1.0/direct?q={q}&limit=1&appid={api_key}"
-        );
+        let url =
+            format!("https://api.openweathermap.org/geo/1.0/direct?q={q}&limit=1&appid={api_key}");
 
-        let mut v: Vec<GeoResult> = self.client
+        let mut v: Vec<GeoResult> = self
+            .client
             .get(&url)
             .send()
             .await
@@ -261,7 +275,10 @@ impl WeatherPlugin {
         let pretty = format!(
             "{}{}{}",
             loc.name,
-            loc.state.as_ref().map(|s| format!(", {}", s)).unwrap_or_default(),
+            loc.state
+                .as_ref()
+                .map(|s| format!(", {}", s))
+                .unwrap_or_default(),
             format!(", {}", loc.country)
         );
 
@@ -271,7 +288,10 @@ impl WeatherPlugin {
     fn split_zip_and_cc(&self, s: &str) -> (String, String) {
         let parts: Vec<&str> = s.split(',').map(|p| p.trim()).collect();
         let zip = parts.get(0).copied().unwrap_or("").to_string();
-        let cc = parts.get(1).map(|v| v.to_string()).unwrap_or_else(|| "US".to_string());
+        let cc = parts
+            .get(1)
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "US".to_string());
         (zip, cc)
     }
 

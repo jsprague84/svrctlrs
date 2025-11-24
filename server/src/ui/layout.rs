@@ -1,8 +1,11 @@
 //! Application layout component
 
+use crate::ui::{
+    routes::Route,
+    theme::{inject_global_css, ThemeMode},
+};
 use dioxus::prelude::*;
 use dioxus_router::components::Outlet;
-use crate::ui::{routes::Route, theme::{ThemeMode, inject_global_css}};
 
 /// Main application layout with header and sidebar
 #[component]

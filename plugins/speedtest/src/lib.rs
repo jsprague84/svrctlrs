@@ -14,8 +14,8 @@
 use async_trait::async_trait;
 use serde::Deserialize;
 use svrctlrs_core::{
-    Error, NotificationMessage, Plugin, PluginContext, PluginMetadata,
-    PluginResult, Result, ScheduledTask,
+    Error, NotificationMessage, Plugin, PluginContext, PluginMetadata, PluginResult, Result,
+    ScheduledTask,
 };
 use tokio::process::Command;
 use tracing::{info, warn};
@@ -66,8 +66,8 @@ impl SpeedTestPlugin {
         let server_id = std::env::var("SPEEDTEST_SERVER_ID")
             .ok()
             .and_then(|v| v.parse().ok());
-        let schedule = std::env::var("SPEEDTEST_SCHEDULE")
-            .unwrap_or_else(|_| "0 */4 * * *".to_string()); // Every 4 hours
+        let schedule =
+            std::env::var("SPEEDTEST_SCHEDULE").unwrap_or_else(|_| "0 */4 * * *".to_string()); // Every 4 hours
 
         Self {
             min_down,
@@ -78,7 +78,10 @@ impl SpeedTestPlugin {
     }
 
     /// Run speedtest and send notification
-    async fn run_speedtest(&self, notify_mgr: &svrctlrs_core::NotificationManager) -> Result<String> {
+    async fn run_speedtest(
+        &self,
+        notify_mgr: &svrctlrs_core::NotificationManager,
+    ) -> Result<String> {
         info!("Running Ookla speedtest");
 
         // Build command
@@ -92,7 +95,8 @@ impl SpeedTestPlugin {
         }
 
         // Execute speedtest
-        let output = cmd.output()
+        let output = cmd
+            .output()
             .await
             .map_err(|e| Error::PluginError(format!("Failed to run speedtest: {}", e)))?;
 
@@ -114,21 +118,31 @@ impl SpeedTestPlugin {
         let mut warnings = Vec::new();
         if let Some(min) = self.min_down {
             if down_mbps < min {
-                warnings.push(format!("Download speed {:.1} Mbps is below threshold {:.1} Mbps", down_mbps, min));
+                warnings.push(format!(
+                    "Download speed {:.1} Mbps is below threshold {:.1} Mbps",
+                    down_mbps, min
+                ));
             }
         }
         if let Some(min) = self.min_up {
             if up_mbps < min {
-                warnings.push(format!("Upload speed {:.1} Mbps is below threshold {:.1} Mbps", up_mbps, min));
+                warnings.push(format!(
+                    "Upload speed {:.1} Mbps is below threshold {:.1} Mbps",
+                    up_mbps, min
+                ));
             }
         }
 
         // Build message
         let isp = result.isp.as_deref().unwrap_or("Unknown ISP");
-        let server_name = result.server.as_ref()
+        let server_name = result
+            .server
+            .as_ref()
             .and_then(|s| s.name.as_deref())
             .unwrap_or("Unknown");
-        let server_location = result.server.as_ref()
+        let server_location = result
+            .server
+            .as_ref()
             .and_then(|s| s.location.as_deref())
             .unwrap_or("");
 
@@ -167,7 +181,9 @@ impl SpeedTestPlugin {
             actions: vec![],
         };
 
-        notify_mgr.send_for_service("speedtest", &notification).await?;
+        notify_mgr
+            .send_for_service("speedtest", &notification)
+            .await?;
 
         Ok(summary)
     }

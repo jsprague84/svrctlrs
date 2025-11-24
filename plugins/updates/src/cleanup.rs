@@ -345,11 +345,7 @@ impl CleanupExecutor {
         for pm in PackageManager::all() {
             let binary = format!("/usr/bin/{}", pm.binary());
 
-            let check = Command::new("test")
-                .arg("-x")
-                .arg(&binary)
-                .status()
-                .await;
+            let check = Command::new("test").arg("-x").arg(&binary).status().await;
 
             if let Ok(status) = check {
                 if status.success() {

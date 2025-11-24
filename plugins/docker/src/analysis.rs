@@ -463,13 +463,7 @@ mod tests {
 
     #[test]
     fn test_parse_size_threshold_gb() {
-        assert_eq!(
-            parse_size_threshold("1G").unwrap(),
-            1024 * 1024 * 1024
-        );
-        assert_eq!(
-            parse_size_threshold("1g").unwrap(),
-            1024 * 1024 * 1024
-        );
+        assert_eq!(parse_size_threshold("1G").unwrap(), 1024 * 1024 * 1024);
+        assert_eq!(parse_size_threshold("1g").unwrap(), 1024 * 1024 * 1024);
     }
 }

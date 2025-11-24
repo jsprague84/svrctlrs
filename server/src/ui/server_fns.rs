@@ -87,7 +87,10 @@ pub async fn list_servers() -> Result<ServerListResponse, ServerFnError> {
         .iter()
         .map(|s| ServerInfo {
             name: s.name.clone(),
-            ssh_host: s.ssh_host.clone().unwrap_or_else(|| "localhost".to_string()),
+            ssh_host: s
+                .ssh_host
+                .clone()
+                .unwrap_or_else(|| "localhost".to_string()),
             is_local: s.is_local(),
         })
         .collect();
@@ -148,9 +151,9 @@ pub async fn execute_task(req: ExecuteTaskRequest) -> Result<ExecuteTaskResponse
     let state = AppState::global();
     let registry = state.plugins.read().await;
 
-    let plugin = registry.get(&req.plugin_id).ok_or_else(|| {
-        ServerFnError::new(format!("Plugin {} not found", req.plugin_id))
-    })?;
+    let plugin = registry
+        .get(&req.plugin_id)
+        .ok_or_else(|| ServerFnError::new(format!("Plugin {} not found", req.plugin_id)))?;
 
     // Create plugin context
     let context = svrctlrs_core::PluginContext {
@@ -160,13 +163,10 @@ pub async fn execute_task(req: ExecuteTaskRequest) -> Result<ExecuteTaskResponse
     };
 
     // Execute the task
-    let result = plugin
-        .execute(&req.task_id, &context)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Task execution failed");
-            ServerFnError::new(format!("Task execution failed: {}", e))
-        })?;
+    let result = plugin.execute(&req.task_id, &context).await.map_err(|e| {
+        tracing::error!(error = %e, "Task execution failed");
+        ServerFnError::new(format!("Task execution failed: {}", e))
+    })?;
 
     tracing::info!(success = result.success, "Task execution completed");
 
@@ -230,7 +230,10 @@ pub async fn get_server_details(name: String) -> Result<ServerDetails, ServerFnE
     // TODO: Query health plugin for real-time metrics
     Ok(ServerDetails {
         name: server.name.clone(),
-        ssh_host: server.ssh_host.clone().unwrap_or_else(|| "localhost".to_string()),
+        ssh_host: server
+            .ssh_host
+            .clone()
+            .unwrap_or_else(|| "localhost".to_string()),
         is_local: server.is_local(),
         status: "unknown".to_string(),
         uptime: None,

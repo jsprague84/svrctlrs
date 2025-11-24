@@ -1,7 +1,7 @@
 //! API routes
 
-mod webhooks;
 mod api;
+mod webhooks;
 
 use axum::Router;
 

@@ -75,8 +75,7 @@ async fn main() -> anyhow::Result<()> {
     AppState::set_global(state.clone());
 
     // Build UI router separately so it can be nested without affecting API state
-    let ui_router = Router::new()
-        .serve_dioxus_application(ServeConfig::new(), ui::App);
+    let ui_router = Router::new().serve_dioxus_application(ServeConfig::new(), ui::App);
 
     // Build Axum router with API + UI
     let app = Router::new()
@@ -84,14 +83,15 @@ async fn main() -> anyhow::Result<()> {
         .nest_service("/", ui_router.into_service())
         // Add middleware
         .layer(
-            tower_http::trace::TraceLayer::new_for_http()
-                .make_span_with(|request: &axum::http::Request<_>| {
+            tower_http::trace::TraceLayer::new_for_http().make_span_with(
+                |request: &axum::http::Request<_>| {
                     tracing::info_span!(
                         "http_request",
                         method = %request.method(),
                         uri = %request.uri(),
                     )
-                }),
+                },
+            ),
         )
         .layer(tower_http::compression::CompressionLayer::new())
         .layer(tower_http::cors::CorsLayer::permissive());

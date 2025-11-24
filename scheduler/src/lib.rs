@@ -30,7 +30,12 @@ impl Scheduler {
     }
 
     /// Add a task to the scheduler
-    pub async fn add_task<F>(&self, id: impl Into<String>, cron_expr: &str, handler: F) -> Result<()>
+    pub async fn add_task<F>(
+        &self,
+        id: impl Into<String>,
+        cron_expr: &str,
+        handler: F,
+    ) -> Result<()>
     where
         F: Fn() -> Result<()> + Send + Sync + 'static,
     {

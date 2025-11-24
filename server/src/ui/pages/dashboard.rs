@@ -1,10 +1,10 @@
 //! Dashboard page - System overview with real-time data
 
-use dioxus::prelude::*;
 use crate::ui::{
-    components::{StatusCard, Badge},
+    components::{Badge, StatusCard},
     server_fns::{get_status, list_plugins, list_servers, list_tasks},
 };
+use dioxus::prelude::*;
 
 #[component]
 pub fn Dashboard() -> Element {
@@ -15,15 +15,20 @@ pub fn Dashboard() -> Element {
     let tasks_resource = use_resource(|| async move { list_tasks().await });
 
     // Extract counts and status
-    let (server_count, plugin_count, system_status, scheduler_running) = match &*status_resource.read_unchecked() {
-        Some(Ok(status)) => (
-            status.servers,
-            status.plugins_loaded,
-            if status.status == "running" { "healthy" } else { "degraded" },
-            status.scheduler_running,
-        ),
-        _ => (0, 0, "loading", false),
-    };
+    let (server_count, plugin_count, system_status, scheduler_running) =
+        match &*status_resource.read_unchecked() {
+            Some(Ok(status)) => (
+                status.servers,
+                status.plugins_loaded,
+                if status.status == "running" {
+                    "healthy"
+                } else {
+                    "degraded"
+                },
+                status.scheduler_running,
+            ),
+            _ => (0, 0, "loading", false),
+        };
 
     let task_count = match &*tasks_resource.read_unchecked() {
         Some(Ok(tasks)) => tasks.tasks.len(),

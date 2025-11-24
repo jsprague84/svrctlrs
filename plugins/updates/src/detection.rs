@@ -88,7 +88,10 @@ impl UpdateChecker for DnfChecker {
     fn check_command(&self) -> (&str, Vec<&str>) {
         // dnf check-update returns exit code 100 if updates available
         // Use --cacheonly to avoid refreshing repos (much faster)
-        ("/usr/bin/dnf", vec!["check-update", "--quiet", "--cacheonly"])
+        (
+            "/usr/bin/dnf",
+            vec!["check-update", "--quiet", "--cacheonly"],
+        )
     }
 
     fn parse_updates(&self, output: &str) -> Vec<String> {
@@ -240,10 +243,7 @@ impl UpdateDetector {
         // Parse updates
         let packages = checker.parse_updates(&output);
         let total_updates = packages.len();
-        let security_updates = packages
-            .iter()
-            .filter(|p| p.contains("(security)"))
-            .count();
+        let security_updates = packages.iter().filter(|p| p.contains("(security)")).count();
 
         info!(
             total = total_updates,
@@ -286,10 +286,7 @@ impl UpdateDetector {
         // Parse updates
         let packages = checker.parse_updates(&stdout);
         let total_updates = packages.len();
-        let security_updates = packages
-            .iter()
-            .filter(|p| p.contains("(security)"))
-            .count();
+        let security_updates = packages.iter().filter(|p| p.contains("(security)")).count();
 
         info!(
             total = total_updates,
@@ -313,11 +310,7 @@ impl UpdateDetector {
             let binary = format!("/usr/bin/{}", pm.binary());
 
             // Check if binary exists and is executable
-            let check = Command::new("test")
-                .arg("-x")
-                .arg(&binary)
-                .status()
-                .await;
+            let check = Command::new("test").arg("-x").arg(&binary).status().await;
 
             if let Ok(status) = check {
                 if status.success() {

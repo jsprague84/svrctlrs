@@ -81,14 +81,20 @@ async fn trigger_task(
     // Verify token
     if !verify_token(&headers, &req.token) {
         warn!("Unauthorized webhook request");
-        return Err((StatusCode::UNAUTHORIZED, "Invalid or missing token".to_string()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Invalid or missing token".to_string(),
+        ));
     }
 
     let registry = state.plugins.read().await;
 
-    let plugin = registry
-        .get(&plugin_id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Plugin {} not found", plugin_id)))?;
+    let plugin = registry.get(&plugin_id).ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            format!("Plugin {} not found", plugin_id),
+        )
+    })?;
 
     // Create plugin context
     let context = svrctlrs_core::PluginContext {
@@ -98,13 +104,13 @@ async fn trigger_task(
     };
 
     // Execute the task
-    let result = plugin
-        .execute(&task_id, &context)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Webhook task execution failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Task execution failed: {}", e))
-        })?;
+    let result = plugin.execute(&task_id, &context).await.map_err(|e| {
+        error!(error = %e, "Webhook task execution failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Task execution failed: {}", e),
+        )
+    })?;
 
     info!(success = result.success, "Webhook task execution completed");
 
@@ -125,7 +131,10 @@ async fn trigger_docker_health(
     debug!("Docker health check webhook triggered");
 
     if !verify_token(&headers, &req.token) {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid or missing token".to_string()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Invalid or missing token".to_string(),
+        ));
     }
 
     trigger_specific_task(state, "docker", "docker_health").await
@@ -141,7 +150,10 @@ async fn trigger_docker_cleanup(
     debug!("Docker cleanup webhook triggered");
 
     if !verify_token(&headers, &req.token) {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid or missing token".to_string()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Invalid or missing token".to_string(),
+        ));
     }
 
     trigger_specific_task(state, "docker", "docker_cleanup").await
@@ -157,7 +169,10 @@ async fn trigger_docker_analysis(
     debug!("Docker analysis webhook triggered");
 
     if !verify_token(&headers, &req.token) {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid or missing token".to_string()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Invalid or missing token".to_string(),
+        ));
     }
 
     trigger_specific_task(state, "docker", "docker_analysis").await
@@ -173,7 +188,10 @@ async fn trigger_updates_check(
     debug!("Updates check webhook triggered");
 
     if !verify_token(&headers, &req.token) {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid or missing token".to_string()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Invalid or missing token".to_string(),
+        ));
     }
 
     trigger_specific_task(state, "updates", "updates_check").await
@@ -189,7 +207,10 @@ async fn trigger_updates_apply(
     debug!("Updates apply webhook triggered");
 
     if !verify_token(&headers, &req.token) {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid or missing token".to_string()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Invalid or missing token".to_string(),
+        ));
     }
 
     trigger_specific_task(state, "updates", "updates_apply").await
@@ -205,7 +226,10 @@ async fn trigger_os_cleanup(
     debug!("OS cleanup webhook triggered");
 
     if !verify_token(&headers, &req.token) {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid or missing token".to_string()));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            "Invalid or missing token".to_string(),
+        ));
     }
 
     trigger_specific_task(state, "updates", "os_cleanup").await
@@ -219,9 +243,12 @@ async fn trigger_specific_task(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let registry = state.plugins.read().await;
 
-    let plugin = registry
-        .get(plugin_id)
-        .ok_or_else(|| (StatusCode::NOT_FOUND, format!("Plugin {} not found", plugin_id)))?;
+    let plugin = registry.get(plugin_id).ok_or_else(|| {
+        (
+            StatusCode::NOT_FOUND,
+            format!("Plugin {} not found", plugin_id),
+        )
+    })?;
 
     // Create plugin context
     let context = svrctlrs_core::PluginContext {
@@ -231,13 +258,13 @@ async fn trigger_specific_task(
     };
 
     // Execute the task
-    let result = plugin
-        .execute(task_id, &context)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Webhook task execution failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Task execution failed: {}", e))
-        })?;
+    let result = plugin.execute(task_id, &context).await.map_err(|e| {
+        error!(error = %e, "Webhook task execution failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Task execution failed: {}", e),
+        )
+    })?;
 
     info!(success = result.success, "Webhook task execution completed");
 

@@ -193,7 +193,10 @@ impl UpdateExecutor {
                 errors,
             })
         } else {
-            warn!(remaining = updates_after.len(), "Some updates still available");
+            warn!(
+                remaining = updates_after.len(),
+                "Some updates still available"
+            );
             Ok(ExecutionResult {
                 success: true,
                 summary: format!(
@@ -334,7 +337,10 @@ impl UpdateExecutor {
                 errors,
             })
         } else {
-            warn!(remaining = updates_after.len(), "Some updates still available");
+            warn!(
+                remaining = updates_after.len(),
+                "Some updates still available"
+            );
             Ok(ExecutionResult {
                 success: true,
                 summary: format!(
@@ -370,11 +376,7 @@ impl UpdateExecutor {
         for pm in PackageManager::all() {
             let binary = format!("/usr/bin/{}", pm.binary());
 
-            let check = Command::new("test")
-                .arg("-x")
-                .arg(&binary)
-                .status()
-                .await;
+            let check = Command::new("test").arg("-x").arg(&binary).status().await;
 
             if let Ok(status) = check {
                 if status.success() {

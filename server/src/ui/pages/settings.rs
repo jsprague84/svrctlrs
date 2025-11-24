@@ -1,18 +1,16 @@
 //! Settings page - Interactive configuration management
 
-use dioxus::prelude::*;
 use crate::ui::{
     components::Badge,
-    server_fns::{get_status, UpdateSettingsRequest, update_settings},
+    server_fns::{get_status, update_settings, UpdateSettingsRequest},
 };
+use dioxus::prelude::*;
 use std::collections::HashMap;
 
 #[component]
 pub fn Settings() -> Element {
     // Fetch status data reactively
-    let mut status_resource = use_resource(|| async move {
-        get_status().await
-    });
+    let mut status_resource = use_resource(|| async move { get_status().await });
 
     // Form state
     let mut auto_refresh_interval = use_signal(|| "30".to_string());

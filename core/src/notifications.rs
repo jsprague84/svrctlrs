@@ -85,8 +85,8 @@ pub struct GotifyBackend {
 impl GotifyBackend {
     /// Create a new Gotify backend
     pub fn new(client: Client) -> Result<Self> {
-        let base_url = env::var("GOTIFY_URL")
-            .unwrap_or_else(|_| "http://localhost:8080/message".to_string());
+        let base_url =
+            env::var("GOTIFY_URL").unwrap_or_else(|_| "http://localhost:8080/message".to_string());
 
         let debug = env::var("GOTIFY_DEBUG")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -246,8 +246,7 @@ pub struct NtfyBackend {
 impl NtfyBackend {
     /// Create a new ntfy backend
     pub fn new(client: Client) -> Result<Self> {
-        let base_url =
-            env::var("NTFY_URL").unwrap_or_else(|_| "https://ntfy.sh".to_string());
+        let base_url = env::var("NTFY_URL").unwrap_or_else(|_| "https://ntfy.sh".to_string());
 
         let auth_token = env::var("NTFY_AUTH").ok().filter(|s| !s.trim().is_empty());
 
@@ -323,8 +322,8 @@ impl NtfyBackend {
 
         // Add actions if provided
         if !message.actions.is_empty() {
-            json_body["actions"] = serde_json::to_value(&message.actions)
-                .map_err(|e| Error::SerializationError(e))?;
+            json_body["actions"] =
+                serde_json::to_value(&message.actions).map_err(|e| Error::SerializationError(e))?;
         }
 
         if self.debug {

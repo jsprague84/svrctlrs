@@ -1,16 +1,14 @@
 //! Plugins management page - Interactive
 
-use dioxus::prelude::*;
 use crate::ui::{
     components::Badge,
     server_fns::{list_plugins, toggle_plugin, TogglePluginRequest},
 };
+use dioxus::prelude::*;
 
 #[component]
 pub fn Plugins() -> Element {
-    let mut plugins_resource = use_resource(|| async move {
-        list_plugins().await
-    });
+    let mut plugins_resource = use_resource(|| async move { list_plugins().await });
 
     rsx! {
         div {

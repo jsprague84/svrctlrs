@@ -1,17 +1,15 @@
 //! Tasks management page - Fully interactive
 
-use dioxus::prelude::*;
 use crate::ui::{
     components::Badge,
-    server_fns::{list_tasks, execute_task, toggle_task, ExecuteTaskRequest, ToggleTaskRequest},
+    server_fns::{execute_task, list_tasks, toggle_task, ExecuteTaskRequest, ToggleTaskRequest},
 };
+use dioxus::prelude::*;
 
 #[component]
 pub fn Tasks() -> Element {
     // Fetch tasks data reactively using use_resource
-    let mut tasks_resource = use_resource(|| async move {
-        list_tasks().await
-    });
+    let mut tasks_resource = use_resource(|| async move { list_tasks().await });
 
     rsx! {
         div {

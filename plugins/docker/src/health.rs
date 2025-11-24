@@ -171,9 +171,9 @@ impl HealthMonitor {
             .map_err(|e| Error::PluginError(format!("Failed to inspect container: {}", e)))?;
 
         // Extract state and health
-        let state = inspect.state.ok_or_else(|| {
-            Error::PluginError(format!("Container {} has no state", name))
-        })?;
+        let state = inspect
+            .state
+            .ok_or_else(|| Error::PluginError(format!("Container {} has no state", name)))?;
 
         let running = state.running.unwrap_or(false);
         let health_status = state
@@ -317,10 +317,9 @@ fn calculate_cpu_percent(stats: &Stats) -> Option<f64> {
     let cpu_stats = &stats.cpu_stats;
     let precpu_stats = &stats.precpu_stats;
 
-    let cpu_delta = cpu_stats.cpu_usage.total_usage as f64
-        - precpu_stats.cpu_usage.total_usage as f64;
-    let system_delta =
-        cpu_stats.system_cpu_usage? as f64 - precpu_stats.system_cpu_usage? as f64;
+    let cpu_delta =
+        cpu_stats.cpu_usage.total_usage as f64 - precpu_stats.cpu_usage.total_usage as f64;
+    let system_delta = cpu_stats.system_cpu_usage? as f64 - precpu_stats.system_cpu_usage? as f64;
 
     if system_delta > 0.0 && cpu_delta > 0.0 {
         let num_cpus = cpu_stats.online_cpus.unwrap_or(1) as f64;

@@ -2,17 +2,19 @@
 //!
 //! Provides OS update detection, execution, and cleanup operations
 
+mod cleanup;
 mod detection;
 mod execution;
-mod cleanup;
 
 use async_trait::async_trait;
+use cleanup::CleanupExecutor;
 use detection::UpdateDetector;
 use execution::UpdateExecutor;
-use cleanup::CleanupExecutor;
 use serde_json::json;
 use std::collections::HashMap;
-use svrctlrs_core::{Error, Plugin, PluginContext, PluginMetadata, PluginResult, Result, ScheduledTask};
+use svrctlrs_core::{
+    Error, Plugin, PluginContext, PluginMetadata, PluginResult, Result, ScheduledTask,
+};
 use tracing::{info, instrument};
 
 /// System and package updates monitoring plugin
@@ -88,7 +90,8 @@ impl UpdatesPlugin {
         info!("Checking for OS updates");
 
         // Get server configuration from context
-        let server_name = std::env::var("UPDATES_SERVER_NAME").unwrap_or_else(|_| "localhost".to_string());
+        let server_name =
+            std::env::var("UPDATES_SERVER_NAME").unwrap_or_else(|_| "localhost".to_string());
         let ssh_enabled = std::env::var("UPDATES_SSH_ENABLED")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
@@ -102,7 +105,14 @@ impl UpdatesPlugin {
             let ssh_user = std::env::var("UPDATES_SSH_USER").ok();
             let ssh_key = std::env::var("UPDATES_SSH_KEY").ok();
 
-            detector.check_remote_updates(&server_name, &ssh_host, ssh_user.as_deref(), ssh_key.as_deref()).await?
+            detector
+                .check_remote_updates(
+                    &server_name,
+                    &ssh_host,
+                    ssh_user.as_deref(),
+                    ssh_key.as_deref(),
+                )
+                .await?
         } else {
             // Local update check
             detector.check_local_updates().await?
@@ -110,8 +120,7 @@ impl UpdatesPlugin {
 
         let message = format!(
             "Updates check: {} packages available on {}",
-            update_info.total_updates,
-            server_name
+            update_info.total_updates, server_name
         );
 
         // Prepare structured data
@@ -125,12 +134,23 @@ impl UpdatesPlugin {
 
         // Prepare metrics
         let mut metrics = HashMap::new();
-        metrics.insert("total_updates".to_string(), update_info.total_updates as f64);
-        metrics.insert("security_updates".to_string(), update_info.security_updates as f64);
+        metrics.insert(
+            "total_updates".to_string(),
+            update_info.total_updates as f64,
+        );
+        metrics.insert(
+            "security_updates".to_string(),
+            update_info.security_updates as f64,
+        );
 
         // Send notification if updates available
         if update_info.total_updates > 0 {
-            self.send_update_notification(&context.notification_manager, &update_info, &server_name).await?;
+            self.send_update_notification(
+                &context.notification_manager,
+                &update_info,
+                &server_name,
+            )
+            .await?;
         }
 
         Ok(PluginResult {
@@ -145,7 +165,8 @@ impl UpdatesPlugin {
     async fn apply_updates(&self, context: &PluginContext) -> Result<PluginResult> {
         info!("Applying OS updates");
 
-        let server_name = std::env::var("UPDATES_SERVER_NAME").unwrap_or_else(|_| "localhost".to_string());
+        let server_name =
+            std::env::var("UPDATES_SERVER_NAME").unwrap_or_else(|_| "localhost".to_string());
         let ssh_enabled = std::env::var("UPDATES_SSH_ENABLED")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
@@ -158,24 +179,34 @@ impl UpdatesPlugin {
             let ssh_user = std::env::var("UPDATES_SSH_USER").ok();
             let ssh_key = std::env::var("UPDATES_SSH_KEY").ok();
 
-            executor.apply_remote_updates(&server_name, &ssh_host, ssh_user.as_deref(), ssh_key.as_deref()).await?
+            executor
+                .apply_remote_updates(
+                    &server_name,
+                    &ssh_host,
+                    ssh_user.as_deref(),
+                    ssh_key.as_deref(),
+                )
+                .await?
         } else {
             executor.apply_local_updates().await?
         };
 
-        let message = format!(
-            "Updates applied on {}: {}",
-            server_name,
-            result.summary
-        );
+        let message = format!("Updates applied on {}: {}", server_name, result.summary);
 
         // Prepare metrics
         let mut metrics = HashMap::new();
-        metrics.insert("packages_updated".to_string(), result.packages_updated as f64);
-        metrics.insert("success".to_string(), if result.success { 1.0 } else { 0.0 });
+        metrics.insert(
+            "packages_updated".to_string(),
+            result.packages_updated as f64,
+        );
+        metrics.insert(
+            "success".to_string(),
+            if result.success { 1.0 } else { 0.0 },
+        );
 
         // Send notification with results
-        self.send_execution_notification(&context.notification_manager, &result, &server_name).await?;
+        self.send_execution_notification(&context.notification_manager, &result, &server_name)
+            .await?;
 
         Ok(PluginResult {
             success: result.success,
@@ -189,7 +220,8 @@ impl UpdatesPlugin {
     async fn cleanup_os(&self, context: &PluginContext) -> Result<PluginResult> {
         info!("Running OS cleanup");
 
-        let server_name = std::env::var("UPDATES_SERVER_NAME").unwrap_or_else(|_| "localhost".to_string());
+        let server_name =
+            std::env::var("UPDATES_SERVER_NAME").unwrap_or_else(|_| "localhost".to_string());
         let ssh_enabled = std::env::var("UPDATES_SSH_ENABLED")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
@@ -202,23 +234,30 @@ impl UpdatesPlugin {
             let ssh_user = std::env::var("UPDATES_SSH_USER").ok();
             let ssh_key = std::env::var("UPDATES_SSH_KEY").ok();
 
-            cleanup_executor.cleanup_remote(&server_name, &ssh_host, ssh_user.as_deref(), ssh_key.as_deref()).await?
+            cleanup_executor
+                .cleanup_remote(
+                    &server_name,
+                    &ssh_host,
+                    ssh_user.as_deref(),
+                    ssh_key.as_deref(),
+                )
+                .await?
         } else {
             cleanup_executor.cleanup_local().await?
         };
 
-        let message = format!(
-            "OS cleanup on {}: {}",
-            server_name,
-            result.summary
-        );
+        let message = format!("OS cleanup on {}: {}", server_name, result.summary);
 
         // Prepare metrics
         let mut metrics = HashMap::new();
-        metrics.insert("space_freed_mb".to_string(), result.space_freed_bytes as f64 / 1024.0 / 1024.0);
+        metrics.insert(
+            "space_freed_mb".to_string(),
+            result.space_freed_bytes as f64 / 1024.0 / 1024.0,
+        );
 
         // Send notification with results
-        self.send_cleanup_notification(&context.notification_manager, &result, &server_name).await?;
+        self.send_cleanup_notification(&context.notification_manager, &result, &server_name)
+            .await?;
 
         Ok(PluginResult {
             success: result.success,
@@ -237,12 +276,21 @@ impl UpdatesPlugin {
         let title = format!("Updates Available: {}", server_name);
 
         let mut body = String::new();
-        body.push_str(&format!("## {} Updates Available\n\n", update_info.total_updates));
+        body.push_str(&format!(
+            "## {} Updates Available\n\n",
+            update_info.total_updates
+        ));
         body.push_str(&format!("**Server**: {}\n", server_name));
-        body.push_str(&format!("**Package Manager**: {}\n\n", update_info.package_manager));
+        body.push_str(&format!(
+            "**Package Manager**: {}\n\n",
+            update_info.package_manager
+        ));
 
         if update_info.security_updates > 0 {
-            body.push_str(&format!("🔒 **Security Updates**: {}\n\n", update_info.security_updates));
+            body.push_str(&format!(
+                "🔒 **Security Updates**: {}\n\n",
+                update_info.security_updates
+            ));
         }
 
         // List first 10 packages
@@ -252,14 +300,21 @@ impl UpdatesPlugin {
                 body.push_str(&format!("{}. {}\n", i + 1, pkg));
             }
             if update_info.packages.len() > 10 {
-                body.push_str(&format!("\n...and {} more\n", update_info.packages.len() - 10));
+                body.push_str(&format!(
+                    "\n...and {} more\n",
+                    update_info.packages.len() - 10
+                ));
             }
         }
 
         let message = svrctlrs_core::NotificationMessage {
             title,
             body,
-            priority: if update_info.security_updates > 0 { 4 } else { 3 },
+            priority: if update_info.security_updates > 0 {
+                4
+            } else {
+                3
+            },
             actions: vec![],
         };
 
@@ -288,7 +343,10 @@ impl UpdatesPlugin {
         body.push_str(&format!("**Summary**: {}\n\n", result.summary));
 
         if result.packages_updated > 0 {
-            body.push_str(&format!("📦 **Packages Updated**: {}\n", result.packages_updated));
+            body.push_str(&format!(
+                "📦 **Packages Updated**: {}\n",
+                result.packages_updated
+            ));
         }
 
         if !result.errors.is_empty() {
@@ -324,7 +382,10 @@ impl UpdatesPlugin {
         let mut body = String::new();
         body.push_str("## Cleanup Complete\n\n");
         body.push_str(&format!("**Server**: {}\n", server_name));
-        body.push_str(&format!("**Space Freed**: {:.2} MB\n\n", result.space_freed_bytes as f64 / 1024.0 / 1024.0));
+        body.push_str(&format!(
+            "**Space Freed**: {:.2} MB\n\n",
+            result.space_freed_bytes as f64 / 1024.0 / 1024.0
+        ));
         body.push_str(&format!("**Summary**: {}\n", result.summary));
 
         let message = svrctlrs_core::NotificationMessage {

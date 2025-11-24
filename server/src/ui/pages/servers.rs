@@ -1,17 +1,15 @@
 //! Servers management page - Interactive
 
-use dioxus::prelude::*;
 use crate::ui::{
     components::Badge,
-    server_fns::{list_servers, get_server_details, ServerDetails},
+    server_fns::{get_server_details, list_servers, ServerDetails},
 };
+use dioxus::prelude::*;
 
 #[component]
 pub fn Servers() -> Element {
     // Fetch servers list reactively
-    let mut servers_resource = use_resource(|| async move {
-        list_servers().await
-    });
+    let mut servers_resource = use_resource(|| async move { list_servers().await });
 
     rsx! {
         div {

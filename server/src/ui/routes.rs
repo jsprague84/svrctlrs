@@ -7,11 +7,11 @@ use dioxus_router::Routable;
 use crate::ui::layout::AppLayout;
 use crate::ui::pages::{
     dashboard::Dashboard,
-    servers::{Servers, ServerDetail},
-    plugins::{Plugins, PluginDetail},
-    tasks::Tasks,
-    settings::Settings,
     not_found::NotFound,
+    plugins::{PluginDetail, Plugins},
+    servers::{ServerDetail, Servers},
+    settings::Settings,
+    tasks::Tasks,
 };
 
 /// Application routes

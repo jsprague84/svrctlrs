@@ -10,7 +10,9 @@ use cleanup::CleanupManager;
 use health::HealthMonitor;
 use serde_json::json;
 use std::collections::HashMap;
-use svrctlrs_core::{Error, Plugin, PluginContext, PluginMetadata, PluginResult, Result, ScheduledTask};
+use svrctlrs_core::{
+    Error, Plugin, PluginContext, PluginMetadata, PluginResult, Result, ScheduledTask,
+};
 use tracing::{info, instrument};
 
 /// Docker monitoring and management plugin
@@ -94,7 +96,10 @@ impl DockerPlugin {
         // Count containers by status
         let total = health_statuses.len();
         let running = health_statuses.iter().filter(|c| c.running).count();
-        let with_issues = health_statuses.iter().filter(|c| !c.issues.is_empty()).count();
+        let with_issues = health_statuses
+            .iter()
+            .filter(|c| !c.issues.is_empty())
+            .count();
 
         let message = format!(
             "Docker health check complete: {} containers ({} running, {} with issues)",
@@ -154,12 +159,30 @@ impl DockerPlugin {
 
         // Prepare metrics
         let mut metrics = HashMap::new();
-        metrics.insert("images_reclaimable".to_string(), analysis.images_reclaimable as f64);
-        metrics.insert("images_space_mb".to_string(), analysis.images_space_bytes as f64 / 1024.0 / 1024.0);
-        metrics.insert("containers_reclaimable".to_string(), analysis.containers_reclaimable as f64);
-        metrics.insert("volumes_reclaimable".to_string(), analysis.volumes_reclaimable as f64);
-        metrics.insert("networks_reclaimable".to_string(), analysis.networks_reclaimable as f64);
-        metrics.insert("total_space_mb".to_string(), analysis.total_space_bytes as f64 / 1024.0 / 1024.0);
+        metrics.insert(
+            "images_reclaimable".to_string(),
+            analysis.images_reclaimable as f64,
+        );
+        metrics.insert(
+            "images_space_mb".to_string(),
+            analysis.images_space_bytes as f64 / 1024.0 / 1024.0,
+        );
+        metrics.insert(
+            "containers_reclaimable".to_string(),
+            analysis.containers_reclaimable as f64,
+        );
+        metrics.insert(
+            "volumes_reclaimable".to_string(),
+            analysis.volumes_reclaimable as f64,
+        );
+        metrics.insert(
+            "networks_reclaimable".to_string(),
+            analysis.networks_reclaimable as f64,
+        );
+        metrics.insert(
+            "total_space_mb".to_string(),
+            analysis.total_space_bytes as f64 / 1024.0 / 1024.0,
+        );
 
         Ok(PluginResult {
             success: true,
@@ -212,12 +235,30 @@ impl DockerPlugin {
 
         // Prepare metrics
         let mut metrics = HashMap::new();
-        metrics.insert("unused_images_count".to_string(), unused_images.total_count as f64);
-        metrics.insert("unused_images_mb".to_string(), unused_images.total_size_bytes as f64 / 1024.0 / 1024.0);
-        metrics.insert("large_logs_count".to_string(), container_logs.containers_over_threshold as f64);
-        metrics.insert("total_logs_mb".to_string(), container_logs.total_size_bytes as f64 / 1024.0 / 1024.0);
-        metrics.insert("layer_efficiency_percent".to_string(), image_layers.efficiency_percent);
-        metrics.insert("shared_layers_count".to_string(), image_layers.shared_layers.len() as f64);
+        metrics.insert(
+            "unused_images_count".to_string(),
+            unused_images.total_count as f64,
+        );
+        metrics.insert(
+            "unused_images_mb".to_string(),
+            unused_images.total_size_bytes as f64 / 1024.0 / 1024.0,
+        );
+        metrics.insert(
+            "large_logs_count".to_string(),
+            container_logs.containers_over_threshold as f64,
+        );
+        metrics.insert(
+            "total_logs_mb".to_string(),
+            container_logs.total_size_bytes as f64 / 1024.0 / 1024.0,
+        );
+        metrics.insert(
+            "layer_efficiency_percent".to_string(),
+            image_layers.efficiency_percent,
+        );
+        metrics.insert(
+            "shared_layers_count".to_string(),
+            image_layers.shared_layers.len() as f64,
+        );
 
         // Send notification with summary
         self.send_analysis_notification(
@@ -271,7 +312,11 @@ impl DockerPlugin {
                     i + 1,
                     log.container_name,
                     log.log_size_bytes as f64 / 1024.0 / 1024.0,
-                    if log.has_rotation { "✓" } else { "⚠️ no rotation" }
+                    if log.has_rotation {
+                        "✓"
+                    } else {
+                        "⚠️ no rotation"
+                    }
                 ));
             }
             body.push_str("\n");

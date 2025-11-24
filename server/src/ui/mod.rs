@@ -1,16 +1,16 @@
 //! Dioxus web UI module
 
-pub mod routes;
-pub mod layout;
-pub mod theme;
-pub mod pages;
-pub mod components;
 pub mod api;
+pub mod components;
+pub mod layout;
+pub mod pages;
+pub mod routes;
 pub mod server_fns;
+pub mod theme;
 
+use crate::ui::routes::Route;
 use dioxus::prelude::*;
 use dioxus_router::Router;
-use crate::ui::routes::Route;
 
 /// Main Dioxus App component for fullstack mode
 #[component]

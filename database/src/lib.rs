@@ -97,7 +97,9 @@ impl Database {
         )
         .execute(&self.pool)
         .await
-        .map_err(|e| Error::DatabaseError(format!("Failed to create notifications table: {}", e)))?;
+        .map_err(|e| {
+            Error::DatabaseError(format!("Failed to create notifications table: {}", e))
+        })?;
 
         // Webhook invocation log table
         sqlx::query(

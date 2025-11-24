@@ -1,8 +1,8 @@
 //! Application state
 
+use std::sync::Arc;
 use svrctlrs_core::{NotificationManager, PluginRegistry, RemoteExecutor, Result};
 use svrctlrs_scheduler::Scheduler;
-use std::sync::Arc;
 use tokio::sync::{OnceCell, RwLock};
 
 use crate::config::Config;
@@ -110,12 +110,11 @@ impl AppState {
             services.push("health");
         }
 
-        NotificationManager::new(client, &services)
-            .unwrap_or_else(|_| {
-                tracing::warn!("Failed to create notification manager");
-                // Create empty manager as fallback
-                NotificationManager::new(reqwest::Client::new(), &[]).unwrap()
-            })
+        NotificationManager::new(client, &services).unwrap_or_else(|_| {
+            tracing::warn!("Failed to create notification manager");
+            // Create empty manager as fallback
+            NotificationManager::new(reqwest::Client::new(), &[]).unwrap()
+        })
     }
 
     /// Initialize the global app state (call once at startup)

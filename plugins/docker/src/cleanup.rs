@@ -194,7 +194,11 @@ impl CleanupManager {
             .await
             .map_err(|e| Error::PluginError(format!("Failed to analyze images: {}", e)))?;
 
-        let count = result.images_deleted.as_ref().map(|v| v.len() as u64).unwrap_or(0);
+        let count = result
+            .images_deleted
+            .as_ref()
+            .map(|v| v.len() as u64)
+            .unwrap_or(0);
         let space = result.space_reclaimed.unwrap_or(0).max(0) as u64;
 
         Ok((count, space))
@@ -212,7 +216,11 @@ impl CleanupManager {
             .await
             .map_err(|e| Error::PluginError(format!("Failed to analyze containers: {}", e)))?;
 
-        let count = result.containers_deleted.as_ref().map(|v| v.len() as u64).unwrap_or(0);
+        let count = result
+            .containers_deleted
+            .as_ref()
+            .map(|v| v.len() as u64)
+            .unwrap_or(0);
         let space = result.space_reclaimed.unwrap_or(0).max(0) as u64;
 
         Ok((count, space))
@@ -230,7 +238,11 @@ impl CleanupManager {
             .await
             .map_err(|e| Error::PluginError(format!("Failed to analyze volumes: {}", e)))?;
 
-        let count = result.volumes_deleted.as_ref().map(|v| v.len() as u64).unwrap_or(0);
+        let count = result
+            .volumes_deleted
+            .as_ref()
+            .map(|v| v.len() as u64)
+            .unwrap_or(0);
         let space = result.space_reclaimed.unwrap_or(0).max(0) as u64;
 
         Ok((count, space))
@@ -248,7 +260,11 @@ impl CleanupManager {
             .await
             .map_err(|e| Error::PluginError(format!("Failed to analyze networks: {}", e)))?;
 
-        let count = result.networks_deleted.as_ref().map(|v| v.len() as u64).unwrap_or(0);
+        let count = result
+            .networks_deleted
+            .as_ref()
+            .map(|v| v.len() as u64)
+            .unwrap_or(0);
 
         Ok((count, 0)) // Networks don't report space
     }
