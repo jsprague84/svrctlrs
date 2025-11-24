@@ -10,13 +10,12 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tracing::{debug, error, info, instrument};
 
 use crate::state::AppState;
 
 /// Create API router
-pub fn routes() -> Router<Arc<AppState>> {
+pub fn routes() -> Router<AppState> {
     Router::new()
         // Health and status
         .route("/health", get(health_check))
@@ -52,7 +51,7 @@ async fn health_check() -> impl IntoResponse {
 
 /// Server status endpoint
 #[instrument(skip(state))]
-async fn server_status(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
     let plugins = state.plugins.read().await;
     let plugin_count = plugins.plugin_ids().len();
 
@@ -69,7 +68,7 @@ async fn server_status(State(state): State<Arc<AppState>>) -> impl IntoResponse 
 
 /// List all plugins
 #[instrument(skip(state))]
-async fn list_plugins(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+async fn list_plugins(State(state): State<AppState>) -> impl IntoResponse {
     let registry = state.plugins.read().await;
     let plugins: Vec<_> = registry
         .plugin_ids()
@@ -95,7 +94,7 @@ async fn list_plugins(State(state): State<Arc<AppState>>) -> impl IntoResponse {
 /// Get plugin information
 #[instrument(skip(state))]
 async fn plugin_info(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(plugin_id): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let registry = state.plugins.read().await;
@@ -127,7 +126,7 @@ async fn plugin_info(
 /// Get plugin tasks
 #[instrument(skip(state))]
 async fn plugin_tasks(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(plugin_id): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let registry = state.plugins.read().await;
@@ -153,7 +152,7 @@ async fn plugin_tasks(
 
 /// List all servers
 #[instrument(skip(state))]
-async fn list_servers(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+async fn list_servers(State(state): State<AppState>) -> impl IntoResponse {
     Json(json!({
         "servers": state.config.servers.iter().map(|s| {
             json!({
@@ -167,7 +166,7 @@ async fn list_servers(State(state): State<Arc<AppState>>) -> impl IntoResponse {
 
 /// Get system metrics
 #[instrument(skip(state))]
-async fn get_metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+async fn get_metrics(State(state): State<AppState>) -> impl IntoResponse {
     // TODO: Fetch actual metrics from database
     Json(json!({
         "metrics": {
@@ -180,7 +179,7 @@ async fn get_metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
 /// Get plugin-specific metrics
 #[instrument(skip(state))]
 async fn plugin_metrics(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path(plugin_id): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     let registry = state.plugins.read().await;
@@ -199,7 +198,7 @@ async fn plugin_metrics(
 
 /// List all scheduled tasks
 #[instrument(skip(state))]
-async fn list_all_tasks(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+async fn list_all_tasks(State(state): State<AppState>) -> impl IntoResponse {
     let registry = state.plugins.read().await;
     let mut all_tasks = Vec::new();
 
@@ -233,7 +232,7 @@ struct ExecuteTaskRequest {
 /// Execute a task manually
 #[instrument(skip(state))]
 async fn execute_task(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Json(req): Json<ExecuteTaskRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     info!(plugin_id = %req.plugin_id, task_id = %req.task_id, "Manual task execution requested");

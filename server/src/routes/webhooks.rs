@@ -10,13 +10,12 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::state::AppState;
 
 /// Create webhook router
-pub fn routes() -> Router<Arc<AppState>> {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/trigger/{plugin_id}/{task_id}", post(trigger_task))
         .route("/docker/health", post(trigger_docker_health))
@@ -72,7 +71,7 @@ fn verify_token(headers: &HeaderMap, request_token: &Option<String>) -> bool {
 /// Generic task trigger endpoint
 #[instrument(skip(state, headers))]
 async fn trigger_task(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     Path((plugin_id, task_id)): Path<(String, String)>,
     headers: HeaderMap,
     Json(req): Json<TriggerRequest>,
@@ -119,7 +118,7 @@ async fn trigger_task(
 /// Trigger Docker health check
 #[instrument(skip(state, headers))]
 async fn trigger_docker_health(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<TriggerRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -135,7 +134,7 @@ async fn trigger_docker_health(
 /// Trigger Docker cleanup
 #[instrument(skip(state, headers))]
 async fn trigger_docker_cleanup(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<TriggerRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -151,7 +150,7 @@ async fn trigger_docker_cleanup(
 /// Trigger Docker analysis
 #[instrument(skip(state, headers))]
 async fn trigger_docker_analysis(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<TriggerRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -167,7 +166,7 @@ async fn trigger_docker_analysis(
 /// Trigger updates check
 #[instrument(skip(state, headers))]
 async fn trigger_updates_check(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<TriggerRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -183,7 +182,7 @@ async fn trigger_updates_check(
 /// Trigger updates apply
 #[instrument(skip(state, headers))]
 async fn trigger_updates_apply(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<TriggerRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -199,7 +198,7 @@ async fn trigger_updates_apply(
 /// Trigger OS cleanup
 #[instrument(skip(state, headers))]
 async fn trigger_os_cleanup(
-    State(state): State<Arc<AppState>>,
+    State(state): State<AppState>,
     headers: HeaderMap,
     Json(req): Json<TriggerRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
@@ -214,7 +213,7 @@ async fn trigger_os_cleanup(
 
 /// Helper function to trigger a specific task
 async fn trigger_specific_task(
-    state: Arc<AppState>,
+    state: AppState,
     plugin_id: &str,
     task_id: &str,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {

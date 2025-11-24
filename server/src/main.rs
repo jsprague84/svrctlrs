@@ -4,7 +4,8 @@
 
 #![allow(non_snake_case)]
 
-use dioxus::prelude::*;
+#[cfg(feature = "server")]
+use dioxus::server::{DioxusRouterExt, ServeConfig};
 
 mod ui;
 
@@ -27,8 +28,7 @@ use state::AppState;
 async fn main() -> anyhow::Result<()> {
     use axum::Router;
     use clap::Parser;
-    use std::sync::Arc;
-    use tracing::{info, instrument};
+    use tracing::info;
 
     /// SvrCtlRS Server
     #[derive(Parser, Debug)]
@@ -62,7 +62,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize application state
     let state = AppState::new(config).await?;
-    let state = Arc::new(state);
 
     // Initialize plugins
     info!("Initializing plugins");
@@ -72,19 +71,17 @@ async fn main() -> anyhow::Result<()> {
     info!("Starting scheduler");
     state.start_scheduler().await?;
 
-    // Build Axum router with Dioxus fullstack integration
-    // Note: Using `dx serve` for development, custom fallback for production
+    // Initialize global state for server functions
+    AppState::set_global(state.clone());
+
+    // Build UI router separately so it can be nested without affecting API state
+    let ui_router = Router::new()
+        .serve_dioxus_application(ServeConfig::new(), ui::App);
+
+    // Build Axum router with API + UI
     let app = Router::new()
-        // API routes
         .nest("/api", routes::api_routes(state.clone()))
-        // Serve static assets (WASM client bundle)
-        .nest_service(
-            "/assets",
-            tower_http::services::ServeDir::new("dist")
-                .append_index_html_on_directories(false),
-        )
-        // Dioxus fallback handler (SSR + WASM client hydration)
-        .fallback(ui::serve_fullstack)
+        .nest_service("/", ui_router.into_service())
         // Add middleware
         .layer(
             tower_http::trace::TraceLayer::new_for_http()

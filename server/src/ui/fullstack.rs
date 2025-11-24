@@ -1,51 +1,48 @@
-//! Fullstack Dioxus serving functions
+//! Fullstack Dioxus configuration with AppState context.
+//!
+//! This wires Dioxus fullstack into Axum and exposes `AppState` to all
+//! `#[server]` functions via the fullstack context.
 
-use axum::{
-    extract::Request,
-    response::{Html, IntoResponse},
-};
 use dioxus::prelude::*;
-use dioxus_ssr::Renderer;
 
+#[cfg(feature = "server")]
+use {
+    crate::state::AppState,
+    axum::Router,
+    std::sync::Arc,
+    // Dioxus re-exports the server crate as `dioxus::server`
+    dioxus::server::{DioxusRouterExt, ServeConfig},
+};
+
+#[cfg(feature = "server")]
 use super::App;
 
-/// Serve the Dioxus fullstack application
+/// Create the Dioxus fullstack Axum router with `AppState` in context.
 ///
-/// This function renders the app with SSR and prepares it for client-side hydration.
-pub async fn serve_fullstack(request: Request) -> impl IntoResponse {
-    let path = request.uri().path();
+/// This:
+/// - Builds a `ServeConfig`
+/// - Injects `AppState` into the Dioxus fullstack context
+/// - Returns an Axum `Router` with SSR + server functions wired up
+#[cfg(feature = "server")]
+pub fn create_fullstack_handler(app_state: AppState) -> Router {
+    // Clone so we can move `app_state` into the provider closure.
+    let state_for_context = app_state.clone();
 
-    tracing::debug!("Fullstack request: {}", path);
+    // A single context provider that returns `AppState` as `Box<dyn Any + Send + Sync>`.
+    //
+    // This matches the pattern used in official Dioxus fullstack examples where
+    // arbitrary values are provided to the fullstack context via providers.
+    let app_state_provider =
+        Box::new(move || {
+            Box::new(state_for_context.clone()) as Box<dyn std::any::Any + Send + Sync>
+        })
+        as Box<dyn Fn() -> Box<dyn std::any::Any + Send + Sync> + Send + Sync + 'static>;
 
-    // For now, render the App component with SSR + hydration support
-    let mut vdom = VirtualDom::new(App);
-    vdom.rebuild_in_place();
+    let config = ServeConfig::builder()
+        .context_providers(Arc::new(vec![app_state_provider]))
+        .build()
+        .expect("failed to build Dioxus ServeConfig");
 
-    // Create renderer with pre-rendering enabled for hydration
-    let mut renderer = Renderer::new();
-    renderer.pre_render = true; // Enable element IDs for hydration
-
-    let html_body = renderer.render(&vdom);
-
-    // Wrap in full HTML document with hydration script
-    let html = format!(
-        r#"<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SvrCtlRS Dashboard</title>
-    <link rel="preload" href="/assets/server.js" as="script" crossorigin="anonymous">
-</head>
-<body>
-    <div id="main">
-        {html_body}
-    </div>
-    <!-- Client bundle for hydration -->
-    <script type="module" src="/assets/server.js"></script>
-</body>
-</html>"#
-    );
-
-    Html(html)
+    // This extension method comes from `DioxusRouterExt` in `dioxus::server`.
+    Router::new().serve_dioxus_application(config, App)
 }

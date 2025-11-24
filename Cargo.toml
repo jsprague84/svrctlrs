@@ -29,8 +29,8 @@ axum = { version = "0.8", features = ["macros"] }
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "cors", "compression-gzip", "fs"] }
 
-# Dioxus fullstack framework
-dioxus = { version = "0.7", features = ["fullstack"] }
+# Dioxus fullstack framework (features set per-package)
+dioxus = { version = "0.7", default-features = false }
 dioxus-server = "0.7"
 
 # Serialization

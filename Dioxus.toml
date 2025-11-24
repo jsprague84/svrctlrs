@@ -4,8 +4,9 @@
 name = "SvrCtlRS"
 
 # Dioxus App Default Platform
-# web, desktop, fullstack
-default_platform = "fullstack"
+# Valid values: "web" or "desktop"
+# Note: fullstack is a feature on the dioxus crate, not a platform
+default_platform = "web"
 
 # Target the server package in the workspace
 package = "server"
@@ -15,6 +16,9 @@ out_dir = "dist"
 
 # resource (assets) file folder
 asset_dir = "assets"
+
+# Application base path
+base_path = "/"
 
 [web.app]
 
@@ -33,7 +37,7 @@ watch_path = ["server/src", "assets"]
 [web.resource]
 
 # CSS style file
-style = []
+style = ["assets/main.css"]
 
 # Javascript code file
 script = []

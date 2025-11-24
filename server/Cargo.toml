@@ -14,10 +14,10 @@ name = "svrctl"
 path = "src/bin/svrctl.rs"
 
 [dependencies]
-# Internal crates
-svrctlrs-core = { workspace = true }
-svrctlrs-scheduler = { workspace = true }
-svrctlrs-database = { workspace = true }
+# Internal crates (server-only - contain tokio, sqlx, etc.)
+svrctlrs-core = { workspace = true, optional = true }
+svrctlrs-scheduler = { workspace = true, optional = true }
+svrctlrs-database = { workspace = true, optional = true }
 
 # Core plugins (default)
 svrctlrs-plugin-docker = { workspace = true, optional = true }
@@ -36,11 +36,12 @@ axum = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
 tower-http = { workspace = true, optional = true }
 
-# Dioxus UI (fullstack)
-dioxus = { workspace = true, features = ["fullstack"] }
+# Dioxus UI (fullstack) - Override workspace to ensure fullstack feature is enabled
+dioxus = { version = "0.7", features = ["fullstack"] }
 dioxus-router = "0.7"
-dioxus-fullstack = "0.7"
-dioxus-ssr = "0.7"
+dioxus-fullstack = { version = "0.7", optional = true }
+dioxus-ssr = { version = "0.7", optional = true }
+dioxus-server = { version = "0.7", optional = true }
 dioxus-cli-config = { version = "0.7", optional = true }
 
 # Serialization
@@ -51,7 +52,7 @@ serde_json = { workspace = true }
 anyhow = { workspace = true, optional = true }
 
 # Logging (server-only)
-tracing = { workspace = true, optional = true }
+tracing = { workspace = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # Environment (server-only)
@@ -68,19 +69,27 @@ reqwest = { workspace = true, optional = true }
 chrono = { workspace = true, optional = true }
 
 [features]
-# Default: Core plugins + server mode
-default = ["plugin-docker", "plugin-updates", "plugin-health", "server"]
+# Default: Core plugins only (server/web features auto-enabled by dx CLI)
+default = ["plugin-docker", "plugin-updates", "plugin-health"]
 
 # Dioxus target features (conditional compilation)
 server = [
     "dioxus/server",
+    # Dioxus server-side dependencies
+    "dep:dioxus-fullstack",
+    "dep:dioxus-ssr",
+    "dep:dioxus-server",
+    "dep:dioxus-cli-config",
+    # Internal crates (server-only)
+    "dep:svrctlrs-core",
+    "dep:svrctlrs-scheduler",
+    "dep:svrctlrs-database",
+    # Server dependencies
     "dep:axum",
     "dep:tokio",
     "dep:tower",
     "dep:tower-http",
-    "dioxus-cli-config",
     "dep:anyhow",
-    "dep:tracing",
     "dep:tracing-subscriber",
     "dep:dotenvy",
     "dep:toml",

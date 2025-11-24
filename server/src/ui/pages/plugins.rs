@@ -3,7 +3,7 @@
 use dioxus::prelude::*;
 use crate::ui::{
     components::Badge,
-    server_fns::{list_plugins, get_plugin, toggle_plugin, TogglePluginRequest},
+    server_fns::{list_plugins, toggle_plugin, TogglePluginRequest},
 };
 
 #[component]

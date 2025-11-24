@@ -3,26 +3,33 @@
 use svrctlrs_core::{NotificationManager, PluginRegistry, RemoteExecutor, Result};
 use svrctlrs_scheduler::Scheduler;
 use std::sync::Arc;
-use tokio::sync::RwLock;
+use tokio::sync::{OnceCell, RwLock};
 
 use crate::config::Config;
 
+/// Global application state for server functions
+static APP_STATE: OnceCell<AppState> = OnceCell::const_new();
+
 /// Shared application state
+///
+/// This struct implements Clone to allow it to be used as Axum state
+/// All fields are wrapped in Arc for efficient cloning
+#[derive(Clone)]
 pub struct AppState {
-    pub config: Config,
+    pub config: Arc<Config>,
     pub plugins: Arc<RwLock<PluginRegistry>>,
     pub scheduler: Arc<RwLock<Option<Scheduler>>>,
-    pub executor: RemoteExecutor,
+    pub executor: Arc<RemoteExecutor>,
 }
 
 impl AppState {
     /// Create new application state
     pub async fn new(config: Config) -> Result<Self> {
-        let executor = RemoteExecutor::new(config.ssh_key_path.clone());
+        let executor = Arc::new(RemoteExecutor::new(config.ssh_key_path.clone()));
         let plugins = Arc::new(RwLock::new(PluginRegistry::new()));
 
         Ok(Self {
-            config,
+            config: Arc::new(config),
             plugins,
             scheduler: Arc::new(RwLock::new(None)),
             executor,
@@ -109,5 +116,20 @@ impl AppState {
                 // Create empty manager as fallback
                 NotificationManager::new(reqwest::Client::new(), &[]).unwrap()
             })
+    }
+
+    /// Initialize the global app state (call once at startup)
+    pub fn set_global(state: AppState) {
+        if APP_STATE.set(state).is_err() {
+            panic!("AppState already initialized");
+        }
+    }
+
+    /// Get the global app state (for use in server functions)
+    pub fn global() -> AppState {
+        APP_STATE
+            .get()
+            .expect("AppState not initialized - call AppState::set_global() first")
+            .clone()
     }
 }

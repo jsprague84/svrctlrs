@@ -298,13 +298,32 @@ async fn main() -> anyhow::Result<()> {
     use clap::Parser;
 
     // Initialize server, load config, start plugins
-    // Build Axum router with API routes + Dioxus SSR
+
+    // CRITICAL: Build UI router separately so it can be nested without affecting API state
+    // This nested router pattern is required for Dioxus 0.7 + Axum 0.8 integration
+    let ui_router = Router::new()
+        .serve_dioxus_application(ServeConfig::new(), ui::App);
+
+    // Build Axum router with API + UI
     let app = Router::new()
         .nest("/api", routes::api_routes(state.clone()))
-        .fallback(ui::serve_fullstack);  // SSR + WASM serving
+        .nest_service("/", ui_router.into_service())
+        // Add middleware
+        .layer(
+            tower_http::trace::TraceLayer::new_for_http()
+                .make_span_with(|request: &axum::http::Request<_>| {
+                    tracing::info_span!(
+                        "http_request",
+                        method = %request.method(),
+                        uri = %request.uri(),
+                    )
+                }),
+        )
+        .layer(tower_http::compression::CompressionLayer::new())
+        .layer(tower_http::cors::CorsLayer::permissive());
 
     // Start server
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app.into_make_service()).await?;
     Ok(())
 }
 
@@ -316,6 +335,48 @@ fn main() {
     // Launch Dioxus app in browser
     dioxus::launch(ui::App);
 }
+```
+
+### Static Global State Accessor Pattern
+
+**CRITICAL**: Server functions (`#[server]` macro) cannot use `State<AppState>` extractors like regular Axum handlers. You must use a static global accessor instead.
+
+**Implementation in `server/src/state.rs`:**
+
+```rust
+use tokio::sync::{OnceCell, RwLock};
+
+/// Global application state for server functions
+static APP_STATE: OnceCell<AppState> = OnceCell::const_new();
+
+impl AppState {
+    /// Initialize the global app state (call once at startup)
+    pub fn set_global(state: AppState) {
+        if APP_STATE.set(state).is_err() {
+            panic!("AppState already initialized");
+        }
+    }
+
+    /// Get the global app state (for use in server functions)
+    pub fn global() -> AppState {
+        APP_STATE
+            .get()
+            .expect("AppState not initialized - call AppState::set_global() first")
+            .clone()
+    }
+}
+```
+
+**Usage in main.rs:**
+
+```rust
+// After creating AppState
+let state = AppState::new(config).await?;
+state.init_plugins().await?;
+state.start_scheduler().await?;
+
+// Initialize global state for server functions
+AppState::set_global(state.clone());
 ```
 
 ### Server Functions Pattern
@@ -335,28 +396,47 @@ pub struct ServerInfo {
     pub status: String,
 }
 
-/// Get list of servers from database
-#[server(GetServers)]
-pub async fn get_servers() -> Result<Vec<ServerInfo>, ServerFnError> {
+/// Get list of servers from configuration
+#[server]
+pub async fn list_servers() -> Result<Vec<ServerInfo>, ServerFnError> {
     // This code ONLY runs on server
-    // Has access to database, file system, etc.
+    // Access state via global accessor (NOT State<AppState> extractor)
+    let state = AppState::global();
 
-    let db = get_db_from_context()?;
-    let servers = db.get_all_servers().await?;
+    let servers: Vec<ServerInfo> = state
+        .config
+        .servers
+        .iter()
+        .map(|s| ServerInfo {
+            name: s.name.clone(),
+            ssh_host: s.ssh_host.clone().unwrap_or_else(|| "localhost".to_string()),
+            is_local: s.is_local(),
+        })
+        .collect();
 
-    Ok(servers.into_iter().map(|s| ServerInfo {
-        name: s.name,
-        host: s.host,
-        status: s.status,
-    }).collect())
+    Ok(ServerListResponse { servers })
 }
 
 /// Toggle plugin enabled state
-#[server(TogglePlugin)]
-pub async fn toggle_plugin(plugin_id: String, enabled: bool) -> Result<(), ServerFnError> {
-    let state = get_app_state_from_context()?;
-    state.toggle_plugin(&plugin_id, enabled).await?;
-    Ok(())
+#[server]
+pub async fn toggle_plugin(req: TogglePluginRequest) -> Result<bool, ServerFnError> {
+    // Access state via global accessor
+    let state = AppState::global();
+
+    // Verify plugin exists
+    let registry = state.plugins.read().await;
+    registry
+        .get(&req.plugin_id)
+        .ok_or_else(|| ServerFnError::new(format!("Plugin {} not found", req.plugin_id)))?;
+
+    // TODO: Implement runtime plugin enable/disable in PluginRegistry
+    tracing::info!(
+        "Toggle plugin: plugin={}, enabled={}",
+        req.plugin_id,
+        req.enabled
+    );
+
+    Ok(req.enabled)
 }
 ```
 
@@ -511,9 +591,24 @@ CMD ["/app/svrctlrs-server"]
 **Cause**: Server dependencies not marked as optional
 **Fix**: Make all server deps optional with `optional = true`
 
-#### 3. "DioxusRouterExt not found" Error
-**Cause**: Trying to use Axum 0.8 extension trait (deprecated in Dioxus 0.7)
-**Fix**: Use conditional compilation pattern with dual entry points
+#### 3. "serve_dioxus_application method not found" Error
+**Cause**: Trying to call `.serve_dioxus_application()` directly on a Router that already has routes/state
+**Fix**: Use the **nested router pattern** - create Dioxus router separately and nest it as a service:
+```rust
+// CORRECT: Nested router pattern
+let ui_router = Router::new()
+    .serve_dioxus_application(ServeConfig::new(), ui::App);
+
+let app = Router::new()
+    .nest("/api", routes::api_routes(state.clone()))
+    .nest_service("/", ui_router.into_service());
+
+// INCORRECT: Trying to call directly on existing router
+let app = Router::new()
+    .nest("/api", routes::api_routes(state.clone()))
+    .serve_dioxus_application(ServeConfig::new(), ui::App);  // ❌ Won't work
+```
+This is the required pattern for Dioxus 0.7 + Axum 0.8 integration. See server/src/main.rs:80-87.
 
 #### 4. TOML Parse Errors in Dioxus.toml
 **Cause**: Incorrect syntax (maps instead of arrays, duplicate keys)
@@ -847,7 +942,8 @@ pub async fn my_function(param1: &str, sensitive_param: &str) -> Result<()> {
 
 ---
 
-**Last Updated**: 2025-11-23
-**Current Sprint**: Sprint 6 - UI Implementation (95% complete)
-**Next Task**: Complete Docker image build and deploy v2.1.0
-**Version**: v2.1.0-fullstack (pending release)
+**Last Updated**: 2025-11-24
+**Current Sprint**: Sprint 6 - UI Implementation ✅ COMPLETE
+**Status**: Ready for CI deployment to GHCR
+**Next Task**: Push to `develop` branch to trigger CI, then deploy to test server
+**Version**: v2.1.0-fullstack (ready for release)
