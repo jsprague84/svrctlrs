@@ -319,7 +319,7 @@ impl DockerPlugin {
                     }
                 ));
             }
-            body.push_str("\n");
+            body.push('\n');
         }
 
         // Layer efficiency

@@ -323,7 +323,7 @@ impl NtfyBackend {
         // Add actions if provided
         if !message.actions.is_empty() {
             json_body["actions"] =
-                serde_json::to_value(&message.actions).map_err(|e| Error::SerializationError(e))?;
+                serde_json::to_value(&message.actions).map_err(Error::SerializationError)?;
         }
 
         if self.debug {

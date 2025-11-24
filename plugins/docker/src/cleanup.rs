@@ -487,6 +487,7 @@ impl CleanupManager {
     }
 
     /// Prune unused networks
+    #[allow(dead_code)]
     async fn prune_networks(&self) -> Result<(u64, u64)> {
         self.analyze_networks().await
     }
@@ -494,6 +495,7 @@ impl CleanupManager {
     /// Prune build cache
     /// Note: Build cache pruning is not directly supported by Bollard 0.18
     /// This would need to be done via CLI: `docker builder prune`
+    #[allow(dead_code)]
     async fn prune_build_cache(&self) -> Result<u64> {
         // TODO: Implement via system exec or wait for Bollard API support
         // For now, return zero space reclaimed
