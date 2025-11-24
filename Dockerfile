@@ -74,15 +74,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
     dx build --release --package server
 
-# Debug: Show build output structure
-RUN echo "=== Build output structure ===" && \
-    ls -la && \
-    echo "=== dist/ contents ===" && \
-    ls -la dist/ 2>/dev/null || echo "dist/ not found" && \
-    echo "=== target/ structure ===" && \
-    find target -name "*.wasm" -o -name "*.js" | head -20 && \
-    echo "=== target/release/ ===" && \
-    ls -la target/release/ 2>/dev/null || echo "target/release/ not found"
+# Show build output for debugging
+RUN echo "=== Dioxus build output ===" && \
+    ls -la target/dx/server/release/web/ && \
+    echo "=== Server binary ===" && \
+    file target/dx/server/release/web/server
 
 # Also build svrctl CLI with cache mounts
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
@@ -111,12 +107,14 @@ RUN useradd -m -u 1000 -s /bin/bash svrctlrs
 WORKDIR /app
 
 # Copy binaries from builder
-# Note: dx build outputs to dist/ for client assets and target/release/ for server binary
-COPY --from=builder /app/dist /app/dist
-COPY --from=builder /app/target/release/server /app/svrctlrs-server
+# Note: dx build outputs to target/dx/server/release/web/
+COPY --from=builder /app/target/dx/server/release/web/server /app/svrctlrs-server
 COPY --from=builder /app/target/release/svrctl /app/svrctl
 
-# Copy assets directory
+# Copy public assets (even if empty for SSR-only mode)
+COPY --from=builder /app/target/dx/server/release/web/public /app/dist
+
+# Copy source assets
 COPY --from=builder /app/assets /app/assets
 
 # Create data directory and set permissions
