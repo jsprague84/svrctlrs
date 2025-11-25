@@ -14,18 +14,8 @@ pub struct Config {
 
     /// SSH key path for remote execution
     pub ssh_key_path: Option<String>,
-
-    /// Notification configuration
-    pub notifications: NotificationConfig,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NotificationConfig {
-    pub gotify_url: Option<String>,
-    pub gotify_key: Option<String>,
-    pub ntfy_url: Option<String>,
-    pub ntfy_topic: Option<String>,
-}
 
 
 impl Config {
@@ -65,12 +55,6 @@ impl Config {
             database_url,
             servers,
             ssh_key_path,
-            notifications: NotificationConfig {
-                gotify_url: std::env::var("GOTIFY_URL").ok(),
-                gotify_key: std::env::var("GOTIFY_KEY").ok(),
-                ntfy_url: std::env::var("NTFY_URL").ok(),
-                ntfy_topic: std::env::var("NTFY_TOPIC").ok(),
-            },
         })
     }
 
