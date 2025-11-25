@@ -11,6 +11,8 @@ services:
     volumes:
       # Persist database
       - svrctlrs-data:/app/data
+      # Optional: Mount config file
+      - ./config.toml:/app/config.toml:ro
       # Optional: Mount SSH keys for remote execution
       - ${SSH_KEY_PATH:-~/.ssh}:/home/svrctlrs/.ssh:ro
     healthcheck:
