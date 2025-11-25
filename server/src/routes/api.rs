@@ -24,8 +24,6 @@ pub fn routes() -> Router<AppState> {
         .route("/plugins", get(list_plugins))
         .route("/plugins/{plugin_id}", get(plugin_info))
         .route("/plugins/{plugin_id}/tasks", get(plugin_tasks))
-        // Servers
-        .route("/servers", get(list_servers))
         // Metrics
         .route("/metrics", get(get_metrics))
         .route("/metrics/{plugin_id}", get(plugin_metrics))
@@ -150,20 +148,6 @@ async fn plugin_tasks(
             })
         }).collect::<Vec<_>>()
     })))
-}
-
-/// List all servers
-#[instrument(skip(state))]
-async fn list_servers(State(state): State<AppState>) -> impl IntoResponse {
-    Json(json!({
-        "servers": state.config.servers.iter().map(|s| {
-            json!({
-                "name": s.name,
-                "ssh_host": s.ssh_host,
-                "is_local": s.is_local()
-            })
-        }).collect::<Vec<_>>()
-    }))
 }
 
 /// Get system metrics
