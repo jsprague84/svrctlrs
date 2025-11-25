@@ -107,8 +107,7 @@ async fn connect_ssh(config: &SshConfig) -> Result<Client> {
     if let Some(key_path) = &config.key_path {
         // Use SSH key authentication
         debug!("Using SSH key authentication: {}", key_path);
-        let auth_method = AuthMethod::with_key_file(key_path, None)
-            .context("Failed to load SSH key")?;
+        let auth_method = AuthMethod::with_key_file(key_path, None);
         return connect_with_auth(config, auth_method).await;
     }
     
@@ -122,25 +121,22 @@ async fn connect_ssh(config: &SshConfig) -> Result<Client> {
     ];
 
     // Try each key until one works
-    let mut last_error = None;
     for key_path in default_keys {
         if std::path::Path::new(&key_path).exists() {
             debug!("Trying SSH key: {}", key_path);
-            match AuthMethod::with_key_file(&key_path, None) {
-                Ok(auth) => {
-                    return connect_with_auth(config, auth).await;
-                }
+            let auth_method = AuthMethod::with_key_file(&key_path, None);
+            // Try to connect with this key
+            match connect_with_auth(config, auth_method).await {
+                Ok(client) => return Ok(client),
                 Err(e) => {
-                    debug!("Failed to load key {}: {}", key_path, e);
-                    last_error = Some(e);
+                    debug!("Failed to connect with key {}: {}", key_path, e);
                 }
             }
         }
     }
 
     Err(anyhow::anyhow!(
-        "No valid SSH keys found. Last error: {:?}",
-        last_error
+        "No valid SSH keys found or connection failed with all available keys"
     ))
 }
 
