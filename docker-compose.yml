@@ -30,6 +30,8 @@ services:
       - ./config.toml:/app/config.toml:ro
       
       # Mount SSH keys for remote server management
+      # Note: SSH_KEY_PATH must be a DIRECTORY (e.g., ~/.ssh), not a single key file
+      # The container will automatically try id_ed25519, id_rsa, id_ecdsa, id_dsa
       - ${SSH_KEY_PATH:-~/.ssh}:/home/svrctlrs/.ssh:ro
     healthcheck:
       test: ["CMD", "/app/svrctl", "health"]
