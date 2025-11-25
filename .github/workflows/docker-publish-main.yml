@@ -1,9 +1,9 @@
-name: Docker Publish - Main (Multi-arch)
+name: Docker Publish - Master (Multi-arch)
 
 on:
   push:
     branches:
-      - main
+      - master
     tags:
       - 'v*.*.*'
   workflow_dispatch:
@@ -48,7 +48,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
-            type=sha,prefix={{branch}}-
+            type=sha
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image (AMD64 + ARM64)
