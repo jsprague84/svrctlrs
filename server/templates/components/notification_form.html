@@ -111,13 +111,16 @@
     {% when None %}
     <form hx-post="/settings/notifications"
           hx-target="#notification-list"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          hx-indicator="#submit-spinner"
+          hx-on::after-request="if(event.detail.successful) { this.reset(); document.getElementById('notification-form-container').innerHTML = ''; }">
         
         <div class="form-group">
             <label for="name">Backend Name *</label>
             <input type="text" 
                    id="name" 
                    name="name" 
+                   placeholder="My Notification Backend"
                    required>
         </div>
         
@@ -192,7 +195,10 @@
         </div>
         
         <div class="flex gap-2">
-            <button type="submit" class="btn btn-primary">Add Backend</button>
+            <button type="submit" class="btn btn-primary">
+                Add Backend
+                <span id="submit-spinner" class="htmx-indicator">...</span>
+            </button>
             <button type="button" 
                     onclick="document.getElementById('notification-form-container').innerHTML = ''"
                     class="btn btn-secondary">
@@ -203,8 +209,36 @@
     
     <script>
     function toggleBackendFields(type) {
-        document.getElementById('gotify-fields').style.display = type === 'gotify' ? 'block' : 'none';
-        document.getElementById('ntfy-fields').style.display = type === 'ntfy' ? 'block' : 'none';
+        const gotifyFields = document.getElementById('gotify-fields');
+        const ntfyFields = document.getElementById('ntfy-fields');
+        
+        // Show/hide fields
+        gotifyFields.style.display = type === 'gotify' ? 'block' : 'none';
+        ntfyFields.style.display = type === 'ntfy' ? 'block' : 'none';
+        
+        // Enable/disable required fields based on visibility
+        const gotifyUrl = document.getElementById('gotify_url');
+        const gotifyToken = document.getElementById('gotify_token');
+        const ntfyUrl = document.getElementById('ntfy_url');
+        const ntfyTopic = document.getElementById('ntfy_topic');
+        
+        if (type === 'gotify') {
+            gotifyUrl.required = true;
+            gotifyToken.required = true;
+            ntfyUrl.required = false;
+            ntfyTopic.required = false;
+        } else if (type === 'ntfy') {
+            ntfyUrl.required = true;
+            ntfyTopic.required = true;
+            gotifyUrl.required = false;
+            gotifyToken.required = false;
+        } else {
+            // No type selected
+            gotifyUrl.required = false;
+            gotifyToken.required = false;
+            ntfyUrl.required = false;
+            ntfyTopic.required = false;
+        }
     }
     </script>
     {% endmatch %}
