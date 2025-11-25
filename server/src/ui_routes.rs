@@ -402,23 +402,26 @@ async fn plugin_config_save(
 ) -> Result<Html<String>, AppError> {
     tracing::info!("Saving plugin config: {} {:?}", id, input);
     
+    // Extract schedule first to avoid move issues
+    let schedule = input.schedule.clone().unwrap_or_else(|| "0 */5 * * * *".to_string());
+    
     // Build config JSON based on plugin type
     let config_json = if id == "weather" {
         serde_json::json!({
-            "schedule": input.schedule.unwrap_or_else(|| "0 */5 * * * *".to_string()),
+            "schedule": schedule,
             "api_key": input.api_key.unwrap_or_default(),
             "location": input.location.unwrap_or_default(),
             "units": input.units.unwrap_or_else(|| "imperial".to_string()),
         })
     } else if id == "speedtest" {
         serde_json::json!({
-            "schedule": input.schedule.unwrap_or_else(|| "0 */5 * * * *".to_string()),
+            "schedule": schedule,
             "min_down": input.min_down.and_then(|s| s.parse::<i64>().ok()).unwrap_or(100),
             "min_up": input.min_up.and_then(|s| s.parse::<i64>().ok()).unwrap_or(20),
         })
     } else {
         serde_json::json!({
-            "schedule": input.schedule.unwrap_or_else(|| "0 */5 * * * *".to_string()),
+            "schedule": schedule,
         })
     };
     
@@ -426,12 +429,45 @@ async fn plugin_config_save(
     let db = state.db().await;
     let update = svrctlrs_database::models::plugin::UpdatePlugin {
         enabled: None,
-        config: Some(config_json),
+        config: Some(config_json.clone()),
     };
     queries::plugins::update_plugin(db.pool(), &id, &update).await?;
     
-    // Return empty response to clear the form
-    Ok(Html("<div class=\"alert alert-success\">Configuration saved successfully!</div>".to_string()))
+    // Create or update scheduled task for this plugin (schedule already extracted above)
+    
+    // Check if task already exists for this plugin
+    let existing_tasks = queries::tasks::list_tasks(db.pool()).await?;
+    let existing_task = existing_tasks.iter().find(|t| t.plugin_id == id);
+    
+    if let Some(task) = existing_task {
+        // Update existing task
+        let update_task = svrctlrs_database::models::task::UpdateTask {
+            name: None,
+            description: None,
+            schedule: Some(schedule.clone()),
+            enabled: Some(true),
+            command: None,
+            args: None,
+            timeout: None,
+        };
+        queries::tasks::update_task(db.pool(), task.id, &update_task).await?;
+    } else {
+        // Create new task
+        let create_task = svrctlrs_database::models::task::CreateTask {
+            name: format!("{} Task", id),
+            description: Some(format!("Scheduled task for {} plugin", id)),
+            plugin_id: id.clone(),
+            server_id: None, // Run on all servers
+            schedule: schedule.clone(),
+            command: "execute".to_string(),
+            args: Some(config_json),
+            timeout: 300,
+        };
+        queries::tasks::create_task(db.pool(), &create_task).await?;
+    }
+    
+    // Return success message
+    Ok(Html("<div class=\"alert alert-success\">Configuration saved successfully! Task created/updated.</div>".to_string()))
 }
 
 // ============================================================================
