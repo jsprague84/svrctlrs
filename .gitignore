@@ -15,6 +15,9 @@
 .env
 .env.local
 
+# Configuration (user-specific)
+config.toml
+
 # Database
 *.db
 *.db-shm

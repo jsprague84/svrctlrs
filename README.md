@@ -83,7 +83,7 @@ git clone https://github.com/jsprague84/svrctlrs
 cd svrctlrs
 
 # Copy example config
-cp config.example.toml config.toml
+cp config/example.toml config.toml
 
 # Build and run
 cargo run --package server --features server
@@ -177,7 +177,7 @@ git push origin main
 #    Platforms: AMD64 + ARM64
 ```
 
-See [DOCKER_WORKFLOW.md](./DOCKER_WORKFLOW.md) for complete workflow documentation.
+See [docs/deployment/docker.md](./docs/deployment/docker.md) for complete workflow documentation.
 
 ## Project Structure
 
@@ -204,8 +204,9 @@ See [DOCKER_WORKFLOW.md](./DOCKER_WORKFLOW.md) for complete workflow documentati
 ## Documentation
 
 - **[CLAUDE.md](./CLAUDE.md)**: Comprehensive AI development guide
-- **[DOCKER_WORKFLOW.md](./DOCKER_WORKFLOW.md)**: Docker build and deployment workflow
-- **[.github/workflows/README.md](./.github/workflows/README.md)**: GitHub Actions documentation
+- **[docs/deployment/docker.md](./docs/deployment/docker.md)**: Docker build and deployment workflow
+- **[docs/deployment/docker-vm.md](./docs/deployment/docker-vm.md)**: Testing on docker-vm
+- **[docs/status.md](./docs/status.md)**: Current project status
 
 ## License
 

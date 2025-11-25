@@ -492,7 +492,7 @@ When porting a feature from weatherust:
 - `server/static/css/styles.css` - Nord theme
 
 ### Configuration
-- `config.example.toml` - Example configuration
+- `config/example.toml` - Example configuration
 - `docker-compose.yml` - Docker Compose setup
 - `Dockerfile` - Multi-stage Docker build
 - `.github/workflows/` - CI/CD workflows

@@ -30,12 +30,14 @@
 
 1. **README.md** - Project overview, quick start, features
 2. **CLAUDE.md** - Comprehensive AI development guide
-3. **DOCKER_WORKFLOW.md** - Docker build and deployment workflow
-4. **.github/workflows/README.md** - GitHub Actions documentation
+3. **docs/deployment/docker.md** - Docker build and deployment workflow
+4. **docs/deployment/docker-vm.md** - Testing on docker-vm
+5. **docs/status.md** - This file (current status)
 
 ### Configuration Files
 
-- `config.example.toml` - Example configuration
+- `config/example.toml` - Example configuration
+- `config/docker-vm.toml` - Docker VM test configuration
 - `docker-compose.yml` - Docker Compose setup
 - `Dockerfile` - Multi-stage build
 - `.github/workflows/` - CI/CD workflows
@@ -115,8 +117,8 @@ git push origin main
 
 1. **Read CLAUDE.md** - Comprehensive development guide
 2. **Check README.md** - Project overview
-3. **Review recent commits** - `git log --oneline -10`
-4. **Check this file** - Current status and priorities
+3. **Review docs/status.md** - Current status and priorities
+4. **Review recent commits** - `git log --oneline -10`
 
 ### Making Changes
 
