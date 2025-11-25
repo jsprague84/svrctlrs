@@ -78,19 +78,26 @@ svrctlrs/
 **Get up and running in 5 minutes!**
 
 ```bash
-# 1. Create configuration files
-cp .env.example .env
-cp config/example.toml config.toml
+# 1. Create .env file
+cp env.example .env
 
-# 2. Edit config.toml to add your servers
-nano config.toml
+# 2. (Optional) Auto-configure Docker plugin
+./scripts/setup-docker-gid.sh
 
 # 3. Start the application
-docker-compose up -d
+docker compose up -d
 
 # 4. Access the web UI
 # Open http://localhost:8080
+
+# 5. Configure everything through the UI:
+#    - Plugins: http://localhost:8080/plugins
+#    - Notifications: http://localhost:8080/settings/notifications
+#    - Servers: http://localhost:8080/servers
+#    - Tasks: http://localhost:8080/tasks
 ```
+
+**Note**: All configuration is now managed through the web UI and stored in the database. No need to edit config files!
 
 **📖 For detailed setup instructions, see [QUICKSTART.md](./QUICKSTART.md)**
 
