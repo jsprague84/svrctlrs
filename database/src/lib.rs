@@ -53,9 +53,24 @@ impl Database {
             }
         }
 
-        let pool = SqlitePool::connect(database_url)
-            .await
-            .map_err(|e| Error::DatabaseError(format!("Failed to connect: {}", e)))?;
+        // For SQLite, we need to use connect_with to set options
+        use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode};
+        use std::str::FromStr;
+        
+        let pool = if database_url.starts_with("sqlite:") {
+            let options = SqliteConnectOptions::from_str(database_url)
+                .map_err(|e| Error::DatabaseError(format!("Invalid database URL: {}", e)))?
+                .create_if_missing(true)
+                .journal_mode(SqliteJournalMode::Wal);
+            
+            SqlitePool::connect_with(options)
+                .await
+                .map_err(|e| Error::DatabaseError(format!("Failed to connect: {}", e)))?
+        } else {
+            SqlitePool::connect(database_url)
+                .await
+                .map_err(|e| Error::DatabaseError(format!("Failed to connect: {}", e)))?
+        };
 
         Ok(Self { pool })
     }
