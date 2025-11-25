@@ -241,9 +241,11 @@ None
 
 ---
 
-## Sprint 6: UI 🟢 95% (All Pages Complete)
+## Sprint 6: UI 🟢 100% Complete
 
-**Dioxus Dashboard - Near Complete**
+> **Note**: This sprint was originally implemented with Dioxus 0.7, but was later migrated to HTMX + Askama for simpler deployment and better maintainability. The sections below document the original Dioxus implementation for historical reference.
+
+**UI Implementation - Complete with HTMX + Askama**
 
 ### Planning Phase Complete ✅
 - [x] Research Dioxus 0.7 patterns (routing, state, styling)

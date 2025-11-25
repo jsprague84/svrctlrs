@@ -471,10 +471,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 
 **Example**:
 ```dockerfile
-# Slow: cargo install dioxus-cli (compiles from source, ~10 min)
-# Fast: cargo binstall dioxus-cli (downloads binary, ~30 sec)
-RUN cargo install cargo-binstall --locked && \
-    cargo binstall dioxus-cli --version 0.7.1 --no-confirm
+# Install cargo-binstall for faster CLI tool installation
+RUN cargo install cargo-binstall --locked
 ```
 
 **Performance gain**: 10-20x faster CLI tool installation
@@ -748,8 +746,7 @@ ghcr.io/jsprague84/svrctlrs:2             # Major version
 - `.github/workflows/release.yml` - Release workflow
 - `Dockerfile` - Multi-stage optimized build
 - `.dockerignore` - Exclude from build context
-- `.cargo/config.toml` - WASM optimization
-- `Dioxus.toml` - Dioxus build config
+- `.cargo/config.toml` - Build optimization
 
 ---
 

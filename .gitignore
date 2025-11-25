@@ -27,9 +27,8 @@
 .DS_Store
 Thumbs.db
 
-# Dioxus
+# Build outputs
 dist/
-.dioxus/
 
 # Test coverage
 *.profraw
