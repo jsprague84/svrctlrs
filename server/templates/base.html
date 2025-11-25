@@ -8,14 +8,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}SvrCtlRS{% endblock %}</title>
     
+    <!-- Prevent FOUC (Flash of Unstyled Content) - Set theme immediately -->
+    <script>
+        // Set theme on html element before page renders
+        const theme = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', theme);
+    </script>
+    
     <!-- Styles -->
     <link rel="stylesheet" href="/static/css/styles.css">
     
+    <!-- Alpine.js for client-side interactivity (NOT deferred - needed immediately) -->
+    <script src="/static/js/alpine.min.js"></script>
+    
     <!-- HTMX -->
     <script src="/static/js/htmx.min.js"></script>
-    
-    <!-- Alpine.js for client-side interactivity -->
-    <script defer src="/static/js/alpine.min.js"></script>
     
     {% block head %}{% endblock %}
 </head>

@@ -50,6 +50,29 @@ body {
     transition: background-color 0.2s ease, color 0.2s ease;
 }
 
+/* Remove default link styling */
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* Remove tap highlight on mobile */
+* {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+}
+
+/* Remove focus outline on buttons (accessibility handled by hover states) */
+button:focus {
+    outline: none;
+}
+
+/* But keep focus visible for keyboard navigation */
+button:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
 /* Layout */
 .app-container {
     display: flex;
