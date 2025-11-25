@@ -205,9 +205,12 @@ impl GotifyBackend {
             );
         }
 
+        // Gotify requires /message endpoint
+        let url = format!("{}/message", self.base_url.trim_end_matches('/'));
+        
         let response = self
             .client
-            .post(&self.base_url)
+            .post(&url)
             .header("X-Gotify-Key", key)
             .json(&serde_json::json!({
                 "title": message.title,
