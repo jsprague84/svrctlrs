@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   svrctlrs:
-    image: ghcr.io/${GITHUB_REPOSITORY:-jsprague/svrctlrs}:${TAG:-develop}
+    image: ghcr.io/${GITHUB_REPOSITORY:-jsprague84/svrctlrs}:${TAG:-develop}
     container_name: svrctlrs
     restart: unless-stopped
     ports:
@@ -16,7 +14,7 @@ services:
       # Optional: Mount SSH keys for remote execution
       - ${SSH_KEY_PATH:-~/.ssh}:/home/svrctlrs/.ssh:ro
     healthcheck:
-      test: ["/app/svrctl", "health"]
+      test: ["CMD", "/app/svrctl", "health"]
       interval: 30s
       timeout: 10s
       retries: 3
