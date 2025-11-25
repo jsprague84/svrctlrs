@@ -74,6 +74,8 @@ pub struct TaskHistory {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskHistoryEntry {
     pub task_id: i64,
+    pub plugin_id: String,
+    pub server_id: Option<i64>,
     pub success: bool,
     pub output: String,
     pub error: Option<String>,

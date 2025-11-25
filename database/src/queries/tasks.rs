@@ -246,18 +246,17 @@ pub async fn record_task_execution(
 ) -> Result<i64> {
     let result = sqlx::query(
         r#"
-        INSERT INTO task_history (task_id, success, message, timestamp, duration_ms, stdout, stderr, error_message)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO task_history (task_id, plugin_id, server_id, success, message, duration_ms, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         "#,
     )
-    .bind(entry.task_id)
+    .bind(entry.task_id.to_string()) // Convert i64 to TEXT
+    .bind(&entry.plugin_id)
+    .bind(entry.server_id)
     .bind(entry.success)
     .bind(&entry.output)
-    .bind(entry.executed_at)
     .bind(entry.duration_ms as i64)
-    .bind(&entry.output) // stdout
-    .bind("") // stderr (empty for now)
-    .bind(&entry.error)
+    .bind(entry.executed_at)
     .execute(pool)
     .await
     .map_err(|e| Error::DatabaseError(format!("Failed to record task execution: {}", e)))?;

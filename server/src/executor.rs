@@ -61,6 +61,8 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
     // Record execution in task history
     let history_entry = TaskHistoryEntry {
         task_id,
+        plugin_id: task.plugin_id.clone(),
+        server_id: task.server_id,
         success: result.is_ok(),
         output: result.as_ref().map(|s| s.clone()).unwrap_or_default(),
         error: result.as_ref().err().map(|e| e.to_string()),
