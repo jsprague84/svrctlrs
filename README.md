@@ -2,9 +2,10 @@
 
 **Server Control Rust** - A modern, plugin-based infrastructure monitoring and automation platform with HTMX web UI.
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/jsprague84/svrctlrs)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/jsprague84/svrctlrs/releases)
 [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org)
 [![HTMX](https://img.shields.io/badge/htmx-2.0-green.svg)](https://htmx.org)
+[![Docker](https://img.shields.io/badge/docker-multi--arch-blue.svg)](https://github.com/jsprague84/svrctlrs/pkgs/container/svrctlrs)
 
 ## Overview
 
