@@ -3,7 +3,10 @@ services:
     image: ghcr.io/${GITHUB_REPOSITORY:-jsprague84/svrctlrs}:${TAG:-latest}
     container_name: svrctlrs
     restart: ${RESTART_POLICY:-unless-stopped}
-    user: "1000:1000"  # Run as user 1000 (matches svrctlrs user in container)
+    # Run as user 1000, with docker group (GID varies by system, typically 999 or 998)
+    # To find your docker GID: stat -c '%g' /var/run/docker.sock
+    # Then set: user: "1000:999" (replace 999 with your docker GID)
+    user: "1000:1000"
     ports:
       - "${HTTP_PORT:-8080}:8080"
     environment:
@@ -12,10 +15,15 @@ services:
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/svrctlrs.db}
       
       # Note: All application configuration (plugins, notifications, servers)
-      # is now managed through the database and UI at http://localhost:8080
+      # is now managed through the database and UI at http://localhost:8080st
     volumes:
       # Persist database and application data
       - svrctlrs-data:/app/data
+      
+      # Mount Docker socket for Docker plugin (optional)
+      # Required for Docker monitoring plugin to work
+      # WARNING: This gives the container access to Docker daemon
+      - /var/run/docker.sock:/var/run/docker.sock:ro
       
       # Optional: Mount config file (rarely needed - most config is in database)
       # - ./config.toml:/app/config.toml:ro

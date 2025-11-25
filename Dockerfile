@@ -84,12 +84,16 @@ RUN sccache --show-stats || true
 # ============================================
 FROM debian:bookworm-slim
 
-# Install runtime dependencies
+# Install runtime dependencies and Ookla speedtest CLI
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
     openssh-client \
     sqlite3 \
+    curl \
+    gnupg \
+    && curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | bash \
+    && apt-get install -y speedtest \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user for security
@@ -107,7 +111,8 @@ COPY --from=builder /app/server/templates /app/server/templates
 
 # Copy helper scripts
 COPY scripts/fix-task-commands.sh /app/scripts/fix-task-commands.sh
-RUN chmod +x /app/scripts/fix-task-commands.sh
+COPY scripts/fix-plugin-task-ids.sh /app/scripts/fix-plugin-task-ids.sh
+RUN chmod +x /app/scripts/*.sh
 
 # Create data directory and .ssh directory for the svrctlrs user
 RUN mkdir -p /app/data && \
