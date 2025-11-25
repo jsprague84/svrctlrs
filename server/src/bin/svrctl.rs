@@ -33,6 +33,9 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
+    /// Quick health check (for Docker healthcheck)
+    Health,
+
     /// Server health and status commands
     Status {
         #[command(subcommand)]
@@ -177,6 +180,7 @@ async fn main() {
     let client = Client::new();
 
     let result = match cli.command {
+        Commands::Health => handle_health(&client, &cli.url).await,
         Commands::Status { command } => handle_status(&client, &cli.url, command).await,
         Commands::Plugin { command } => handle_plugin(&client, &cli.url, command).await,
         Commands::Task { command } => handle_task(&client, &cli.url, command).await,
@@ -189,6 +193,19 @@ async fn main() {
     }
 }
 
+async fn handle_health(client: &Client, base_url: &str) -> anyhow::Result<()> {
+    let url = format!("{}/api/health", base_url);
+    let response = client.get(&url).send().await?;
+    
+    if response.status().is_success() {
+        let json: Value = response.json().await?;
+        println!("{}", serde_json::to_string_pretty(&json)?);
+        Ok(())
+    } else {
+        anyhow::bail!("Health check failed with status: {}", response.status())
+    }
+}
+
 async fn handle_status(
     client: &Client,
     base_url: &str,
@@ -196,20 +213,20 @@ async fn handle_status(
 ) -> anyhow::Result<()> {
     match command {
         StatusCommands::Health => {
-            let url = format!("{}/api/v1/health", base_url);
+            let url = format!("{}/api/health", base_url);
             let response: Value = client.get(&url).send().await?.json().await?;
             println!("{}", serde_json::to_string_pretty(&response)?);
         }
         StatusCommands::Server => {
-            let url = format!("{}/api/v1/status", base_url);
+            let url = format!("{}/api/status", base_url);
             let response: Value = client.get(&url).send().await?.json().await?;
             println!("{}", serde_json::to_string_pretty(&response)?);
         }
         StatusCommands::Metrics { plugin_id } => {
             let url = if let Some(id) = plugin_id {
-                format!("{}/api/v1/metrics/{}", base_url, id)
+                format!("{}/api/metrics/{}", base_url, id)
             } else {
-                format!("{}/api/v1/metrics", base_url)
+                format!("{}/api/metrics", base_url)
             };
             let response: Value = client.get(&url).send().await?.json().await?;
             println!("{}", serde_json::to_string_pretty(&response)?);
@@ -225,17 +242,17 @@ async fn handle_plugin(
 ) -> anyhow::Result<()> {
     match command {
         PluginCommands::List => {
-            let url = format!("{}/api/v1/plugins", base_url);
+            let url = format!("{}/api/plugins", base_url);
             let response: Value = client.get(&url).send().await?.json().await?;
             println!("{}", serde_json::to_string_pretty(&response)?);
         }
         PluginCommands::Info { plugin_id } => {
-            let url = format!("{}/api/v1/plugins/{}", base_url, plugin_id);
+            let url = format!("{}/api/plugins/{}", base_url, plugin_id);
             let response: Value = client.get(&url).send().await?.json().await?;
             println!("{}", serde_json::to_string_pretty(&response)?);
         }
         PluginCommands::Tasks { plugin_id } => {
-            let url = format!("{}/api/v1/plugins/{}/tasks", base_url, plugin_id);
+            let url = format!("{}/api/plugins/{}/tasks", base_url, plugin_id);
             let response: Value = client.get(&url).send().await?.json().await?;
             println!("{}", serde_json::to_string_pretty(&response)?);
         }
@@ -246,12 +263,12 @@ async fn handle_plugin(
 async fn handle_task(client: &Client, base_url: &str, command: TaskCommands) -> anyhow::Result<()> {
     match command {
         TaskCommands::List => {
-            let url = format!("{}/api/v1/tasks", base_url);
+            let url = format!("{}/api/tasks", base_url);
             let response: Value = client.get(&url).send().await?.json().await?;
             println!("{}", serde_json::to_string_pretty(&response)?);
         }
         TaskCommands::Execute { plugin_id, task_id } => {
-            let url = format!("{}/api/v1/tasks/execute", base_url);
+            let url = format!("{}/api/tasks/execute", base_url);
             let body = serde_json::json!({
                 "plugin_id": plugin_id,
                 "task_id": task_id
