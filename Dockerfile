@@ -6,22 +6,12 @@
 # ============================================
 FROM rust:bookworm AS base
 
-# Install build dependencies first
-RUN apt-get update && apt-get install -y \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install cargo-chef and sccache using pre-built binaries when possible
-# This avoids potential network issues with cargo install
+# Install cargo-chef and sccache for optimal caching
+# Use cache mounts to speed up installation
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    cargo install cargo-chef --locked || \
-    (echo "Retrying cargo-chef installation..." && sleep 5 && cargo install cargo-chef --locked)
-
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    cargo install sccache --version ^0.8 --locked || \
-    (echo "Retrying sccache installation..." && sleep 5 && cargo install sccache --version ^0.8 --locked)
+    cargo install cargo-chef --locked && \
+    cargo install sccache --version ^0.8 --locked
 
 # Configure sccache
 ENV RUSTC_WRAPPER=sccache
