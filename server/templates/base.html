@@ -41,7 +41,7 @@
             
             <!-- Theme toggle -->
             <button @click="theme = theme === 'light' ? 'dark' : 'light'" 
-                    class="btn-secondary"
+                    class="btn btn-secondary"
                     title="Toggle theme">
                 <span x-show="theme === 'light'">🌙</span>
                 <span x-show="theme === 'dark'">☀️</span>
@@ -51,10 +51,10 @@
             {% when Some with (u) %}
             <span class="text-secondary">{{ u.username }}</span>
             <form action="/auth/logout" method="post" style="display: inline;">
-                <button type="submit" class="btn-secondary">Logout</button>
+                <button type="submit" class="btn btn-secondary">Logout</button>
             </form>
             {% when None %}
-            <a href="/auth/login" class="btn-primary">Login</a>
+            <a href="/auth/login" class="btn btn-primary">Login</a>
             {% endmatch %}
         </header>
         
