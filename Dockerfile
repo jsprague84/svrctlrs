@@ -64,11 +64,11 @@ COPY scheduler ./scheduler
 COPY database ./database
 COPY plugins ./plugins
 
-# Build server binary with HTMX + Askama
+# Build server binary with HTMX + Askama and all plugins
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
-    cargo build --release --package server --bin server --features server
+    cargo build --release --package server --bin server --features "server,all-plugins"
 
 # Build svrctl CLI
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
