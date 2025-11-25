@@ -6,9 +6,55 @@
 {% block content %}
 <h1>Settings</h1>
 
-<div class="card">
-    <h2>Application Settings</h2>
-    <p class="text-secondary">Settings page coming soon...</p>
+<p class="text-secondary mb-4">
+    Configure application settings, notification backends, and system preferences.
+</p>
+
+<!-- Settings Sections -->
+<div class="grid gap-4">
+    <!-- Notifications -->
+    <div class="card">
+        <h2>🔔 Notifications</h2>
+        <p class="text-secondary mb-3">
+            Configure notification backends (Gotify, ntfy.sh) to receive alerts from SvrCtlRS.
+        </p>
+        <a href="/settings/notifications" class="btn btn-primary">
+            Manage Notifications
+        </a>
+    </div>
+    
+    <!-- General Settings -->
+    <div class="card">
+        <h2>⚙️ General Settings</h2>
+        <p class="text-secondary mb-3">
+            Application preferences, logging, and system configuration.
+        </p>
+        <button class="btn btn-secondary" disabled>
+            Coming Soon
+        </button>
+    </div>
+    
+    <!-- Authentication -->
+    <div class="card">
+        <h2>🔐 Authentication</h2>
+        <p class="text-secondary mb-3">
+            Manage users, passwords, and access control.
+        </p>
+        <button class="btn btn-secondary" disabled>
+            Coming Soon
+        </button>
+    </div>
+    
+    <!-- Backup & Restore -->
+    <div class="card">
+        <h2>💾 Backup & Restore</h2>
+        <p class="text-secondary mb-3">
+            Backup and restore your SvrCtlRS configuration and data.
+        </p>
+        <button class="btn btn-secondary" disabled>
+            Coming Soon
+        </button>
+    </div>
 </div>
 {% endblock %}
 
