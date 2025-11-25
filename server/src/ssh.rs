@@ -104,44 +104,44 @@ pub struct CommandResult {
 /// Connect to SSH server
 async fn connect_ssh(config: &SshConfig) -> Result<Client> {
     // Determine authentication method
-    let auth_method = if let Some(key_path) = &config.key_path {
+    if let Some(key_path) = &config.key_path {
         // Use SSH key authentication
         debug!("Using SSH key authentication: {}", key_path);
-        AuthMethod::with_key_file(key_path, None)
-    } else {
-        // Try default SSH keys
-        debug!("Using default SSH key locations");
-        let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
-        let default_keys = vec![
-            format!("{}/.ssh/id_rsa", home),
-            format!("{}/.ssh/id_ed25519", home),
-            format!("{}/.ssh/id_ecdsa", home),
-        ];
+        let auth_method = AuthMethod::with_key_file(key_path, None)
+            .context("Failed to load SSH key")?;
+        return connect_with_auth(config, auth_method).await;
+    }
+    
+    // Try default SSH keys
+    debug!("Using default SSH key locations");
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
+    let default_keys = vec![
+        format!("{}/.ssh/id_rsa", home),
+        format!("{}/.ssh/id_ed25519", home),
+        format!("{}/.ssh/id_ecdsa", home),
+    ];
 
-        // Try each key until one works
-        let mut last_error = None;
-        for key_path in default_keys {
-            if std::path::Path::new(&key_path).exists() {
-                debug!("Trying SSH key: {}", key_path);
-                match AuthMethod::with_key_file(&key_path, None) {
-                    Ok(auth) => {
-                        return connect_with_auth(config, auth).await;
-                    }
-                    Err(e) => {
-                        debug!("Failed to load key {}: {}", key_path, e);
-                        last_error = Some(e);
-                    }
+    // Try each key until one works
+    let mut last_error = None;
+    for key_path in default_keys {
+        if std::path::Path::new(&key_path).exists() {
+            debug!("Trying SSH key: {}", key_path);
+            match AuthMethod::with_key_file(&key_path, None) {
+                Ok(auth) => {
+                    return connect_with_auth(config, auth).await;
+                }
+                Err(e) => {
+                    debug!("Failed to load key {}: {}", key_path, e);
+                    last_error = Some(e);
                 }
             }
         }
+    }
 
-        return Err(anyhow::anyhow!(
-            "No valid SSH keys found. Last error: {:?}",
-            last_error
-        ));
-    };
-
-    connect_with_auth(config, auth_method).await
+    Err(anyhow::anyhow!(
+        "No valid SSH keys found. Last error: {:?}",
+        last_error
+    ))
 }
 
 /// Connect with specific auth method
