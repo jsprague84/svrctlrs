@@ -1,10 +1,10 @@
 # SvrCtlRS
 
-**Server Control Rust** - A modern, plugin-based infrastructure monitoring and automation platform with fullstack web UI.
+**Server Control Rust** - A modern, plugin-based infrastructure monitoring and automation platform with HTMX web UI.
 
-[![Version](https://img.shields.io/badge/version-2.1.0--fullstack-blue.svg)](https://github.com/jsprague84/svrctlrs)
+[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/jsprague84/svrctlrs)
 [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org)
-[![Dioxus](https://img.shields.io/badge/dioxus-0.7-green.svg)](https://dioxuslabs.com)
+[![HTMX](https://img.shields.io/badge/htmx-2.0-green.svg)](https://htmx.org)
 
 ## Overview
 
@@ -12,7 +12,7 @@ SvrCtlRS is a complete rewrite of the weatherust monitoring system with a focus 
 
 - **Plugin Architecture**: Modular, extensible design for easy feature additions
 - **Built-in Scheduler**: No external dependencies like Ofelia
-- **Modern Web UI**: Dioxus 0.7 fullstack with SSR + WASM hydration
+- **Modern Web UI**: HTMX + Askama for interactive, lightweight frontend
 - **Axum Backend**: High-performance REST API
 - **State Management**: SQLite for persistent state and historical data
 - **Remote Execution**: SSH-based operations across multiple servers
@@ -23,11 +23,14 @@ SvrCtlRS is a complete rewrite of the weatherust monitoring system with a focus 
 ```
 svrctlrs/
 ├── core/              # Shared types, traits, plugin system
-├── server/            # Fullstack application
-│   ├── src/main.rs   # Dual entry points (server + WASM client)
-│   ├── src/ui/       # Dioxus components and pages
-│   ├── src/routes/   # Axum API routes
-│   └── src/state.rs  # Application state management
+├── server/            # Axum backend + HTMX UI
+│   ├── src/
+│   │   ├── main.rs       # Server entry point
+│   │   ├── ui_routes.rs  # HTMX UI routes
+│   │   ├── routes/       # REST API routes
+│   │   └── templates.rs  # Askama template structs
+│   ├── templates/        # Askama HTML templates
+│   └── static/           # CSS, JS (HTMX, Alpine.js)
 ├── scheduler/         # Built-in cron-like task scheduler
 ├── database/          # SQLite abstraction and migrations
 └── plugins/           # Monitoring plugins
@@ -41,12 +44,12 @@ svrctlrs/
 ## Technology Stack
 
 - **Backend**: Axum 0.8 (HTTP server + REST API)
-- **Frontend**: Dioxus 0.7 Fullstack (SSR + WASM hydration)
-- **Build Tool**: Dioxus CLI (dx) v0.7.1
+- **Frontend**: HTMX 2.0.3 + Alpine.js 3.14.1 + Askama 0.12
 - **Database**: SQLite with sqlx
 - **Runtime**: Tokio async runtime
 - **Notifications**: Gotify + ntfy.sh with action buttons
 - **Remote Ops**: SSH with openssh_sftp_client
+- **Bundle Size**: ~94KB JavaScript (vs 500KB+ with React/Dioxus)
 
 ## Features
 
@@ -54,12 +57,13 @@ svrctlrs/
 
 - ✅ **Modular Plugin System**: Easy to add new monitoring capabilities
 - ✅ **Built-in Scheduler**: Schedule tasks with cron expressions
-- ✅ **Fullstack Web Dashboard**: Dioxus 0.7 with SSR + WASM hydration
+- ✅ **Interactive Web Dashboard**: HTMX for dynamic updates without page reloads
 - ✅ **Remote Operations**: SSH-based remote command execution
 - ✅ **REST API**: Full HTTP API for programmatic access
 - ✅ **CLI Tool**: `svrctl` command-line interface
 - ✅ **Notification System**: Rich notifications with action buttons
 - ✅ **Database Persistence**: SQLite for historical data
+- ✅ **Mobile Responsive**: Works on desktop and mobile devices
 
 ### 📦 Implemented Plugins
 
@@ -71,16 +75,6 @@ svrctlrs/
 
 ## Quick Start
 
-### Prerequisites
-
-```bash
-# Install Dioxus CLI (required for fullstack development)
-cargo install dioxus-cli --version 0.7.1
-
-# Verify installation
-dx --version
-```
-
 ### Development
 
 ```bash
@@ -91,23 +85,17 @@ cd svrctlrs
 # Copy example config
 cp config.example.toml config.toml
 
-# Run development server with hot reload
-dx serve --package server
+# Build and run
+cargo run --package server --features server
 
 # Server starts at http://localhost:8080
-# - Rust changes trigger server restart
-# - UI changes hot-reload in browser
 ```
 
 ### Production Build
 
 ```bash
-# Build fullstack release (server + WASM client)
-dx build --release
-
-# Output:
-# - target/release/server (binary with embedded assets)
-# - dist/ (WASM bundle + JavaScript loader)
+# Build release binary
+cargo build --release --package server --features server
 
 # Run production server
 ./target/release/server --config config.toml
@@ -116,72 +104,108 @@ dx build --release
 ### Docker
 
 ```bash
-# Build image
+# Pull from GitHub Container Registry
+docker pull ghcr.io/jsprague84/svrctlrs:latest
+
+# Or build locally
 docker build -t svrctlrs:latest .
 
-# Run container
-docker run -d \
-  -p 8080:8080 \
-  -v ./data:/data \
-  --name svrctlrs \
-  svrctlrs:latest
+# Run with docker-compose
+docker-compose up -d
 ```
 
 ## Configuration
 
-Configuration is managed through environment variables and `.env` file:
+Configuration is managed through `config.toml`:
 
-```bash
-# Server configuration
-SERVER_ADDR=0.0.0.0:8080
-DATABASE_URL=sqlite:data/svrctlrs.db
+```toml
+[server]
+addr = "0.0.0.0:8080"
+database_url = "sqlite:data/svrctlrs.db"
 
-# Notification backends
-GOTIFY_URL=http://gotify:8080/message
-GOTIFY_KEY=your-gotify-token
-NTFY_URL=https://ntfy.sh
-NTFY_TOPIC=svrctlrs-alerts
+[notifications]
+gotify_url = "http://gotify:8080/message"
+gotify_key = "your-gotify-token"
+ntfy_url = "https://ntfy.sh"
+ntfy_topic = "svrctlrs-alerts"
 
-# SSH for remote operations
-SSH_KEY_PATH=/path/to/ssh/key
-REMOTE_SERVERS=server1:user@host1,server2:user@host2
+[remote]
+ssh_key_path = "/path/to/ssh/key"
 
-# Plugin configuration
-ENABLE_DOCKER_PLUGIN=true
-ENABLE_UPDATES_PLUGIN=true
-ENABLE_HEALTH_PLUGIN=true
+[[servers]]
+name = "server1"
+host = "user@host1"
+
+[[servers]]
+name = "server2"
+host = "user@host2"
+
+[plugins]
+docker_enabled = true
+updates_enabled = true
+health_enabled = true
 ```
 
-## Development
+## Development Workflow
 
-### Project Structure
+### Quick Iteration on `develop` Branch
+
+```bash
+# 1. Make changes
+git add .
+git commit -m "feat: add new feature"
+git push origin develop
+
+# 2. GitHub Actions builds AMD64 image (~5-8 min)
+#    Image: ghcr.io/jsprague84/svrctlrs:develop
+
+# 3. Pull and test on docker-vm
+docker-compose pull
+docker-compose up -d
+```
+
+### Production Release on `main` Branch
+
+```bash
+# 1. Merge to main
+git checkout main
+git merge develop
+git push origin main
+
+# 2. GitHub Actions builds multi-arch image (~15-20 min)
+#    Image: ghcr.io/jsprague84/svrctlrs:latest
+#    Platforms: AMD64 + ARM64
+```
+
+See [DOCKER_WORKFLOW.md](./DOCKER_WORKFLOW.md) for complete workflow documentation.
+
+## Project Structure
 
 - **`core/`**: Core library with traits and types used by all plugins
-- **`server/`**: Fullstack application
-  - `src/main.rs` - Dual entry points (server + WASM client)
-  - `src/ui/` - Dioxus UI components and pages
-  - `src/routes/` - Axum REST API routes
-  - `src/state.rs` - Application state management
+- **`server/`**: Axum backend + HTMX UI
+  - `src/main.rs` - Server entry point
+  - `src/ui_routes.rs` - HTMX UI route handlers
+  - `src/routes/` - REST API routes
+  - `src/templates.rs` - Askama template structs
+  - `templates/` - HTML templates (Askama)
+  - `static/` - CSS, JavaScript (HTMX, Alpine.js)
 - **`scheduler/`**: Task scheduling engine
 - **`database/`**: Database layer, migrations, queries
 - **`plugins/`**: Individual monitoring plugins
 
-### Adding a New Plugin
+## Adding a New Plugin
 
 1. Create new crate: `cargo new --lib plugins/myplugin`
 2. Implement `Plugin` trait from `svrctlrs-core`
 3. Add to workspace in `Cargo.toml`
 4. Register in `server/src/state.rs`
-5. Add UI components in `server/src/ui/`
+5. Add UI components in `server/templates/`
 
-### Key Development Files
+## Documentation
 
-- **`CLAUDE.md`**: Comprehensive development guide for Claude Code
-- **`Dioxus.toml`**: Dioxus build configuration
-- **`docker-compose.yml`**: Container orchestration
-- **`Dockerfile`**: Multi-stage build for fullstack deployment
-
-See [CLAUDE.md](./CLAUDE.md) for detailed development patterns and Context7 usage.
+- **[CLAUDE.md](./CLAUDE.md)**: Comprehensive AI development guide
+- **[DOCKER_WORKFLOW.md](./DOCKER_WORKFLOW.md)**: Docker build and deployment workflow
+- **[.github/workflows/README.md](./.github/workflows/README.md)**: GitHub Actions documentation
 
 ## License
 
