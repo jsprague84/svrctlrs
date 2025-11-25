@@ -39,45 +39,60 @@ impl AppState {
         })
     }
 
-    /// Initialize all plugins
+    /// Initialize all plugins based on database configuration
     pub async fn init_plugins(&self) -> Result<()> {
+        use svrctlrs_database::queries;
+        
         let mut registry = self.plugins.write().await;
+        let db = self.database.read().await;
 
-        // Register plugins based on configuration
-        #[cfg(feature = "plugin-docker")]
-        if self.config.plugins.docker_enabled {
-            tracing::info!("Registering Docker plugin");
-            let plugin = svrctlrs_plugin_docker::DockerPlugin::new();
-            registry.register(Box::new(plugin))?;
-        }
+        // Load enabled plugins from database
+        let enabled_plugins = queries::plugins::list_enabled_plugins(db.pool()).await?;
+        
+        tracing::info!("Loading {} enabled plugins from database", enabled_plugins.len());
 
-        #[cfg(feature = "plugin-updates")]
-        if self.config.plugins.updates_enabled {
-            tracing::info!("Registering Updates plugin");
-            let plugin = svrctlrs_plugin_updates::UpdatesPlugin::new();
-            registry.register(Box::new(plugin))?;
-        }
-
-        #[cfg(feature = "plugin-health")]
-        if self.config.plugins.health_enabled {
-            tracing::info!("Registering Health plugin");
-            let plugin = svrctlrs_plugin_health::HealthPlugin::new();
-            registry.register(Box::new(plugin))?;
-        }
-
-        // Add-on plugins (optional, disabled by default)
-        #[cfg(feature = "plugin-weather")]
-        if self.config.plugins.weather_enabled {
-            tracing::info!("Registering Weather plugin (add-on)");
-            let plugin = svrctlrs_plugin_weather::WeatherPlugin::new();
-            registry.register(Box::new(plugin))?;
-        }
-
-        #[cfg(feature = "plugin-speedtest")]
-        if self.config.plugins.speedtest_enabled {
-            tracing::info!("Registering SpeedTest plugin (add-on)");
-            let plugin = svrctlrs_plugin_speedtest::SpeedTestPlugin::new();
-            registry.register(Box::new(plugin))?;
+        // Register each enabled plugin
+        for db_plugin in enabled_plugins {
+            match db_plugin.id.as_str() {
+                #[cfg(feature = "plugin-docker")]
+                "docker" => {
+                    tracing::info!("Registering Docker plugin (enabled in database)");
+                    let plugin = svrctlrs_plugin_docker::DockerPlugin::new();
+                    registry.register(Box::new(plugin))?;
+                }
+                
+                #[cfg(feature = "plugin-updates")]
+                "updates" => {
+                    tracing::info!("Registering Updates plugin (enabled in database)");
+                    let plugin = svrctlrs_plugin_updates::UpdatesPlugin::new();
+                    registry.register(Box::new(plugin))?;
+                }
+                
+                #[cfg(feature = "plugin-health")]
+                "health" => {
+                    tracing::info!("Registering Health plugin (enabled in database)");
+                    let plugin = svrctlrs_plugin_health::HealthPlugin::new();
+                    registry.register(Box::new(plugin))?;
+                }
+                
+                #[cfg(feature = "plugin-weather")]
+                "weather" => {
+                    tracing::info!("Registering Weather plugin (enabled in database)");
+                    let plugin = svrctlrs_plugin_weather::WeatherPlugin::new();
+                    registry.register(Box::new(plugin))?;
+                }
+                
+                #[cfg(feature = "plugin-speedtest")]
+                "speedtest" => {
+                    tracing::info!("Registering SpeedTest plugin (enabled in database)");
+                    let plugin = svrctlrs_plugin_speedtest::SpeedTestPlugin::new();
+                    registry.register(Box::new(plugin))?;
+                }
+                
+                _ => {
+                    tracing::warn!("Unknown plugin in database: {}", db_plugin.id);
+                }
+            }
         }
 
         // Initialize all registered plugins
@@ -190,17 +205,9 @@ impl AppState {
             ) {
                 match GotifyBackend::with_url_and_key(client.clone(), url, token) {
                     Ok(mut gb) => {
-                        // Load service-specific keys if available
-                        let mut services = Vec::new();
-                        if self.config.plugins.docker_enabled {
-                            services.push("docker");
-                        }
-                        if self.config.plugins.updates_enabled {
-                            services.push("updates");
-                        }
-                        if self.config.plugins.health_enabled {
-                            services.push("health");
-                        }
+                        // Load service-specific keys for all plugins
+                        // (plugins will be filtered by enabled status at runtime)
+                        let services = vec!["docker", "updates", "health", "weather", "speedtest"];
                         gb.load_service_keys(&services);
                         gotify_backend = Some(gb);
                         info!("Initialized Gotify backend: {}", backend.name);
@@ -223,17 +230,9 @@ impl AppState {
             ) {
                 match NtfyBackend::with_url_and_topic(client.clone(), url, topic) {
                     Ok(mut nb) => {
-                        // Load service-specific topics if available
-                        let mut services = Vec::new();
-                        if self.config.plugins.docker_enabled {
-                            services.push("docker");
-                        }
-                        if self.config.plugins.updates_enabled {
-                            services.push("updates");
-                        }
-                        if self.config.plugins.health_enabled {
-                            services.push("health");
-                        }
+                        // Load service-specific topics for all plugins
+                        // (plugins will be filtered by enabled status at runtime)
+                        let services = vec!["docker", "updates", "health", "weather", "speedtest"];
                         nb.load_service_topics(&services);
                         ntfy_backend = Some(nb);
                         info!("Initialized ntfy backend: {}", backend.name);
