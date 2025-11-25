@@ -137,6 +137,7 @@ pub struct PluginConfigFormTemplate {
     pub plugin: Plugin,
     pub config_schedule: String,
     pub config_api_key: String,
+    pub config_zip: String,
     pub config_location: String,
     pub config_units: String,
     pub config_min_down: String,
@@ -159,6 +160,7 @@ pub struct PluginConfigInput {
     pub schedule: Option<String>,
     // Weather plugin
     pub api_key: Option<String>,
+    pub zip: Option<String>,
     pub location: Option<String>,
     pub units: Option<String>,
     // Speedtest plugin

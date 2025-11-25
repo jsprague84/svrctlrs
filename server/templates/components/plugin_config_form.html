@@ -36,16 +36,27 @@
                        value="{{ config_api_key }}"
                        placeholder="Enter your API key"
                        required>
+                <small class="text-secondary">Get your free API key from <a href="https://openweathermap.org/api" target="_blank">OpenWeatherMap</a></small>
             </div>
             
             <div class="form-group">
-                <label for="location">Location *</label>
+                <label for="zip">ZIP Code (Optional - Takes Priority)</label>
+                <input type="text" 
+                       id="zip" 
+                       name="zip" 
+                       value="{{ config_zip }}"
+                       placeholder="52726,US">
+                <small class="text-secondary">Format: ZIP,COUNTRY (e.g., 52726,US or 90210,US)</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="location">City/Location (Optional - Used if ZIP not provided)</label>
                 <input type="text" 
                        id="location" 
                        name="location" 
                        value="{{ config_location }}"
-                       placeholder="City name or coordinates"
-                       required>
+                       placeholder="Davenport,IA,US">
+                <small class="text-secondary">Format: City,State,Country (e.g., Davenport,IA,US or London,GB)</small>
             </div>
             
             <div class="form-group">

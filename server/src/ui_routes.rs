@@ -476,6 +476,7 @@ async fn plugin_config_form(
         plugin: db_plugin_to_ui(db_plugin),
         config_schedule: config.get("schedule").and_then(|v| v.as_str()).unwrap_or("0 */5 * * * *").to_string(),
         config_api_key: config.get("api_key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        config_zip: config.get("zip").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         config_location: config.get("location").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         config_units: config.get("units").and_then(|v| v.as_str()).unwrap_or("imperial").to_string(),
         config_min_down: config.get("min_down").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_else(|| "100".to_string()),
@@ -512,6 +513,7 @@ async fn plugin_config_save(
         serde_json::json!({
             "schedule": schedule,
             "api_key": input.api_key.unwrap_or_default(),
+            "zip": input.zip.unwrap_or_default(),
             "location": input.location.unwrap_or_default(),
             "units": input.units.unwrap_or_else(|| "imperial".to_string()),
         })
