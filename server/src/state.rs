@@ -78,14 +78,16 @@ impl AppState {
                 #[cfg(feature = "plugin-weather")]
                 "weather" => {
                     tracing::info!("Registering Weather plugin (enabled in database)");
-                    let plugin = svrctlrs_plugin_weather::WeatherPlugin::new();
+                    let config = db_plugin.get_config();
+                    let plugin = svrctlrs_plugin_weather::WeatherPlugin::from_config(config)?;
                     registry.register(Box::new(plugin))?;
                 }
                 
                 #[cfg(feature = "plugin-speedtest")]
                 "speedtest" => {
                     tracing::info!("Registering SpeedTest plugin (enabled in database)");
-                    let plugin = svrctlrs_plugin_speedtest::SpeedTestPlugin::new();
+                    let config = db_plugin.get_config();
+                    let plugin = svrctlrs_plugin_speedtest::SpeedTestPlugin::from_config(config)?;
                     registry.register(Box::new(plugin))?;
                 }
                 
