@@ -1,5 +1,8 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" 
+      x-data="{ sidebarOpen: false, theme: localStorage.getItem('theme') || 'dark' }" 
+      x-init="$watch('theme', val => localStorage.setItem('theme', val))"
+      :data-theme="theme">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,9 +19,8 @@
     
     {% block head %}{% endblock %}
 </head>
-<body x-data="{ sidebarOpen: false, theme: localStorage.getItem('theme') || 'dark' }" 
-      x-init="$watch('theme', val => localStorage.setItem('theme', val))">
-    <div class="app-container" :data-theme="theme">
+<body>
+    <div class="app-container">
         <!-- Header -->
         <header class="header">
             <!-- Mobile menu button -->
