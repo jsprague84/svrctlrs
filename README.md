@@ -73,9 +73,28 @@ svrctlrs/
 - ✅ **Weather Plugin**: OpenWeatherMap integration (optional)
 - ✅ **Speed Test Plugin**: Ookla speed test monitoring (optional)
 
-## Quick Start
+## 🚀 Quick Start (Docker Compose - Recommended)
 
-### Development
+**Get up and running in 5 minutes!**
+
+```bash
+# 1. Create configuration files
+cp .env.example .env
+cp config/example.toml config.toml
+
+# 2. Edit config.toml to add your servers
+nano config.toml
+
+# 3. Start the application
+docker-compose up -d
+
+# 4. Access the web UI
+# Open http://localhost:8080
+```
+
+**📖 For detailed setup instructions, see [QUICKSTART.md](./QUICKSTART.md)**
+
+### Alternative: Development Build
 
 ```bash
 # Clone the repository
@@ -91,7 +110,7 @@ cargo run --package server --features server
 # Server starts at http://localhost:8080
 ```
 
-### Production Build
+### Alternative: Production Binary
 
 ```bash
 # Build release binary
@@ -99,19 +118,6 @@ cargo build --release --package server --features server
 
 # Run production server
 ./target/release/server --config config.toml
-```
-
-### Docker
-
-```bash
-# Pull from GitHub Container Registry
-docker pull ghcr.io/jsprague84/svrctlrs:latest
-
-# Or build locally
-docker build -t svrctlrs:latest .
-
-# Run with docker-compose
-docker-compose up -d
 ```
 
 ## Configuration
@@ -203,10 +209,17 @@ See [docs/deployment/docker.md](./docs/deployment/docker.md) for complete workfl
 
 ## Documentation
 
+### Getting Started
+- **[QUICKSTART.md](./QUICKSTART.md)**: 5-minute Docker Compose setup guide
+- **[.env.example](./.env.example)**: Environment variable reference
+- **[config/example.toml](./config/example.toml)**: Configuration file reference
+
+### Development & Deployment
 - **[CLAUDE.md](./CLAUDE.md)**: Comprehensive AI development guide
 - **[docs/deployment/docker.md](./docs/deployment/docker.md)**: Docker build and deployment workflow
 - **[docs/deployment/docker-vm.md](./docs/deployment/docker-vm.md)**: Testing on docker-vm
 - **[docs/status.md](./docs/status.md)**: Current project status
+- **[docs/README.md](./docs/README.md)**: Documentation index
 
 ## License
 

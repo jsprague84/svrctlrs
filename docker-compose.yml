@@ -1,19 +1,34 @@
 services:
   svrctlrs:
-    image: ghcr.io/${GITHUB_REPOSITORY:-jsprague84/svrctlrs}:${TAG:-develop}
+    image: ghcr.io/${GITHUB_REPOSITORY:-jsprague84/svrctlrs}:${TAG:-latest}
     container_name: svrctlrs
-    restart: unless-stopped
+    restart: ${RESTART_POLICY:-unless-stopped}
     ports:
-      - "8080:8080"
+      - "${HTTP_PORT:-8080}:8080"
     environment:
+      # Logging
       - RUST_LOG=${RUST_LOG:-info}
-      - DATABASE_URL=sqlite:/app/data/svrctlrs.db
+      
+      # Database
+      - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/svrctlrs.db}
+      
+      # Optional: Notifications
+      - GOTIFY_URL=${GOTIFY_URL:-}
+      - GOTIFY_TOKEN=${GOTIFY_TOKEN:-}
+      - NTFY_URL=${NTFY_URL:-}
+      - NTFY_TOPIC=${NTFY_TOPIC:-}
+      
+      # Optional: Weather plugin
+      - WEATHER_API_KEY=${WEATHER_API_KEY:-}
+      - WEATHER_LOCATION=${WEATHER_LOCATION:-}
     volumes:
-      # Persist database
+      # Persist database and application data
       - svrctlrs-data:/app/data
-      # Optional: Mount config file
+      
+      # Mount config file (create from config/example.toml)
       - ./config.toml:/app/config.toml:ro
-      # Optional: Mount SSH keys for remote execution
+      
+      # Mount SSH keys for remote server management
       - ${SSH_KEY_PATH:-~/.ssh}:/home/svrctlrs/.ssh:ro
     healthcheck:
       test: ["CMD", "/app/svrctl", "health"]
@@ -21,6 +36,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 5s
+    # Optional: Resource limits
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2'
+    #       memory: 1G
+    #     reservations:
+    #       cpus: '0.5'
+    #       memory: 256M
 
 volumes:
   svrctlrs-data:
