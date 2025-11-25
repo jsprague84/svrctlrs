@@ -119,5 +119,5 @@ ENV STATIC_DIR=/app/server/static
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD ["/app/svrctl", "health"]
 
-# Run server (create data directory if it doesn't exist)
-CMD ["sh", "-c", "mkdir -p /app/data && /app/svrctlrs-server"]
+# Run server
+CMD ["/app/svrctlrs-server"]

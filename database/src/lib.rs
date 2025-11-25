@@ -21,14 +21,34 @@ impl Database {
     pub async fn new(database_url: &str) -> Result<Self> {
         info!(url = %database_url, "Connecting to database");
 
-        // Extract file path from SQLite URL and create parent directory if needed
+        // Extract file path from SQLite URL and ensure parent directory exists with proper permissions
         if database_url.starts_with("sqlite:") {
             let path = database_url.strip_prefix("sqlite:").unwrap_or(database_url);
             if let Some(parent) = std::path::Path::new(path).parent() {
+                // Try to create directory if it doesn't exist
                 if !parent.exists() {
                     info!(dir = ?parent, "Creating database directory");
                     std::fs::create_dir_all(parent)
                         .map_err(|e| Error::DatabaseError(format!("Failed to create database directory: {}", e)))?;
+                } else {
+                    // Directory exists, check if we can write to it
+                    info!(dir = ?parent, "Database directory exists, checking permissions");
+                    
+                    // Try to create a test file to verify write permissions
+                    let test_file = parent.join(".write_test");
+                    match std::fs::write(&test_file, b"test") {
+                        Ok(_) => {
+                            // Clean up test file
+                            let _ = std::fs::remove_file(&test_file);
+                            info!("Database directory is writable");
+                        }
+                        Err(e) => {
+                            return Err(Error::DatabaseError(format!(
+                                "Database directory {:?} is not writable: {}. Check volume permissions.",
+                                parent, e
+                            )));
+                        }
+                    }
                 }
             }
         }
