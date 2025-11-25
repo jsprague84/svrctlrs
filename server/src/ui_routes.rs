@@ -435,6 +435,17 @@ async fn plugin_config_save(
     // Extract schedule first to avoid move issues
     let schedule = input.schedule.clone().unwrap_or_else(|| "0 */5 * * * *".to_string());
     
+    // Validate cron expression before saving
+    use cron::Schedule;
+    use std::str::FromStr;
+    if let Err(e) = Schedule::from_str(&schedule) {
+        tracing::error!("Invalid cron expression '{}': {}", schedule, e);
+        return Ok(Html(format!(
+            r#"<div class="alert alert-error">Invalid cron expression '{}': {}. Please use format: SEC MIN HOUR DAY MONTH DAYOFWEEK (e.g., "0 */5 * * * *")</div>"#,
+            schedule, e
+        )));
+    }
+    
     // Build config JSON based on plugin type
     let config_json = if id == "weather" {
         serde_json::json!({

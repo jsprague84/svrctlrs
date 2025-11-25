@@ -70,6 +70,7 @@ async-ssh2-tokio = { workspace = true, optional = true }
 
 # Date/time (server-only)
 chrono = { workspace = true, optional = true }
+cron = { workspace = true, optional = true }
 
 [features]
 # Default: Core plugins + server feature
@@ -95,7 +96,8 @@ server = [
     "dep:clap",
     "dep:reqwest",
     "dep:async-ssh2-tokio",
-    "dep:chrono"
+    "dep:chrono",
+    "dep:cron"
 ]
 
 # Core plugins (default enabled)

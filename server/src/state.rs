@@ -104,6 +104,7 @@ impl AppState {
         for task in tasks {
             let task_id = task.id;
             let schedule = task.schedule.clone();
+            let task_name = task.name.clone();
             
             // Clone state for the closure
             let state = self.clone();
@@ -132,11 +133,20 @@ impl AppState {
                     })
                 });
             
-            scheduler.add_task(
+            // Try to add task, but don't fail if cron expression is invalid
+            match scheduler.add_task(
                 format!("task_{}", task_id),
                 &schedule,
                 handler,
-            ).await?;
+            ).await {
+                Ok(_) => {
+                    tracing::info!("Registered task {} ({}) with schedule: {}", task_id, task_name, schedule);
+                }
+                Err(e) => {
+                    tracing::error!("Failed to register task {} ({}): {}. Skipping this task.", task_id, task_name, e);
+                    // Continue with other tasks instead of failing
+                }
+            }
         }
         
         // Start the scheduler
