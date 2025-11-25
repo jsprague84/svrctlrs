@@ -77,6 +77,36 @@ impl SpeedTestPlugin {
         }
     }
 
+    /// Create a new SpeedTest plugin from a JSON configuration
+    pub fn from_config(config: serde_json::Value) -> Result<Self> {
+        let min_down = config["min_down"]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .or_else(|| config["min_down"].as_i64().map(|i| i as f64));
+        
+        let min_up = config["min_up"]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .or_else(|| config["min_up"].as_i64().map(|i| i as f64));
+        
+        let server_id = config["server_id"]
+            .as_str()
+            .and_then(|s| s.parse().ok())
+            .or_else(|| config["server_id"].as_u64().map(|i| i as u32));
+        
+        let schedule = config["schedule"]
+            .as_str()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "0 */4 * * *".to_string());
+
+        Ok(Self {
+            min_down,
+            min_up,
+            server_id,
+            schedule,
+        })
+    }
+
     /// Run speedtest and send notification
     async fn run_speedtest(
         &self,
