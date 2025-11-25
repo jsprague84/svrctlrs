@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - SvrCtlRS{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_servers }}</div>
+        <div class="stat-label">Servers</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.active_tasks }}</div>
+        <div class="stat-label">Active Tasks</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.enabled_plugins }}</div>
+        <div class="stat-label">Enabled Plugins</div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_tasks }}</div>
+        <div class="stat-label">Total Tasks</div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Quick Actions</h2>
+    </div>
+    
+    <div class="flex gap-2">
+        <a href="/servers" class="btn-primary">Manage Servers</a>
+        <a href="/tasks" class="btn-primary">View Tasks</a>
+        <a href="/plugins" class="btn-primary">Configure Plugins</a>
+    </div>
+</div>
+
+<!-- Recent Activity (placeholder for future) -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Recent Activity</h2>
+    </div>
+    
+    <p class="text-secondary">No recent activity to display.</p>
+</div>
+{% endblock %}
+

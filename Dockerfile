@@ -62,15 +62,13 @@ COPY database ./database
 COPY plugins ./plugins
 COPY assets ./assets
 
-# Build server binary with SSR support (no WASM client for now)
-# Note: dx build doesn't work in Docker due to target triple detection issues
-# Building server binary directly with cargo + server feature flag
+# Build server binary with HTMX + Askama
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
     cargo build --release --package server --bin server --features server
 
-# Build svrctl CLI (also needs server feature for dependencies)
+# Build svrctl CLI
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
@@ -100,7 +98,11 @@ WORKDIR /app
 COPY --from=builder /app/target/release/server /app/svrctlrs-server
 COPY --from=builder /app/target/release/svrctl /app/svrctl
 
-# Copy source assets (for SSR templates if needed)
+# Copy static assets (CSS, JS, templates)
+COPY server/static /app/server/static
+COPY server/templates /app/server/templates
+
+# Copy source assets (if any additional assets needed)
 COPY --from=builder /app/assets /app/assets
 
 # Create data directory and set permissions

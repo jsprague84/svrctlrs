@@ -1,0 +1,35 @@
+{% if tasks.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No tasks running.</p>
+</div>
+{% else %}
+<div class="card">
+    <table>
+        <thead>
+            <tr>
+                <th>Task</th>
+                <th>Status</th>
+                <th>Progress</th>
+                <th>Created</th>
+                <th>Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr>
+                <td><strong>{{ task.name }}</strong></td>
+                <td>
+                    <span class="badge {{ task.status.badge_class() }}">
+                        {{ task.status.as_str() }}
+                    </span>
+                </td>
+                <td>{{ task.progress }}%</td>
+                <td>{{ task.created_at }}</td>
+                <td>{{ task.updated_at }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+

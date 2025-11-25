@@ -1,29 +1,19 @@
 //! SvrCtlRS Server
 //!
-//! Fullstack application with conditional compilation for server/web targets.
+//! Server application with HTMX + Askama UI
 
 #![allow(non_snake_case)]
 
-#[cfg(feature = "server")]
-use dioxus::server::{DioxusRouterExt, ServeConfig};
-
-mod ui;
-
 // Server-side modules
-#[cfg(feature = "server")]
 mod config;
-#[cfg(feature = "server")]
 mod routes;
-#[cfg(feature = "server")]
 mod state;
+mod templates;
+mod ui_routes;
 
-#[cfg(feature = "server")]
 use config::Config;
-#[cfg(feature = "server")]
 use state::AppState;
 
-// Server-side entry point
-#[cfg(feature = "server")]
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     use axum::Router;
@@ -42,6 +32,7 @@ async fn main() -> anyhow::Result<()> {
         #[arg(short, long)]
         config: Option<String>,
     }
+    
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -71,17 +62,19 @@ async fn main() -> anyhow::Result<()> {
     info!("Starting scheduler");
     state.start_scheduler().await?;
 
-    // Initialize global state for server functions
+    // Initialize global state for compatibility
     AppState::set_global(state.clone());
 
-    // Build UI router separately so it can be nested without affecting API state
-    let ui_router = Router::new().serve_dioxus_application(ServeConfig::new(), ui::App);
-
-    // Build Axum router with API + UI
+    // Build UI router with state
+    let ui_router = ui_routes::ui_routes().with_state(state.clone());
+    
+    // Build main router
     let app = Router::new()
+        // API routes
         .nest("/api", routes::api_routes(state.clone()))
-        .nest_service("/", ui_router.into_service())
-        // Add middleware
+        // UI routes (HTMX + Askama)
+        .merge(ui_router)
+        // Middleware
         .layer(
             tower_http::trace::TraceLayer::new_for_http().make_span_with(
                 |request: &axum::http::Request<_>| {
@@ -103,10 +96,4 @@ async fn main() -> anyhow::Result<()> {
     axum::serve(listener, app.into_make_service()).await?;
 
     Ok(())
-}
-
-// Client-side entry point (WASM)
-#[cfg(not(feature = "server"))]
-fn main() {
-    dioxus::launch(ui::App);
 }

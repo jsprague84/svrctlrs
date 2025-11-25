@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}Servers - SvrCtlRS{% endblock %}
+{% block nav_servers %}active{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-3">
+    <h1>Servers</h1>
+    <button hx-get="/servers/new" 
+            hx-target="#server-form-container" 
+            hx-swap="innerHTML"
+            class="btn-primary">
+        Add Server
+    </button>
+</div>
+
+<!-- Server Form Container (loaded via HTMX) -->
+<div id="server-form-container"></div>
+
+<!-- Server List -->
+<div id="server-list">
+    {% include "components/server_list.html" %}
+</div>
+{% endblock %}
+

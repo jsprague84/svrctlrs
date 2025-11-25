@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SvrCtlRS{% endblock %}</title>
+    
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+    
+    <!-- HTMX -->
+    <script src="/static/js/htmx.min.js"></script>
+    
+    <!-- Alpine.js for client-side interactivity -->
+    <script defer src="/static/js/alpine.min.js"></script>
+    
+    {% block head %}{% endblock %}
+</head>
+<body x-data="{ sidebarOpen: false, theme: localStorage.getItem('theme') || 'dark' }" 
+      x-init="$watch('theme', val => localStorage.setItem('theme', val))">
+    <div class="app-container" :data-theme="theme">
+        <!-- Header -->
+        <header class="header">
+            <!-- Mobile menu button -->
+            <button @click="sidebarOpen = !sidebarOpen" class="mobile-menu-btn">
+                ☰
+            </button>
+            
+            <a href="/" class="header-title">SvrCtlRS</a>
+            
+            <div class="header-spacer"></div>
+            
+            <!-- Theme toggle -->
+            <button @click="theme = theme === 'light' ? 'dark' : 'light'" 
+                    class="btn-secondary"
+                    title="Toggle theme">
+                <span x-show="theme === 'light'">🌙</span>
+                <span x-show="theme === 'dark'">☀️</span>
+            </button>
+            
+            {% match user %}
+            {% when Some with (u) %}
+            <span class="text-secondary">{{ u.username }}</span>
+            <form action="/auth/logout" method="post" style="display: inline;">
+                <button type="submit" class="btn-secondary">Logout</button>
+            </form>
+            {% when None %}
+            <a href="/auth/login" class="btn-primary">Login</a>
+            {% endmatch %}
+        </header>
+        
+        <div class="main-layout">
+            <!-- Sidebar -->
+            <aside class="sidebar" :class="{ 'open': sidebarOpen }" @click.away="sidebarOpen = false">
+                <nav>
+                    <a href="/" class="nav-link {% block nav_dashboard %}{% endblock %}">
+                        📊 Dashboard
+                    </a>
+                    <a href="/servers" class="nav-link {% block nav_servers %}{% endblock %}">
+                        🖥️ Servers
+                    </a>
+                    <a href="/tasks" class="nav-link {% block nav_tasks %}{% endblock %}">
+                        ⚙️ Tasks
+                    </a>
+                    <a href="/plugins" class="nav-link {% block nav_plugins %}{% endblock %}">
+                        🔌 Plugins
+                    </a>
+                    <a href="/settings" class="nav-link {% block nav_settings %}{% endblock %}">
+                        ⚙️ Settings
+                    </a>
+                </nav>
+            </aside>
+            
+            <!-- Main content -->
+            <main class="main-content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+    
+    <!-- Toast notifications container -->
+    <div id="toast-container" style="position: fixed; top: 80px; right: 20px; z-index: 1000;">
+        <!-- Toasts will be injected here via HTMX -->
+    </div>
+</body>
+</html>
+

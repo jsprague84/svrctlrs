@@ -36,13 +36,13 @@ axum = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
 tower-http = { workspace = true, optional = true }
 
-# Dioxus UI (fullstack) - Override workspace to ensure fullstack feature is enabled
-dioxus = { version = "0.7", features = ["fullstack"] }
-dioxus-router = "0.7"
-dioxus-fullstack = { version = "0.7", optional = true }
-dioxus-ssr = { version = "0.7", optional = true }
-dioxus-server = { version = "0.7", optional = true }
-dioxus-cli-config = { version = "0.7", optional = true }
+# Templating (HTMX + Askama)
+askama = "0.12"
+askama_axum = "0.4"
+
+# Session management for auth
+tower-sessions = "0.13"
+tower-sessions-sqlx-store = { version = "0.13", features = ["sqlite"], optional = true }
 
 # Serialization
 serde = { workspace = true }
@@ -51,8 +51,8 @@ serde_json = { workspace = true }
 # Error handling (server-only)
 anyhow = { workspace = true, optional = true }
 
-# Logging (server-only)
-tracing = { workspace = true }
+# Logging (server-only, optional for WASM compatibility)
+tracing = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 # Environment (server-only)
@@ -69,17 +69,11 @@ reqwest = { workspace = true, optional = true }
 chrono = { workspace = true, optional = true }
 
 [features]
-# Default: Core plugins only (server/web features auto-enabled by dx CLI)
-default = ["plugin-docker", "plugin-updates", "plugin-health"]
+# Default: Core plugins + server feature
+default = ["server", "plugin-docker", "plugin-updates", "plugin-health"]
 
-# Dioxus target features (conditional compilation)
+# Server feature (default for binary)
 server = [
-    "dioxus/server",
-    # Dioxus server-side dependencies
-    "dep:dioxus-fullstack",
-    "dep:dioxus-ssr",
-    "dep:dioxus-server",
-    "dep:dioxus-cli-config",
     # Internal crates (server-only)
     "dep:svrctlrs-core",
     "dep:svrctlrs-scheduler",
@@ -89,7 +83,9 @@ server = [
     "dep:tokio",
     "dep:tower",
     "dep:tower-http",
+    "dep:tower-sessions-sqlx-store",
     "dep:anyhow",
+    "dep:tracing",
     "dep:tracing-subscriber",
     "dep:dotenvy",
     "dep:toml",
@@ -97,8 +93,6 @@ server = [
     "dep:reqwest",
     "dep:chrono"
 ]
-web = ["dioxus/web"]
-desktop = ["dioxus/desktop"]
 
 # Core plugins (default enabled)
 plugin-docker = ["dep:svrctlrs-plugin-docker"]

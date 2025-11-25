@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title %}Tasks - SvrCtlRS{% endblock %}
+{% block nav_tasks %}active{% endblock %}
+
+{% block content %}
+<h1>Tasks</h1>
+
+<!-- Task List (with auto-refresh) -->
+<div id="task-list" 
+     hx-get="/tasks/list" 
+     hx-trigger="every 5s"
+     hx-swap="innerHTML">
+    {% include "components/task_list.html" %}
+</div>
+{% endblock %}
+

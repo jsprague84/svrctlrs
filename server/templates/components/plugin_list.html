@@ -1,0 +1,31 @@
+{% if plugins.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No plugins available.</p>
+</div>
+{% else %}
+<div class="grid grid-2">
+    {% for plugin in plugins %}
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">{{ plugin.name }}</h3>
+            <span class="badge {% if plugin.enabled %}badge-success{% else %}badge-warning{% endif %}">
+                {% if plugin.enabled %}Enabled{% else %}Disabled{% endif %}
+            </span>
+        </div>
+        
+        <p class="text-secondary">{{ plugin.description }}</p>
+        <p class="text-muted" style="font-size: 0.875rem;">Version: {{ plugin.version }}</p>
+        
+        <div class="mt-2">
+            <button hx-post="/plugins/{{ plugin.id }}/toggle"
+                    hx-target="#plugin-list"
+                    hx-swap="innerHTML"
+                    class="btn-secondary btn-sm">
+                {% if plugin.enabled %}Disable{% else %}Enable{% endif %}
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+

@@ -1,56 +1,26 @@
+version: '3.8'
+
 services:
   svrctlrs:
-    # Use GitHub Container Registry image (or build locally with 'docker-compose build')
-    image: ghcr.io/jsprague84/svrctlrs:latest
-    container_name: svrctlrs-server
-
-    # Uncomment to build locally instead of pulling from registry
-    # build:
-    #   context: .
-    #   dockerfile: Dockerfile
-
+    image: ghcr.io/${GITHUB_REPOSITORY:-jsprague/svrctlrs}:${TAG:-develop}
+    container_name: svrctlrs
+    restart: unless-stopped
     ports:
       - "8080:8080"
-
-    env_file:
-      - .env
-
-    volumes:
-      # SQLite database persistence
-      - svrctlrs-data:/app/data:rw
-      # SSH key for remote server access (read-only)
-      - ${SSH_KEY_PATH:-~/.ssh/id_rsa}:/app/ssh_key:ro
-      # Configuration file
-      - ./config.toml:/app/config.toml:ro
-
-    restart: unless-stopped
-
-    # Override default CMD to pass config file
-    command: ["/app/svrctlrs-server", "--config", "/app/config.toml"]
-
     environment:
-      - DATABASE_URL=sqlite:/app/data/svrctlrs.db
-      - SSH_KEY_PATH=/app/ssh_key
       - RUST_LOG=${RUST_LOG:-info}
-
-    # Health check using built-in svrctl CLI
+      - DATABASE_URL=sqlite:/app/data/svrctlrs.db
+    volumes:
+      # Persist database
+      - svrctlrs-data:/app/data
+      # Optional: Mount SSH keys for remote execution
+      - ${SSH_KEY_PATH:-~/.ssh}:/home/svrctlrs/.ssh:ro
     healthcheck:
-      test: ["CMD", "/app/svrctl", "health"]
+      test: ["/app/svrctl", "health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
-
-    labels:
-      - "com.svrctlrs.description=SvrCtlRS Server Monitoring Platform"
-      - "com.svrctlrs.version=latest"
-
-    networks:
-      - svrctlrs-network
-
-networks:
-  svrctlrs-network:
-    driver: bridge
+      start_period: 5s
 
 volumes:
   svrctlrs-data:

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Plugins - SvrCtlRS{% endblock %}
+{% block nav_plugins %}active{% endblock %}
+
+{% block content %}
+<h1>Plugins</h1>
+
+<!-- Plugin List -->
+<div id="plugin-list">
+    {% include "components/plugin_list.html" %}
+</div>
+{% endblock %}
+
