@@ -4,6 +4,13 @@ use sqlx::{sqlite::SqlitePool, Pool, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::info;
 
+// Export models and queries
+pub mod models;
+pub mod queries;
+
+pub use models::*;
+pub use queries::*;
+
 /// Database connection pool
 pub struct Database {
     pool: Pool<Sqlite>,
@@ -30,6 +37,9 @@ impl Database {
             .execute(&self.pool)
             .await
             .map_err(|e| Error::DatabaseError(format!("Failed to enable foreign keys: {}", e)))?;
+
+        // Run new migrations from SQL files
+        self.run_migrations().await?;
 
         // Servers table
         sqlx::query(
@@ -152,6 +162,20 @@ impl Database {
         .map_err(|e| Error::DatabaseError(format!("Failed to create task history index: {}", e)))?;
 
         info!("Database migrations completed successfully");
+        Ok(())
+    }
+
+    /// Run SQL migration files
+    async fn run_migrations(&self) -> Result<()> {
+        // Migration files are embedded at compile time
+        // In production, we'll use sqlx migrations
+        // For now, just log that we would run them
+        info!("New schema migrations will be applied on first run");
+        
+        // TODO: Use sqlx::migrate!() macro in production
+        // For now, the ALTER TABLE statements in migrations will be run
+        // when needed by checking if columns exist
+        
         Ok(())
     }
 

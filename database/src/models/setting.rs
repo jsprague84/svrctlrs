@@ -34,7 +34,10 @@ impl Setting {
                 } else if let Ok(num) = self.value.parse::<f64>() {
                     serde_json::from_value(serde_json::json!(num))
                 } else {
-                    Err(serde_json::Error::custom("Invalid number"))
+                    Err(serde_json::Error::io(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalid number",
+                    )))
                 }
             }
             _ => serde_json::from_value(serde_json::json!(self.value)),
