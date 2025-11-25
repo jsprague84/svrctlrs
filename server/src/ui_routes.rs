@@ -685,19 +685,38 @@ async fn notification_create(
     let db = state.db().await;
     
     let create_backend = svrctlrs_database::models::notification::CreateNotificationBackend {
-        backend_type: input.backend_type,
-        name: input.name,
+        backend_type: input.backend_type.clone(),
+        name: input.name.clone(),
         config: config_json,
         priority: input.priority.unwrap_or(5),
     };
     
-    queries::notifications::create_notification_backend(db.pool(), &create_backend).await?;
-    
-    // Return updated notification list
-    let db_notifications = queries::notifications::list_notification_backends(db.pool()).await?;
-    let notifications = db_notifications.into_iter().map(db_notification_to_ui).collect();
-    let template = NotificationListTemplate { notifications };
-    Ok(Html(template.render()?))
+    match queries::notifications::create_notification_backend(db.pool(), &create_backend).await {
+        Ok(_) => {
+            // Success - return updated list with success message
+            let db_notifications = queries::notifications::list_notification_backends(db.pool()).await?;
+            let notifications = db_notifications.into_iter().map(db_notification_to_ui).collect();
+            let template = NotificationListTemplate { notifications };
+            let list_html = template.render()?;
+            
+            Ok(Html(format!(
+                r#"<div class="alert alert-success">✓ Notification backend '{}' ({}) created successfully!</div>{}"#,
+                input.name, input.backend_type, list_html
+            )))
+        }
+        Err(e) => {
+            // Check if it's a duplicate name error
+            let error_msg = e.to_string();
+            if error_msg.contains("UNIQUE constraint") {
+                Ok(Html(format!(
+                    r#"<div class="alert alert-error">✗ A notification backend with the name '{}' already exists. Please use a different name.</div>"#,
+                    input.name
+                )))
+            } else {
+                Err(e.into())
+            }
+        }
+    }
 }
 
 async fn notification_update(
@@ -725,6 +744,13 @@ async fn notification_update(
         })
     };
     
+    // Get backend name for success message
+    let backend_name = if let Some(ref name) = input.name {
+        name.clone()
+    } else {
+        existing.name.clone()
+    };
+    
     // Update in database
     let update_backend = svrctlrs_database::models::notification::UpdateNotificationBackend {
         name: input.name,
@@ -733,26 +759,51 @@ async fn notification_update(
         priority: input.priority,
     };
     
-    queries::notifications::update_notification_backend(db.pool(), id, &update_backend).await?;
-    
-    // Return updated notification list
-    let db_notifications = queries::notifications::list_notification_backends(db.pool()).await?;
-    let notifications = db_notifications.into_iter().map(db_notification_to_ui).collect();
-    let template = NotificationListTemplate { notifications };
-    Ok(Html(template.render()?))
+    match queries::notifications::update_notification_backend(db.pool(), id, &update_backend).await {
+        Ok(_) => {
+            // Success - return updated list with success message
+            let db_notifications = queries::notifications::list_notification_backends(db.pool()).await?;
+            let notifications = db_notifications.into_iter().map(db_notification_to_ui).collect();
+            let template = NotificationListTemplate { notifications };
+            let list_html = template.render()?;
+            
+            Ok(Html(format!(
+                r#"<div class="alert alert-success">✓ Notification backend '{}' updated successfully!</div>{}"#,
+                backend_name, list_html
+            )))
+        }
+        Err(e) => {
+            let error_msg = e.to_string();
+            if error_msg.contains("UNIQUE constraint") {
+                Ok(Html(format!(
+                    r#"<div class="alert alert-error">✗ A notification backend with that name already exists. Please use a different name.</div>"#
+                )))
+            } else {
+                Err(e.into())
+            }
+        }
+    }
 }
 
 async fn notification_delete(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    tracing::info!("Deleting notification backend {}", id);
+    // Get backend name before deleting
     let db = state.db().await;
+    let backend_name = queries::notifications::get_notification_backend(db.pool(), id)
+        .await
+        .map(|b| b.name)
+        .unwrap_or_else(|_| format!("Backend {}", id));
     
+    tracing::info!("Deleting notification backend {}", id);
     queries::notifications::delete_notification_backend(db.pool(), id).await?;
     
-    // Return empty response (HTMX will remove the element)
-    Ok(Html(""))
+    // Return success message
+    Ok(Html(format!(
+        r#"<div class="alert alert-success">✓ Notification backend '{}' deleted successfully!</div>"#,
+        backend_name
+    )))
 }
 
 fn db_notification_to_ui(db: svrctlrs_database::models::notification::NotificationBackend) -> NotificationBackend {
