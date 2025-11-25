@@ -1,0 +1,41 @@
+{% if notifications.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No notification backends configured yet. Click "Add Notification Backend" to get started.</p>
+</div>
+{% else %}
+<div class="grid grid-2">
+    {% for notification in notifications %}
+    <div class="card" id="notification-{{ notification.id }}">
+        <div class="card-header">
+            <h3 class="card-title">{{ notification.name }}</h3>
+            <span class="badge {% if notification.enabled %}badge-success{% else %}badge-warning{% endif %}">
+                {% if notification.enabled %}Enabled{% else %}Disabled{% endif %}
+            </span>
+        </div>
+        
+        <p class="text-secondary">
+            <strong>Type:</strong> {{ notification.backend_type }}<br>
+            <strong>Priority:</strong> {{ notification.priority }}
+        </p>
+        
+        <div class="flex gap-2 mt-2">
+            <button hx-get="/settings/notifications/{{ notification.id }}/edit"
+                    hx-target="#notification-form-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-secondary btn-sm">
+                Edit
+            </button>
+            
+            <button hx-delete="/settings/notifications/{{ notification.id }}"
+                    hx-target="#notification-{{ notification.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Delete notification backend '{{ notification.name }}'?"
+                    class="btn btn-danger btn-sm">
+                Delete
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+

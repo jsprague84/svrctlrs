@@ -202,6 +202,63 @@ pub struct SettingsTemplate {
 }
 
 // ============================================================================
+// Notifications
+// ============================================================================
+
+#[derive(Template)]
+#[template(path = "pages/notifications.html")]
+pub struct NotificationsTemplate {
+    pub user: Option<User>,
+    pub notifications: Vec<NotificationBackend>,
+}
+
+#[derive(Template)]
+#[template(path = "components/notification_list.html")]
+pub struct NotificationListTemplate {
+    pub notifications: Vec<NotificationBackend>,
+}
+
+#[derive(Template)]
+#[template(path = "components/notification_form.html")]
+pub struct NotificationFormTemplate {
+    pub notification: Option<NotificationBackend>,
+    pub config_url: String,
+    pub config_token: String,
+    pub config_topic: String,
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotificationBackend {
+    pub id: i64,
+    pub backend_type: String,
+    pub name: String,
+    pub enabled: bool,
+    pub priority: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateNotificationInput {
+    pub name: String,
+    pub backend_type: String,
+    pub url: Option<String>,
+    pub token: Option<String>,
+    pub topic: Option<String>,
+    pub priority: Option<i32>,
+    pub enabled: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateNotificationInput {
+    pub name: Option<String>,
+    pub url: Option<String>,
+    pub token: Option<String>,
+    pub topic: Option<String>,
+    pub priority: Option<i32>,
+    pub enabled: Option<String>,
+}
+
+// ============================================================================
 // Auth
 // ============================================================================
 

@@ -35,6 +35,13 @@ pub fn ui_routes() -> Router<AppState> {
         .route("/plugins/{id}/toggle", post(plugin_toggle))
         .route("/plugins/{id}/config", get(plugin_config_form).put(plugin_config_save))
         
+        // Notification settings
+        .route("/settings/notifications", get(notifications_page))
+        .route("/settings/notifications/new", get(notification_form_new))
+        .route("/settings/notifications", post(notification_create))
+        .route("/settings/notifications/{id}/edit", get(notification_form_edit))
+        .route("/settings/notifications/{id}", put(notification_update).delete(notification_delete))
+        
         // Auth
         .route("/auth/login", get(login_page).post(login))
         .route("/auth/logout", post(logout))
@@ -364,6 +371,189 @@ async fn settings_page() -> Result<Html<String>, AppError> {
     let user = get_user_from_session().await;
     let template = SettingsTemplate { user };
     Ok(Html(template.render()?))
+}
+
+// ============================================================================
+// Notifications
+// ============================================================================
+
+async fn notifications_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+    let user = get_user_from_session().await;
+    
+    // Load notification backends from database
+    let db = state.db().await;
+    let db_notifications = queries::notifications::list_notification_backends(db.pool()).await?;
+    let notifications = db_notifications.into_iter().map(db_notification_to_ui).collect();
+    
+    let template = NotificationsTemplate { user, notifications };
+    Ok(Html(template.render()?))
+}
+
+async fn notification_form_new() -> Result<Html<String>, AppError> {
+    let template = NotificationFormTemplate {
+        notification: None,
+        config_url: String::new(),
+        config_token: String::new(),
+        config_topic: String::new(),
+        error: None,
+    };
+    Ok(Html(template.render()?))
+}
+
+async fn notification_form_edit(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    // Load notification backend from database
+    let db = state.db().await;
+    let db_notification = queries::notifications::get_notification_backend(db.pool(), id).await;
+    
+    let (notification, error) = match db_notification {
+        Ok(n) => {
+            let config = n.get_config();
+            let template_notification = Some(db_notification_to_ui(n));
+            let config_url = config.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let config_token = config.get("token").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let config_topic = config.get("topic").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            
+            let template = NotificationFormTemplate {
+                notification: template_notification,
+                config_url,
+                config_token,
+                config_topic,
+                error: None,
+            };
+            return Ok(Html(template.render()?));
+        }
+        Err(e) => {
+            tracing::warn!("Failed to load notification backend {}: {}", id, e);
+            (None, Some(format!("Notification backend with ID {} not found", id)))
+        }
+    };
+    
+    let template = NotificationFormTemplate {
+        notification,
+        config_url: String::new(),
+        config_token: String::new(),
+        config_topic: String::new(),
+        error,
+    };
+    Ok(Html(template.render()?))
+}
+
+async fn notification_create(
+    State(state): State<AppState>,
+    Form(input): Form<CreateNotificationInput>,
+) -> Result<Html<String>, AppError> {
+    // Validate
+    if input.name.is_empty() || input.backend_type.is_empty() {
+        let template = NotificationFormTemplate {
+            notification: None,
+            config_url: String::new(),
+            config_token: String::new(),
+            config_topic: String::new(),
+            error: Some("Name and backend type are required".to_string()),
+        };
+        return Ok(Html(template.render()?));
+    }
+    
+    // Build config JSON based on backend type
+    let config_json = if input.backend_type == "gotify" {
+        serde_json::json!({
+            "url": input.url.unwrap_or_default(),
+            "token": input.token.unwrap_or_default(),
+        })
+    } else {
+        serde_json::json!({
+            "url": input.url.unwrap_or_default(),
+            "topic": input.topic.unwrap_or_default(),
+            "token": input.token.unwrap_or_default(),
+        })
+    };
+    
+    // Save to database
+    tracing::info!("Creating notification backend: {} ({})", input.name, input.backend_type);
+    let db = state.db().await;
+    
+    let create_backend = svrctlrs_database::models::notification::CreateNotificationBackend {
+        backend_type: input.backend_type,
+        name: input.name,
+        config: config_json,
+        priority: input.priority.unwrap_or(5),
+    };
+    
+    queries::notifications::create_notification_backend(db.pool(), &create_backend).await?;
+    
+    // Return updated notification list
+    let db_notifications = queries::notifications::list_notification_backends(db.pool()).await?;
+    let notifications = db_notifications.into_iter().map(db_notification_to_ui).collect();
+    let template = NotificationListTemplate { notifications };
+    Ok(Html(template.render()?))
+}
+
+async fn notification_update(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Form(input): Form<UpdateNotificationInput>,
+) -> Result<Html<String>, AppError> {
+    tracing::info!("Updating notification backend {}: {:?}", id, input);
+    
+    // Get existing backend to determine type
+    let db = state.db().await;
+    let existing = queries::notifications::get_notification_backend(db.pool(), id).await?;
+    
+    // Build config JSON based on backend type
+    let config_json = if existing.backend_type == "gotify" {
+        serde_json::json!({
+            "url": input.url.unwrap_or_default(),
+            "token": input.token.unwrap_or_default(),
+        })
+    } else {
+        serde_json::json!({
+            "url": input.url.unwrap_or_default(),
+            "topic": input.topic.unwrap_or_default(),
+            "token": input.token.unwrap_or_default(),
+        })
+    };
+    
+    // Update in database
+    let update_backend = svrctlrs_database::models::notification::UpdateNotificationBackend {
+        name: input.name,
+        enabled: input.enabled.map(|s| s == "on"),
+        config: Some(config_json),
+        priority: input.priority,
+    };
+    
+    queries::notifications::update_notification_backend(db.pool(), id, &update_backend).await?;
+    
+    // Return updated notification list
+    let db_notifications = queries::notifications::list_notification_backends(db.pool()).await?;
+    let notifications = db_notifications.into_iter().map(db_notification_to_ui).collect();
+    let template = NotificationListTemplate { notifications };
+    Ok(Html(template.render()?))
+}
+
+async fn notification_delete(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, AppError> {
+    tracing::info!("Deleting notification backend {}", id);
+    let db = state.db().await;
+    
+    queries::notifications::delete_notification_backend(db.pool(), id).await?;
+    
+    // Return empty response (HTMX will remove the element)
+    Ok(Html(""))
+}
+
+fn db_notification_to_ui(db: svrctlrs_database::models::notification::NotificationBackend) -> NotificationBackend {
+    NotificationBackend {
+        id: db.id,
+        backend_type: db.backend_type,
+        name: db.name,
+        enabled: db.enabled,
+        priority: db.priority,
+    }
 }
 
 // ============================================================================

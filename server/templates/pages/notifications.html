@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Notification Settings - SvrCtlRS{% endblock %}
+{% block nav_settings %}active{% endblock %}
+
+{% block content %}
+<h1>Notification Settings</h1>
+
+<p class="text-secondary mb-4">
+    Configure notification backends to receive alerts from SvrCtlRS. Supports Gotify and ntfy.sh.
+</p>
+
+<!-- Add Backend Button -->
+<div class="mb-4">
+    <button hx-get="/settings/notifications/new"
+            hx-target="#notification-form-container"
+            hx-swap="innerHTML"
+            class="btn btn-primary">
+        Add Notification Backend
+    </button>
+</div>
+
+<!-- Notification Form Container -->
+<div id="notification-form-container" class="mb-4">
+    <!-- Form will be loaded here via HTMX -->
+</div>
+
+<!-- Notification Backends List -->
+<div id="notification-list">
+    {% include "components/notification_list.html" %}
+</div>
+{% endblock %}
+

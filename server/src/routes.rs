@@ -1,6 +1,7 @@
 //! API routes
 
 mod api;
+mod notifications;
 mod plugins;
 mod servers;
 mod webhooks;
@@ -18,6 +19,8 @@ pub fn api_routes(state: AppState) -> Router {
         .nest("/v1/servers", servers::routes())
         // Plugin management routes
         .nest("/v1/plugins", plugins::routes())
+        // Notification backend management routes
+        .nest("/v1/notifications", notifications::routes())
         // Webhook routes
         .nest("/webhooks", webhooks::routes())
         .with_state(state)
