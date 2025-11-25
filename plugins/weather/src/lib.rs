@@ -98,6 +98,30 @@ impl WeatherPlugin {
         }
     }
 
+    /// Create a new Weather plugin from a JSON configuration
+    pub fn from_config(config: serde_json::Value) -> svrctlrs_core::Result<Self> {
+        let api_key = config["api_key"].as_str().map(|s| s.to_string());
+        let location = config["location"].as_str().map(|s| s.to_string());
+        let zip = config["zip"].as_str().map(|s| s.to_string());
+        let units = config["units"]
+            .as_str()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "imperial".to_string());
+        let schedule = config["schedule"]
+            .as_str()
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "0 6 * * *".to_string());
+
+        Ok(Self {
+            client: Client::new(),
+            api_key,
+            location,
+            zip,
+            units,
+            schedule,
+        })
+    }
+
     /// Fetch weather data and send notification
     async fn fetch_weather(
         &self,
