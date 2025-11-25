@@ -75,29 +75,26 @@ svrctlrs/
 
 ## 🚀 Quick Start (Docker Compose - Recommended)
 
-**Get up and running in 5 minutes!**
+**Get up and running in 3 minutes!**
 
 ```bash
-# 1. Create .env file
+# 1. Create .env file (optional - has sensible defaults)
 cp env.example .env
 
-# 2. (Optional) Auto-configure Docker plugin
-./scripts/setup-docker-gid.sh
-
-# 3. Start the application
+# 2. Start the application
 docker compose up -d
 
-# 4. Access the web UI
-# Open http://localhost:8080
+# 3. Access the web UI
+open http://localhost:8080
 
-# 5. Configure everything through the UI:
-#    - Plugins: http://localhost:8080/plugins
-#    - Notifications: http://localhost:8080/settings/notifications
-#    - Servers: http://localhost:8080/servers
-#    - Tasks: http://localhost:8080/tasks
+# 4. Configure through the UI:
+#    - Add remote servers: /servers
+#    - Enable plugins: /plugins
+#    - Setup notifications: /settings/notifications
+#    - View/run tasks: /tasks
 ```
 
-**Note**: All configuration is now managed through the web UI and stored in the database. No need to edit config files!
+**Note**: All configuration is managed through the web UI and stored in the database. No config files needed!
 
 **📖 For detailed setup instructions, see [QUICKSTART.md](./QUICKSTART.md)**
 
