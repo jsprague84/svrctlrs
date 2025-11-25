@@ -17,8 +17,8 @@ services:
       # Persist database and application data
       - svrctlrs-data:/app/data
       
-      # Mount config file (create from config/example.toml)
-      - ./config.toml:/app/config.toml:ro
+      # Optional: Mount config file (rarely needed - most config is in database)
+      # - ./config.toml:/app/config.toml:ro
       
       # Mount SSH keys for remote server management
       # Note: SSH_KEY_PATH must be a DIRECTORY (e.g., ~/.ssh), not a single key file
