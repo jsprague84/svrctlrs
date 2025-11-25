@@ -26,23 +26,39 @@ ENABLE_SPEEDTEST_PLUGIN=true
 
 ### 2. Fix Database Task Commands
 
-The database tasks have incorrect `command` values. They should match the plugin's task IDs:
+The database tasks have incorrect `command` values. They should match the plugin's task IDs.
+
+**Option A: Using the included helper script (Easiest)**
 
 ```bash
-# Connect to the database
-sqlite3 data/svrctlrs.db
+# Run the fix script inside the container
+docker-compose exec svrctlrs /app/scripts/fix-task-commands.sh
+```
 
-# Update task commands to match plugin task IDs
+**Option B: Manual SQL commands**
+
+```bash
+# Execute SQL commands inside the container
+docker-compose exec svrctlrs sqlite3 /app/data/svrctlrs.db <<EOF
 UPDATE tasks SET command = 'system_metrics' WHERE plugin_id = 'health';
 UPDATE tasks SET command = 'docker_health' WHERE plugin_id = 'docker';
 UPDATE tasks SET command = 'speedtest_run' WHERE plugin_id = 'speedtest';
 UPDATE tasks SET command = 'weather_check' WHERE plugin_id = 'weather';
-
-# Verify the changes
 SELECT id, name, plugin_id, command, enabled FROM tasks;
+EOF
+```
 
-# Exit
-.quit
+**Option C: Using mounted volume (if you have direct access to data directory)**
+
+```bash
+# If you have a volume mount for /app/data, you can access it directly from host
+sqlite3 ~/docker-compose/svrctlrs/data/svrctlrs.db <<EOF
+UPDATE tasks SET command = 'system_metrics' WHERE plugin_id = 'health';
+UPDATE tasks SET command = 'docker_health' WHERE plugin_id = 'docker';
+UPDATE tasks SET command = 'speedtest_run' WHERE plugin_id = 'speedtest';
+UPDATE tasks SET command = 'weather_check' WHERE plugin_id = 'weather';
+SELECT id, name, plugin_id, command, enabled FROM tasks;
+EOF
 ```
 
 ### 3. Restart the Container

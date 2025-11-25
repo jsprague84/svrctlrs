@@ -89,6 +89,7 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
     openssh-client \
+    sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user for security
@@ -103,6 +104,10 @@ COPY --from=builder /app/target/release/svrctl /app/svrctl
 # Copy static assets (CSS, JS, templates) from builder
 COPY --from=builder /app/server/static /app/server/static
 COPY --from=builder /app/server/templates /app/server/templates
+
+# Copy helper scripts
+COPY scripts/fix-task-commands.sh /app/scripts/fix-task-commands.sh
+RUN chmod +x /app/scripts/fix-task-commands.sh
 
 # Create data directory and .ssh directory for the svrctlrs user
 RUN mkdir -p /app/data && \
