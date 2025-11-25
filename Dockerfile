@@ -28,7 +28,6 @@ COPY server ./server
 COPY scheduler ./scheduler
 COPY database ./database
 COPY plugins ./plugins
-COPY Dioxus.toml ./
 
 # Generate recipe.json containing all workspace dependencies
 RUN cargo chef prepare --recipe-path recipe.json
@@ -43,10 +42,6 @@ RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Dioxus CLI from source (required for GLIBC compatibility)
-# Note: cargo-binstall binaries require newer GLIBC than Debian Bookworm provides
-RUN cargo install dioxus-cli --version 0.7.1 --locked
 
 # Copy dependency recipe from planner
 COPY --from=planner /app/recipe.json recipe.json
@@ -65,22 +60,17 @@ COPY server ./server
 COPY scheduler ./scheduler
 COPY database ./database
 COPY plugins ./plugins
-COPY Dioxus.toml ./
 COPY assets ./assets
 
-# Build fullstack Dioxus app with cache mounts
+# Build server binary with SSR support (no WASM client for now)
+# Note: dx build doesn't work in Docker due to target triple detection issues
+# Building server binary directly with cargo + server feature flag
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
-    dx build --release --package server
+    cargo build --release --package server --bin server --features server
 
-# Show build output for debugging
-RUN echo "=== Dioxus build output ===" && \
-    ls -la target/dx/server/release/web/ && \
-    echo "=== Server binary ===" && \
-    file target/dx/server/release/web/server
-
-# Also build svrctl CLI with cache mounts
+# Build svrctl CLI
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
@@ -107,14 +97,10 @@ RUN useradd -m -u 1000 -s /bin/bash svrctlrs
 WORKDIR /app
 
 # Copy binaries from builder
-# Note: dx build outputs to target/dx/server/release/web/
-COPY --from=builder /app/target/dx/server/release/web/server /app/svrctlrs-server
+COPY --from=builder /app/target/release/server /app/svrctlrs-server
 COPY --from=builder /app/target/release/svrctl /app/svrctl
 
-# Copy public assets (even if empty for SSR-only mode)
-COPY --from=builder /app/target/dx/server/release/web/public /app/dist
-
-# Copy source assets
+# Copy source assets (for SSR templates if needed)
 COPY --from=builder /app/assets /app/assets
 
 # Create data directory and set permissions
