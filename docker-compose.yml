@@ -13,13 +13,20 @@ services:
       # Database
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/svrctlrs.db}
       
+      # Plugin Configuration
+      - ENABLE_DOCKER_PLUGIN=${ENABLE_DOCKER_PLUGIN:-true}
+      - ENABLE_UPDATES_PLUGIN=${ENABLE_UPDATES_PLUGIN:-true}
+      - ENABLE_HEALTH_PLUGIN=${ENABLE_HEALTH_PLUGIN:-true}
+      - ENABLE_WEATHER_PLUGIN=${ENABLE_WEATHER_PLUGIN:-false}
+      - ENABLE_SPEEDTEST_PLUGIN=${ENABLE_SPEEDTEST_PLUGIN:-false}
+      
       # Optional: Notifications
       - GOTIFY_URL=${GOTIFY_URL:-}
       - GOTIFY_TOKEN=${GOTIFY_TOKEN:-}
       - NTFY_URL=${NTFY_URL:-}
       - NTFY_TOPIC=${NTFY_TOPIC:-}
       
-      # Optional: Weather plugin
+      # Optional: Weather plugin configuration
       - WEATHER_API_KEY=${WEATHER_API_KEY:-}
       - WEATHER_LOCATION=${WEATHER_LOCATION:-}
     volumes:
