@@ -101,8 +101,11 @@ COPY --from=builder /app/target/release/svrctl /app/svrctl
 COPY --from=builder /app/server/static /app/server/static
 COPY --from=builder /app/server/templates /app/server/templates
 
-# Create data directory and set permissions
-RUN mkdir -p /app/data && chown -R svrctlrs:svrctlrs /app
+# Create data directory and .ssh directory for the svrctlrs user
+RUN mkdir -p /app/data && \
+    mkdir -p /home/svrctlrs/.ssh && \
+    chown -R svrctlrs:svrctlrs /app /home/svrctlrs/.ssh && \
+    chmod 700 /home/svrctlrs/.ssh
 
 # Switch to non-root user
 USER svrctlrs
