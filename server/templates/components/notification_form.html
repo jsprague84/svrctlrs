@@ -139,7 +139,8 @@
                 <input type="url" 
                        id="gotify_url" 
                        name="url" 
-                       placeholder="https://gotify.example.com">
+                       placeholder="https://gotify.example.com"
+                       disabled>
             </div>
             
             <div class="form-group">
@@ -147,7 +148,8 @@
                 <input type="text" 
                        id="gotify_token" 
                        name="token" 
-                       placeholder="Your Gotify app token">
+                       placeholder="Your Gotify app token"
+                       disabled>
             </div>
         </div>
         
@@ -157,7 +159,8 @@
                 <input type="url" 
                        id="ntfy_url" 
                        name="url" 
-                       placeholder="https://ntfy.sh">
+                       placeholder="https://ntfy.sh"
+                       disabled>
             </div>
             
             <div class="form-group">
@@ -165,7 +168,8 @@
                 <input type="text" 
                        id="ntfy_topic" 
                        name="topic" 
-                       placeholder="my-topic">
+                       placeholder="my-topic"
+                       disabled>
             </div>
             
             <div class="form-group">
@@ -173,7 +177,8 @@
                 <input type="text" 
                        id="ntfy_token" 
                        name="token" 
-                       placeholder="For protected topics">
+                       placeholder="For protected topics"
+                       disabled>
             </div>
         </div>
         
@@ -216,28 +221,48 @@
         gotifyFields.style.display = type === 'gotify' ? 'block' : 'none';
         ntfyFields.style.display = type === 'ntfy' ? 'block' : 'none';
         
-        // Enable/disable required fields based on visibility
+        // Get all input fields
         const gotifyUrl = document.getElementById('gotify_url');
         const gotifyToken = document.getElementById('gotify_token');
         const ntfyUrl = document.getElementById('ntfy_url');
         const ntfyTopic = document.getElementById('ntfy_topic');
+        const ntfyToken = document.getElementById('ntfy_token');
         
         if (type === 'gotify') {
+            // Enable Gotify fields
+            gotifyUrl.disabled = false;
             gotifyUrl.required = true;
+            gotifyToken.disabled = false;
             gotifyToken.required = true;
+            // Disable ntfy fields so they don't get submitted
+            ntfyUrl.disabled = true;
             ntfyUrl.required = false;
+            ntfyTopic.disabled = true;
             ntfyTopic.required = false;
+            ntfyToken.disabled = true;
         } else if (type === 'ntfy') {
+            // Enable ntfy fields
+            ntfyUrl.disabled = false;
             ntfyUrl.required = true;
+            ntfyTopic.disabled = false;
             ntfyTopic.required = true;
+            ntfyToken.disabled = false;
+            // Disable Gotify fields so they don't get submitted
+            gotifyUrl.disabled = true;
             gotifyUrl.required = false;
+            gotifyToken.disabled = true;
             gotifyToken.required = false;
         } else {
-            // No type selected
+            // No type selected - disable all
+            gotifyUrl.disabled = true;
             gotifyUrl.required = false;
+            gotifyToken.disabled = true;
             gotifyToken.required = false;
+            ntfyUrl.disabled = true;
             ntfyUrl.required = false;
+            ntfyTopic.disabled = true;
             ntfyTopic.required = false;
+            ntfyToken.disabled = true;
         }
     }
     </script>
