@@ -24,14 +24,14 @@ pub fn ui_routes() -> Router<AppState> {
         // Server CRUD
         .route("/servers/new", get(server_form_new))
         .route("/servers", post(server_create))
-        .route("/servers/:id/edit", get(server_form_edit))
-        .route("/servers/:id", put(server_update).delete(server_delete))
+        .route("/servers/{id}/edit", get(server_form_edit))
+        .route("/servers/{id}", put(server_update).delete(server_delete))
         
         // Task list (for auto-refresh)
         .route("/tasks/list", get(task_list))
         
         // Plugin toggle
-        .route("/plugins/:id/toggle", post(plugin_toggle))
+        .route("/plugins/{id}/toggle", post(plugin_toggle))
         
         // Auth
         .route("/auth/login", get(login_page).post(login))
