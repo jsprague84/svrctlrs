@@ -97,6 +97,11 @@ impl AppState {
         Ok(())
     }
 
+    /// Get database reference
+    pub async fn db(&self) -> tokio::sync::RwLockReadGuard<'_, Database> {
+        self.database.read().await
+    }
+
     /// Get notification manager for plugin context
     pub async fn notification_manager(&self) -> NotificationManager {
         let client = reqwest::Client::new();

@@ -63,6 +63,7 @@ pub struct Server {
     pub host: String,
     pub port: Option<i32>,
     pub username: Option<String>,
+    pub description: Option<String>,
     pub enabled: bool,
 }
 
@@ -72,6 +73,7 @@ pub struct CreateServerInput {
     pub host: String,
     pub port: Option<i32>,
     pub username: Option<String>,
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,6 +82,7 @@ pub struct UpdateServerInput {
     pub host: Option<String>,
     pub port: Option<i32>,
     pub username: Option<String>,
+    pub description: Option<String>,
     pub enabled: Option<bool>,
 }
 

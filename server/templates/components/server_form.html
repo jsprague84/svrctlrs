@@ -34,22 +34,32 @@
         
         <div class="grid grid-2">
             <div class="form-group">
-                <label for="port">Port</label>
+                <label for="port">SSH Port</label>
                 <input type="number" 
                        id="port" 
                        name="port" 
                        value="{% match s.port %}{% when Some with (p) %}{{ p }}{% when None %}22{% endmatch %}" 
-                       placeholder="22">
+                       placeholder="22"
+                       min="1"
+                       max="65535">
             </div>
             
             <div class="form-group">
-                <label for="username">Username</label>
+                <label for="username">SSH Username</label>
                 <input type="text" 
                        id="username" 
                        name="username" 
                        value="{% match s.username %}{% when Some with (u) %}{{ u }}{% when None %}{% endmatch %}" 
-                       placeholder="root">
+                       placeholder="ubuntu">
             </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description" 
+                      name="description" 
+                      rows="3" 
+                      placeholder="Brief description of this server">{% match s.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
         </div>
         
         <div class="flex gap-2">
@@ -85,21 +95,31 @@
         
         <div class="grid grid-2">
             <div class="form-group">
-                <label for="port">Port</label>
+                <label for="port">SSH Port</label>
                 <input type="number" 
                        id="port" 
                        name="port" 
                        value="22" 
-                       placeholder="22">
+                       placeholder="22"
+                       min="1"
+                       max="65535">
             </div>
             
             <div class="form-group">
-                <label for="username">Username</label>
+                <label for="username">SSH Username</label>
                 <input type="text" 
                        id="username" 
                        name="username" 
-                       placeholder="root">
+                       placeholder="ubuntu">
             </div>
+        </div>
+        
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description" 
+                      name="description" 
+                      rows="3" 
+                      placeholder="Brief description of this server"></textarea>
         </div>
         
         <div class="flex gap-2">

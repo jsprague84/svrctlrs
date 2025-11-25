@@ -4,10 +4,11 @@ use askama::Template;
 use axum::{
     extract::{Path, State},
     response::{Html, IntoResponse, Redirect},
-    routing::{get, post, put, delete},
+    routing::{delete, get, post, put},
     Form, Router,
 };
 use tower_http::services::ServeDir;
+use svrctlrs_database::{models::server as db_server, queries};
 
 use crate::{state::AppState, templates::*};
 
@@ -61,6 +62,22 @@ async fn get_user_from_session() -> Option<User> {
 }
 
 // ============================================================================
+// Helper: Convert database server model to UI model
+// ============================================================================
+
+fn db_server_to_ui(db: db_server::Server) -> Server {
+    Server {
+        id: db.id,
+        name: db.name,
+        host: db.host.unwrap_or_default(),
+        port: Some(db.port),
+        username: Some(db.username),
+        description: db.description,
+        enabled: db.enabled,
+    }
+}
+
+// ============================================================================
 // Dashboard
 // ============================================================================
 
@@ -71,8 +88,13 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
     let plugins = state.plugins.read().await;
     let enabled_plugins = plugins.plugins().len();
     
+    // Get server count from database
+    let db = state.db().await;
+    let servers = queries::servers::list_servers(db.pool()).await?;
+    let total_servers = servers.len();
+    
     let stats = DashboardStats {
-        total_servers: 0, // TODO: Implement server storage
+        total_servers,
         active_tasks: 0,  // TODO: Track active tasks
         enabled_plugins,
         total_tasks: 0,   // TODO: Track total tasks
@@ -86,11 +108,13 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
 // Servers
 // ============================================================================
 
-async fn servers_page(State(_state): State<AppState>) -> Result<Html<String>, AppError> {
+async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let user = get_user_from_session().await;
     
-    // TODO: Load servers from database
-    let servers = vec![];
+    // Load servers from database
+    let db = state.db().await;
+    let db_servers = queries::servers::list_servers(db.pool()).await?;
+    let servers = db_servers.into_iter().map(db_server_to_ui).collect();
     
     let template = ServersTemplate { user, servers };
     Ok(Html(template.render()?))
@@ -105,28 +129,27 @@ async fn server_form_new() -> Result<Html<String>, AppError> {
 }
 
 async fn server_form_edit(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Html<String>, AppError> {
-    // TODO: Load server from database
-    let server = Some(Server {
-        id,
-        name: "Example Server".to_string(),
-        host: "192.168.1.100".to_string(),
-        port: Some(22),
-        username: Some("root".to_string()),
-        enabled: true,
-    });
+    // Load server from database
+    let db = state.db().await;
+    let db_server = queries::servers::get_server(db.pool(), id).await;
     
-    let template = ServerFormTemplate {
-        server,
-        error: None,
+    let (server, error) = match db_server {
+        Ok(s) => (Some(db_server_to_ui(s)), None),
+        Err(e) => {
+            tracing::warn!("Failed to load server {}: {}", id, e);
+            (None, Some(format!("Server with ID {} not found", id)))
+        }
     };
+    
+    let template = ServerFormTemplate { server, error };
     Ok(Html(template.render()?))
 }
 
 async fn server_create(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Form(input): Form<CreateServerInput>,
 ) -> Result<Html<String>, AppError> {
     // Validate
@@ -138,35 +161,69 @@ async fn server_create(
         return Ok(Html(template.render()?));
     }
     
-    // TODO: Save to database
+    // Save to database
     tracing::info!("Creating server: {} @ {}", input.name, input.host);
+    let db = state.db().await;
+    
+    let create_server = db_server::CreateServer {
+        name: input.name,
+        host: input.host,
+        port: input.port.unwrap_or(22),
+        username: input.username.unwrap_or_else(|| "root".to_string()),
+        ssh_key_path: None,
+        description: input.description,
+        tags: None,
+    };
+    
+    queries::servers::create_server(db.pool(), &create_server).await?;
     
     // Return updated server list
-    let servers = vec![]; // TODO: Load from database
+    let db_servers = queries::servers::list_servers(db.pool()).await?;
+    let servers = db_servers.into_iter().map(db_server_to_ui).collect();
     let template = ServerListTemplate { servers };
     Ok(Html(template.render()?))
 }
 
 async fn server_update(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
     Form(input): Form<UpdateServerInput>,
 ) -> Result<Html<String>, AppError> {
-    // TODO: Update in database
+    // Update in database
     tracing::info!("Updating server {}: {:?}", id, input);
+    let db = state.db().await;
+    
+    let update_server = db_server::UpdateServer {
+        name: input.name,
+        host: input.host,
+        port: input.port,
+        username: input.username,
+        ssh_key_path: None,
+        description: input.description,
+        tags: None,
+        enabled: input.enabled,
+        connection_timeout: None,
+        retry_attempts: None,
+    };
+    
+    queries::servers::update_server(db.pool(), id, &update_server).await?;
     
     // Return updated server list
-    let servers = vec![]; // TODO: Load from database
+    let db_servers = queries::servers::list_servers(db.pool()).await?;
+    let servers = db_servers.into_iter().map(db_server_to_ui).collect();
     let template = ServerListTemplate { servers };
     Ok(Html(template.render()?))
 }
 
 async fn server_delete(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    // TODO: Delete from database
+    // Delete from database
     tracing::info!("Deleting server {}", id);
+    let db = state.db().await;
+    
+    queries::servers::delete_server(db.pool(), id).await?;
     
     // Return empty response (HTMX will remove the element)
     Ok(Html(""))

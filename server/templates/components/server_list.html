@@ -20,6 +20,11 @@
             <strong>User:</strong> {{ u }}<br>
             {% when None %}
             {% endmatch %}
+            {% match server.description %}
+            {% when Some with (d) %}
+            <strong>Description:</strong> {{ d }}<br>
+            {% when None %}
+            {% endmatch %}
         </p>
         
         <div class="flex gap-2 mt-2">
