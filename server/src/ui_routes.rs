@@ -38,7 +38,13 @@ pub fn ui_routes() -> Router<AppState> {
         .route("/auth/logout", post(logout))
         
         // Static files
-        .nest_service("/static", ServeDir::new("/app/server/static"))
+        .nest_service(
+            "/static",
+            ServeDir::new(
+                std::env::var("STATIC_DIR")
+                    .unwrap_or_else(|_| "server/static".to_string())
+            )
+        )
         
         // 404 handler
         .fallback(not_found)

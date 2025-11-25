@@ -97,9 +97,9 @@ WORKDIR /app
 COPY --from=builder /app/target/release/server /app/svrctlrs-server
 COPY --from=builder /app/target/release/svrctl /app/svrctl
 
-# Copy static assets (CSS, JS, templates)
-COPY server/static /app/server/static
-COPY server/templates /app/server/templates
+# Copy static assets (CSS, JS, templates) from builder
+COPY --from=builder /app/server/static /app/server/static
+COPY --from=builder /app/server/templates /app/server/templates
 
 # Create data directory and set permissions
 RUN mkdir -p /app/data && chown -R svrctlrs:svrctlrs /app
@@ -113,6 +113,7 @@ EXPOSE 8080
 # Set default environment variables
 ENV RUST_LOG=info
 ENV DATABASE_URL=sqlite:/app/data/svrctlrs.db
+ENV STATIC_DIR=/app/server/static
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
