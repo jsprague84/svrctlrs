@@ -599,6 +599,7 @@ async fn notifications_page(State(state): State<AppState>) -> Result<Html<String
 }
 
 async fn notification_form_new() -> Result<Html<String>, AppError> {
+    tracing::info!("notification_form_new called - loading add backend form");
     let template = NotificationFormTemplate {
         notification: None,
         config_url: String::new(),
@@ -654,6 +655,9 @@ async fn notification_create(
     State(state): State<AppState>,
     Form(input): Form<CreateNotificationInput>,
 ) -> Result<Html<String>, AppError> {
+    tracing::info!("notification_create called with: name={}, type={}, url={:?}, token={:?}, topic={:?}", 
+        input.name, input.backend_type, input.url, input.token, input.topic);
+    
     // Validate
     if input.name.is_empty() || input.backend_type.is_empty() {
         let template = NotificationFormTemplate {
