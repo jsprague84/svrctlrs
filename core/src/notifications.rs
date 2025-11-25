@@ -83,7 +83,7 @@ pub struct GotifyBackend {
 }
 
 impl GotifyBackend {
-    /// Create a new Gotify backend
+    /// Create a new Gotify backend from environment variables
     pub fn new(client: Client) -> Result<Self> {
         let base_url =
             env::var("GOTIFY_URL").unwrap_or_else(|_| "http://localhost:8080/message".to_string());
@@ -101,6 +101,17 @@ impl GotifyBackend {
             keys: HashMap::new(),
             fallback_key,
             debug,
+        })
+    }
+
+    /// Create a new Gotify backend with explicit URL and key
+    pub fn with_url_and_key(client: Client, url: impl Into<String>, key: impl Into<String>) -> Result<Self> {
+        Ok(Self {
+            client,
+            base_url: url.into(),
+            keys: HashMap::new(),
+            fallback_key: Some(key.into()),
+            debug: false,
         })
     }
 
@@ -244,7 +255,7 @@ pub struct NtfyBackend {
 }
 
 impl NtfyBackend {
-    /// Create a new ntfy backend
+    /// Create a new ntfy backend from environment variables
     pub fn new(client: Client) -> Result<Self> {
         let base_url = env::var("NTFY_URL").unwrap_or_else(|_| "https://ntfy.sh".to_string());
 
@@ -260,6 +271,20 @@ impl NtfyBackend {
             topics: HashMap::new(),
             auth_token,
             debug,
+        })
+    }
+
+    /// Create a new ntfy backend with explicit URL and default topic
+    pub fn with_url_and_topic(client: Client, url: impl Into<String>, topic: impl Into<String>) -> Result<Self> {
+        let mut topics = HashMap::new();
+        topics.insert("default".to_string(), topic.into());
+        
+        Ok(Self {
+            client,
+            base_url: url.into(),
+            topics,
+            auth_token: None,
+            debug: false,
         })
     }
 
@@ -381,7 +406,7 @@ pub struct NotificationManager {
 }
 
 impl NotificationManager {
-    /// Create a new notification manager with auto-detected backends
+    /// Create a new notification manager with auto-detected backends from environment
     pub fn new(client: Client, services: &[&str]) -> Result<Self> {
         let mut gotify = None;
         let mut ntfy = None;
@@ -399,6 +424,11 @@ impl NotificationManager {
         }
 
         Ok(Self { gotify, ntfy })
+    }
+
+    /// Create a new notification manager from pre-configured backends
+    pub fn from_backends(gotify: Option<GotifyBackend>, ntfy: Option<NtfyBackend>) -> Self {
+        Self { gotify, ntfy }
     }
 
     /// Send notification via all configured backends for a service

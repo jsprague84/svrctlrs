@@ -162,26 +162,92 @@ impl AppState {
     }
 
     /// Get notification manager for plugin context
+    /// Loads notification backends from database
     pub async fn notification_manager(&self) -> NotificationManager {
+        use svrctlrs_core::{GotifyBackend, NtfyBackend};
+        use svrctlrs_database::queries;
+        use tracing::{info, warn};
+
         let client = reqwest::Client::new();
-        let mut services = Vec::new();
+        let db = self.database.read().await;
 
-        // Add enabled services
-        if self.config.plugins.docker_enabled {
-            services.push("docker");
-        }
-        if self.config.plugins.updates_enabled {
-            services.push("updates");
-        }
-        if self.config.plugins.health_enabled {
-            services.push("health");
+        // Load enabled notification backends from database
+        let backends = match queries::notifications::list_notification_backends(db.pool()).await {
+            Ok(backends) => backends.into_iter().filter(|b| b.enabled).collect::<Vec<_>>(),
+            Err(e) => {
+                warn!("Failed to load notification backends from database: {}", e);
+                Vec::new()
+            }
+        };
+
+        // Initialize Gotify backends
+        let mut gotify_backend: Option<GotifyBackend> = None;
+        for backend in backends.iter().filter(|b| b.backend_type == "gotify") {
+            let config = backend.get_config();
+            if let (Some(url), Some(token)) = (
+                config.get("url").and_then(|v| v.as_str()),
+                config.get("token").and_then(|v| v.as_str()),
+            ) {
+                match GotifyBackend::with_url_and_key(client.clone(), url, token) {
+                    Ok(mut gb) => {
+                        // Load service-specific keys if available
+                        let mut services = Vec::new();
+                        if self.config.plugins.docker_enabled {
+                            services.push("docker");
+                        }
+                        if self.config.plugins.updates_enabled {
+                            services.push("updates");
+                        }
+                        if self.config.plugins.health_enabled {
+                            services.push("health");
+                        }
+                        gb.load_service_keys(&services);
+                        gotify_backend = Some(gb);
+                        info!("Initialized Gotify backend: {}", backend.name);
+                        break; // Use first enabled Gotify backend
+                    }
+                    Err(e) => {
+                        warn!("Failed to initialize Gotify backend {}: {}", backend.name, e);
+                    }
+                }
+            }
         }
 
-        NotificationManager::new(client, &services).unwrap_or_else(|_| {
-            tracing::warn!("Failed to create notification manager");
-            // Create empty manager as fallback
-            NotificationManager::new(reqwest::Client::new(), &[]).unwrap()
-        })
+        // Initialize ntfy backends
+        let mut ntfy_backend: Option<NtfyBackend> = None;
+        for backend in backends.iter().filter(|b| b.backend_type == "ntfy") {
+            let config = backend.get_config();
+            if let (Some(url), Some(topic)) = (
+                config.get("url").and_then(|v| v.as_str()),
+                config.get("topic").and_then(|v| v.as_str()),
+            ) {
+                match NtfyBackend::with_url_and_topic(client.clone(), url, topic) {
+                    Ok(mut nb) => {
+                        // Load service-specific topics if available
+                        let mut services = Vec::new();
+                        if self.config.plugins.docker_enabled {
+                            services.push("docker");
+                        }
+                        if self.config.plugins.updates_enabled {
+                            services.push("updates");
+                        }
+                        if self.config.plugins.health_enabled {
+                            services.push("health");
+                        }
+                        nb.load_service_topics(&services);
+                        ntfy_backend = Some(nb);
+                        info!("Initialized ntfy backend: {}", backend.name);
+                        break; // Use first enabled ntfy backend
+                    }
+                    Err(e) => {
+                        warn!("Failed to initialize ntfy backend {}: {}", backend.name, e);
+                    }
+                }
+            }
+        }
+
+        // Create notification manager with database-loaded backends
+        NotificationManager::from_backends(gotify_backend, ntfy_backend)
     }
 
     /// Initialize the global app state (call once at startup)
