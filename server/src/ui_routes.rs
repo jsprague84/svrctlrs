@@ -31,8 +31,9 @@ pub fn ui_routes() -> Router<AppState> {
         // Task list (for auto-refresh)
         .route("/tasks/list", get(task_list))
         
-        // Plugin toggle
+        // Plugin toggle and configuration
         .route("/plugins/{id}/toggle", post(plugin_toggle))
+        .route("/plugins/{id}/config", get(plugin_config_form).put(plugin_config_save))
         
         // Auth
         .route("/auth/login", get(login_page).post(login))
@@ -259,7 +260,11 @@ async fn get_tasks(_state: &AppState) -> Vec<Task> {
 
 async fn plugins_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let user = get_user_from_session().await;
-    let plugins = get_plugins(&state).await;
+    
+    // Load plugins from database
+    let db = state.db().await;
+    let db_plugins = queries::plugins::list_plugins(db.pool()).await?;
+    let plugins = db_plugins.into_iter().map(db_plugin_to_ui).collect();
     
     let template = PluginsTemplate { user, plugins };
     Ok(Html(template.render()?))
@@ -269,31 +274,86 @@ async fn plugin_toggle(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Html<String>, AppError> {
-    // TODO: Implement plugin enable/disable
     tracing::info!("Toggling plugin: {}", id);
     
-    let plugins = get_plugins(&state).await;
+    // Toggle plugin in database
+    let db = state.db().await;
+    queries::plugins::toggle_plugin(db.pool(), &id).await?;
+    
+    // Return updated plugin list
+    let db_plugins = queries::plugins::list_plugins(db.pool()).await?;
+    let plugins = db_plugins.into_iter().map(db_plugin_to_ui).collect();
     let template = PluginListTemplate { plugins };
     Ok(Html(template.render()?))
 }
 
-async fn get_plugins(state: &AppState) -> Vec<Plugin> {
-    let plugins = state.plugins.read().await;
-    let plugin_list = plugins.plugins();
+fn db_plugin_to_ui(db: svrctlrs_database::models::plugin::Plugin) -> Plugin {
+    Plugin {
+        id: db.id,
+        name: db.name,
+        description: db.description.unwrap_or_default(),
+        version: "1.0.0".to_string(), // TODO: Get from plugin metadata
+        enabled: db.enabled,
+    }
+}
+
+async fn plugin_config_form(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Html<String>, AppError> {
+    // Load plugin from database
+    let db = state.db().await;
+    let db_plugin = queries::plugins::get_plugin(db.pool(), &id).await?;
     
-    plugin_list
-        .into_iter()
-        .map(|plugin| {
-            let meta = plugin.metadata();
-            Plugin {
-                id: meta.name.clone(),
-                name: meta.name,
-                description: meta.description,
-                version: meta.version,
-                enabled: true, // TODO: Track enabled state
-            }
+    // Parse config JSON
+    let config = db_plugin.get_config();
+    
+    let template = PluginConfigFormTemplate {
+        plugin: db_plugin_to_ui(db_plugin),
+        config_api_key: config.get("api_key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        config_location: config.get("location").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+        config_units: config.get("units").and_then(|v| v.as_str()).unwrap_or("imperial").to_string(),
+        config_min_down: config.get("min_down").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_else(|| "100".to_string()),
+        config_min_up: config.get("min_up").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_else(|| "20".to_string()),
+        error: None,
+    };
+    
+    Ok(Html(template.render()?))
+}
+
+async fn plugin_config_save(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    Form(input): Form<PluginConfigInput>,
+) -> Result<Html<String>, AppError> {
+    tracing::info!("Saving plugin config: {} {:?}", id, input);
+    
+    // Build config JSON based on plugin type
+    let config_json = if id == "weather" {
+        serde_json::json!({
+            "api_key": input.api_key.unwrap_or_default(),
+            "location": input.location.unwrap_or_default(),
+            "units": input.units.unwrap_or_else(|| "imperial".to_string()),
         })
-        .collect()
+    } else if id == "speedtest" {
+        serde_json::json!({
+            "min_down": input.min_down.and_then(|s| s.parse::<i64>().ok()).unwrap_or(100),
+            "min_up": input.min_up.and_then(|s| s.parse::<i64>().ok()).unwrap_or(20),
+        })
+    } else {
+        serde_json::json!({})
+    };
+    
+    // Update plugin in database
+    let db = state.db().await;
+    let update = svrctlrs_database::models::plugin::UpdatePlugin {
+        enabled: None,
+        config: Some(config_json),
+    };
+    queries::plugins::update_plugin(db.pool(), &id, &update).await?;
+    
+    // Return empty response to clear the form
+    Ok(Html("<div class=\"alert alert-success\">Configuration saved successfully!</div>".to_string()))
 }
 
 // ============================================================================

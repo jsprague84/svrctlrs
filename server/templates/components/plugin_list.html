@@ -16,12 +16,19 @@
         <p class="text-secondary">{{ plugin.description }}</p>
         <p class="text-muted" style="font-size: 0.875rem;">Version: {{ plugin.version }}</p>
         
-        <div class="mt-2">
+        <div class="flex gap-2 mt-2">
             <button hx-post="/plugins/{{ plugin.id }}/toggle"
                     hx-target="#plugin-list"
                     hx-swap="innerHTML"
-                    class="btn-secondary btn-sm">
+                    class="btn btn-secondary btn-sm">
                 {% if plugin.enabled %}Disable{% else %}Enable{% endif %}
+            </button>
+            
+            <button hx-get="/plugins/{{ plugin.id }}/config"
+                    hx-target="#plugin-config-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-primary btn-sm">
+                Configure
             </button>
         </div>
     </div>

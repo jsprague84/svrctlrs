@@ -159,6 +159,18 @@ pub struct PluginListTemplate {
     pub plugins: Vec<Plugin>,
 }
 
+#[derive(Template)]
+#[template(path = "components/plugin_config_form.html")]
+pub struct PluginConfigFormTemplate {
+    pub plugin: Plugin,
+    pub config_api_key: String,
+    pub config_location: String,
+    pub config_units: String,
+    pub config_min_down: String,
+    pub config_min_up: String,
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Plugin {
     pub id: String,
@@ -166,6 +178,17 @@ pub struct Plugin {
     pub description: String,
     pub version: String,
     pub enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PluginConfigInput {
+    // Weather plugin
+    pub api_key: Option<String>,
+    pub location: Option<String>,
+    pub units: Option<String>,
+    // Speedtest plugin
+    pub min_down: Option<String>,
+    pub min_up: Option<String>,
 }
 
 // ============================================================================

@@ -1,0 +1,80 @@
+<div class="card">
+    <h2>Configure {{ plugin.name }}</h2>
+    
+    {% match error %}
+    {% when Some with (e) %}
+    <div class="alert alert-error">{{ e }}</div>
+    {% when None %}
+    {% endmatch %}
+    
+    <form hx-put="/plugins/{{ plugin.id }}/config"
+          hx-target="#plugin-config-container"
+          hx-swap="innerHTML">
+        
+        <p class="text-secondary mb-3">{{ plugin.description }}</p>
+        
+        <!-- Dynamic configuration fields based on plugin type -->
+        {% if plugin.id == "weather" %}
+            <div class="form-group">
+                <label for="api_key">OpenWeatherMap API Key *</label>
+                <input type="text" 
+                       id="api_key" 
+                       name="api_key" 
+                       value="{{ config_api_key }}"
+                       placeholder="Enter your API key"
+                       required>
+            </div>
+            
+            <div class="form-group">
+                <label for="location">Location *</label>
+                <input type="text" 
+                       id="location" 
+                       name="location" 
+                       value="{{ config_location }}"
+                       placeholder="City name or coordinates"
+                       required>
+            </div>
+            
+            <div class="form-group">
+                <label for="units">Units</label>
+                <select id="units" name="units">
+                    <option value="imperial" {% if config_units == "imperial" %}selected{% endif %}>Imperial (°F)</option>
+                    <option value="metric" {% if config_units == "metric" %}selected{% endif %}>Metric (°C)</option>
+                    <option value="standard" {% if config_units == "standard" %}selected{% endif %}>Standard (K)</option>
+                </select>
+            </div>
+        {% else if plugin.id == "speedtest" %}
+            <div class="form-group">
+                <label for="min_down">Minimum Download Speed (Mbps)</label>
+                <input type="number" 
+                       id="min_down" 
+                       name="min_down" 
+                       value="{{ config_min_down }}"
+                       placeholder="100"
+                       min="1">
+            </div>
+            
+            <div class="form-group">
+                <label for="min_up">Minimum Upload Speed (Mbps)</label>
+                <input type="number" 
+                       id="min_up" 
+                       name="min_up" 
+                       value="{{ config_min_up }}"
+                       placeholder="20"
+                       min="1">
+            </div>
+        {% else %}
+            <p class="text-secondary">This plugin has no configurable options.</p>
+        {% endif %}
+        
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">Save Configuration</button>
+            <button type="button" 
+                    onclick="document.getElementById('plugin-config-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+</div>
+
