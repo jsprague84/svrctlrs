@@ -239,10 +239,11 @@ async fn execute_plugin_task(state: &AppState, task: &Task) -> Result<String> {
         notification_manager,
     };
 
-    // Execute plugin
-    info!("Executing plugin {} for task '{}'", task.plugin_id, task.name);
+    // Execute plugin with the task's command as the plugin task ID
+    // The command field stores the plugin's task ID (e.g., "docker_health", "system_metrics")
+    info!("Executing plugin {} task '{}' ({})", task.plugin_id, task.command, task.name);
     let result = plugin
-        .execute(&task.name, &context)
+        .execute(&task.command, &context)
         .await
         .context(format!("Plugin {} execution failed", task.plugin_id))?;
 
