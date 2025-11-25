@@ -20,10 +20,6 @@ pub fn routes() -> Router<AppState> {
         // Health and status
         .route("/health", get(health_check))
         .route("/status", get(server_status))
-        // Plugins
-        .route("/plugins", get(list_plugins))
-        .route("/plugins/{plugin_id}", get(plugin_info))
-        .route("/plugins/{plugin_id}/tasks", get(plugin_tasks))
         // Metrics
         .route("/metrics", get(get_metrics))
         .route("/metrics/{plugin_id}", get(plugin_metrics))
@@ -60,95 +56,6 @@ async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
     }))
 }
 
-/// List all plugins
-#[instrument(skip(state))]
-async fn list_plugins(State(state): State<AppState>) -> impl IntoResponse {
-    let registry = state.plugins.read().await;
-    let plugins: Vec<_> = registry
-        .plugin_ids()
-        .into_iter()
-        .filter_map(|id| registry.get(&id))
-        .map(|plugin| {
-            let meta = plugin.metadata();
-            json!({
-                "id": meta.id,
-                "name": meta.name,
-                "description": meta.description,
-                "version": meta.version,
-                "author": meta.author
-            })
-        })
-        .collect();
-
-    Json(json!({
-        "plugins": plugins
-    }))
-}
-
-/// Get plugin information
-#[instrument(skip(state))]
-async fn plugin_info(
-    State(state): State<AppState>,
-    Path(plugin_id): Path<String>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let registry = state.plugins.read().await;
-
-    let plugin = registry.get(&plugin_id).ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            format!("Plugin {} not found", plugin_id),
-        )
-    })?;
-
-    let meta = plugin.metadata();
-    let tasks = plugin.scheduled_tasks();
-
-    Ok(Json(json!({
-        "id": meta.id,
-        "name": meta.name,
-        "description": meta.description,
-        "version": meta.version,
-        "author": meta.author,
-        "tasks": tasks.iter().map(|t| {
-            json!({
-                "id": t.id,
-                "description": t.description,
-                "schedule": t.schedule,
-                "enabled": t.enabled
-            })
-        }).collect::<Vec<_>>()
-    })))
-}
-
-/// Get plugin tasks
-#[instrument(skip(state))]
-async fn plugin_tasks(
-    State(state): State<AppState>,
-    Path(plugin_id): Path<String>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let registry = state.plugins.read().await;
-
-    let plugin = registry.get(&plugin_id).ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            format!("Plugin {} not found", plugin_id),
-        )
-    })?;
-
-    let tasks = plugin.scheduled_tasks();
-
-    Ok(Json(json!({
-        "plugin_id": plugin_id,
-        "tasks": tasks.iter().map(|t| {
-            json!({
-                "id": t.id,
-                "description": t.description,
-                "schedule": t.schedule,
-                "enabled": t.enabled
-            })
-        }).collect::<Vec<_>>()
-    })))
-}
 
 /// Get system metrics
 #[instrument(skip(state))]
