@@ -177,8 +177,8 @@ async fn server_create(
     let db = state.db().await;
     
     let create_server = db_server::CreateServer {
-        name: input.name,
-        host: input.host,
+        name: input.name.clone(),
+        host: input.host.clone(),
         port: input.port.unwrap_or(22),
         username: input.username.unwrap_or_else(|| "root".to_string()),
         ssh_key_path: None,
@@ -186,13 +186,35 @@ async fn server_create(
         tags: None,
     };
     
-    queries::servers::create_server(db.pool(), &create_server).await?;
-    
-    // Return updated server list
-    let db_servers = queries::servers::list_servers(db.pool()).await?;
-    let servers = db_servers.into_iter().map(db_server_to_ui).collect();
-    let template = ServerListTemplate { servers };
-    Ok(Html(template.render()?))
+    // Try to create, handle duplicate name error
+    match queries::servers::create_server(db.pool(), &create_server).await {
+        Ok(_) => {
+            // Success - return updated list with success message
+            let db_servers = queries::servers::list_servers(db.pool()).await?;
+            let servers = db_servers.into_iter().map(db_server_to_ui).collect();
+            let template = ServerListTemplate { servers };
+            let list_html = template.render()?;
+            
+            // Prepend success message
+            Ok(Html(format!(
+                r#"<div class="alert alert-success">✓ Server '{}' created successfully!</div>{}"#,
+                input.name, list_html
+            )))
+        }
+        Err(e) => {
+            // Check if it's a duplicate name error
+            let error_msg = e.to_string();
+            if error_msg.contains("UNIQUE constraint") && error_msg.contains("servers.name") {
+                Ok(Html(format!(
+                    r#"<div class="alert alert-error">✗ A server with the name '{}' already exists. Please use a different name.</div>"#,
+                    input.name
+                )))
+            } else {
+                // Other database error
+                Err(e.into())
+            }
+        }
+    }
 }
 
 async fn server_update(
@@ -203,6 +225,16 @@ async fn server_update(
     // Update in database
     tracing::info!("Updating server {}: {:?}", id, input);
     let db = state.db().await;
+    
+    // Get the server name for the success message
+    let server_name = if let Some(ref name) = input.name {
+        name.clone()
+    } else {
+        // If name wasn't changed, get it from database
+        queries::servers::get_server(db.pool(), id)
+            .await?
+            .name
+    };
     
     let update_server = db_server::UpdateServer {
         name: input.name,
@@ -217,27 +249,56 @@ async fn server_update(
         retry_attempts: None,
     };
     
-    queries::servers::update_server(db.pool(), id, &update_server).await?;
-    
-    // Return updated server list
-    let db_servers = queries::servers::list_servers(db.pool()).await?;
-    let servers = db_servers.into_iter().map(db_server_to_ui).collect();
-    let template = ServerListTemplate { servers };
-    Ok(Html(template.render()?))
+    // Try to update, handle duplicate name error
+    match queries::servers::update_server(db.pool(), id, &update_server).await {
+        Ok(_) => {
+            // Success - return updated list with success message
+            let db_servers = queries::servers::list_servers(db.pool()).await?;
+            let servers = db_servers.into_iter().map(db_server_to_ui).collect();
+            let template = ServerListTemplate { servers };
+            let list_html = template.render()?;
+            
+            // Prepend success message
+            Ok(Html(format!(
+                r#"<div class="alert alert-success">✓ Server '{}' updated successfully!</div>{}"#,
+                server_name, list_html
+            )))
+        }
+        Err(e) => {
+            // Check if it's a duplicate name error
+            let error_msg = e.to_string();
+            if error_msg.contains("UNIQUE constraint") && error_msg.contains("servers.name") {
+                Ok(Html(format!(
+                    r#"<div class="alert alert-error">✗ A server with that name already exists. Please use a different name.</div>"#
+                )))
+            } else {
+                // Other database error
+                Err(e.into())
+            }
+        }
+    }
 }
 
 async fn server_delete(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
+    // Get server name before deleting
+    let db = state.db().await;
+    let server_name = queries::servers::get_server(db.pool(), id)
+        .await
+        .map(|s| s.name)
+        .unwrap_or_else(|_| format!("Server {}", id));
+    
     // Delete from database
     tracing::info!("Deleting server {}", id);
-    let db = state.db().await;
-    
     queries::servers::delete_server(db.pool(), id).await?;
     
-    // Return empty response (HTMX will remove the element)
-    Ok(Html(""))
+    // Return success message
+    Ok(Html(format!(
+        r#"<div class="alert alert-success">✓ Server '{}' deleted successfully!</div>"#,
+        server_name
+    )))
 }
 
 #[derive(Debug, Deserialize)]
