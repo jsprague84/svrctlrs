@@ -70,11 +70,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
     cargo build --release --package server --bin server --features server
 
-# Build svrctl CLI
+# Build svrctl CLI (also needs server feature for dependencies)
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
-    cargo build --release --bin svrctl
+    cargo build --release --package server --bin svrctl --features server
 
 # Show sccache statistics for debugging
 RUN sccache --show-stats || true
