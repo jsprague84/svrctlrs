@@ -17,7 +17,7 @@ use svrctlrs_database::queries;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_backends).post(create_backend))
-        .route("/:id", get(get_backend).put(update_backend).delete(delete_backend))
+        .route("/{id}", get(get_backend).put(update_backend).delete(delete_backend))
 }
 
 /// List all notification backends

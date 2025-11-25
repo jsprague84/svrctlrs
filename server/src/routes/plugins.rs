@@ -16,8 +16,8 @@ use svrctlrs_database::queries;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_plugins))
-        .route("/:id", get(get_plugin).put(update_plugin))
-        .route("/:id/toggle", put(toggle_plugin))
+        .route("/{id}", get(get_plugin).put(update_plugin))
+        .route("/{id}/toggle", put(toggle_plugin))
 }
 
 /// List all plugins
