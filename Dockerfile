@@ -60,7 +60,6 @@ COPY server ./server
 COPY scheduler ./scheduler
 COPY database ./database
 COPY plugins ./plugins
-COPY assets ./assets
 
 # Build server binary with HTMX + Askama
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
@@ -101,9 +100,6 @@ COPY --from=builder /app/target/release/svrctl /app/svrctl
 # Copy static assets (CSS, JS, templates)
 COPY server/static /app/server/static
 COPY server/templates /app/server/templates
-
-# Copy source assets (if any additional assets needed)
-COPY --from=builder /app/assets /app/assets
 
 # Create data directory and set permissions
 RUN mkdir -p /app/data && chown -R svrctlrs:svrctlrs /app
