@@ -177,26 +177,87 @@ async fn execute_remote_task(state: &AppState, task: &Task, server_id: i64) -> R
 }
 
 /// Execute a plugin task locally
-async fn execute_plugin_task(_state: &AppState, task: &Task) -> Result<String> {
+async fn execute_plugin_task(state: &AppState, task: &Task) -> Result<String> {
+    use svrctlrs_core::{PluginContext, Server as CoreServer};
+    use std::collections::HashMap;
+
     debug!("Executing plugin task {} for plugin {}", task.id, task.plugin_id);
     
-    // Parse task args as plugin config
-    let config = if let Some(args_str) = &task.args {
-        serde_json::from_str::<JsonValue>(args_str)
-            .context("Failed to parse task args as JSON")?
+    // Get plugin from registry
+    let plugins = state.plugins.read().await;
+    let plugin = plugins
+        .get(&task.plugin_id)
+        .ok_or_else(|| anyhow::anyhow!("Plugin '{}' not found in registry", task.plugin_id))?;
+
+    // Build plugin context
+    let db = state.db().await;
+    
+    // Load servers from database (all enabled servers)
+    let db_servers = queries::servers::list_servers(db.pool())
+        .await
+        .context("Failed to load servers for plugin execution")?;
+    
+    let servers: Vec<CoreServer> = db_servers
+        .into_iter()
+        .filter(|s| s.enabled)
+        .map(|s| {
+            // Build SSH host string (username@host:port)
+            let ssh_host = s.host.map(|host| {
+                if s.port != 22 {
+                    format!("{}@{}:{}", s.username, host, s.port)
+                } else {
+                    format!("{}@{}", s.username, host)
+                }
+            });
+            
+            CoreServer {
+                name: s.name,
+                ssh_host,
+            }
+        })
+        .collect();
+
+    // Parse task config from args
+    let config: HashMap<String, String> = if let Some(args_str) = &task.args {
+        match serde_json::from_str::<JsonValue>(args_str) {
+            Ok(JsonValue::Object(obj)) => obj
+                .iter()
+                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
+                .collect(),
+            _ => HashMap::new(),
+        }
     } else {
-        JsonValue::Object(serde_json::Map::new())
+        HashMap::new()
     };
-    
-    info!("Executing plugin {} with config: {:?}", task.plugin_id, config);
-    
-    // TODO: Implement proper plugin execution interface
-    // For now, plugins are executed via their scheduled tasks
-    // This is a placeholder for manual execution
-    Ok(format!(
-        "Plugin {} task '{}' queued for execution",
-        task.plugin_id, task.name
-    ))
+
+    // Get notification manager
+    let notification_manager = state.notification_manager().await;
+
+    let context = PluginContext {
+        servers,
+        config,
+        notification_manager,
+    };
+
+    // Execute plugin
+    info!("Executing plugin {} for task '{}'", task.plugin_id, task.name);
+    let result = plugin
+        .execute(&task.name, &context)
+        .await
+        .context(format!("Plugin {} execution failed", task.plugin_id))?;
+
+    if result.success {
+        Ok(format!(
+            "Plugin {} executed successfully: {}",
+            task.plugin_id, result.message
+        ))
+    } else {
+        anyhow::bail!(
+            "Plugin {} execution failed: {}",
+            task.plugin_id,
+            result.message
+        )
+    }
 }
 
 /// Result of a task execution
