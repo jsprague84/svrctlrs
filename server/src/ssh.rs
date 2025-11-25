@@ -127,7 +127,7 @@ pub fn list_available_keys() -> Vec<String> {
 }
 
 /// Connect to SSH server
-async fn connect_ssh(config: &SshConfig) -> Result<Client> {
+pub async fn connect_ssh(config: &SshConfig) -> Result<Client> {
     // Determine authentication method
     if let Some(key_path) = &config.key_path {
         // Use SSH key authentication

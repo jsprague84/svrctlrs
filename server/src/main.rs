@@ -6,6 +6,7 @@
 
 // Server-side modules
 mod config;
+mod executor;
 mod routes;
 mod ssh;
 mod state;

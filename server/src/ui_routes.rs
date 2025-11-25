@@ -324,17 +324,37 @@ async fn task_run_now(
 ) -> Result<Html<String>, AppError> {
     tracing::info!("Running task {} manually", id);
     
-    // Load task from database
-    let db = state.db().await;
-    let task = queries::tasks::get_task(db.pool(), id).await?;
-    
-    // TODO: Implement actual task execution using the plugin system
-    // For now, just return a success message
-    
-    Ok(Html(format!(
-        r#"<div class="alert alert-success">✓ Task '{}' executed successfully</div>"#,
-        task.name
-    )))
+    // Execute task using the executor
+    match crate::executor::execute_task(&state, id).await {
+        Ok(result) => {
+            if result.success {
+                // Escape HTML in output to prevent XSS
+                let escaped_output = result.output
+                    .replace('&', "&amp;")
+                    .replace('<', "&lt;")
+                    .replace('>', "&gt;")
+                    .replace('"', "&quot;");
+                
+                Ok(Html(format!(
+                    r#"<div class="alert alert-success">✓ Task executed successfully in {}ms<br><pre>{}</pre></div>"#,
+                    result.duration_ms,
+                    escaped_output
+                )))
+            } else {
+                Ok(Html(format!(
+                    r#"<div class="alert alert-error">✗ Task execution failed: {}</div>"#,
+                    result.error.unwrap_or_else(|| "Unknown error".to_string())
+                )))
+            }
+        }
+        Err(e) => {
+            tracing::error!("Failed to execute task {}: {}", id, e);
+            Ok(Html(format!(
+                r#"<div class="alert alert-error">✗ Failed to execute task: {}</div>"#,
+                e
+            )))
+        }
+    }
 }
 
 // ============================================================================

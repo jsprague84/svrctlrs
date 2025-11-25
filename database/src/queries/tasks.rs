@@ -239,3 +239,47 @@ pub async fn clean_old_task_history(pool: &Pool<Sqlite>, days: i64) -> Result<u6
     Ok(result.rows_affected())
 }
 
+/// Record task execution in history
+pub async fn record_task_execution(
+    pool: &Pool<Sqlite>,
+    entry: &crate::models::task::TaskHistoryEntry,
+) -> Result<i64> {
+    let result = sqlx::query(
+        r#"
+        INSERT INTO task_history (task_id, success, message, timestamp, duration_ms, stdout, stderr, error_message)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(entry.task_id)
+    .bind(entry.success)
+    .bind(&entry.output)
+    .bind(entry.executed_at)
+    .bind(entry.duration_ms as i64)
+    .bind(&entry.output) // stdout
+    .bind("") // stderr (empty for now)
+    .bind(&entry.error)
+    .execute(pool)
+    .await
+    .map_err(|e| Error::DatabaseError(format!("Failed to record task execution: {}", e)))?;
+
+    Ok(result.last_insert_rowid())
+}
+
+/// Update task statistics after execution
+pub async fn update_task_stats(pool: &Pool<Sqlite>, task_id: i64) -> Result<()> {
+    sqlx::query(
+        r#"
+        UPDATE tasks 
+        SET last_run_at = CURRENT_TIMESTAMP,
+            run_count = run_count + 1
+        WHERE id = ?
+        "#,
+    )
+    .bind(task_id)
+    .execute(pool)
+    .await
+    .map_err(|e| Error::DatabaseError(format!("Failed to update task stats: {}", e)))?;
+
+    Ok(())
+}
+

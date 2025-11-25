@@ -70,6 +70,17 @@ pub struct TaskHistory {
     pub timestamp: DateTime<Utc>,
 }
 
+/// Task history entry for recording execution results
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskHistoryEntry {
+    pub task_id: i64,
+    pub success: bool,
+    pub output: String,
+    pub error: Option<String>,
+    pub duration_ms: u64,
+    pub executed_at: DateTime<Utc>,
+}
+
 fn default_timeout() -> i32 {
     300
 }
