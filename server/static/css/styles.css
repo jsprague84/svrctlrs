@@ -123,6 +123,18 @@ button:focus-visible {
     padding: 24px 0;
     overflow-y: auto;
     transition: transform 0.3s ease;
+    z-index: 90;
+}
+
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 85;
 }
 
 .main-content {
@@ -452,6 +464,15 @@ tr:hover {
     cursor: pointer;
     color: var(--text-primary);
     padding: 8px;
+    transition: opacity 0.2s ease;
+}
+
+.mobile-menu-btn:hover {
+    opacity: 0.7;
+}
+
+.mobile-menu-btn:active {
+    opacity: 0.5;
 }
 
 /* Responsive */
@@ -467,6 +488,10 @@ tr:hover {
     .sidebar.open {
         transform: translateX(0);
         box-shadow: 4px 0 12px var(--shadow);
+    }
+
+    .sidebar-backdrop {
+        display: block;
     }
 
     .main-content {
