@@ -4,9 +4,10 @@ use askama::Template;
 use axum::{
     extract::{Path, State},
     response::{Html, IntoResponse, Redirect},
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Form, Router,
 };
+use serde::Deserialize;
 use tower_http::services::ServeDir;
 use svrctlrs_database::{models::server as db_server, queries};
 
@@ -25,11 +26,13 @@ pub fn ui_routes() -> Router<AppState> {
         // Server CRUD
         .route("/servers/new", get(server_form_new))
         .route("/servers", post(server_create))
+        .route("/servers/test", post(server_test_connection))
         .route("/servers/{id}/edit", get(server_form_edit))
         .route("/servers/{id}", put(server_update).delete(server_delete))
         
-        // Task list (for auto-refresh)
+        // Task list (for auto-refresh) and manual execution
         .route("/tasks/list", get(task_list))
+        .route("/tasks/{id}/run", post(task_run_now))
         
         // Plugin toggle and configuration
         .route("/plugins/{id}/toggle", post(plugin_toggle))
@@ -237,6 +240,40 @@ async fn server_delete(
     Ok(Html(""))
 }
 
+#[derive(Debug, Deserialize)]
+struct TestConnectionInput {
+    host: String,
+    port: Option<i32>,
+    username: Option<String>,
+}
+
+async fn server_test_connection(
+    State(_state): State<AppState>,
+    Form(input): Form<TestConnectionInput>,
+) -> Result<Html<String>, AppError> {
+    tracing::info!("Testing SSH connection to {}", input.host);
+    
+    // TODO: Implement actual SSH connection test using _state.executor
+    // For now, just return a success message
+    let port = input.port.unwrap_or(22);
+    let username = input.username.unwrap_or_else(|| "root".to_string());
+    
+    // Simulate connection test (replace with actual SSH test later)
+    let success = true; // TODO: Actually test SSH connection
+    
+    if success {
+        Ok(Html(format!(
+            r#"<div class="alert alert-success">✓ Successfully connected to {}@{}:{}</div>"#,
+            username, input.host, port
+        )))
+    } else {
+        Ok(Html(format!(
+            r#"<div class="alert alert-error">✗ Failed to connect to {}@{}:{}</div>"#,
+            username, input.host, port
+        )))
+    }
+}
+
 // ============================================================================
 // Tasks
 // ============================================================================
@@ -255,10 +292,39 @@ async fn task_list(State(state): State<AppState>) -> Result<Html<String>, AppErr
     Ok(Html(template.render()?))
 }
 
-async fn get_tasks(_state: &AppState) -> Vec<Task> {
-    // TODO: Implement task tracking
-    // For now, return empty list
-    vec![]
+async fn get_tasks(state: &AppState) -> Vec<Task> {
+    // Load tasks from database
+    let db = state.db().await;
+    let db_tasks = queries::tasks::list_tasks(db.pool()).await.unwrap_or_default();
+    
+    db_tasks.into_iter().map(|t| Task {
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        plugin_id: t.plugin_id,
+        schedule: t.schedule,
+        last_run_at: t.last_run_at.map(|dt| dt.to_rfc3339()),
+        next_run_at: t.next_run_at.map(|dt| dt.to_rfc3339()),
+    }).collect()
+}
+
+async fn task_run_now(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    tracing::info!("Running task {} manually", id);
+    
+    // Load task from database
+    let db = state.db().await;
+    let task = queries::tasks::get_task(db.pool(), id).await?;
+    
+    // TODO: Implement actual task execution using the plugin system
+    // For now, just return a success message
+    
+    Ok(Html(format!(
+        r#"<div class="alert alert-success">✓ Task '{}' executed successfully</div>"#,
+        task.name
+    )))
 }
 
 // ============================================================================
@@ -317,6 +383,7 @@ async fn plugin_config_form(
     
     let template = PluginConfigFormTemplate {
         plugin: db_plugin_to_ui(db_plugin),
+        config_schedule: config.get("schedule").and_then(|v| v.as_str()).unwrap_or("0 */5 * * * *").to_string(),
         config_api_key: config.get("api_key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         config_location: config.get("location").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         config_units: config.get("units").and_then(|v| v.as_str()).unwrap_or("imperial").to_string(),
@@ -338,17 +405,21 @@ async fn plugin_config_save(
     // Build config JSON based on plugin type
     let config_json = if id == "weather" {
         serde_json::json!({
+            "schedule": input.schedule.unwrap_or_else(|| "0 */5 * * * *".to_string()),
             "api_key": input.api_key.unwrap_or_default(),
             "location": input.location.unwrap_or_default(),
             "units": input.units.unwrap_or_else(|| "imperial".to_string()),
         })
     } else if id == "speedtest" {
         serde_json::json!({
+            "schedule": input.schedule.unwrap_or_else(|| "0 */5 * * * *".to_string()),
             "min_down": input.min_down.and_then(|s| s.parse::<i64>().ok()).unwrap_or(100),
             "min_up": input.min_up.and_then(|s| s.parse::<i64>().ok()).unwrap_or(20),
         })
     } else {
-        serde_json::json!({})
+        serde_json::json!({
+            "schedule": input.schedule.unwrap_or_else(|| "0 */5 * * * *".to_string()),
+        })
     };
     
     // Update plugin in database

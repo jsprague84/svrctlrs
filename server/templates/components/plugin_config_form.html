@@ -13,6 +13,19 @@
         
         <p class="text-secondary mb-3">{{ plugin.description }}</p>
         
+        <!-- Schedule configuration (common to all plugins) -->
+        <div class="form-group">
+            <label for="schedule">Schedule (Cron Expression)</label>
+            <input type="text" 
+                   id="schedule" 
+                   name="schedule" 
+                   value="{{ config_schedule }}"
+                   placeholder="0 */5 * * * * (every 5 minutes)"
+                   pattern="^(\S+\s+){5}\S+$"
+                   title="Enter a valid cron expression (6 fields: second minute hour day month weekday)">
+            <small class="text-secondary">Format: second minute hour day month weekday. Example: 0 30 5 * * * (daily at 5:30 AM)</small>
+        </div>
+        
         <!-- Dynamic configuration fields based on plugin type -->
         {% if plugin.id == "weather" %}
             <div class="form-group">

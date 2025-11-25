@@ -62,8 +62,19 @@
                       placeholder="Brief description of this server">{% match s.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
         </div>
         
+        <!-- Test connection result -->
+        <div id="test-connection-result"></div>
+        
         <div class="flex gap-2">
             <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" 
+                    class="btn btn-secondary"
+                    hx-post="/servers/test"
+                    hx-include="[name='host'], [name='port'], [name='username']"
+                    hx-target="#test-connection-result"
+                    hx-swap="innerHTML">
+                Test Connection
+            </button>
             <button type="button" 
                     onclick="document.getElementById('server-form-container').innerHTML = ''"
                     class="btn btn-secondary">
@@ -122,8 +133,19 @@
                       placeholder="Brief description of this server"></textarea>
         </div>
         
+        <!-- Test connection result -->
+        <div id="test-connection-result"></div>
+        
         <div class="flex gap-2">
             <button type="submit" class="btn btn-primary">Save</button>
+            <button type="button" 
+                    class="btn btn-secondary"
+                    hx-post="/servers/test"
+                    hx-include="[name='host'], [name='port'], [name='username']"
+                    hx-target="#test-connection-result"
+                    hx-swap="innerHTML">
+                Test Connection
+            </button>
             <button type="button" 
                     onclick="document.getElementById('server-form-container').innerHTML = ''"
                     class="btn btn-secondary">

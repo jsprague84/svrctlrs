@@ -105,41 +105,13 @@ pub struct TaskListTemplate {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Task {
-    pub id: String,
+    pub id: i64,
     pub name: String,
-    pub status: TaskStatus,
-    pub progress: f32,
-    pub created_at: String,
-    pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum TaskStatus {
-    Pending,
-    Running,
-    Completed,
-    Failed,
-}
-
-impl TaskStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            TaskStatus::Pending => "pending",
-            TaskStatus::Running => "running",
-            TaskStatus::Completed => "completed",
-            TaskStatus::Failed => "failed",
-        }
-    }
-
-    pub fn badge_class(&self) -> &'static str {
-        match self {
-            TaskStatus::Pending => "badge-warning",
-            TaskStatus::Running => "badge-info",
-            TaskStatus::Completed => "badge-success",
-            TaskStatus::Failed => "badge-error",
-        }
-    }
+    pub description: Option<String>,
+    pub plugin_id: String,
+    pub schedule: String,
+    pub last_run_at: Option<String>,
+    pub next_run_at: Option<String>,
 }
 
 // ============================================================================
@@ -163,6 +135,7 @@ pub struct PluginListTemplate {
 #[template(path = "components/plugin_config_form.html")]
 pub struct PluginConfigFormTemplate {
     pub plugin: Plugin,
+    pub config_schedule: String,
     pub config_api_key: String,
     pub config_location: String,
     pub config_units: String,
@@ -182,6 +155,8 @@ pub struct Plugin {
 
 #[derive(Debug, Deserialize)]
 pub struct PluginConfigInput {
+    // Common to all plugins
+    pub schedule: Option<String>,
     // Weather plugin
     pub api_key: Option<String>,
     pub location: Option<String>,

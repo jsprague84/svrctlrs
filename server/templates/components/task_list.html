@@ -8,24 +8,43 @@
         <thead>
             <tr>
                 <th>Task</th>
-                <th>Status</th>
-                <th>Progress</th>
-                <th>Created</th>
-                <th>Updated</th>
+                <th>Plugin</th>
+                <th>Schedule</th>
+                <th>Last Run</th>
+                <th>Next Run</th>
+                <th>Actions</th>
             </tr>
         </thead>
         <tbody>
             {% for task in tasks %}
             <tr>
-                <td><strong>{{ task.name }}</strong></td>
                 <td>
-                    <span class="badge {{ task.status.badge_class() }}">
-                        {{ task.status.as_str() }}
-                    </span>
+                    <strong>{{ task.name }}</strong>
+                    {% match task.description %}
+                    {% when Some with (d) %}
+                    <br><small class="text-secondary">{{ d }}</small>
+                    {% when None %}
+                    {% endmatch %}
                 </td>
-                <td>{{ task.progress }}%</td>
-                <td>{{ task.created_at }}</td>
-                <td>{{ task.updated_at }}</td>
+                <td>{{ task.plugin_id }}</td>
+                <td><code>{{ task.schedule }}</code></td>
+                <td>
+                    {% match task.last_run_at %}
+                    {% when Some with (t) %}{{ t }}{% when None %}<span class="text-secondary">Never</span>{% endmatch %}
+                </td>
+                <td>
+                    {% match task.next_run_at %}
+                    {% when Some with (t) %}{{ t }}{% when None %}<span class="text-secondary">-</span>{% endmatch %}
+                </td>
+                <td>
+                    <button class="btn btn-sm btn-primary"
+                            hx-post="/tasks/{{ task.id }}/run"
+                            hx-target="#task-run-result-{{ task.id }}"
+                            hx-swap="innerHTML">
+                        ▶ Run Now
+                    </button>
+                    <div id="task-run-result-{{ task.id }}"></div>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
