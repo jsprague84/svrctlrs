@@ -11,6 +11,9 @@ pub mod queries;
 pub use models::*;
 pub use queries::*;
 
+// Embed migrations at compile time
+static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
+
 /// Database connection pool
 pub struct Database {
     pool: Pool<Sqlite>,
@@ -85,25 +88,11 @@ impl Database {
             .await
             .map_err(|e| Error::DatabaseError(format!("Failed to enable foreign keys: {}", e)))?;
 
-        // Run new migrations from SQL files
-        self.run_migrations().await?;
-
-        // Servers table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS servers (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                ssh_host TEXT,
-                enabled BOOLEAN NOT NULL DEFAULT 1,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await
-        .map_err(|e| Error::DatabaseError(format!("Failed to create servers table: {}", e)))?;
+        // Run embedded migrations
+        MIGRATOR
+            .run(&self.pool)
+            .await
+            .map_err(|e| Error::DatabaseError(format!("Failed to run migrations: {}", e)))?;
 
         // Metrics history table
         sqlx::query(
@@ -209,20 +198,6 @@ impl Database {
         .map_err(|e| Error::DatabaseError(format!("Failed to create task history index: {}", e)))?;
 
         info!("Database migrations completed successfully");
-        Ok(())
-    }
-
-    /// Run SQL migration files
-    async fn run_migrations(&self) -> Result<()> {
-        // Migration files are embedded at compile time
-        // In production, we'll use sqlx migrations
-        // For now, just log that we would run them
-        info!("New schema migrations will be applied on first run");
-        
-        // TODO: Use sqlx::migrate!() macro in production
-        // For now, the ALTER TABLE statements in migrations will be run
-        // when needed by checking if columns exist
-        
         Ok(())
     }
 
