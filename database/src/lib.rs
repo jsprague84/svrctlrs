@@ -21,6 +21,18 @@ impl Database {
     pub async fn new(database_url: &str) -> Result<Self> {
         info!(url = %database_url, "Connecting to database");
 
+        // Extract file path from SQLite URL and create parent directory if needed
+        if database_url.starts_with("sqlite:") {
+            let path = database_url.strip_prefix("sqlite:").unwrap_or(database_url);
+            if let Some(parent) = std::path::Path::new(path).parent() {
+                if !parent.exists() {
+                    info!(dir = ?parent, "Creating database directory");
+                    std::fs::create_dir_all(parent)
+                        .map_err(|e| Error::DatabaseError(format!("Failed to create database directory: {}", e)))?;
+                }
+            }
+        }
+
         let pool = SqlitePool::connect(database_url)
             .await
             .map_err(|e| Error::DatabaseError(format!("Failed to connect: {}", e)))?;
