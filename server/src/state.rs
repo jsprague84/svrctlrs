@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 use svrctlrs_core::{NotificationManager, PluginRegistry, RemoteExecutor, Result};
+use svrctlrs_database::Database;
 use svrctlrs_scheduler::Scheduler;
 use tokio::sync::{OnceCell, RwLock};
 
@@ -17,6 +18,7 @@ static APP_STATE: OnceCell<AppState> = OnceCell::const_new();
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
+    pub database: Arc<RwLock<Database>>,
     pub plugins: Arc<RwLock<PluginRegistry>>,
     pub scheduler: Arc<RwLock<Option<Scheduler>>>,
     pub executor: Arc<RemoteExecutor>,
@@ -24,12 +26,13 @@ pub struct AppState {
 
 impl AppState {
     /// Create new application state
-    pub async fn new(config: Config) -> Result<Self> {
+    pub async fn new(config: Config, database: Database) -> Result<Self> {
         let executor = Arc::new(RemoteExecutor::new(config.ssh_key_path.clone()));
         let plugins = Arc::new(RwLock::new(PluginRegistry::new()));
 
         Ok(Self {
             config: Arc::new(config),
+            database: Arc::new(RwLock::new(database)),
             plugins,
             scheduler: Arc::new(RwLock::new(None)),
             executor,

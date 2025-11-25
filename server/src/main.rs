@@ -51,8 +51,16 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::load(args.config.as_deref())?;
     info!(addr = %args.addr, "Starting SvrCtlRS server");
 
+    // Initialize database
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "sqlite:data/svrctlrs.db".to_string());
+    info!(url = %database_url, "Connecting to database");
+    
+    let database = svrctlrs_database::Database::new(&database_url).await?;
+    database.migrate().await?;
+
     // Initialize application state
-    let state = AppState::new(config).await?;
+    let state = AppState::new(config, database).await?;
 
     // Initialize plugins
     info!("Initializing plugins");
