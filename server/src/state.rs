@@ -88,10 +88,59 @@ impl AppState {
 
     /// Start the scheduler
     pub async fn start_scheduler(&self) -> Result<()> {
+        use svrctlrs_database::queries;
+        use tracing::info;
+        
         let mut scheduler_lock = self.scheduler.write().await;
         let scheduler = Scheduler::new();
 
-        // TODO: Register scheduled tasks from plugins
+        // Load enabled tasks from database
+        let db = self.database.read().await;
+        let tasks = queries::tasks::list_enabled_tasks(db.pool()).await?;
+        
+        info!("Loading {} enabled tasks into scheduler", tasks.len());
+        
+        // Register each task with the scheduler
+        for task in tasks {
+            let task_id = task.id;
+            let schedule = task.schedule.clone();
+            
+            // Clone state for the closure
+            let state = self.clone();
+            
+            // Create async handler that executes the task
+            let handler: std::sync::Arc<dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>> + Send + Sync> = 
+                std::sync::Arc::new(move || {
+                    let state = state.clone();
+                    Box::pin(async move {
+                        match crate::executor::execute_task(&state, task_id).await {
+                            Ok(result) => {
+                                if result.success {
+                                    tracing::info!("Scheduled task {} completed successfully", task_id);
+                                    Ok(())
+                                } else {
+                                    let err_msg = result.error.unwrap_or_else(|| "Unknown error".to_string());
+                                    tracing::error!("Scheduled task {} failed: {}", task_id, err_msg);
+                                    Err(svrctlrs_core::Error::RemoteExecutionError(err_msg))
+                                }
+                            }
+                            Err(e) => {
+                                tracing::error!("Failed to execute scheduled task {}: {}", task_id, e);
+                                Err(svrctlrs_core::Error::RemoteExecutionError(e.to_string()))
+                            }
+                        }
+                    })
+                });
+            
+            scheduler.add_task(
+                format!("task_{}", task_id),
+                &schedule,
+                handler,
+            ).await?;
+        }
+        
+        // Start the scheduler
+        scheduler.start().await?;
 
         *scheduler_lock = Some(scheduler);
         Ok(())

@@ -9,11 +9,14 @@ use tracing::{debug, error, info};
 
 use svrctlrs_core::{Error, Result};
 
+/// Async task handler type
+pub type AsyncTaskHandler = Arc<dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>> + Send + Sync>;
+
 /// Scheduled task
 pub struct Task {
     pub id: String,
     pub schedule: Schedule,
-    pub handler: Arc<dyn Fn() -> Result<()> + Send + Sync>,
+    pub handler: AsyncTaskHandler,
 }
 
 /// Task scheduler
@@ -30,14 +33,12 @@ impl Scheduler {
     }
 
     /// Add a task to the scheduler
-    pub async fn add_task<F>(
+    pub async fn add_task(
         &self,
         id: impl Into<String>,
         cron_expr: &str,
-        handler: F,
+        handler: AsyncTaskHandler,
     ) -> Result<()>
-    where
-        F: Fn() -> Result<()> + Send + Sync + 'static,
     {
         let schedule = Schedule::from_str(cron_expr)
             .map_err(|e| Error::SchedulerError(format!("Invalid cron expression: {}", e)))?;
@@ -46,7 +47,7 @@ impl Scheduler {
         let task = Task {
             id: task_id.clone(),
             schedule,
-            handler: Arc::new(handler),
+            handler,
         };
 
         let mut tasks = self.tasks.write().await;
@@ -77,14 +78,20 @@ impl Scheduler {
                         if time_until <= 60 && time_until >= 0 {
                             debug!(task_id = %task.id, "Executing scheduled task");
 
-                            match (task.handler)() {
-                                Ok(()) => {
-                                    info!(task_id = %task.id, "Task completed successfully");
+                            let handler = task.handler.clone();
+                            let task_id = task.id.clone();
+                            
+                            // Spawn task execution in background
+                            tokio::spawn(async move {
+                                match handler().await {
+                                    Ok(()) => {
+                                        info!(task_id = %task_id, "Task completed successfully");
+                                    }
+                                    Err(e) => {
+                                        error!(task_id = %task_id, error = %e, "Task execution failed");
+                                    }
                                 }
-                                Err(e) => {
-                                    error!(task_id = %task.id, error = %e, "Task execution failed");
-                                }
-                            }
+                            });
                         }
                     }
                 }
