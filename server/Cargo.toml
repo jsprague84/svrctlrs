@@ -65,6 +65,9 @@ clap = { workspace = true, optional = true }
 # HTTP client (server-only)
 reqwest = { workspace = true, optional = true }
 
+# SSH client (server-only)
+async-ssh2-tokio = { workspace = true, optional = true }
+
 # Date/time (server-only)
 chrono = { workspace = true, optional = true }
 
@@ -91,6 +94,7 @@ server = [
     "dep:toml",
     "dep:clap",
     "dep:reqwest",
+    "dep:async-ssh2-tokio",
     "dep:chrono"
 ]
 

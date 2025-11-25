@@ -251,26 +251,36 @@ async fn server_test_connection(
     State(_state): State<AppState>,
     Form(input): Form<TestConnectionInput>,
 ) -> Result<Html<String>, AppError> {
-    tracing::info!("Testing SSH connection to {}", input.host);
-    
-    // TODO: Implement actual SSH connection test using _state.executor
-    // For now, just return a success message
     let port = input.port.unwrap_or(22);
     let username = input.username.unwrap_or_else(|| "root".to_string());
     
-    // Simulate connection test (replace with actual SSH test later)
-    let success = true; // TODO: Actually test SSH connection
+    tracing::info!("Testing SSH connection to {}@{}:{}", username, input.host, port);
     
-    if success {
-        Ok(Html(format!(
-            r#"<div class="alert alert-success">✓ Successfully connected to {}@{}:{}</div>"#,
-            username, input.host, port
-        )))
-    } else {
-        Ok(Html(format!(
-            r#"<div class="alert alert-error">✗ Failed to connect to {}@{}:{}</div>"#,
-            username, input.host, port
-        )))
+    // Create SSH config
+    let ssh_config = crate::ssh::SshConfig {
+        host: input.host.clone(),
+        port: port as u16,
+        username: username.clone(),
+        key_path: None, // Will use default SSH keys
+        timeout: std::time::Duration::from_secs(10),
+    };
+    
+    // Test the connection
+    match crate::ssh::test_connection(&ssh_config).await {
+        Ok(message) => {
+            tracing::info!("SSH connection test successful: {}", message);
+            Ok(Html(format!(
+                r#"<div class="alert alert-success">✓ Successfully connected to {}@{}:{}<br><small>{}</small></div>"#,
+                username, input.host, port, message
+            )))
+        }
+        Err(e) => {
+            tracing::error!("SSH connection test failed: {}", e);
+            Ok(Html(format!(
+                r#"<div class="alert alert-error">✗ Failed to connect to {}@{}:{}<br><small>{}</small></div>"#,
+                username, input.host, port, e
+            )))
+        }
     }
 }
 

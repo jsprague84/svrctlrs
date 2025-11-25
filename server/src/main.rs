@@ -7,6 +7,7 @@
 // Server-side modules
 mod config;
 mod routes;
+mod ssh;
 mod state;
 mod templates;
 mod ui_routes;
