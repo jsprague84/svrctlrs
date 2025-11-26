@@ -18,6 +18,7 @@ serde_json = { workspace = true }
 
 # Time
 chrono = { workspace = true }
+cron = { workspace = true }
 
 # Error handling
 thiserror = { workspace = true }

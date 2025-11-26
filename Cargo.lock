@@ -3286,6 +3286,7 @@ name = "svrctlrs-database"
 version = "1.0.0"
 dependencies = [
  "chrono",
+ "cron",
  "serde",
  "serde_json",
  "sqlx",

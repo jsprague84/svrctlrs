@@ -1,4 +1,7 @@
+use chrono::{DateTime, Utc};
+use cron::Schedule;
 use sqlx::{Pool, Sqlite};
+use std::str::FromStr;
 use svrctlrs_core::{Error, Result};
 
 use crate::models::{CreateTask, Task, TaskHistory, TaskHistoryEntry, UpdateTask};
@@ -123,6 +126,36 @@ pub async fn delete_task(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Calculate next run time for a cron schedule
+pub fn calculate_next_run(cron_expr: &str) -> Result<Option<DateTime<Utc>>> {
+    let schedule = Schedule::from_str(cron_expr)
+        .map_err(|e| Error::SchedulerError(format!("Invalid cron expression: {}", e)))?;
+
+    Ok(schedule.upcoming(Utc).next())
+}
+
+/// Update task's next_run_at field only
+pub async fn update_task_next_run(
+    pool: &Pool<Sqlite>,
+    id: i64,
+    next_run_at: Option<DateTime<Utc>>,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        UPDATE tasks
+        SET next_run_at = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(next_run_at)
+    .bind(id)
+    .execute(pool)
+    .await
+    .map_err(|e| Error::DatabaseError(format!("Failed to update task next_run_at: {}", e)))?;
+
+    Ok(())
+}
+
 /// Update task run info
 pub async fn update_task_run_info(
     pool: &Pool<Sqlite>,
@@ -131,7 +164,7 @@ pub async fn update_task_run_info(
 ) -> Result<()> {
     sqlx::query(
         r#"
-        UPDATE tasks 
+        UPDATE tasks
         SET last_run_at = CURRENT_TIMESTAMP,
             next_run_at = ?,
             run_count = run_count + 1
