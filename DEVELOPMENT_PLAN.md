@@ -1,5 +1,7 @@
 # SvrCtlRS Development Plan
 
+> **Note:** For comprehensive feature catalog, see [FUTURE_FEATURES.md](./FUTURE_FEATURES.md) and [docs/features/](./docs/features/)
+
 ## v1.0.0 - Released ✅
 
 ### Completed Features

@@ -353,6 +353,29 @@ services:
       - ~/.ssh:/home/svrctlrs/.ssh:ro
 ```
 
+## Feature Planning
+
+For comprehensive feature documentation and future roadmap:
+
+- **[FUTURE_FEATURES.md](./FUTURE_FEATURES.md)**: Main catalog of 78 proposed features
+- **[docs/features/](./docs/features/)**: Detailed specifications by category (12 categories)
+- **[docs/features/TEMPLATE.md](./docs/features/TEMPLATE.md)**: Template for new feature proposals
+- **[docs/architecture/plugin-development-guide.md](./docs/architecture/plugin-development-guide.md)**: Plugin development guide
+
+**Feature Categories:**
+1. Notifications & Alerting (8 features)
+2. Monitoring & Metrics (9 features)
+3. Docker Advanced (8 features)
+4. System Administration (7 features)
+5. Security & Compliance (6 features)
+6. Automation & Orchestration (6 features)
+7. Collaboration & Team (6 features)
+8. Reporting & Analytics (6 features)
+9. Integration & Extensibility (7 features)
+10. Mobile & Accessibility (5 features)
+11. Cost Optimization (5 features)
+12. Disaster Recovery (5 features)
+
 ## Support
 
 - GitHub Issues: https://github.com/jsprague84/svrctlrs/issues

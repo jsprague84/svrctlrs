@@ -220,11 +220,12 @@ See [docs/deployment/docker.md](./docs/deployment/docker.md) for complete workfl
 - **[config/example.toml](./config/example.toml)**: Configuration file reference
 
 ### Development & Deployment
-- **[CLAUDE.md](./CLAUDE.md)**: Comprehensive AI development guide
-- **[docs/deployment/docker.md](./docs/deployment/docker.md)**: Docker build and deployment workflow
-- **[docs/deployment/docker-vm.md](./docs/deployment/docker-vm.md)**: Testing on docker-vm
-- **[docs/status.md](./docs/status.md)**: Current project status
-- **[docs/README.md](./docs/README.md)**: Documentation index
+- **[AI_CONTEXT.md](./AI_CONTEXT.md)**: Comprehensive AI development context
+- **[DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)**: Current development roadmap
+- **[IMMEDIATE_PRIORITIES.md](./IMMEDIATE_PRIORITIES.md)**: Critical issues and next steps
+- **[FUTURE_FEATURES.md](./FUTURE_FEATURES.md)**: 📋 **Catalog of 78 proposed features**
+- **[docs/features/](./docs/features/)**: Detailed feature specifications by category
+- **[docs/architecture/plugin-development-guide.md](./docs/architecture/plugin-development-guide.md)**: Plugin development guide
 
 ## License
 
