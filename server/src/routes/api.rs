@@ -29,7 +29,7 @@ pub fn routes() -> Router<AppState> {
         .route("/tasks", get(list_all_tasks))
         .route("/tasks/execute", post(execute_task))
         // Notifications
-        .route("/notifications/:id/test", post(test_notification))
+        .route("/notifications/{id}/test", post(test_notification))
 }
 
 /// Health check endpoint
