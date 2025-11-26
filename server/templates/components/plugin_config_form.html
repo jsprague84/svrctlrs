@@ -135,6 +135,56 @@
                 </label>
                 <small class="text-secondary">Enable to receive "System Up to Date" confirmation messages when checking for updates.</small>
             </div>
+        {% else if plugin.id == "health" %}
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" 
+                           id="health_send_summary" 
+                           name="health_send_summary"
+                           {% if config_health_send_summary %}checked{% endif %}>
+                    Send health summaries even when all metrics are normal
+                </label>
+                <small class="text-secondary">Enable to receive status reports showing CPU, memory, and disk usage even when everything is within normal thresholds.</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="health_cpu_warn_pct">CPU Warning Threshold (%)</label>
+                <input type="number" 
+                       id="health_cpu_warn_pct" 
+                       name="health_cpu_warn_pct" 
+                       value="{{ config_health_cpu_warn_pct }}"
+                       placeholder="80.0"
+                       min="1"
+                       max="100"
+                       step="0.1">
+                <small class="text-secondary">Alert when system CPU usage exceeds this percentage (default: 80%)</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="health_mem_warn_pct">Memory Warning Threshold (%)</label>
+                <input type="number" 
+                       id="health_mem_warn_pct" 
+                       name="health_mem_warn_pct" 
+                       value="{{ config_health_mem_warn_pct }}"
+                       placeholder="80.0"
+                       min="1"
+                       max="100"
+                       step="0.1">
+                <small class="text-secondary">Alert when system memory usage exceeds this percentage (default: 80%)</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="health_disk_warn_pct">Disk Warning Threshold (%)</label>
+                <input type="number" 
+                       id="health_disk_warn_pct" 
+                       name="health_disk_warn_pct" 
+                       value="{{ config_health_disk_warn_pct }}"
+                       placeholder="85.0"
+                       min="1"
+                       max="100"
+                       step="0.1">
+                <small class="text-secondary">Alert when disk usage exceeds this percentage (default: 85%)</small>
+            </div>
         {% else %}
             <p class="text-secondary">This plugin has no additional configurable options.</p>
         {% endif %}

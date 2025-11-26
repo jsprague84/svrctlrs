@@ -150,6 +150,11 @@ pub struct PluginConfigFormTemplate {
     pub config_mem_warn_pct: String,
     // Updates plugin
     pub config_updates_send_summary: bool,
+    // Health plugin
+    pub config_health_send_summary: bool,
+    pub config_health_cpu_warn_pct: String,
+    pub config_health_mem_warn_pct: String,
+    pub config_health_disk_warn_pct: String,
     pub error: Option<String>,
 }
 
@@ -180,6 +185,11 @@ pub struct PluginConfigInput {
     pub mem_warn_pct: Option<String>,
     // Updates plugin  
     pub updates_send_summary: Option<String>, // checkbox "on" or None
+    // Health plugin
+    pub health_send_summary: Option<String>, // checkbox "on" or None
+    pub health_cpu_warn_pct: Option<String>,
+    pub health_mem_warn_pct: Option<String>,
+    pub health_disk_warn_pct: Option<String>,
 }
 
 // ============================================================================

@@ -489,6 +489,11 @@ async fn plugin_config_form(
         config_mem_warn_pct: config.get("mem_warn_pct").and_then(|v| v.as_f64()).map(|v| v.to_string()).unwrap_or_else(|| "80.0".to_string()),
         // Updates plugin
         config_updates_send_summary: config.get("send_summary").and_then(|v| v.as_bool()).unwrap_or(false),
+        // Health plugin
+        config_health_send_summary: config.get("send_summary").and_then(|v| v.as_bool()).unwrap_or(false),
+        config_health_cpu_warn_pct: config.get("cpu_warn_pct").and_then(|v| v.as_f64()).map(|v| v.to_string()).unwrap_or_else(|| "80.0".to_string()),
+        config_health_mem_warn_pct: config.get("mem_warn_pct").and_then(|v| v.as_f64()).map(|v| v.to_string()).unwrap_or_else(|| "80.0".to_string()),
+        config_health_disk_warn_pct: config.get("disk_warn_pct").and_then(|v| v.as_f64()).map(|v| v.to_string()).unwrap_or_else(|| "85.0".to_string()),
         error: None,
     };
     
@@ -542,6 +547,14 @@ async fn plugin_config_save(
         serde_json::json!({
             "schedule": schedule,
             "send_summary": input.updates_send_summary.is_some(),
+        })
+    } else if id == "health" {
+        serde_json::json!({
+            "schedule": schedule,
+            "send_summary": input.health_send_summary.is_some(),
+            "cpu_warn_pct": input.health_cpu_warn_pct.and_then(|s| s.parse::<f64>().ok()).unwrap_or(80.0),
+            "mem_warn_pct": input.health_mem_warn_pct.and_then(|s| s.parse::<f64>().ok()).unwrap_or(80.0),
+            "disk_warn_pct": input.health_disk_warn_pct.and_then(|s| s.parse::<f64>().ok()).unwrap_or(85.0),
         })
     } else {
         serde_json::json!({

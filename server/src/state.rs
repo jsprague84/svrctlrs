@@ -73,7 +73,8 @@ impl AppState {
                 #[cfg(feature = "plugin-health")]
                 "health" => {
                     tracing::info!("Registering Health plugin (enabled in database)");
-                    let plugin = svrctlrs_plugin_health::HealthPlugin::new();
+                    let config = db_plugin.get_config();
+                    let plugin = svrctlrs_plugin_health::HealthPlugin::from_config(config)?;
                     registry.register(Box::new(plugin))?;
                 }
                 
