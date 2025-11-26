@@ -294,7 +294,7 @@ async fn test_notification(
             let url = config["url"].as_str().unwrap_or("https://ntfy.sh");
             let topic = config["topic"].as_str().unwrap_or_default();
 
-            let ntfy = NtfyBackend::with_url_and_topic(client, url, topic)
+            let mut ntfy = NtfyBackend::with_url_and_topic(client, url, topic)
                 .map_err(|e| {
                     (
                         StatusCode::INTERNAL_SERVER_ERROR,
@@ -304,7 +304,26 @@ async fn test_notification(
                         )),
                     )
                 })?;
-            ntfy.send(&test_message).await
+
+            // Add authentication if configured
+            if let Some(token) = config.get("token").and_then(|t| t.as_str()) {
+                if !token.trim().is_empty() {
+                    ntfy = ntfy.with_token(token.trim());
+                }
+            } else if let (Some(username), Some(password)) = (
+                config.get("username").and_then(|u| u.as_str()),
+                config.get("password").and_then(|p| p.as_str()),
+            ) {
+                if !username.trim().is_empty() && !password.trim().is_empty() {
+                    ntfy = ntfy.with_basic_auth(username.trim(), password.trim());
+                }
+            }
+
+            // Register the topic for the test service
+            ntfy.register_service("test", topic);
+
+            // Send using service context
+            ntfy.send_for_service("test", &test_message).await
         }
         _ => {
             return Err((

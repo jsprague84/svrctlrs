@@ -97,8 +97,12 @@ async fn get_tasks(state: &AppState) -> Vec<Task> {
             plugin_id: t.plugin_id,
             server_name: t.server_name,
             schedule: t.schedule,
-            last_run_at: t.last_run_at.map(|dt| dt.to_rfc3339()),
-            next_run_at: t.next_run_at.map(|dt| dt.to_rfc3339()),
+            last_run_at: t
+                .last_run_at
+                .map(|dt| dt.format("%Y-%m-%d %I:%M:%S %p").to_string()),
+            next_run_at: t
+                .next_run_at
+                .map(|dt| dt.format("%Y-%m-%d %I:%M:%S %p").to_string()),
         })
         .collect()
 }
