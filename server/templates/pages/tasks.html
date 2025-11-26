@@ -10,22 +10,86 @@
 <div id="task-list" 
      hx-get="/tasks/list" 
      hx-trigger="load, every 5s"
-     hx-swap="innerHTML"
-     hx-swap-oob="true">
+     hx-swap="innerHTML">
     <div class="card">
         <p class="text-secondary">Loading tasks...</p>
     </div>
 </div>
 
+<style>
+.schedule-display {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.schedule-display:hover {
+    background-color: var(--bg-secondary);
+}
+
+.schedule-input {
+    font-family: 'Courier New', monospace;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-width: 150px;
+}
+</style>
+
 <script>
+// Schedule editing functions
+function editSchedule(taskId, currentSchedule) {
+    // Hide display, show form
+    document.getElementById('schedule-display-' + taskId).style.display = 'none';
+    const form = document.getElementById('schedule-form-' + taskId);
+    form.style.display = 'inline';
+    
+    // Focus input
+    const input = document.getElementById('schedule-input-' + taskId);
+    input.focus();
+    input.select();
+}
+
+function cancelScheduleEdit(taskId, originalSchedule) {
+    // Small delay to allow form submission if Enter was pressed
+    setTimeout(() => {
+        const form = document.getElementById('schedule-form-' + taskId);
+        if (form && form.style.display !== 'none') {
+            // Reset input to original value
+            document.getElementById('schedule-input-' + taskId).value = originalSchedule;
+            
+            // Hide form, show display
+            form.style.display = 'none';
+            document.getElementById('schedule-display-' + taskId).style.display = 'inline';
+        }
+    }, 200);
+}
+
+function handleScheduleKeydown(event, taskId) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        // Submit the form via HTMX
+        const form = document.getElementById('schedule-form-' + taskId);
+        htmx.trigger(form, 'submit');
+    } else if (event.key === 'Escape') {
+        event.target.blur(); // Trigger onblur which cancels edit
+    }
+}
+
 // Prevent refresh from interrupting inline editing
 document.body.addEventListener('htmx:beforeSwap', function(evt) {
-    // Check if any schedule is being edited
-    const editingSchedule = document.querySelector('.schedule-input');
-    if (editingSchedule && document.activeElement === editingSchedule) {
-        // Cancel the swap to preserve editing state
-        evt.preventDefault();
-        console.log('Prevented refresh during schedule edit');
+    // Only check for task list swaps
+    if (evt.detail.target.id === 'task-list') {
+        // Check if any schedule is being edited
+        const editingSchedule = document.querySelector('.schedule-input');
+        if (editingSchedule && document.activeElement === editingSchedule) {
+            // Cancel the swap to preserve editing state
+            evt.preventDefault();
+            console.log('Prevented refresh during schedule edit');
+        }
     }
 });
 </script>
