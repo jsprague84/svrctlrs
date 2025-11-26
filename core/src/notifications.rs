@@ -323,21 +323,24 @@ impl NtfyBackend {
         let topic = match self.get_topic(service) {
             Some(t) => t,
             None => {
-                debug!(service = %service, "ntfy topic not configured; skipping notification");
+                warn!(
+                    service = %service,
+                    available_topics = ?self.topics.keys().collect::<Vec<_>>(),
+                    "ntfy topic not configured for service; skipping notification"
+                );
                 return Ok(());
             }
         };
 
-        if self.debug {
-            debug!(
-                service = %service,
-                url = %format!("{}/{}", self.base_url, topic),
-                title_bytes = message.title.len(),
-                body_bytes = message.body.len(),
-                actions = message.actions.len(),
-                "Sending ntfy notification"
-            );
-        }
+        tracing::info!(
+            service = %service,
+            topic = %topic,
+            url = %format!("{}/{}", self.base_url, topic),
+            title = %message.title,
+            priority = message.priority,
+            actions = message.actions.len(),
+            "Sending ntfy notification"
+        );
 
         // Build JSON body with markdown support
         let mut json_body = serde_json::json!({
@@ -374,11 +377,38 @@ impl NtfyBackend {
         let response = request
             .send()
             .await
-            .map_err(|e| Error::HttpError(format!("ntfy request failed: {}", e)))?;
+            .map_err(|e| {
+                tracing::error!(
+                    service = %service,
+                    topic = %topic,
+                    url = %url,
+                    error = %e,
+                    "ntfy HTTP request failed"
+                );
+                Error::HttpError(format!("ntfy request failed: {}", e))
+            })?;
 
-        response
-            .error_for_status()
-            .map_err(|e| Error::NotificationError(format!("ntfy error: {}", e)))?;
+        let status = response.status();
+        if !status.is_success() {
+            let error_body = response.text().await.unwrap_or_else(|_| "unknown".to_string());
+            tracing::error!(
+                service = %service,
+                topic = %topic,
+                status = %status,
+                error_body = %error_body,
+                "ntfy returned error status"
+            );
+            return Err(Error::NotificationError(format!(
+                "ntfy error: {} - {}",
+                status, error_body
+            )));
+        }
+
+        tracing::info!(
+            service = %service,
+            topic = %topic,
+            "ntfy notification sent successfully"
+        );
 
         Ok(())
     }

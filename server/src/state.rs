@@ -232,12 +232,18 @@ impl AppState {
             ) {
                 match NtfyBackend::with_url_and_topic(client.clone(), url, topic) {
                     Ok(mut nb) => {
-                        // Load service-specific topics for all plugins
-                        // (plugins will be filtered by enabled status at runtime)
+                        // Register the same topic for all services (they all go to the same topic)
+                        // This allows plugins to call send_for_service("weather", msg) etc.
                         let services = vec!["docker", "updates", "health", "weather", "speedtest"];
-                        nb.load_service_topics(&services);
+                        for service in services {
+                            nb.register_service(service, topic);
+                        }
+                        
+                        // Also try to load service-specific topics from environment (optional override)
+                        nb.load_service_topics(&["docker", "updates", "health", "weather", "speedtest"]);
+                        
                         ntfy_backend = Some(nb);
-                        info!("Initialized ntfy backend: {}", backend.name);
+                        info!("Initialized ntfy backend: {} (topic: {})", backend.name, topic);
                         break; // Use first enabled ntfy backend
                     }
                     Err(e) => {
