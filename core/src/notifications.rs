@@ -28,6 +28,32 @@ fn default_priority() -> u8 {
     3
 }
 
+/// Mask sensitive tokens/keys for safe logging
+///
+/// Masks all but the first and last 3 characters of tokens longer than 8 characters.
+/// Tokens 8 characters or shorter are completely masked.
+///
+/// # Examples
+///
+/// ```
+/// use svrctlrs_core::mask_token;
+///
+/// let token = "abc123def456ghi789";
+/// let masked = mask_token(token);
+/// assert_eq!(masked, "abc***789");
+///
+/// let short = "secret";
+/// let masked_short = mask_token(short);
+/// assert_eq!(masked_short, "***");
+/// ```
+pub fn mask_token(token: &str) -> String {
+    if token.len() <= 8 {
+        "***".to_string()
+    } else {
+        format!("{}***{}", &token[..3], &token[token.len() - 3..])
+    }
+}
+
 /// Notification action button
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotificationAction {
@@ -578,5 +604,45 @@ impl NotificationManager {
     /// Get ntfy backend reference
     pub fn ntfy(&self) -> Option<&NtfyBackend> {
         self.ntfy.as_ref()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mask_token_long() {
+        let token = "abc123def456ghi789";
+        let masked = mask_token(token);
+        assert_eq!(masked, "abc***789");
+    }
+
+    #[test]
+    fn test_mask_token_short() {
+        let token = "secret";
+        let masked = mask_token(token);
+        assert_eq!(masked, "***");
+    }
+
+    #[test]
+    fn test_mask_token_exactly_8() {
+        let token = "12345678";
+        let masked = mask_token(token);
+        assert_eq!(masked, "***");
+    }
+
+    #[test]
+    fn test_mask_token_exactly_9() {
+        let token = "123456789";
+        let masked = mask_token(token);
+        assert_eq!(masked, "123***789");
+    }
+
+    #[test]
+    fn test_mask_token_empty() {
+        let token = "";
+        let masked = mask_token(token);
+        assert_eq!(masked, "***");
     }
 }

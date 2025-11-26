@@ -4,12 +4,9 @@ use std::sync::Arc;
 use svrctlrs_core::{NotificationManager, PluginRegistry, RemoteExecutor, Result};
 use svrctlrs_database::Database;
 use svrctlrs_scheduler::Scheduler;
-use tokio::sync::{OnceCell, RwLock};
+use tokio::sync::RwLock;
 
 use crate::config::Config;
-
-/// Global application state for server functions
-static APP_STATE: OnceCell<AppState> = OnceCell::const_new();
 
 /// Shared application state
 ///
@@ -390,21 +387,5 @@ impl AppState {
 
         // Create notification manager with database-loaded backends
         NotificationManager::from_backends(gotify_backend, ntfy_backend)
-    }
-
-    /// Initialize the global app state (call once at startup)
-    pub fn set_global(state: AppState) {
-        if APP_STATE.set(state).is_err() {
-            panic!("AppState already initialized");
-        }
-    }
-
-    /// Get the global app state (for use in server functions)
-    #[allow(dead_code)]
-    pub fn global() -> AppState {
-        APP_STATE
-            .get()
-            .expect("AppState not initialized - call AppState::set_global() first")
-            .clone()
     }
 }

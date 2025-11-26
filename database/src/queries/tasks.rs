@@ -1,7 +1,7 @@
 use sqlx::{Pool, Sqlite};
 use svrctlrs_core::{Error, Result};
 
-use crate::models::{CreateTask, Task, TaskHistory, UpdateTask};
+use crate::models::{CreateTask, Task, TaskHistory, TaskHistoryEntry, UpdateTask};
 
 /// List all tasks
 pub async fn list_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
@@ -286,7 +286,7 @@ pub async fn record_task_execution(
 pub async fn update_task_stats(pool: &Pool<Sqlite>, task_id: i64) -> Result<()> {
     sqlx::query(
         r#"
-        UPDATE tasks 
+        UPDATE tasks
         SET last_run_at = CURRENT_TIMESTAMP,
             run_count = run_count + 1
         WHERE id = ?
@@ -298,4 +298,61 @@ pub async fn update_task_stats(pool: &Pool<Sqlite>, task_id: i64) -> Result<()> 
     .map_err(|e| Error::DatabaseError(format!("Failed to update task stats: {}", e)))?;
 
     Ok(())
+}
+
+/// Record task execution and update stats in a single transaction
+///
+/// This ensures atomicity - either both operations succeed or both fail,
+/// preventing inconsistent state where history is recorded but stats aren't updated.
+pub async fn record_task_execution_with_stats(
+    pool: &Pool<Sqlite>,
+    history_entry: &TaskHistoryEntry,
+) -> Result<i64> {
+    // Begin transaction
+    let mut tx = pool
+        .begin()
+        .await
+        .map_err(|e| Error::DatabaseError(format!("Failed to begin transaction: {}", e)))?;
+
+    // Insert execution history
+    let result = sqlx::query(
+        r#"
+        INSERT INTO task_executions (task_id, plugin_id, server_id, success, output, error, duration_ms, executed_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        "#,
+    )
+    .bind(history_entry.task_id)
+    .bind(&history_entry.plugin_id)
+    .bind(history_entry.server_id)
+    .bind(history_entry.success)
+    .bind(&history_entry.output)
+    .bind(&history_entry.error)
+    .bind(history_entry.duration_ms as i64)
+    .bind(&history_entry.executed_at)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| Error::DatabaseError(format!("Failed to record task execution: {}", e)))?;
+
+    let execution_id = result.last_insert_rowid();
+
+    // Update task statistics
+    sqlx::query(
+        r#"
+        UPDATE tasks
+        SET last_run_at = CURRENT_TIMESTAMP,
+            run_count = run_count + 1
+        WHERE id = ?
+        "#,
+    )
+    .bind(history_entry.task_id)
+    .execute(&mut *tx)
+    .await
+    .map_err(|e| Error::DatabaseError(format!("Failed to update task stats: {}", e)))?;
+
+    // Commit transaction
+    tx.commit()
+        .await
+        .map_err(|e| Error::DatabaseError(format!("Failed to commit transaction: {}", e)))?;
+
+    Ok(execution_id)
 }

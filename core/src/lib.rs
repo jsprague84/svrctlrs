@@ -12,7 +12,7 @@ pub mod types;
 // Re-exports
 pub use error::{Error, Result};
 pub use notifications::{
-    GotifyBackend, NotificationAction, NotificationBackend, NotificationManager,
+    mask_token, GotifyBackend, NotificationAction, NotificationBackend, NotificationManager,
     NotificationMessage, NtfyBackend,
 };
 pub use plugin::{

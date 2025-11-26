@@ -2887,6 +2887,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "subtle",
  "svrctlrs-core",
  "svrctlrs-database",
  "svrctlrs-plugin-docker",

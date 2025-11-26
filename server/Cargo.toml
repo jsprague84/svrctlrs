@@ -72,6 +72,9 @@ async-ssh2-tokio = { workspace = true, optional = true }
 chrono = { workspace = true, optional = true }
 cron = { workspace = true, optional = true }
 
+# Security (server-only)
+subtle = { version = "2.5", optional = true }
+
 [features]
 # Default: Core plugins + server feature
 default = ["server", "plugin-docker", "plugin-updates", "plugin-health"]
@@ -97,7 +100,8 @@ server = [
     "dep:reqwest",
     "dep:async-ssh2-tokio",
     "dep:chrono",
-    "dep:cron"
+    "dep:cron",
+    "dep:subtle"
 ]
 
 # Core plugins (default enabled)

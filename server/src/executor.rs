@@ -56,7 +56,7 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
 
     let duration_ms = start_time.elapsed().as_millis() as u64;
 
-    // Record execution in task history
+    // Record execution in task history and update stats atomically
     let history_entry = TaskHistoryEntry {
         task_id,
         plugin_id: task.plugin_id.clone(),
@@ -68,13 +68,9 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
         executed_at: chrono::Utc::now(),
     };
 
-    if let Err(e) = queries::tasks::record_task_execution(db.pool(), &history_entry).await {
-        error!("Failed to record task execution in history: {}", e);
-    }
-
-    // Update task's last_run_at and run_count
-    if let Err(e) = queries::tasks::update_task_stats(db.pool(), task_id).await {
-        error!("Failed to update task stats: {}", e);
+    // Use transaction to ensure atomicity of history recording and stats update
+    if let Err(e) = queries::tasks::record_task_execution_with_stats(db.pool(), &history_entry).await {
+        error!("Failed to record task execution and update stats: {}", e);
     }
 
     match result {

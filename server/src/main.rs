@@ -72,9 +72,6 @@ async fn main() -> anyhow::Result<()> {
     info!("Starting scheduler");
     state.start_scheduler().await?;
 
-    // Initialize global state for compatibility
-    AppState::set_global(state.clone());
-
     // Build UI router with state
     let ui_router = ui_routes::ui_routes().with_state(state.clone());
 

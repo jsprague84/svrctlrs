@@ -47,7 +47,8 @@ impl Config {
             vec![Server::local("localhost")]
         };
 
-        let ssh_key_path = std::env::var("SSH_KEY_PATH").ok();
+        // Support file-based SSH key path (Docker/K8s secrets)
+        let ssh_key_path = get_secret("SSH_KEY_PATH");
 
         Ok(Config {
             database_url,
@@ -72,4 +73,39 @@ impl Config {
             })
             .collect()
     }
+}
+
+/// Get secret from environment variable or file
+///
+/// Supports both direct environment variables and file-based secrets (Docker/Kubernetes pattern).
+/// If `VAR_NAME` is not found, tries `VAR_NAME_FILE` which should point to a file containing the secret.
+///
+/// # Examples
+///
+/// ```no_run
+/// // Direct environment variable
+/// std::env::set_var("API_KEY", "secret123");
+/// let key = get_secret("API_KEY");
+/// assert!(key.is_some());
+///
+/// // File-based secret (Docker/K8s)
+/// std::env::set_var("API_KEY_FILE", "/run/secrets/api_key");
+/// let key = get_secret("API_KEY");
+/// assert!(key.is_some());
+/// ```
+pub fn get_secret(var_name: &str) -> Option<String> {
+    // Try environment variable first
+    if let Ok(value) = std::env::var(var_name) {
+        return Some(value);
+    }
+
+    // Try file-based secret (Docker secrets / Kubernetes)
+    let file_var = format!("{}_FILE", var_name);
+    if let Ok(path) = std::env::var(&file_var) {
+        if let Ok(contents) = std::fs::read_to_string(&path) {
+            return Some(contents.trim().to_string());
+        }
+    }
+
+    None
 }

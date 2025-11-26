@@ -10,8 +10,10 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashMap;
+use subtle::ConstantTimeEq;
 use tracing::{debug, error, info, instrument, warn};
 
+use crate::config::get_secret;
 use crate::state::AppState;
 
 /// Create webhook router
@@ -39,11 +41,11 @@ struct TriggerRequest {
 
 /// Verify webhook token
 fn verify_token(headers: &HeaderMap, request_token: &Option<String>) -> bool {
-    let expected_token = std::env::var("WEBHOOK_SECRET").ok();
+    let expected_token = get_secret("WEBHOOK_SECRET");
 
     if expected_token.is_none() {
         // No token configured, allow all requests (development mode)
-        warn!("WEBHOOK_SECRET not configured - accepting all webhook requests");
+        warn!("WEBHOOK_SECRET or WEBHOOK_SECRET_FILE not configured - accepting all webhook requests");
         return true;
     }
 
@@ -53,7 +55,8 @@ fn verify_token(headers: &HeaderMap, request_token: &Option<String>) -> bool {
     if let Some(auth_header) = headers.get("Authorization") {
         if let Ok(value) = auth_header.to_str() {
             if let Some(token) = value.strip_prefix("Bearer ") {
-                if token == expected {
+                // Use constant-time comparison to prevent timing attacks
+                if bool::from(token.as_bytes().ct_eq(expected.as_bytes())) {
                     return true;
                 }
             }
@@ -62,7 +65,8 @@ fn verify_token(headers: &HeaderMap, request_token: &Option<String>) -> bool {
 
     // Check token in request body
     if let Some(token) = request_token {
-        if token == expected {
+        // Use constant-time comparison to prevent timing attacks
+        if bool::from(token.as_bytes().ct_eq(expected.as_bytes())) {
             return true;
         }
     }
