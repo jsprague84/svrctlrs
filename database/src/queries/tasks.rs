@@ -7,10 +7,10 @@ use crate::models::{CreateTask, Task, TaskHistory, UpdateTask};
 pub async fn list_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
     sqlx::query_as::<_, Task>(
         r#"
-        SELECT id, name, description, plugin_id, server_id, schedule, enabled, command, args,
+        SELECT id, name, description, plugin_id, server_id, server_name, schedule, enabled, command, args,
                timeout, created_at, updated_at, last_run_at, next_run_at, run_count
         FROM tasks
-        ORDER BY name
+        ORDER BY server_name, name
         "#,
     )
     .fetch_all(pool)
@@ -22,7 +22,7 @@ pub async fn list_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
 pub async fn get_task(pool: &Pool<Sqlite>, id: i64) -> Result<Task> {
     sqlx::query_as::<_, Task>(
         r#"
-        SELECT id, name, description, plugin_id, server_id, schedule, enabled, command, args,
+        SELECT id, name, description, plugin_id, server_id, server_name, schedule, enabled, command, args,
                timeout, created_at, updated_at, last_run_at, next_run_at, run_count
         FROM tasks
         WHERE id = ?
@@ -43,14 +43,15 @@ pub async fn create_task(pool: &Pool<Sqlite>, task: &CreateTask) -> Result<i64> 
 
     let result = sqlx::query(
         r#"
-        INSERT INTO tasks (name, description, plugin_id, server_id, schedule, command, args, timeout)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO tasks (name, description, plugin_id, server_id, server_name, schedule, command, args, timeout)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&task.name)
     .bind(&task.description)
     .bind(&task.plugin_id)
     .bind(task.server_id)
+    .bind(&task.server_name)
     .bind(&task.schedule)
     .bind(&task.command)
     .bind(args_json)
@@ -150,7 +151,7 @@ pub async fn update_task_run_info(
 pub async fn list_enabled_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
     sqlx::query_as::<_, Task>(
         r#"
-        SELECT id, name, description, plugin_id, server_id, schedule, enabled, command, args,
+        SELECT id, name, description, plugin_id, server_id, server_name, schedule, enabled, command, args,
                timeout, created_at, updated_at, last_run_at, next_run_at, run_count
         FROM tasks
         WHERE enabled = 1
@@ -166,17 +167,34 @@ pub async fn list_enabled_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
 pub async fn list_tasks_by_plugin(pool: &Pool<Sqlite>, plugin_id: &str) -> Result<Vec<Task>> {
     sqlx::query_as::<_, Task>(
         r#"
-        SELECT id, name, description, plugin_id, server_id, schedule, enabled, command, args,
+        SELECT id, name, description, plugin_id, server_id, server_name, schedule, enabled, command, args,
                timeout, created_at, updated_at, last_run_at, next_run_at, run_count
         FROM tasks
         WHERE plugin_id = ?
-        ORDER BY name
+        ORDER BY server_name, name
         "#,
     )
     .bind(plugin_id)
     .fetch_all(pool)
     .await
     .map_err(|e| Error::DatabaseError(format!("Failed to list tasks by plugin: {}", e)))
+}
+
+/// List tasks by server
+pub async fn list_tasks_by_server(pool: &Pool<Sqlite>, server_id: i64) -> Result<Vec<Task>> {
+    sqlx::query_as::<_, Task>(
+        r#"
+        SELECT id, name, description, plugin_id, server_id, server_name, schedule, enabled, command, args,
+               timeout, created_at, updated_at, last_run_at, next_run_at, run_count
+        FROM tasks
+        WHERE server_id = ?
+        ORDER BY name
+        "#,
+    )
+    .bind(server_id)
+    .fetch_all(pool)
+    .await
+    .map_err(|e| Error::DatabaseError(format!("Failed to list tasks by server: {}", e)))
 }
 
 // ============================================================================

@@ -11,6 +11,7 @@ pub struct Task {
     pub description: Option<String>,
     pub plugin_id: String,
     pub server_id: Option<i64>,
+    pub server_name: Option<String>,  // Denormalized for display
     pub schedule: String,  // Cron expression
     pub enabled: bool,
     pub command: String,
@@ -30,6 +31,7 @@ pub struct CreateTask {
     pub description: Option<String>,
     pub plugin_id: String,
     pub server_id: Option<i64>,
+    pub server_name: Option<String>,
     pub schedule: String,
     pub command: String,
     pub args: Option<JsonValue>,
