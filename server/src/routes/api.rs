@@ -3,7 +3,7 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{Html, IntoResponse},
     routing::{get, post},
     Json, Router,
 };
@@ -20,6 +20,8 @@ pub fn routes() -> Router<AppState> {
         // Health and status
         .route("/health", get(health_check))
         .route("/status", get(server_status))
+        // Configuration
+        .route("/config/reload", post(reload_config))
         // Metrics
         .route("/metrics", get(get_metrics))
         .route("/metrics/{plugin_id}", get(plugin_metrics))
@@ -47,13 +49,58 @@ async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
 
     let scheduler = state.scheduler.read().await;
     let scheduler_running = scheduler.is_some();
+    let task_count = if let Some(ref sched) = *scheduler {
+        sched.task_count().await
+    } else {
+        0
+    };
 
     Json(json!({
         "status": "running",
         "plugins_loaded": plugin_count,
         "scheduler_running": scheduler_running,
+        "scheduled_tasks": task_count,
         "servers": state.config.servers.len()
     }))
+}
+
+/// Reload configuration from database
+#[instrument(skip(state))]
+async fn reload_config(State(state): State<AppState>) -> Result<impl IntoResponse, (StatusCode, Html<String>)> {
+    info!("Configuration reload requested");
+
+    state.reload_config().await.map_err(|e| {
+        error!(error = %e, "Configuration reload failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(format!(
+                r#"<div class="alert alert-error">❌ Configuration reload failed: {}</div>"#,
+                e
+            )),
+        )
+    })?;
+
+    let plugins = state.plugins.read().await;
+    let plugin_count = plugins.plugin_ids().len();
+    
+    let scheduler = state.scheduler.read().await;
+    let task_count = if let Some(ref sched) = *scheduler {
+        sched.task_count().await
+    } else {
+        0
+    };
+
+    info!("Configuration reloaded successfully");
+
+    Ok(Html(format!(
+        r#"<div class="alert alert-success">
+            ✅ Configuration reloaded successfully!<br>
+            <small class="text-secondary">
+                Plugins loaded: {} | Scheduled tasks: {}
+            </small>
+        </div>"#,
+        plugin_count, task_count
+    )))
 }
 
 

@@ -58,6 +58,52 @@ impl Scheduler {
         Ok(())
     }
 
+    /// Remove a task from the scheduler
+    pub async fn remove_task(&self, id: &str) -> bool {
+        let mut tasks = self.tasks.write().await;
+        let initial_len = tasks.len();
+        tasks.retain(|t| t.id != id);
+        let removed = tasks.len() < initial_len;
+        
+        if removed {
+            info!(id = %id, "Scheduled task removed");
+        }
+        
+        removed
+    }
+
+    /// Update a task's schedule
+    pub async fn update_task(
+        &self,
+        id: &str,
+        cron_expr: &str,
+        handler: AsyncTaskHandler,
+    ) -> Result<()> {
+        // Remove old task
+        self.remove_task(id).await;
+        
+        // Add new task with updated schedule
+        self.add_task(id, cron_expr, handler).await?;
+        
+        info!(id = %id, schedule = %cron_expr, "Scheduled task updated");
+        
+        Ok(())
+    }
+
+    /// Clear all tasks
+    pub async fn clear_all_tasks(&self) {
+        let mut tasks = self.tasks.write().await;
+        let count = tasks.len();
+        tasks.clear();
+        info!(count = %count, "Cleared all scheduled tasks");
+    }
+
+    /// Get count of scheduled tasks
+    pub async fn task_count(&self) -> usize {
+        let tasks = self.tasks.read().await;
+        tasks.len()
+    }
+
     /// Start the scheduler
     pub async fn start(&self) -> Result<()> {
         info!("Starting scheduler");

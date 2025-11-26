@@ -160,6 +160,13 @@ impl PluginRegistry {
         self.plugins.values().map(|p| p.as_ref()).collect()
     }
 
+    /// Clear all plugins from the registry
+    pub fn clear(&mut self) {
+        let count = self.plugins.len();
+        self.plugins.clear();
+        tracing::info!(count = %count, "Cleared all plugins from registry");
+    }
+
     /// Initialize all plugins
     pub async fn init_all(&mut self) -> Result<()> {
         for (id, plugin) in self.plugins.iter_mut() {

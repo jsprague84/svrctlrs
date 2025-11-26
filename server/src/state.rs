@@ -178,6 +178,60 @@ impl AppState {
         self.database.read().await
     }
 
+    /// Reload configuration from database without restarting
+    /// This reloads:
+    /// - Plugin configurations
+    /// - Task schedules
+    /// - Notification backends
+    pub async fn reload_config(&self) -> Result<()> {
+        use svrctlrs_database::queries;
+        
+        tracing::info!("🔄 Reloading configuration from database");
+        
+        // 1. Reload plugins
+        tracing::info!("Reloading plugins...");
+        {
+            let mut registry = self.plugins.write().await;
+            registry.clear();
+            drop(registry);
+        }
+        self.init_plugins().await?;
+        
+        // 2. Reload scheduler tasks
+        tracing::info!("Reloading scheduler tasks...");
+        if let Some(scheduler) = self.scheduler.read().await.as_ref() {
+            // Clear existing tasks
+            scheduler.clear_all_tasks().await;
+            
+            // Reload tasks from database
+            let db = self.database.read().await;
+            let enabled_tasks = queries::tasks::list_enabled_tasks(db.pool()).await?;
+            
+            tracing::info!("Loading {} enabled tasks into scheduler", enabled_tasks.len());
+            
+            for task in enabled_tasks {
+                let task_id = format!("task_{}", task.id);
+                let schedule = task.schedule.clone();
+                let state = self.clone();
+                let task_id_clone = task.id;
+                
+                let handler: svrctlrs_scheduler::AsyncTaskHandler = Arc::new(move || {
+                    let state = state.clone();
+                    let task_id = task_id_clone;
+                    Box::pin(async move {
+                        crate::executor::execute_task(&state, task_id).await
+                    })
+                });
+                
+                scheduler.add_task(&task_id, &schedule, handler).await?;
+                tracing::info!("Registered task {} ({}) with schedule: {}", task.id, task.name, task.schedule);
+            }
+        }
+        
+        tracing::info!("✅ Configuration reloaded successfully");
+        Ok(())
+    }
+
     /// Get notification manager for plugin context
     /// Loads notification backends from database
     pub async fn notification_manager(&self) -> NotificationManager {

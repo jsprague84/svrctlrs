@@ -23,6 +23,23 @@
         </a>
     </div>
     
+    <!-- Configuration Reload -->
+    <div class="card">
+        <h2>🔄 Configuration Reload</h2>
+        <p class="text-secondary mb-3">
+            Reload configuration from database without restarting the container. This will reload plugins, task schedules, and notification backends.
+        </p>
+        <div id="reload-result"></div>
+        <button hx-post="/api/v1/config/reload"
+                hx-target="#reload-result"
+                hx-indicator="#reload-spinner"
+                hx-swap="innerHTML"
+                class="btn btn-primary">
+            <span id="reload-spinner" class="htmx-indicator">⏳ Reloading...</span>
+            <span class="htmx-not-indicator">🔄 Reload Configuration</span>
+        </button>
+    </div>
+    
     <!-- General Settings -->
     <div class="card">
         <h2>⚙️ General Settings</h2>
