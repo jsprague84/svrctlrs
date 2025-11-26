@@ -1,6 +1,7 @@
 //! Askama templates for HTMX UI
 
 use askama::Template;
+use askama_web::WebTemplate;
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -17,7 +18,7 @@ pub struct User {
 // Dashboard
 // ============================================================================
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "pages/dashboard.html")]
 pub struct DashboardTemplate {
     pub user: Option<User>,
@@ -36,20 +37,20 @@ pub struct DashboardStats {
 // Servers
 // ============================================================================
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "pages/servers.html")]
 pub struct ServersTemplate {
     pub user: Option<User>,
     pub servers: Vec<Server>,
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "components/server_list.html")]
 pub struct ServerListTemplate {
     pub servers: Vec<Server>,
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "components/server_form.html")]
 pub struct ServerFormTemplate {
     pub server: Option<Server>,
@@ -90,13 +91,13 @@ pub struct UpdateServerInput {
 // Tasks
 // ============================================================================
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "pages/tasks.html")]
 pub struct TasksTemplate {
     pub user: Option<User>,
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "components/task_list.html")]
 pub struct TaskListTemplate {
     pub task_groups: Vec<TaskGroup>,
@@ -124,20 +125,20 @@ pub struct Task {
 // Plugins
 // ============================================================================
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "pages/plugins.html")]
 pub struct PluginsTemplate {
     pub user: Option<User>,
     pub plugins: Vec<Plugin>,
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "components/plugin_list.html")]
 pub struct PluginListTemplate {
     pub plugins: Vec<Plugin>,
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "components/plugin_config_form.html")]
 pub struct PluginConfigFormTemplate {
     pub plugin: Plugin,
@@ -202,7 +203,7 @@ pub struct PluginConfigInput {
 // Settings
 // ============================================================================
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "pages/settings.html")]
 pub struct SettingsTemplate {
     pub user: Option<User>,
@@ -212,20 +213,20 @@ pub struct SettingsTemplate {
 // Notifications
 // ============================================================================
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "pages/notifications.html")]
 pub struct NotificationsTemplate {
     pub user: Option<User>,
     pub notifications: Vec<NotificationBackend>,
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "components/notification_list.html")]
 pub struct NotificationListTemplate {
     pub notifications: Vec<NotificationBackend>,
 }
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "components/notification_form.html")]
 pub struct NotificationFormTemplate {
     pub notification: Option<NotificationBackend>,
@@ -275,7 +276,7 @@ pub struct UpdateNotificationInput {
 // Auth
 // ============================================================================
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "pages/login.html")]
 pub struct LoginTemplate {
     pub error: Option<String>,
@@ -291,7 +292,7 @@ pub struct LoginForm {
 // Error Pages
 // ============================================================================
 
-#[derive(Template)]
+#[derive(Template, WebTemplate)]
 #[template(path = "pages/404.html")]
 pub struct NotFoundTemplate {
     pub user: Option<User>,

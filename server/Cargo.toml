@@ -37,8 +37,8 @@ tower = { workspace = true, optional = true }
 tower-http = { workspace = true, optional = true }
 
 # Templating (HTMX + Askama)
-askama = "0.12"
-askama_axum = "0.4"
+askama = "0.14"
+askama_web = { version = "0.14", features = ["axum-0.8"] }
 
 # Session management for auth
 tower-sessions = "0.13"
