@@ -589,12 +589,25 @@ async fn plugin_config_save(
         };
         queries::tasks::update_task(db.pool(), task.id, &update_task).await?;
     } else {
-        // Create new task
+        // Create new task for localhost
+        // TODO: In the future, allow selecting which server(s) to create tasks for
+        let localhost_server = queries::servers::list_servers(db.pool())
+            .await?
+            .into_iter()
+            .find(|s| s.name == "localhost");
+        
+        let (server_id, server_name) = if let Some(server) = localhost_server {
+            (Some(server.id), Some("localhost".to_string()))
+        } else {
+            (None, Some("localhost".to_string()))
+        };
+        
         let create_task = svrctlrs_database::models::task::CreateTask {
             name: format!("{} Task", id),
             description: Some(format!("Scheduled task for {} plugin", id)),
             plugin_id: id.clone(),
-            server_id: None, // Run on all servers
+            server_id,
+            server_name,
             schedule: schedule.clone(),
             command: "execute".to_string(),
             args: Some(config_json),
