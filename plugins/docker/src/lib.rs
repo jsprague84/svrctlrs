@@ -16,11 +16,54 @@ use svrctlrs_core::{
 use tracing::{info, instrument};
 
 /// Docker monitoring and management plugin
-pub struct DockerPlugin {}
+pub struct DockerPlugin {
+    config: DockerConfig,
+}
+
+#[derive(Debug, Clone)]
+struct DockerConfig {
+    send_summary: bool,
+    cpu_warn_pct: f64,
+    mem_warn_pct: f64,
+}
+
+impl Default for DockerConfig {
+    fn default() -> Self {
+        Self {
+            send_summary: false,
+            cpu_warn_pct: 80.0,
+            mem_warn_pct: 80.0,
+        }
+    }
+}
 
 impl DockerPlugin {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            config: DockerConfig::default(),
+        }
+    }
+
+    pub fn from_config(config: serde_json::Value) -> svrctlrs_core::Result<Self> {
+        let send_summary = config.get("send_summary")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        
+        let cpu_warn_pct = config.get("cpu_warn_pct")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(80.0);
+        
+        let mem_warn_pct = config.get("mem_warn_pct")
+            .and_then(|v| v.as_f64())
+            .unwrap_or(80.0);
+
+        Ok(Self {
+            config: DockerConfig {
+                send_summary,
+                cpu_warn_pct,
+                mem_warn_pct,
+            },
+        })
     }
 }
 
@@ -87,11 +130,12 @@ impl DockerPlugin {
     async fn check_health(&self, context: &PluginContext) -> Result<PluginResult> {
         info!("Running Docker health check");
 
-        // Create health monitor
-        let monitor = HealthMonitor::new().await?;
+        // Create health monitor with configuration
+        let mut monitor = HealthMonitor::new().await?;
+        monitor.set_thresholds(self.config.cpu_warn_pct, self.config.mem_warn_pct);
 
         // Check health of all containers
-        let health_statuses = monitor.check_health(&context.notification_manager).await?;
+        let health_statuses = monitor.check_health(&context.notification_manager, self.config.send_summary).await?;
 
         // Count containers by status
         let total = health_statuses.len();

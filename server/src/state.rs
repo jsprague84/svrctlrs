@@ -57,7 +57,8 @@ impl AppState {
                 #[cfg(feature = "plugin-docker")]
                 "docker" => {
                     tracing::info!("Registering Docker plugin (enabled in database)");
-                    let plugin = svrctlrs_plugin_docker::DockerPlugin::new();
+                    let config = db_plugin.get_config();
+                    let plugin = svrctlrs_plugin_docker::DockerPlugin::from_config(config)?;
                     registry.register(Box::new(plugin))?;
                 }
                 
@@ -219,7 +220,10 @@ impl AppState {
                     let state = state.clone();
                     let task_id = task_id_clone;
                     Box::pin(async move {
-                        crate::executor::execute_task(&state, task_id).await
+                        crate::executor::execute_task(&state, task_id)
+                            .await
+                            .map(|_| ())
+                            .map_err(|e| svrctlrs_core::Error::RemoteExecutionError(e.to_string()))
                     })
                 });
                 

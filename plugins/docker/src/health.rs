@@ -85,11 +85,18 @@ impl HealthMonitor {
         })
     }
 
+    /// Set warning thresholds
+    pub fn set_thresholds(&mut self, cpu_warn_pct: f64, mem_warn_pct: f64) {
+        self.cpu_warn_pct = cpu_warn_pct;
+        self.mem_warn_pct = mem_warn_pct;
+    }
+
     /// Check health of all containers
     ///
     /// # Arguments
     ///
     /// * `notify_mgr` - Notification manager for sending alerts
+    /// * `send_summary` - Whether to send summary when all healthy
     ///
     /// # Returns
     ///
@@ -98,6 +105,7 @@ impl HealthMonitor {
     pub async fn check_health(
         &self,
         notify_mgr: &NotificationManager,
+        send_summary: bool,
     ) -> Result<Vec<ContainerHealth>> {
         info!("Starting Docker health check");
 
@@ -151,6 +159,9 @@ impl HealthMonitor {
         // Send notification if there are issues
         if !bad_containers.is_empty() {
             self.send_health_alert(notify_mgr, &bad_containers).await?;
+        } else if send_summary {
+            // Send summary even when all healthy
+            self.send_health_summary(notify_mgr, &health_statuses).await?;
         } else {
             info!("All containers healthy");
         }
@@ -308,6 +319,59 @@ impl HealthMonitor {
             .map_err(|e| Error::PluginError(format!("Failed to send notification: {}", e)))?;
 
         info!("Health alert sent");
+        Ok(())
+    }
+
+    /// Send health summary notification (all containers healthy)
+    #[instrument(skip(self, notify_mgr, containers))]
+    pub async fn send_health_summary(
+        &self,
+        notify_mgr: &NotificationManager,
+        containers: &[ContainerHealth],
+    ) -> Result<()> {
+        let total = containers.len();
+        let running = containers.iter().filter(|c| c.running).count();
+        let stopped = total - running;
+        
+        // Calculate average resource usage
+        let cpu_values: Vec<f64> = containers.iter().filter_map(|c| c.cpu_percent).collect();
+        let mem_values: Vec<f64> = containers.iter().filter_map(|c| c.mem_percent).collect();
+        
+        let avg_cpu = if !cpu_values.is_empty() {
+            cpu_values.iter().sum::<f64>() / cpu_values.len() as f64
+        } else {
+            0.0
+        };
+        
+        let avg_mem = if !mem_values.is_empty() {
+            mem_values.iter().sum::<f64>() / mem_values.len() as f64
+        } else {
+            0.0
+        };
+
+        let title = "Docker Health Summary".to_string();
+        let body = format!(
+            "📊 All containers healthy ✓\n\n\
+            Containers: {} total, {} running, {} stopped\n\
+            Average CPU: {:.1}%\n\
+            Average Memory: {:.1}%\n\n\
+            All systems operational.",
+            total, running, stopped, avg_cpu, avg_mem
+        );
+
+        let message = NotificationMessage {
+            title,
+            body,
+            priority: 3, // Normal priority
+            actions: vec![],
+        };
+
+        notify_mgr
+            .send_for_service("docker", &message)
+            .await
+            .map_err(|e| Error::PluginError(format!("Failed to send notification: {}", e)))?;
+
+        info!("Health summary sent");
         Ok(())
     }
 }
