@@ -94,12 +94,17 @@ pub struct UpdateServerInput {
 #[template(path = "pages/tasks.html")]
 pub struct TasksTemplate {
     pub user: Option<User>,
-    pub tasks: Vec<Task>,
 }
 
 #[derive(Template)]
 #[template(path = "components/task_list.html")]
 pub struct TaskListTemplate {
+    pub task_groups: Vec<TaskGroup>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskGroup {
+    pub server_name: Option<String>, // None = Local tasks
     pub tasks: Vec<Task>,
 }
 

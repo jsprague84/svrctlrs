@@ -1,15 +1,27 @@
-{% if tasks.is_empty() %}
+{% if task_groups.is_empty() %}
 <div class="card">
-    <p class="text-secondary">No tasks running.</p>
+    <p class="text-secondary">No tasks configured.</p>
 </div>
 {% else %}
+{% for group in task_groups %}
 <div class="card">
+    <h3>
+        {% match group.server_name %}
+        {% when Some with (name) %}
+        📡 {{ name }}
+        {% when None %}
+        💻 Local Tasks
+        {% endmatch %}
+    </h3>
+    
+    {% if group.tasks.is_empty() %}
+    <p class="text-secondary">No tasks for this server.</p>
+    {% else %}
     <table>
         <thead>
             <tr>
                 <th>Task</th>
                 <th>Plugin</th>
-                <th>Server</th>
                 <th>Schedule</th>
                 <th>Last Run</th>
                 <th>Next Run</th>
@@ -17,7 +29,7 @@
             </tr>
         </thead>
         <tbody>
-            {% for task in tasks %}
+            {% for task in group.tasks %}
             <tr>
                 <td>
                     <strong>{{ task.name }}</strong>
@@ -27,16 +39,29 @@
                     {% when None %}
                     {% endmatch %}
                 </td>
-                <td>{{ task.plugin_id }}</td>
                 <td>
-                    {% match task.server_name %}
-                    {% when Some with (name) %}
-                    <span class="badge">{{ name }}</span>
-                    {% when None %}
-                    <span class="badge badge-primary">Local</span>
-                    {% endmatch %}
+                    <span class="badge">{{ task.plugin_id }}</span>
                 </td>
-                <td><code>{{ task.schedule }}</code></td>
+                <td>
+                    <code class="schedule-display" 
+                          id="schedule-display-{{ task.id }}"
+                          onclick="editSchedule({{ task.id }}, '{{ task.schedule }}')">
+                        {{ task.schedule }}
+                    </code>
+                    <form id="schedule-form-{{ task.id }}" 
+                          style="display: none;"
+                          hx-put="/tasks/{{ task.id }}/schedule"
+                          hx-target="#schedule-display-{{ task.id }}"
+                          hx-swap="outerHTML">
+                        <input type="text" 
+                               name="schedule" 
+                               value="{{ task.schedule }}"
+                               id="schedule-input-{{ task.id }}"
+                               class="schedule-input"
+                               onblur="cancelScheduleEdit({{ task.id }}, '{{ task.schedule }}')"
+                               onkeydown="handleScheduleKeydown(event, {{ task.id }})">
+                    </form>
+                </td>
                 <td>
                     {% match task.last_run_at %}
                     {% when Some with (t) %}{{ t }}{% when None %}<span class="text-secondary">Never</span>{% endmatch %}
@@ -58,6 +83,70 @@
             {% endfor %}
         </tbody>
     </table>
+    {% endif %}
 </div>
+{% endfor %}
 {% endif %}
 
+<script>
+function editSchedule(taskId, currentSchedule) {
+    // Hide display, show form
+    document.getElementById('schedule-display-' + taskId).style.display = 'none';
+    const form = document.getElementById('schedule-form-' + taskId);
+    form.style.display = 'inline';
+    
+    // Focus input
+    const input = document.getElementById('schedule-input-' + taskId);
+    input.focus();
+    input.select();
+}
+
+function cancelScheduleEdit(taskId, originalSchedule) {
+    // Small delay to allow form submission if Enter was pressed
+    setTimeout(() => {
+        const form = document.getElementById('schedule-form-' + taskId);
+        if (form && form.style.display !== 'none') {
+            // Reset input to original value
+            document.getElementById('schedule-input-' + taskId).value = originalSchedule;
+            
+            // Hide form, show display
+            form.style.display = 'none';
+            document.getElementById('schedule-display-' + taskId).style.display = 'inline';
+        }
+    }, 200);
+}
+
+function handleScheduleKeydown(event, taskId) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        // Submit the form via HTMX
+        const form = document.getElementById('schedule-form-' + taskId);
+        htmx.trigger(form, 'submit');
+    } else if (event.key === 'Escape') {
+        event.target.blur(); // Trigger onblur which cancels edit
+    }
+}
+</script>
+
+<style>
+.schedule-display {
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.schedule-display:hover {
+    background-color: var(--bg-secondary);
+}
+
+.schedule-input {
+    font-family: 'Courier New', monospace;
+    padding: 4px 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    min-width: 150px;
+}
+</style>

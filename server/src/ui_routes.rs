@@ -33,6 +33,7 @@ pub fn ui_routes() -> Router<AppState> {
         // Task list (for auto-refresh) and manual execution
         .route("/tasks/list", get(task_list))
         .route("/tasks/{id}/run", post(task_run_now))
+        .route("/tasks/{id}/schedule", put(task_update_schedule))
         
         // Plugin toggle and configuration
         .route("/plugins/{id}/toggle", post(plugin_toggle))
@@ -349,17 +350,38 @@ async fn server_test_connection(
 // Tasks
 // ============================================================================
 
-async fn tasks_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+async fn tasks_page(State(_state): State<AppState>) -> Result<Html<String>, AppError> {
     let user = get_user_from_session().await;
-    let tasks = get_tasks(&state).await;
     
-    let template = TasksTemplate { user, tasks };
+    let template = TasksTemplate { user };
     Ok(Html(template.render()?))
 }
 
 async fn task_list(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let tasks = get_tasks(&state).await;
-    let template = TaskListTemplate { tasks };
+    
+    // Group tasks by server
+    let mut task_groups = std::collections::HashMap::<Option<String>, Vec<Task>>::new();
+    for task in tasks {
+        task_groups.entry(task.server_name.clone()).or_insert_with(Vec::new).push(task);
+    }
+    
+    // Convert to sorted vector: Local first, then alphabetically by server name
+    let mut groups: Vec<TaskGroup> = task_groups
+        .into_iter()
+        .map(|(server_name, tasks)| TaskGroup { server_name, tasks })
+        .collect();
+    
+    groups.sort_by(|a, b| {
+        match (&a.server_name, &b.server_name) {
+            (None, None) => std::cmp::Ordering::Equal,
+            (None, Some(_)) => std::cmp::Ordering::Less, // Local first
+            (Some(_), None) => std::cmp::Ordering::Greater,
+            (Some(a_name), Some(b_name)) => a_name.cmp(b_name), // Alphabetical
+        }
+    });
+    
+    let template = TaskListTemplate { task_groups: groups };
     Ok(Html(template.render()?))
 }
 
@@ -378,6 +400,52 @@ async fn get_tasks(state: &AppState) -> Vec<Task> {
         last_run_at: t.last_run_at.map(|dt| dt.to_rfc3339()),
         next_run_at: t.next_run_at.map(|dt| dt.to_rfc3339()),
     }).collect()
+}
+
+async fn task_update_schedule(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Form(input): Form<UpdateScheduleInput>,
+) -> Result<Html<String>, AppError> {
+    tracing::info!("Updating schedule for task {} to: {}", id, input.schedule);
+    
+    // Validate cron expression
+    use cron::Schedule;
+    use std::str::FromStr;
+    
+    if let Err(e) = Schedule::from_str(&input.schedule) {
+        return Ok(Html(format!(
+            r#"<code class="schedule-display" id="schedule-display-{}" onclick="editSchedule({}, '{}')" style="color: red;" title="Invalid cron: {}">{}</code>"#,
+            id, id, input.schedule, e, input.schedule
+        )));
+    }
+    
+    // Update in database
+    let db = state.db().await;
+    let update_task = svrctlrs_database::models::task::UpdateTask {
+        name: None,
+        description: None,
+        schedule: Some(input.schedule.clone()),
+        enabled: None,
+        command: None,
+        args: None,
+        timeout: None,
+    };
+    queries::tasks::update_task(db.pool(), id, &update_task).await?;
+    
+    // Reload scheduler to pick up new schedule
+    state.reload_config().await?;
+    
+    // Return updated display
+    Ok(Html(format!(
+        r#"<code class="schedule-display" id="schedule-display-{}" onclick="editSchedule({}, '{}')">{}</code>"#,
+        id, id, input.schedule, input.schedule
+    )))
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateScheduleInput {
+    schedule: String,
 }
 
 async fn task_run_now(
