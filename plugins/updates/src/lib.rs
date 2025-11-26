@@ -82,6 +82,12 @@ impl Plugin for UpdatesPlugin {
                 enabled: true,
             },
             ScheduledTask {
+                id: "updates_report".to_string(),
+                schedule: "0 0 9 * * *".to_string(), // Daily at 9 AM
+                description: "Generate OS update status report for all servers".to_string(),
+                enabled: true,
+            },
+            ScheduledTask {
                 id: "updates_apply".to_string(),
                 schedule: "0 0 3 * * 0".to_string(), // Sundays at 3 AM
                 description: "Apply OS updates (if enabled)".to_string(),
@@ -101,6 +107,7 @@ impl Plugin for UpdatesPlugin {
 
         match task_id {
             "updates_check" => self.check_updates(context).await,
+            "updates_report" => self.generate_updates_report(context).await,
             "updates_apply" => self.apply_updates(context).await,
             "os_cleanup" => self.cleanup_os(context).await,
             _ => Ok(PluginResult {
@@ -304,6 +311,117 @@ impl UpdatesPlugin {
         })
     }
 
+    #[instrument(skip(self, context))]
+    async fn generate_updates_report(&self, context: &PluginContext) -> Result<PluginResult> {
+        info!("Generating OS update status report for all servers");
+
+        // Get all enabled servers from context
+        let servers = &context.servers;
+        
+        if servers.is_empty() {
+            return Ok(PluginResult {
+                success: true,
+                message: "No servers configured".to_string(),
+                data: None,
+                metrics: None,
+            });
+        }
+
+        let detector = UpdateDetector::new();
+        let mut server_statuses = Vec::new();
+        let mut total_updates = 0;
+        let mut total_security = 0;
+        let mut servers_with_updates = 0;
+
+        // Check updates for each server (already filtered to enabled servers)
+        for server in servers {
+            info!(server = %server.name, "Checking updates for server");
+
+            // Check updates via SSH
+            let update_info = if server.is_local() {
+                // Local server
+                match detector.check_local_updates().await {
+                    Ok(info) => info,
+                    Err(e) => {
+                        info!(server = %server.name, error = %e, "Failed to check updates");
+                        continue;
+                    }
+                }
+            } else {
+                // Remote server via SSH
+                let host = server.host().unwrap_or_else(|| server.name.clone());
+                let username = server.username();
+                
+                match detector
+                    .check_remote_updates(
+                        &server.name,
+                        &host,
+                        username.as_deref(),
+                        None, // SSH key path from environment
+                    )
+                    .await
+                {
+                    Ok(info) => info,
+                    Err(e) => {
+                        info!(server = %server.name, error = %e, "Failed to check updates");
+                        continue;
+                    }
+                }
+            };
+
+            if update_info.total_updates > 0 {
+                servers_with_updates += 1;
+            }
+
+            total_updates += update_info.total_updates;
+            total_security += update_info.security_updates;
+
+            server_statuses.push(json!({
+                "server": server.name,
+                "total_updates": update_info.total_updates,
+                "security_updates": update_info.security_updates,
+                "package_manager": update_info.package_manager,
+            }));
+        }
+
+        // Send report notification
+        self.send_multi_server_report(
+            &context.notification_manager,
+            &server_statuses,
+            total_updates,
+            total_security,
+            servers_with_updates,
+        )
+        .await?;
+
+        let message = format!(
+            "Update report: {} servers checked, {} with updates available ({} security)",
+            server_statuses.len(),
+            servers_with_updates,
+            total_security
+        );
+
+        let mut metrics = HashMap::new();
+        metrics.insert("servers_checked".to_string(), server_statuses.len() as f64);
+        metrics.insert("servers_with_updates".to_string(), servers_with_updates as f64);
+        metrics.insert("total_updates".to_string(), total_updates as f64);
+        metrics.insert("total_security_updates".to_string(), total_security as f64);
+
+        Ok(PluginResult {
+            success: true,
+            message,
+            data: Some(json!({
+                "servers": server_statuses,
+                "summary": {
+                    "total_updates": total_updates,
+                    "total_security": total_security,
+                    "servers_with_updates": servers_with_updates,
+                }
+            })),
+            metrics: Some(metrics),
+        })
+    }
+
     async fn send_update_notification(
         &self,
         notify_mgr: &svrctlrs_core::NotificationManager,
@@ -461,6 +579,84 @@ impl UpdatesPlugin {
             title,
             body,
             priority: 3,
+            actions: vec![],
+        };
+
+        notify_mgr
+            .send_for_service("updates", &message)
+            .await
+            .map_err(|e| Error::PluginError(format!("Failed to send notification: {}", e)))?;
+
+        Ok(())
+    }
+
+    async fn send_multi_server_report(
+        &self,
+        notify_mgr: &svrctlrs_core::NotificationManager,
+        server_statuses: &[serde_json::Value],
+        total_updates: usize,
+        total_security: usize,
+        servers_with_updates: usize,
+    ) -> Result<()> {
+        let title = "OS Update Status Report".to_string();
+
+        let mut body = String::new();
+        body.push_str("📊 **Multi-Server Update Status**\n\n");
+        
+        body.push_str(&format!(
+            "**Summary**: {} servers checked\n",
+            server_statuses.len()
+        ));
+        body.push_str(&format!(
+            "**Updates Available**: {} servers\n",
+            servers_with_updates
+        ));
+        body.push_str(&format!(
+            "**Total Updates**: {}\n",
+            total_updates
+        ));
+        
+        if total_security > 0 {
+            body.push_str(&format!(
+                "🔒 **Security Updates**: {}\n",
+                total_security
+            ));
+        }
+        
+        body.push_str("\n**Server Details**:\n\n");
+
+        // List each server status
+        for status in server_statuses {
+            let server_name = status["server"].as_str().unwrap_or("unknown");
+            let updates = status["total_updates"].as_u64().unwrap_or(0);
+            let security = status["security_updates"].as_u64().unwrap_or(0);
+            let pkg_mgr = status["package_manager"].as_str().unwrap_or("unknown");
+
+            if updates > 0 {
+                body.push_str(&format!(
+                    "⚠️  **{}**: {} updates ({} security) [{}]\n",
+                    server_name, updates, security, pkg_mgr
+                ));
+            } else {
+                body.push_str(&format!(
+                    "✓ **{}**: Up to date [{}]\n",
+                    server_name, pkg_mgr
+                ));
+            }
+        }
+
+        let priority = if total_security > 0 {
+            4 // High priority if security updates
+        } else if servers_with_updates > 0 {
+            3 // Normal priority if any updates
+        } else {
+            3 // Normal priority for status report
+        };
+
+        let message = svrctlrs_core::NotificationMessage {
+            title,
+            body,
+            priority,
             actions: vec![],
         };
 

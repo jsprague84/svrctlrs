@@ -41,6 +41,34 @@ impl Server {
             None => format!("{} (local)", self.name),
         }
     }
+
+    /// Parse username from ssh_host (username@host:port)
+    pub fn username(&self) -> Option<String> {
+        self.ssh_host.as_ref().and_then(|host| {
+            host.split('@').next().map(|s| s.to_string())
+        })
+    }
+
+    /// Parse host from ssh_host (username@host:port)
+    pub fn host(&self) -> Option<String> {
+        self.ssh_host.as_ref().and_then(|host| {
+            host.split('@')
+                .nth(1)
+                .map(|s| s.split(':').next().unwrap_or(s).to_string())
+        })
+    }
+
+    /// Parse port from ssh_host (username@host:port), defaults to 22
+    pub fn port(&self) -> u16 {
+        self.ssh_host
+            .as_ref()
+            .and_then(|host| {
+                host.split(':')
+                    .nth(1)
+                    .and_then(|p| p.parse::<u16>().ok())
+            })
+            .unwrap_or(22)
+    }
 }
 
 /// Server status
