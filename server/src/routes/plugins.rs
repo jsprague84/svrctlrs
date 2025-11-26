@@ -22,7 +22,9 @@ pub fn routes() -> Router<AppState> {
 
 /// List all plugins
 #[instrument(skip(state))]
-async fn list_plugins(State(state): State<AppState>) -> Result<Json<Vec<Plugin>>, (StatusCode, String)> {
+async fn list_plugins(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<Plugin>>, (StatusCode, String)> {
     let db = state.db().await;
     let plugins = queries::plugins::list_plugins(db.pool())
         .await
@@ -58,14 +60,14 @@ async fn update_plugin(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     info!(plugin_id = %id, "Updating plugin");
     let db = state.db().await;
-    
+
     queries::plugins::update_plugin(db.pool(), &id, &update_plugin_input)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to update plugin");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
-    
+
     // Return updated plugin
     let plugin = queries::plugins::get_plugin(db.pool(), &id)
         .await
@@ -73,7 +75,7 @@ async fn update_plugin(
             error!(error = %e, "Failed to get updated plugin");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
-    
+
     Ok(Json(plugin))
 }
 
@@ -85,17 +87,16 @@ async fn toggle_plugin(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     info!(plugin_id = %id, "Toggling plugin");
     let db = state.db().await;
-    
+
     let new_status = queries::plugins::toggle_plugin(db.pool(), &id)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to toggle plugin");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
-    
+
     Ok(Json(json!({
         "plugin_id": id,
         "enabled": new_status
     })))
 }
-

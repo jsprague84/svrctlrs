@@ -10,7 +10,11 @@ use tracing::{debug, error, info};
 use svrctlrs_core::{Error, Result};
 
 /// Async task handler type
-pub type AsyncTaskHandler = Arc<dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>> + Send + Sync>;
+pub type AsyncTaskHandler = Arc<
+    dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>>
+        + Send
+        + Sync,
+>;
 
 /// Scheduled task
 pub struct Task {
@@ -38,8 +42,7 @@ impl Scheduler {
         id: impl Into<String>,
         cron_expr: &str,
         handler: AsyncTaskHandler,
-    ) -> Result<()>
-    {
+    ) -> Result<()> {
         let schedule = Schedule::from_str(cron_expr)
             .map_err(|e| Error::SchedulerError(format!("Invalid cron expression: {}", e)))?;
 
@@ -64,11 +67,11 @@ impl Scheduler {
         let initial_len = tasks.len();
         tasks.retain(|t| t.id != id);
         let removed = tasks.len() < initial_len;
-        
+
         if removed {
             info!(id = %id, "Scheduled task removed");
         }
-        
+
         removed
     }
 
@@ -81,12 +84,12 @@ impl Scheduler {
     ) -> Result<()> {
         // Remove old task
         self.remove_task(id).await;
-        
+
         // Add new task with updated schedule
         self.add_task(id, cron_expr, handler).await?;
-        
+
         info!(id = %id, schedule = %cron_expr, "Scheduled task updated");
-        
+
         Ok(())
     }
 
@@ -121,12 +124,12 @@ impl Scheduler {
                         let time_until = (next - now).num_seconds();
 
                         // Run if within 1 minute window
-                        if time_until <= 60 && time_until >= 0 {
+                        if (0..=60).contains(&time_until) {
                             debug!(task_id = %task.id, "Executing scheduled task");
 
                             let handler = task.handler.clone();
                             let task_id = task.id.clone();
-                            
+
                             // Spawn task execution in background
                             tokio::spawn(async move {
                                 match handler().await {

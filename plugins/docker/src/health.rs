@@ -161,7 +161,8 @@ impl HealthMonitor {
             self.send_health_alert(notify_mgr, &bad_containers).await?;
         } else if send_summary {
             // Send summary even when all healthy
-            self.send_health_summary(notify_mgr, &health_statuses).await?;
+            self.send_health_summary(notify_mgr, &health_statuses)
+                .await?;
         } else {
             info!("All containers healthy");
         }
@@ -332,17 +333,17 @@ impl HealthMonitor {
         let total = containers.len();
         let running = containers.iter().filter(|c| c.running).count();
         let stopped = total - running;
-        
+
         // Calculate average resource usage
         let cpu_values: Vec<f64> = containers.iter().filter_map(|c| c.cpu_percent).collect();
         let mem_values: Vec<f64> = containers.iter().filter_map(|c| c.mem_percent).collect();
-        
+
         let avg_cpu = if !cpu_values.is_empty() {
             cpu_values.iter().sum::<f64>() / cpu_values.len() as f64
         } else {
             0.0
         };
-        
+
         let avg_mem = if !mem_values.is_empty() {
             mem_values.iter().sum::<f64>() / mem_values.len() as f64
         } else {
@@ -410,7 +411,7 @@ fn calculate_mem_percent(stats: &Stats) -> Option<f64> {
 mod tests {
     #[test]
     fn test_is_ignored_exact_match() {
-        let ignore_list = vec!["test-container".to_string()];
+        let ignore_list = ["test-container".to_string()];
 
         // Simulate is_ignored logic
         let is_ignored = |name: &str| {
@@ -430,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_is_ignored_wildcard() {
-        let ignore_list = vec!["test-*".to_string()];
+        let ignore_list = ["test-*".to_string()];
 
         // Simulate is_ignored logic
         let is_ignored = |name: &str| {

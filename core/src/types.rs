@@ -44,9 +44,9 @@ impl Server {
 
     /// Parse username from ssh_host (username@host:port)
     pub fn username(&self) -> Option<String> {
-        self.ssh_host.as_ref().and_then(|host| {
-            host.split('@').next().map(|s| s.to_string())
-        })
+        self.ssh_host
+            .as_ref()
+            .and_then(|host| host.split('@').next().map(|s| s.to_string()))
     }
 
     /// Parse host from ssh_host (username@host:port)
@@ -62,11 +62,7 @@ impl Server {
     pub fn port(&self) -> u16 {
         self.ssh_host
             .as_ref()
-            .and_then(|host| {
-                host.split(':')
-                    .nth(1)
-                    .and_then(|p| p.parse::<u16>().ok())
-            })
+            .and_then(|host| host.split(':').nth(1).and_then(|p| p.parse::<u16>().ok()))
             .unwrap_or(22)
     }
 }

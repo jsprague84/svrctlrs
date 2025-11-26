@@ -24,15 +24,15 @@ use crate::{
 /// Execute a task by ID
 pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutionResult> {
     let start_time = Instant::now();
-    
+
     info!("Starting execution of task {}", task_id);
-    
+
     // Load task from database
     let db = state.db().await;
     let task = queries::tasks::get_task(db.pool(), task_id)
         .await
         .context("Failed to load task")?;
-    
+
     if !task.enabled {
         warn!("Task {} is disabled, skipping execution", task_id);
         return Ok(TaskExecutionResult {
@@ -43,7 +43,7 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
             duration_ms: start_time.elapsed().as_millis() as u64,
         });
     }
-    
+
     // Execute based on task type
     // Clean architecture: NULL server_id = local plugin, Some(id) = remote SSH
     let result = if let Some(server_id) = task.server_id {
@@ -53,9 +53,9 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
         // Task is a local plugin execution (server_id = NULL)
         execute_plugin_task(state, &task).await
     };
-    
+
     let duration_ms = start_time.elapsed().as_millis() as u64;
-    
+
     // Record execution in task history
     let history_entry = TaskHistoryEntry {
         task_id,
@@ -67,19 +67,22 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
         duration_ms,
         executed_at: chrono::Utc::now(),
     };
-    
+
     if let Err(e) = queries::tasks::record_task_execution(db.pool(), &history_entry).await {
         error!("Failed to record task execution in history: {}", e);
     }
-    
+
     // Update task's last_run_at and run_count
     if let Err(e) = queries::tasks::update_task_stats(db.pool(), task_id).await {
         error!("Failed to update task stats: {}", e);
     }
-    
+
     match result {
         Ok(output) => {
-            info!("Task {} completed successfully in {}ms", task_id, duration_ms);
+            info!(
+                "Task {} completed successfully in {}ms",
+                task_id, duration_ms
+            );
             Ok(TaskExecutionResult {
                 task_id,
                 success: true,
@@ -104,19 +107,21 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
 /// Execute a task on a remote server via SSH
 async fn execute_remote_task(state: &AppState, task: &Task, server_id: i64) -> Result<String> {
     debug!("Executing remote task {} on server {}", task.id, server_id);
-    
+
     // Load server configuration
     let db = state.db().await;
     let server = queries::servers::get_server(db.pool(), server_id)
         .await
         .context("Failed to load server")?;
-    
+
     if !server.enabled {
         anyhow::bail!("Server {} is disabled", server_id);
     }
-    
+
     // Build SSH configuration
-    let host = server.host.ok_or_else(|| anyhow::anyhow!("Server {} has no host configured", server.name))?;
+    let host = server
+        .host
+        .ok_or_else(|| anyhow::anyhow!("Server {} has no host configured", server.name))?;
     let ssh_config = SshConfig {
         host,
         port: server.port as u16,
@@ -124,7 +129,7 @@ async fn execute_remote_task(state: &AppState, task: &Task, server_id: i64) -> R
         key_path: server.ssh_key_path,
         timeout: std::time::Duration::from_secs(task.timeout as u64),
     };
-    
+
     // Build command with args
     let command = if let Some(args_str) = &task.args {
         // Parse args as JSON and append to command
@@ -155,14 +160,14 @@ async fn execute_remote_task(state: &AppState, task: &Task, server_id: i64) -> R
     } else {
         task.command.clone()
     };
-    
+
     info!("Executing command on {}: {}", server.name, command);
-    
+
     // Execute command
     let output = ssh::execute_command(&ssh_config, &command)
         .await
         .context("Failed to execute command")?;
-    
+
     if !output.success {
         anyhow::bail!(
             "Command failed with exit code {}: {}",
@@ -170,17 +175,20 @@ async fn execute_remote_task(state: &AppState, task: &Task, server_id: i64) -> R
             output.stderr
         );
     }
-    
+
     Ok(output.stdout)
 }
 
 /// Execute a plugin task locally
 async fn execute_plugin_task(state: &AppState, task: &Task) -> Result<String> {
-    use svrctlrs_core::{PluginContext, Server as CoreServer};
     use std::collections::HashMap;
+    use svrctlrs_core::{PluginContext, Server as CoreServer};
 
-    debug!("Executing plugin task {} for plugin {}", task.id, task.plugin_id);
-    
+    debug!(
+        "Executing plugin task {} for plugin {}",
+        task.id, task.plugin_id
+    );
+
     // Get plugin from registry
     let plugins = state.plugins.read().await;
     let plugin = plugins
@@ -189,12 +197,12 @@ async fn execute_plugin_task(state: &AppState, task: &Task) -> Result<String> {
 
     // Build plugin context
     let db = state.db().await;
-    
+
     // Load servers from database (all enabled servers)
     let db_servers = queries::servers::list_servers(db.pool())
         .await
         .context("Failed to load servers for plugin execution")?;
-    
+
     let servers: Vec<CoreServer> = db_servers
         .into_iter()
         .filter(|s| s.enabled)
@@ -207,7 +215,7 @@ async fn execute_plugin_task(state: &AppState, task: &Task) -> Result<String> {
                     format!("{}@{}", s.username, host)
                 }
             });
-            
+
             CoreServer {
                 name: s.name,
                 ssh_host,
@@ -239,7 +247,10 @@ async fn execute_plugin_task(state: &AppState, task: &Task) -> Result<String> {
 
     // Execute plugin with the task's command as the plugin task ID
     // The command field stores the plugin's task ID (e.g., "docker_health", "system_metrics")
-    info!("Executing plugin {} task '{}' ({})", task.plugin_id, task.command, task.name);
+    info!(
+        "Executing plugin {} task '{}' ({})",
+        task.plugin_id, task.command, task.name
+    );
     let result = plugin
         .execute(&task.command, &context)
         .await
@@ -262,10 +273,10 @@ async fn execute_plugin_task(state: &AppState, task: &Task) -> Result<String> {
 /// Result of a task execution
 #[derive(Debug, Clone)]
 pub struct TaskExecutionResult {
+    #[allow(dead_code)]
     pub task_id: i64,
     pub success: bool,
     pub output: String,
     pub error: Option<String>,
     pub duration_ms: u64,
 }
-

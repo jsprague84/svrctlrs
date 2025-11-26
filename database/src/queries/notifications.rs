@@ -91,9 +91,9 @@ pub async fn update_notification_backend(
         q = q.bind(binding);
     }
 
-    q.execute(pool)
-        .await
-        .map_err(|e| Error::DatabaseError(format!("Failed to update notification backend: {}", e)))?;
+    q.execute(pool).await.map_err(|e| {
+        Error::DatabaseError(format!("Failed to update notification backend: {}", e))
+    })?;
 
     Ok(())
 }
@@ -104,7 +104,9 @@ pub async fn delete_notification_backend(pool: &Pool<Sqlite>, id: i64) -> Result
         .bind(id)
         .execute(pool)
         .await
-        .map_err(|e| Error::DatabaseError(format!("Failed to delete notification backend: {}", e)))?;
+        .map_err(|e| {
+            Error::DatabaseError(format!("Failed to delete notification backend: {}", e))
+        })?;
 
     Ok(())
 }
@@ -123,7 +125,12 @@ pub async fn list_enabled_notification_backends(
     )
     .fetch_all(pool)
     .await
-    .map_err(|e| Error::DatabaseError(format!("Failed to list enabled notification backends: {}", e)))
+    .map_err(|e| {
+        Error::DatabaseError(format!(
+            "Failed to list enabled notification backends: {}",
+            e
+        ))
+    })
 }
 
 /// List notification backends by type
@@ -142,6 +149,10 @@ pub async fn list_notification_backends_by_type(
     .bind(backend_type)
     .fetch_all(pool)
     .await
-    .map_err(|e| Error::DatabaseError(format!("Failed to list notification backends by type: {}", e)))
+    .map_err(|e| {
+        Error::DatabaseError(format!(
+            "Failed to list notification backends by type: {}",
+            e
+        ))
+    })
 }
-

@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
         #[arg(short, long)]
         config: Option<String>,
     }
-    
+
     // Initialize tracing
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -54,10 +54,10 @@ async fn main() -> anyhow::Result<()> {
     info!(addr = %args.addr, "Starting SvrCtlRS server");
 
     // Initialize database
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "sqlite:data/svrctlrs.db".to_string());
+    let database_url =
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/svrctlrs.db".to_string());
     info!(url = %database_url, "Connecting to database");
-    
+
     let database = svrctlrs_database::Database::new(&database_url).await?;
     database.migrate().await?;
 
@@ -77,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Build UI router with state
     let ui_router = ui_routes::ui_routes().with_state(state.clone());
-    
+
     // Build main router
     let app = Router::new()
         // API routes

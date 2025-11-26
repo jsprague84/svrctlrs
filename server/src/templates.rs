@@ -190,7 +190,7 @@ pub struct PluginConfigInput {
     pub send_summary: Option<String>, // checkbox "on" or None
     pub cpu_warn_pct: Option<String>,
     pub mem_warn_pct: Option<String>,
-    // Updates plugin  
+    // Updates plugin
     pub updates_send_summary: Option<String>, // checkbox "on" or None
     // Health plugin
     pub health_send_summary: Option<String>, // checkbox "on" or None
@@ -257,6 +257,7 @@ pub struct CreateNotificationInput {
     pub username: Option<String>,
     pub password: Option<String>,
     pub priority: Option<i32>,
+    #[allow(dead_code)]
     pub enabled: Option<String>,
 }
 
@@ -269,6 +270,7 @@ pub struct UpdateNotificationInput {
     pub username: Option<String>,
     pub password: Option<String>,
     pub priority: Option<i32>,
+    #[allow(dead_code)]
     pub enabled: Option<String>,
 }
 
@@ -284,7 +286,9 @@ pub struct LoginTemplate {
 
 #[derive(Debug, Deserialize)]
 pub struct LoginForm {
+    #[allow(dead_code)]
     pub username: String,
+    #[allow(dead_code)]
     pub password: String,
 }
 
@@ -297,4 +301,3 @@ pub struct LoginForm {
 pub struct NotFoundTemplate {
     pub user: Option<User>,
 }
-

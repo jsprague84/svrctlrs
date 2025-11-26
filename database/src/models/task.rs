@@ -11,11 +11,11 @@ pub struct Task {
     pub description: Option<String>,
     pub plugin_id: String,
     pub server_id: Option<i64>,
-    pub server_name: Option<String>,  // Denormalized for display
-    pub schedule: String,  // Cron expression
+    pub server_name: Option<String>, // Denormalized for display
+    pub schedule: String,            // Cron expression
     pub enabled: bool,
     pub command: String,
-    pub args: Option<String>,  // JSON string
+    pub args: Option<String>, // JSON string
     pub timeout: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -98,4 +98,3 @@ impl Task {
             .unwrap_or(JsonValue::Object(serde_json::Map::new()))
     }
 }
-

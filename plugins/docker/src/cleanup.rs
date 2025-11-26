@@ -383,6 +383,7 @@ impl CleanupManager {
     ///
     /// Cleanup analysis with actual results
     #[instrument(skip(self, notify_mgr))]
+    #[allow(dead_code)]
     pub async fn execute_cleanup(
         &self,
         notify_mgr: &NotificationManager,
@@ -472,16 +473,19 @@ impl CleanupManager {
     }
 
     /// Prune dangling images
+    #[allow(dead_code)]
     async fn prune_images(&self) -> Result<(u64, u64)> {
         self.analyze_images().await // Same as analyze in dry-run
     }
 
     /// Prune stopped containers
+    #[allow(dead_code)]
     async fn prune_containers(&self) -> Result<(u64, u64)> {
         self.analyze_containers().await
     }
 
     /// Prune unused volumes
+    #[allow(dead_code)]
     async fn prune_volumes(&self) -> Result<(u64, u64)> {
         self.analyze_volumes().await
     }

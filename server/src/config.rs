@@ -16,8 +16,6 @@ pub struct Config {
     pub ssh_key_path: Option<String>,
 }
 
-
-
 impl Config {
     /// Load configuration from file or environment
     pub fn load(path: Option<&str>) -> Result<Self> {

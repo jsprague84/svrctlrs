@@ -49,6 +49,7 @@ struct Transfer {
 
 #[derive(Debug, Deserialize)]
 struct Server {
+    #[allow(dead_code)]
     id: Option<u32>,
     name: Option<String>,
     location: Option<String>,
@@ -83,17 +84,17 @@ impl SpeedTestPlugin {
             .as_str()
             .and_then(|s| s.parse().ok())
             .or_else(|| config["min_down"].as_i64().map(|i| i as f64));
-        
+
         let min_up = config["min_up"]
             .as_str()
             .and_then(|s| s.parse().ok())
             .or_else(|| config["min_up"].as_i64().map(|i| i as f64));
-        
+
         let server_id = config["server_id"]
             .as_str()
             .and_then(|s| s.parse().ok())
             .or_else(|| config["server_id"].as_u64().map(|i| i as u32));
-        
+
         let schedule = config["schedule"]
             .as_str()
             .map(|s| s.to_string())

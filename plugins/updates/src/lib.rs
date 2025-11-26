@@ -22,17 +22,9 @@ pub struct UpdatesPlugin {
     config: UpdatesConfig,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct UpdatesConfig {
     send_summary: bool,
-}
-
-impl Default for UpdatesConfig {
-    fn default() -> Self {
-        Self {
-            send_summary: false,
-        }
-    }
 }
 
 impl UpdatesPlugin {
@@ -43,14 +35,13 @@ impl UpdatesPlugin {
     }
 
     pub fn from_config(config: serde_json::Value) -> Result<Self> {
-        let send_summary = config.get("send_summary")
+        let send_summary = config
+            .get("send_summary")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
         Ok(Self {
-            config: UpdatesConfig {
-                send_summary,
-            },
+            config: UpdatesConfig { send_summary },
         })
     }
 }
@@ -189,12 +180,8 @@ impl UpdatesPlugin {
             .await?;
         } else if self.config.send_summary {
             // Send summary even when no updates
-            self.send_no_updates_summary(
-                &context.notification_manager,
-                &update_info,
-                &server_name,
-            )
-            .await?;
+            self.send_no_updates_summary(&context.notification_manager, &update_info, &server_name)
+                .await?;
         }
 
         Ok(PluginResult {
@@ -317,7 +304,7 @@ impl UpdatesPlugin {
 
         // Get all enabled servers from context
         let servers = &context.servers;
-        
+
         if servers.is_empty() {
             return Ok(PluginResult {
                 success: true,
@@ -351,7 +338,7 @@ impl UpdatesPlugin {
                 // Remote server via SSH
                 let host = server.host().unwrap_or_else(|| server.name.clone());
                 let username = server.username();
-                
+
                 match detector
                     .check_remote_updates(
                         &server.name,
@@ -403,7 +390,10 @@ impl UpdatesPlugin {
 
         let mut metrics = HashMap::new();
         metrics.insert("servers_checked".to_string(), server_statuses.len() as f64);
-        metrics.insert("servers_with_updates".to_string(), servers_with_updates as f64);
+        metrics.insert(
+            "servers_with_updates".to_string(),
+            servers_with_updates as f64,
+        );
         metrics.insert("total_updates".to_string(), total_updates as f64);
         metrics.insert("total_security_updates".to_string(), total_security as f64);
 
@@ -602,7 +592,7 @@ impl UpdatesPlugin {
 
         let mut body = String::new();
         body.push_str("📊 **Multi-Server Update Status**\n\n");
-        
+
         body.push_str(&format!(
             "**Summary**: {} servers checked\n",
             server_statuses.len()
@@ -611,18 +601,12 @@ impl UpdatesPlugin {
             "**Updates Available**: {} servers\n",
             servers_with_updates
         ));
-        body.push_str(&format!(
-            "**Total Updates**: {}\n",
-            total_updates
-        ));
-        
+        body.push_str(&format!("**Total Updates**: {}\n", total_updates));
+
         if total_security > 0 {
-            body.push_str(&format!(
-                "🔒 **Security Updates**: {}\n",
-                total_security
-            ));
+            body.push_str(&format!("🔒 **Security Updates**: {}\n", total_security));
         }
-        
+
         body.push_str("\n**Server Details**:\n\n");
 
         // List each server status
@@ -647,10 +631,8 @@ impl UpdatesPlugin {
 
         let priority = if total_security > 0 {
             4 // High priority if security updates
-        } else if servers_with_updates > 0 {
-            3 // Normal priority if any updates
         } else {
-            3 // Normal priority for status report
+            3 // Normal priority for updates or status report
         };
 
         let message = svrctlrs_core::NotificationMessage {

@@ -66,7 +66,9 @@ async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
 
 /// Reload configuration from database
 #[instrument(skip(state))]
-async fn reload_config(State(state): State<AppState>) -> Result<impl IntoResponse, (StatusCode, Html<String>)> {
+async fn reload_config(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, (StatusCode, Html<String>)> {
     info!("Configuration reload requested");
 
     state.reload_config().await.map_err(|e| {
@@ -82,7 +84,7 @@ async fn reload_config(State(state): State<AppState>) -> Result<impl IntoRespons
 
     let plugins = state.plugins.read().await;
     let plugin_count = plugins.plugin_ids().len();
-    
+
     let scheduler = state.scheduler.read().await;
     let task_count = if let Some(ref sched) = *scheduler {
         sched.task_count().await
@@ -102,7 +104,6 @@ async fn reload_config(State(state): State<AppState>) -> Result<impl IntoRespons
         plugin_count, task_count
     )))
 }
-
 
 /// Get system metrics
 #[instrument(skip(state))]

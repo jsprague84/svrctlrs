@@ -3,11 +3,11 @@
 use async_trait::async_trait;
 use serde_json::json;
 use std::collections::HashMap;
-use sysinfo::{System, Disks};
 use svrctlrs_core::{
     Error, NotificationMessage, Plugin, PluginContext, PluginMetadata, PluginResult, Result,
     ScheduledTask,
 };
+use sysinfo::{Disks, System};
 use tracing::{info, instrument};
 
 /// System health monitoring plugin (CPU, memory, disk)
@@ -186,11 +186,22 @@ impl HealthPlugin {
 
         // Send notification
         if !issues.is_empty() {
-            self.send_health_alert(&context.notification_manager, &issues, cpu_usage, mem_usage_pct, disk_usage_pct)
-                .await?;
+            self.send_health_alert(
+                &context.notification_manager,
+                &issues,
+                cpu_usage,
+                mem_usage_pct,
+                disk_usage_pct,
+            )
+            .await?;
         } else if self.config.send_summary {
-            self.send_health_summary(&context.notification_manager, cpu_usage, mem_usage_pct, disk_usage_pct)
-                .await?;
+            self.send_health_summary(
+                &context.notification_manager,
+                cpu_usage,
+                mem_usage_pct,
+                disk_usage_pct,
+            )
+            .await?;
         }
 
         // Prepare result

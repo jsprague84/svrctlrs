@@ -39,11 +39,7 @@ pub async fn get_setting_value(pool: &Pool<Sqlite>, key: &str) -> Result<String>
 }
 
 /// Get setting value with default
-pub async fn get_setting_value_or(
-    pool: &Pool<Sqlite>,
-    key: &str,
-    default: &str,
-) -> Result<String> {
+pub async fn get_setting_value_or(pool: &Pool<Sqlite>, key: &str, default: &str) -> Result<String> {
     match get_setting_value(pool, key).await {
         Ok(value) => Ok(value),
         Err(_) => Ok(default.to_string()),
@@ -98,4 +94,3 @@ pub async fn delete_setting(pool: &Pool<Sqlite>, key: &str) -> Result<()> {
 
     Ok(())
 }
-

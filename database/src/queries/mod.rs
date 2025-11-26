@@ -1,14 +1,13 @@
 // Database query modules
 
-pub mod servers;
-pub mod plugins;
 pub mod notifications;
-pub mod tasks;
+pub mod plugins;
+pub mod servers;
 pub mod settings;
+pub mod tasks;
 
-pub use servers::*;
-pub use plugins::*;
 pub use notifications::*;
-pub use tasks::*;
+pub use plugins::*;
+pub use servers::*;
 pub use settings::*;
-
+pub use tasks::*;

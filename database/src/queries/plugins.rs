@@ -98,4 +98,3 @@ pub async fn list_enabled_plugins(pool: &Pool<Sqlite>) -> Result<Vec<Plugin>> {
     .await
     .map_err(|e| Error::DatabaseError(format!("Failed to list enabled plugins: {}", e)))
 }
-

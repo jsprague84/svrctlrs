@@ -45,15 +45,18 @@ impl DockerPlugin {
     }
 
     pub fn from_config(config: serde_json::Value) -> svrctlrs_core::Result<Self> {
-        let send_summary = config.get("send_summary")
+        let send_summary = config
+            .get("send_summary")
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
-        
-        let cpu_warn_pct = config.get("cpu_warn_pct")
+
+        let cpu_warn_pct = config
+            .get("cpu_warn_pct")
             .and_then(|v| v.as_f64())
             .unwrap_or(80.0);
-        
-        let mem_warn_pct = config.get("mem_warn_pct")
+
+        let mem_warn_pct = config
+            .get("mem_warn_pct")
             .and_then(|v| v.as_f64())
             .unwrap_or(80.0);
 
@@ -142,7 +145,9 @@ impl DockerPlugin {
         monitor.set_thresholds(self.config.cpu_warn_pct, self.config.mem_warn_pct);
 
         // Check health of all containers
-        let health_statuses = monitor.check_health(&context.notification_manager, self.config.send_summary).await?;
+        let health_statuses = monitor
+            .check_health(&context.notification_manager, self.config.send_summary)
+            .await?;
 
         // Count containers by status
         let total = health_statuses.len();
@@ -185,7 +190,7 @@ impl DockerPlugin {
 
         // Get all servers from context
         let servers = &context.servers;
-        
+
         if servers.is_empty() {
             return Ok(PluginResult {
                 success: true,
@@ -197,8 +202,8 @@ impl DockerPlugin {
 
         // For now, we'll check the local Docker instance
         // In the future, this could be extended to check remote Docker instances via SSH
-        let monitor = HealthMonitor::new().await?;
-        
+        let _monitor = HealthMonitor::new().await?;
+
         // Get list of running containers and their images
         let docker = bollard::Docker::connect_with_unix_defaults()
             .map_err(|e| Error::PluginError(format!("Failed to connect to Docker: {}", e)))?;
@@ -228,11 +233,8 @@ impl DockerPlugin {
         }
 
         // Send report
-        self.send_image_update_report(
-            &context.notification_manager,
-            &image_info,
-        )
-        .await?;
+        self.send_image_update_report(&context.notification_manager, &image_info)
+            .await?;
 
         let message = format!(
             "Docker image report: {} unique images in use across {} containers",
@@ -487,11 +489,8 @@ impl DockerPlugin {
 
         let mut body = String::new();
         body.push_str("📦 **Docker Image Status**\n\n");
-        
-        body.push_str(&format!(
-            "**Images in Use**: {}\n\n",
-            image_info.len()
-        ));
+
+        body.push_str(&format!("**Images in Use**: {}\n\n", image_info.len()));
 
         if image_info.is_empty() {
             body.push_str("No running containers found.\n");

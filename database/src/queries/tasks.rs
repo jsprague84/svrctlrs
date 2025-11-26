@@ -299,4 +299,3 @@ pub async fn update_task_stats(pool: &Pool<Sqlite>, task_id: i64) -> Result<()> 
 
     Ok(())
 }
-

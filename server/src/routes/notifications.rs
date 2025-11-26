@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post, put},
+    routing::get,
     Json, Router,
 };
 use tracing::{error, info, instrument};
@@ -17,7 +17,10 @@ use svrctlrs_database::queries;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_backends).post(create_backend))
-        .route("/{id}", get(get_backend).put(update_backend).delete(delete_backend))
+        .route(
+            "/{id}",
+            get(get_backend).put(update_backend).delete(delete_backend),
+        )
 }
 
 /// List all notification backends
@@ -59,14 +62,14 @@ async fn create_backend(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     info!(name = %create_backend_input.name, backend_type = %create_backend_input.backend_type, "Creating notification backend");
     let db = state.db().await;
-    
+
     let id = queries::notifications::create_notification_backend(db.pool(), &create_backend_input)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to create notification backend");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
-    
+
     // Return created backend
     let backend = queries::notifications::get_notification_backend(db.pool(), id)
         .await
@@ -74,7 +77,7 @@ async fn create_backend(
             error!(error = %e, "Failed to get created notification backend");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
-    
+
     Ok((StatusCode::CREATED, Json(backend)))
 }
 
@@ -87,14 +90,14 @@ async fn update_backend(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     info!(backend_id = id, "Updating notification backend");
     let db = state.db().await;
-    
+
     queries::notifications::update_notification_backend(db.pool(), id, &update_backend_input)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to update notification backend");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
-    
+
     // Return updated backend
     let backend = queries::notifications::get_notification_backend(db.pool(), id)
         .await
@@ -102,7 +105,7 @@ async fn update_backend(
             error!(error = %e, "Failed to get updated notification backend");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
-    
+
     Ok(Json(backend))
 }
 
@@ -114,14 +117,13 @@ async fn delete_backend(
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
     info!(backend_id = id, "Deleting notification backend");
     let db = state.db().await;
-    
+
     queries::notifications::delete_notification_backend(db.pool(), id)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to delete notification backend");
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })?;
-    
+
     Ok(StatusCode::NO_CONTENT)
 }
-

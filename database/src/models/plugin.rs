@@ -10,7 +10,7 @@ pub struct Plugin {
     pub name: String,
     pub description: Option<String>,
     pub enabled: bool,
-    pub config: Option<String>,  // JSON string
+    pub config: Option<String>, // JSON string
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -31,4 +31,3 @@ impl Plugin {
             .unwrap_or(JsonValue::Object(serde_json::Map::new()))
     }
 }
-

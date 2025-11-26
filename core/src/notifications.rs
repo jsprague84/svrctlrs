@@ -105,7 +105,11 @@ impl GotifyBackend {
     }
 
     /// Create a new Gotify backend with explicit URL and key
-    pub fn with_url_and_key(client: Client, url: impl Into<String>, key: impl Into<String>) -> Result<Self> {
+    pub fn with_url_and_key(
+        client: Client,
+        url: impl Into<String>,
+        key: impl Into<String>,
+    ) -> Result<Self> {
         Ok(Self {
             client,
             base_url: url.into(),
@@ -207,7 +211,7 @@ impl GotifyBackend {
 
         // Gotify requires /message endpoint
         let url = format!("{}/message", self.base_url.trim_end_matches('/'));
-        
+
         let response = self
             .client
             .post(&url)
@@ -278,7 +282,9 @@ impl NtfyBackend {
             } else {
                 None
             }
-        } else if let (Ok(username), Ok(password)) = (env::var("NTFY_USERNAME"), env::var("NTFY_PASSWORD")) {
+        } else if let (Ok(username), Ok(password)) =
+            (env::var("NTFY_USERNAME"), env::var("NTFY_PASSWORD"))
+        {
             if !username.trim().is_empty() && !password.trim().is_empty() {
                 Some(NtfyAuth::Basic {
                     username: username.trim().to_string(),
@@ -305,10 +311,14 @@ impl NtfyBackend {
     }
 
     /// Create a new ntfy backend with explicit URL and default topic
-    pub fn with_url_and_topic(client: Client, url: impl Into<String>, topic: impl Into<String>) -> Result<Self> {
+    pub fn with_url_and_topic(
+        client: Client,
+        url: impl Into<String>,
+        topic: impl Into<String>,
+    ) -> Result<Self> {
         let mut topics = HashMap::new();
         topics.insert("default".to_string(), topic.into());
-        
+
         Ok(Self {
             client,
             base_url: url.into(),
@@ -331,7 +341,11 @@ impl NtfyBackend {
     }
 
     /// Set basic authentication
-    pub fn with_basic_auth(mut self, username: impl Into<String>, password: impl Into<String>) -> Self {
+    pub fn with_basic_auth(
+        mut self,
+        username: impl Into<String>,
+        password: impl Into<String>,
+    ) -> Self {
         self.auth = Some(NtfyAuth::Basic {
             username: username.into(),
             password: password.into(),
@@ -435,23 +449,23 @@ impl NtfyBackend {
             }
         }
 
-        let response = request
-            .send()
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    service = %service,
-                    topic = %topic,
-                    url = %url,
-                    error = %e,
-                    "ntfy HTTP request failed"
-                );
-                Error::HttpError(format!("ntfy request failed: {}", e))
-            })?;
+        let response = request.send().await.map_err(|e| {
+            tracing::error!(
+                service = %service,
+                topic = %topic,
+                url = %url,
+                error = %e,
+                "ntfy HTTP request failed"
+            );
+            Error::HttpError(format!("ntfy request failed: {}", e))
+        })?;
 
         let status = response.status();
         if !status.is_success() {
-            let error_body = response.text().await.unwrap_or_else(|_| "unknown".to_string());
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "unknown".to_string());
             tracing::error!(
                 service = %service,
                 topic = %topic,

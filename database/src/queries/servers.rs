@@ -81,11 +81,7 @@ pub async fn create_server(pool: &Pool<Sqlite>, server: &CreateServer) -> Result
 }
 
 /// Update a server
-pub async fn update_server(
-    pool: &Pool<Sqlite>,
-    id: i64,
-    update: &UpdateServer,
-) -> Result<()> {
+pub async fn update_server(pool: &Pool<Sqlite>, id: i64, update: &UpdateServer) -> Result<()> {
     let mut query = String::from("UPDATE servers SET updated_at = CURRENT_TIMESTAMP");
     let mut bindings: Vec<String> = Vec::new();
 
@@ -215,4 +211,3 @@ pub async fn list_enabled_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     .await
     .map_err(|e| Error::DatabaseError(format!("Failed to list enabled servers: {}", e)))
 }
-

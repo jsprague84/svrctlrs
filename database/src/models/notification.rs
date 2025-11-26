@@ -8,10 +8,10 @@ use sqlx::FromRow;
 pub struct NotificationBackend {
     pub id: i64,
     #[sqlx(rename = "type")]
-    pub backend_type: String,  // 'gotify', 'ntfy'
+    pub backend_type: String, // 'gotify', 'ntfy'
     pub name: String,
     pub enabled: bool,
-    pub config: String,  // JSON string
+    pub config: String, // JSON string
     pub priority: i32,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -44,8 +44,6 @@ fn default_priority() -> i32 {
 impl NotificationBackend {
     /// Get config as JSON value
     pub fn get_config(&self) -> JsonValue {
-        serde_json::from_str(&self.config)
-            .unwrap_or(JsonValue::Object(serde_json::Map::new()))
+        serde_json::from_str(&self.config).unwrap_or(JsonValue::Object(serde_json::Map::new()))
     }
 }
-

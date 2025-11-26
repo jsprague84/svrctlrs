@@ -196,7 +196,7 @@ async fn main() {
 async fn handle_health(client: &Client, base_url: &str) -> anyhow::Result<()> {
     let url = format!("{}/api/v1/health", base_url);
     let response = client.get(&url).send().await?;
-    
+
     if response.status().is_success() {
         let json: Value = response.json().await?;
         println!("{}", serde_json::to_string_pretty(&json)?);

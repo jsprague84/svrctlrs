@@ -223,7 +223,7 @@ impl CleanupExecutor {
             PackageManager::Apt => {
                 // Clean package cache
                 let clean_result = Command::new("sudo")
-                    .args(&["apt", "clean", "all"])
+                    .args(["apt", "clean", "all"])
                     .status()
                     .await;
 
@@ -239,7 +239,7 @@ impl CleanupExecutor {
 
                 // Remove unused packages
                 let autoremove_result = Command::new("sudo")
-                    .args(&["apt", "autoremove", "-y"])
+                    .args(["apt", "autoremove", "-y"])
                     .status()
                     .await;
 
@@ -256,7 +256,7 @@ impl CleanupExecutor {
             PackageManager::Dnf => {
                 // Clean package cache
                 let clean_result = Command::new("sudo")
-                    .args(&["dnf", "clean", "all"])
+                    .args(["dnf", "clean", "all"])
                     .status()
                     .await;
 
@@ -272,7 +272,7 @@ impl CleanupExecutor {
 
                 // Remove unused packages
                 let autoremove_result = Command::new("sudo")
-                    .args(&["dnf", "autoremove", "-y"])
+                    .args(["dnf", "autoremove", "-y"])
                     .status()
                     .await;
 
@@ -289,7 +289,7 @@ impl CleanupExecutor {
             PackageManager::Pacman => {
                 // Clean package cache
                 let clean_result = Command::new("sudo")
-                    .args(&["pacman", "-Sc", "--noconfirm"])
+                    .args(["pacman", "-Sc", "--noconfirm"])
                     .status()
                     .await;
 

@@ -56,7 +56,7 @@ pub async fn test_connection(config: &SshConfig) -> Result<String> {
         .context("Failed to execute test command")?;
 
     let output = result.stdout.trim().to_string();
-    
+
     info!("SSH connection test successful: {}", output);
     Ok(output)
 }
@@ -68,13 +68,10 @@ pub async fn execute_command(config: &SshConfig, command: &str) -> Result<Comman
         config.username, config.host, config.port, command
     );
 
-    let client = tokio::time::timeout(
-        config.timeout,
-        connect_ssh(config)
-    )
-    .await
-    .context("Connection timeout")?
-    .context("Failed to establish SSH connection")?;
+    let client = tokio::time::timeout(config.timeout, connect_ssh(config))
+        .await
+        .context("Connection timeout")?
+        .context("Failed to establish SSH connection")?;
 
     let result = client
         .execute(command)
@@ -108,18 +105,19 @@ pub struct CommandResult {
 }
 
 /// Check what SSH keys are available
+#[allow(dead_code)]
 pub fn list_available_keys() -> Vec<String> {
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| "/home/svrctlrs".to_string());
-    
+
     let possible_keys = vec![
         format!("{}/.ssh/id_ed25519", home),
         format!("{}/.ssh/id_rsa", home),
         format!("{}/.ssh/id_ecdsa", home),
         format!("{}/.ssh/id_dsa", home),
     ];
-    
+
     possible_keys
         .into_iter()
         .filter(|path| std::path::Path::new(path).exists())
@@ -138,10 +136,10 @@ pub async fn connect_ssh(config: &SshConfig) -> Result<Client> {
         let auth_method = AuthMethod::with_key_file(key_path, None);
         return connect_with_auth(config, auth_method).await;
     }
-    
+
     // Try default SSH keys - check multiple possible locations
     info!("Searching for SSH keys in default locations");
-    
+
     // Get home directory - try multiple methods
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
@@ -149,9 +147,9 @@ pub async fn connect_ssh(config: &SshConfig) -> Result<Client> {
             // Fallback to /home/svrctlrs for Docker container
             "/home/svrctlrs".to_string()
         });
-    
+
     info!("Using home directory: {}", home);
-    
+
     let default_keys = vec![
         format!("{}/.ssh/id_ed25519", home),
         format!("{}/.ssh/id_rsa", home),
@@ -161,15 +159,15 @@ pub async fn connect_ssh(config: &SshConfig) -> Result<Client> {
 
     let mut tried_keys = Vec::new();
     let mut last_error = None;
-    
+
     // Try each key until one works
     for key_path in default_keys {
         if std::path::Path::new(&key_path).exists() {
             info!("Found SSH key: {}", key_path);
             tried_keys.push(key_path.clone());
-            
+
             let auth_method = AuthMethod::with_key_file(&key_path, None);
-            
+
             // Try to connect with this key
             match connect_with_auth(config, auth_method).await {
                 Ok(client) => {
@@ -191,7 +189,9 @@ pub async fn connect_ssh(config: &SshConfig) -> Result<Client> {
         Err(anyhow::anyhow!(
             "Connection failed with all available SSH keys. Tried: {}. Last error: {}",
             tried_keys.join(", "),
-            last_error.map(|e| e.to_string()).unwrap_or_else(|| "Unknown".to_string())
+            last_error
+                .map(|e| e.to_string())
+                .unwrap_or_else(|| "Unknown".to_string())
         ))
     } else {
         Err(anyhow::anyhow!(
@@ -214,4 +214,3 @@ async fn connect_with_auth(config: &SshConfig, auth_method: AuthMethod) -> Resul
 
     Ok(client)
 }
-

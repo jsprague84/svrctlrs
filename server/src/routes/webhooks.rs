@@ -29,8 +29,10 @@ pub fn routes() -> Router<AppState> {
 /// Webhook trigger request body
 #[derive(Debug, Deserialize)]
 struct TriggerRequest {
+    #[allow(dead_code)]
     #[serde(default)]
     token: Option<String>,
+    #[allow(dead_code)]
     #[serde(default)]
     payload: Option<serde_json::Value>,
 }

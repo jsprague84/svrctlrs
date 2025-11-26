@@ -80,7 +80,7 @@ impl UpdateExecutor {
 
         // Get checker to verify updates before applying
         let checker = get_checker(&pm);
-        let updates_before = self.check_updates(&executor, &checker).await?;
+        let updates_before = self.check_updates(&executor, checker.as_ref()).await?;
 
         if updates_before.is_empty() {
             return Ok(ExecutionResult {
@@ -181,7 +181,7 @@ impl UpdateExecutor {
         }
 
         // Verify by checking for remaining updates
-        let updates_after = self.check_updates(&executor, &checker).await?;
+        let updates_after = self.check_updates(&executor, checker.as_ref()).await?;
 
         let packages_updated = updates_before.len().saturating_sub(updates_after.len());
 
@@ -252,7 +252,7 @@ impl UpdateExecutor {
             PackageManager::Apt => {
                 // Update package lists
                 let update_result = Command::new("sudo")
-                    .args(&["apt-get", "update", "-qq"])
+                    .args(["apt-get", "update", "-qq"])
                     .status()
                     .await;
 
@@ -269,7 +269,7 @@ impl UpdateExecutor {
                 // Full upgrade
                 let upgrade_result = Command::new("sudo")
                     .env("DEBIAN_FRONTEND", "noninteractive")
-                    .args(&["apt-get", "full-upgrade", "-y"])
+                    .args(["apt-get", "full-upgrade", "-y"])
                     .status()
                     .await;
 
@@ -285,7 +285,7 @@ impl UpdateExecutor {
             }
             PackageManager::Dnf => {
                 let result = Command::new("sudo")
-                    .args(&["dnf", "upgrade", "-y"])
+                    .args(["dnf", "upgrade", "-y"])
                     .status()
                     .await;
 
@@ -301,7 +301,7 @@ impl UpdateExecutor {
             }
             PackageManager::Pacman => {
                 let result = Command::new("sudo")
-                    .args(&["pacman", "-Syu", "--noconfirm"])
+                    .args(["pacman", "-Syu", "--noconfirm"])
                     .status()
                     .await;
 
@@ -357,7 +357,7 @@ impl UpdateExecutor {
     async fn check_updates(
         &self,
         executor: &RemoteExecutor,
-        checker: &Box<dyn UpdateChecker>,
+        checker: &dyn UpdateChecker,
     ) -> Result<Vec<String>> {
         let (cmd, args) = checker.check_command();
 

@@ -13,7 +13,7 @@ pub struct Server {
     pub ssh_key_path: Option<String>,
     pub enabled: bool,
     pub description: Option<String>,
-    pub tags: Option<String>,  // JSON array
+    pub tags: Option<String>, // JSON array
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub last_seen_at: Option<DateTime<Utc>>,
@@ -70,4 +70,3 @@ impl Server {
             .unwrap_or_default()
     }
 }
-

@@ -1,14 +1,13 @@
 // Database models
 
-pub mod server;
-pub mod plugin;
 pub mod notification;
-pub mod task;
+pub mod plugin;
+pub mod server;
 pub mod setting;
+pub mod task;
 
-pub use server::*;
-pub use plugin::*;
 pub use notification::*;
-pub use task::*;
+pub use plugin::*;
+pub use server::*;
 pub use setting::*;
-
+pub use task::*;

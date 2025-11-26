@@ -31,12 +31,13 @@ impl Database {
                 // Try to create directory if it doesn't exist
                 if !parent.exists() {
                     info!(dir = ?parent, "Creating database directory");
-                    std::fs::create_dir_all(parent)
-                        .map_err(|e| Error::DatabaseError(format!("Failed to create database directory: {}", e)))?;
+                    std::fs::create_dir_all(parent).map_err(|e| {
+                        Error::DatabaseError(format!("Failed to create database directory: {}", e))
+                    })?;
                 } else {
                     // Directory exists, check if we can write to it
                     info!(dir = ?parent, "Database directory exists, checking permissions");
-                    
+
                     // Try to create a test file to verify write permissions
                     let test_file = parent.join(".write_test");
                     match std::fs::write(&test_file, b"test") {
@@ -59,13 +60,13 @@ impl Database {
         // For SQLite, we need to use connect_with to set options
         use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode};
         use std::str::FromStr;
-        
+
         let pool = if database_url.starts_with("sqlite:") {
             let options = SqliteConnectOptions::from_str(database_url)
                 .map_err(|e| Error::DatabaseError(format!("Invalid database URL: {}", e)))?
                 .create_if_missing(true)
                 .journal_mode(SqliteJournalMode::Wal);
-            
+
             SqlitePool::connect_with(options)
                 .await
                 .map_err(|e| Error::DatabaseError(format!("Failed to connect: {}", e)))?
@@ -143,16 +144,21 @@ pub async fn record_metric(
     Ok(())
 }
 
+/// Notification record parameters
+pub struct NotificationRecord<'a> {
+    pub service: &'a str,
+    pub backend: &'a str,
+    pub title: &'a str,
+    pub body: Option<&'a str>,
+    pub priority: u8,
+    pub success: bool,
+    pub error_message: Option<&'a str>,
+}
+
 /// Record a notification
 pub async fn record_notification(
     pool: &Pool<Sqlite>,
-    service: &str,
-    backend: &str,
-    title: &str,
-    body: Option<&str>,
-    priority: u8,
-    success: bool,
-    error_message: Option<&str>,
+    record: NotificationRecord<'_>,
 ) -> Result<()> {
     sqlx::query(
         r#"
@@ -160,13 +166,13 @@ pub async fn record_notification(
         VALUES (?, ?, ?, ?, ?, ?, ?)
         "#,
     )
-    .bind(service)
-    .bind(backend)
-    .bind(title)
-    .bind(body)
-    .bind(priority as i64)
-    .bind(success)
-    .bind(error_message)
+    .bind(record.service)
+    .bind(record.backend)
+    .bind(record.title)
+    .bind(record.body)
+    .bind(record.priority as i64)
+    .bind(record.success)
+    .bind(record.error_message)
     .execute(pool)
     .await
     .map_err(|e| Error::DatabaseError(format!("Failed to record notification: {}", e)))?;

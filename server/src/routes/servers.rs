@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post, put},
+    routing::{get, post},
     Json, Router,
 };
 use serde_json::json;
@@ -18,22 +18,28 @@ use crate::state::AppState;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_servers).post(create_server))
-        .route("/{id}", get(get_server).put(update_server).delete(delete_server))
+        .route(
+            "/{id}",
+            get(get_server).put(update_server).delete(delete_server),
+        )
         .route("/{id}/test", post(test_server_connection))
 }
 
 /// List all servers
 #[instrument(skip(state))]
-async fn list_servers(State(state): State<AppState>) -> Result<impl IntoResponse, (StatusCode, String)> {
+async fn list_servers(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, (StatusCode, String)> {
     let db = state.database.read().await;
     let pool = db.pool();
 
-    let servers = queries::list_servers(pool)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to list servers");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to list servers: {}", e))
-        })?;
+    let servers = queries::list_servers(pool).await.map_err(|e| {
+        error!(error = %e, "Failed to list servers");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to list servers: {}", e),
+        )
+    })?;
 
     Ok(Json(json!({
         "servers": servers
@@ -49,12 +55,10 @@ async fn get_server(
     let db = state.database.read().await;
     let pool = db.pool();
 
-    let server = queries::get_server(pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to get server");
-            (StatusCode::NOT_FOUND, format!("Server not found: {}", e))
-        })?;
+    let server = queries::get_server(pool, id).await.map_err(|e| {
+        error!(error = %e, id = id, "Failed to get server");
+        (StatusCode::NOT_FOUND, format!("Server not found: {}", e))
+    })?;
 
     Ok(Json(server))
 }
@@ -70,20 +74,22 @@ async fn create_server(
     let db = state.database.read().await;
     let pool = db.pool();
 
-    let server_id = queries::create_server(pool, &server)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to create server");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create server: {}", e))
-        })?;
+    let server_id = queries::create_server(pool, &server).await.map_err(|e| {
+        error!(error = %e, "Failed to create server");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to create server: {}", e),
+        )
+    })?;
 
     // Fetch the created server
-    let created_server = queries::get_server(pool, server_id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to fetch created server");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch created server: {}", e))
-        })?;
+    let created_server = queries::get_server(pool, server_id).await.map_err(|e| {
+        error!(error = %e, "Failed to fetch created server");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to fetch created server: {}", e),
+        )
+    })?;
 
     info!(id = server_id, "Server created successfully");
 
@@ -103,28 +109,30 @@ async fn update_server(
     let pool = db.pool();
 
     // Verify server exists
-    queries::get_server(pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Server not found");
-            (StatusCode::NOT_FOUND, format!("Server not found: {}", e))
-        })?;
+    queries::get_server(pool, id).await.map_err(|e| {
+        error!(error = %e, id = id, "Server not found");
+        (StatusCode::NOT_FOUND, format!("Server not found: {}", e))
+    })?;
 
     // Update server
     queries::update_server(pool, id, &update)
         .await
         .map_err(|e| {
             error!(error = %e, id = id, "Failed to update server");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update server: {}", e))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("Failed to update server: {}", e),
+            )
         })?;
 
     // Fetch updated server
-    let updated_server = queries::get_server(pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to fetch updated server");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to fetch updated server: {}", e))
-        })?;
+    let updated_server = queries::get_server(pool, id).await.map_err(|e| {
+        error!(error = %e, "Failed to fetch updated server");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to fetch updated server: {}", e),
+        )
+    })?;
 
     info!(id = id, "Server updated successfully");
 
@@ -143,20 +151,19 @@ async fn delete_server(
     let pool = db.pool();
 
     // Verify server exists
-    let server = queries::get_server(pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Server not found");
-            (StatusCode::NOT_FOUND, format!("Server not found: {}", e))
-        })?;
+    let server = queries::get_server(pool, id).await.map_err(|e| {
+        error!(error = %e, id = id, "Server not found");
+        (StatusCode::NOT_FOUND, format!("Server not found: {}", e))
+    })?;
 
     // Delete server
-    queries::delete_server(pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to delete server");
-            (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete server: {}", e))
-        })?;
+    queries::delete_server(pool, id).await.map_err(|e| {
+        error!(error = %e, id = id, "Failed to delete server");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to delete server: {}", e),
+        )
+    })?;
 
     info!(id = id, name = %server.name, "Server deleted successfully");
 
@@ -165,7 +172,7 @@ async fn delete_server(
         Json(json!({
             "message": "Server deleted successfully",
             "id": id
-        }))
+        })),
     ))
 }
 
@@ -180,16 +187,14 @@ async fn test_server_connection(
     let db = state.database.read().await;
     let pool = db.pool();
 
-    let server = queries::get_server(pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Server not found");
-            (StatusCode::NOT_FOUND, format!("Server not found: {}", e))
-        })?;
+    let server = queries::get_server(pool, id).await.map_err(|e| {
+        error!(error = %e, id = id, "Server not found");
+        (StatusCode::NOT_FOUND, format!("Server not found: {}", e))
+    })?;
 
     // TODO: Implement actual SSH connection test
     // For now, just return a mock response
-    
+
     info!(id = id, host = ?server.host, "Connection test completed");
 
     Ok(Json(json!({
@@ -200,4 +205,3 @@ async fn test_server_connection(
         "port": server.port
     })))
 }
-

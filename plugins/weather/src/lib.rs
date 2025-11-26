@@ -170,12 +170,12 @@ impl WeatherPlugin {
         let current_desc = data
             .current
             .weather
-            .get(0)
+            .first()
             .map(|w| w.description.as_str())
             .unwrap_or("no description");
 
-        let today_high = data.daily.get(0).map(|d| d.temp.max);
-        let today_low = data.daily.get(0).map(|d| d.temp.min);
+        let today_high = data.daily.first().map(|d| d.temp.max);
+        let today_low = data.daily.first().map(|d| d.temp.min);
 
         // Build detailed message
         let mut lines = Vec::new();
@@ -199,7 +199,7 @@ impl WeatherPlugin {
             let label = dt.format("%a %d").to_string();
             let desc = day
                 .weather
-                .get(0)
+                .first()
                 .map(|w| w.description.as_str())
                 .unwrap_or("n/a");
             lines.push(format!(
@@ -296,22 +296,19 @@ impl WeatherPlugin {
         }
 
         let loc = v.remove(0);
-        let pretty = format!(
-            "{}{}{}",
-            loc.name,
-            loc.state
-                .as_ref()
-                .map(|s| format!(", {}", s))
-                .unwrap_or_default(),
-            format!(", {}", loc.country)
-        );
+        let state_part = loc
+            .state
+            .as_ref()
+            .map(|s| format!(", {}", s))
+            .unwrap_or_default();
+        let pretty = format!("{}{}, {}", loc.name, state_part, loc.country);
 
         Ok((loc.lat, loc.lon, pretty))
     }
 
     fn split_zip_and_cc(&self, s: &str) -> (String, String) {
         let parts: Vec<&str> = s.split(',').map(|p| p.trim()).collect();
-        let zip = parts.get(0).copied().unwrap_or("").to_string();
+        let zip = parts.first().copied().unwrap_or("").to_string();
         let cc = parts
             .get(1)
             .map(|v| v.to_string())
