@@ -28,6 +28,8 @@ pub fn routes() -> Router<AppState> {
         // Tasks
         .route("/tasks", get(list_all_tasks))
         .route("/tasks/execute", post(execute_task))
+        // Notifications
+        .route("/notifications/:id/test", post(test_notification))
 }
 
 /// Health check endpoint
@@ -214,4 +216,124 @@ async fn execute_task(
         "data": result.data,
         "metrics": result.metrics
     })))
+}
+
+/// Test notification endpoint - sends a test message to verify backend configuration
+#[instrument(skip(state))]
+async fn test_notification(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, (StatusCode, Html<String>)> {
+    use svrctlrs_core::{
+        GotifyBackend, NotificationBackend as CoreBackend, NotificationMessage, NtfyBackend,
+    };
+    use svrctlrs_database::queries;
+
+    info!("Testing notification backend {}", id);
+
+    // Load notification backend from database
+    let db = state.db().await;
+    let backend = queries::notifications::get_notification_backend(db.pool(), id)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to load notification backend");
+            (
+                StatusCode::NOT_FOUND,
+                Html(format!(
+                    r#"<div class="alert alert-error">❌ Failed to load notification backend: {}</div>"#,
+                    e
+                )),
+            )
+        })?;
+
+    if !backend.enabled {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Html(format!(
+                r#"<div class="alert alert-error">❌ Backend "{}" is disabled</div>"#,
+                backend.name
+            )),
+        ));
+    }
+
+    // Create test message
+    let test_message = NotificationMessage {
+        title: format!("🧪 Test from {}", backend.name),
+        body: format!(
+            "This is a test notification from SvrCtlRS.\n\nBackend: {}\nType: {}\n\nIf you received this, your notification backend is configured correctly! ✅",
+            backend.name, backend.backend_type
+        ),
+        priority: 3,
+        actions: vec![],
+    };
+
+    // Create HTTP client
+    let client = reqwest::Client::new();
+
+    // Create appropriate backend and send test
+    let result = match backend.backend_type.as_str() {
+        "gotify" => {
+            let config = backend.get_config();
+            let url = config["url"].as_str().unwrap_or_default();
+            let token = config["token"].as_str().unwrap_or_default();
+
+            let gotify = GotifyBackend::with_url_and_key(client, url, token)
+                .map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Html(format!(
+                            r#"<div class="alert alert-error">❌ Failed to create Gotify backend: {}</div>"#,
+                            e
+                        )),
+                    )
+                })?;
+            gotify.send(&test_message).await
+        }
+        "ntfy" => {
+            let config = backend.get_config();
+            let url = config["url"].as_str().unwrap_or("https://ntfy.sh");
+            let topic = config["topic"].as_str().unwrap_or_default();
+
+            let ntfy = NtfyBackend::with_url_and_topic(client, url, topic)
+                .map_err(|e| {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Html(format!(
+                            r#"<div class="alert alert-error">❌ Failed to create ntfy backend: {}</div>"#,
+                            e
+                        )),
+                    )
+                })?;
+            ntfy.send(&test_message).await
+        }
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Html(format!(
+                    r#"<div class="alert alert-error">❌ Unknown backend type: {}</div>"#,
+                    backend.backend_type
+                )),
+            ))
+        }
+    };
+
+    match result {
+        Ok(()) => {
+            info!("Test notification sent successfully to {}", backend.name);
+            Ok(Html(format!(
+                r#"<div class="alert alert-success">✅ Test notification sent successfully to "{}"!</div>"#,
+                backend.name
+            )))
+        }
+        Err(e) => {
+            error!(error = %e, "Failed to send test notification");
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(format!(
+                    r#"<div class="alert alert-error">❌ Failed to send test notification: {}</div>"#,
+                    e
+                )),
+            ))
+        }
+    }
 }

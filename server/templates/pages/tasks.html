@@ -131,6 +131,23 @@ document.body.addEventListener('focusin', function(evt) {
         console.log('⏸️  Paused auto-refresh for schedule editing');
     }
 });
+
+// Visibility-based polling: only poll when page is visible
+// This saves server resources and battery life on mobile
+document.addEventListener('visibilitychange', function() {
+    const taskList = document.getElementById('task-list');
+    if (!taskList) return;
+
+    if (document.hidden) {
+        // Page is hidden - pause polling
+        htmx.trigger(taskList, 'htmx:abort');
+        console.log('👁️ Page hidden - paused auto-refresh');
+    } else {
+        // Page is visible - resume polling by triggering an immediate refresh
+        console.log('👁️ Page visible - resuming auto-refresh');
+        htmx.trigger(taskList, 'load');
+    }
+});
 </script>
 {% endblock %}
 

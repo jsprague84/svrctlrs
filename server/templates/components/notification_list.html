@@ -18,14 +18,24 @@
             <strong>Priority:</strong> {{ notification.priority }}
         </p>
         
+        <div id="test-result-{{ notification.id }}" class="mb-2"></div>
+
         <div class="flex gap-2 mt-2">
+            <button hx-post="/api/v1/notifications/{{ notification.id }}/test"
+                    hx-target="#test-result-{{ notification.id }}"
+                    hx-swap="innerHTML"
+                    class="btn btn-primary btn-sm"
+                    {% if notification.enabled %}{% else %}disabled{% endif %}>
+                🧪 Test
+            </button>
+
             <button hx-get="/settings/notifications/{{ notification.id }}/edit"
                     hx-target="#notification-form-container"
                     hx-swap="innerHTML"
                     class="btn btn-secondary btn-sm">
                 Edit
             </button>
-            
+
             <button hx-delete="/settings/notifications/{{ notification.id }}"
                     hx-target="#notification-{{ notification.id }}"
                     hx-swap="outerHTML"
