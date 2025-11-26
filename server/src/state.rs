@@ -226,6 +226,10 @@ impl AppState {
         let mut ntfy_backend: Option<NtfyBackend> = None;
         for backend in backends.iter().filter(|b| b.backend_type == "ntfy") {
             let config = backend.get_config();
+            
+            // Debug: log the config to see what we have
+            info!("Loading ntfy backend config: {:?}", config);
+            
             if let (Some(url), Some(topic)) = (
                 config.get("url").and_then(|v| v.as_str()),
                 config.get("topic").and_then(|v| v.as_str()),
@@ -236,7 +240,9 @@ impl AppState {
                         if let Some(token) = config.get("token").and_then(|v| v.as_str()) {
                             if !token.trim().is_empty() {
                                 nb = nb.with_token(token);
-                                info!("Configured ntfy with token authentication");
+                                info!("Configured ntfy with token authentication (token length: {})", token.len());
+                            } else {
+                                info!("Token field exists but is empty");
                             }
                         } else if let (Some(username), Some(password)) = (
                             config.get("username").and_then(|v| v.as_str()),
@@ -245,7 +251,11 @@ impl AppState {
                             if !username.trim().is_empty() && !password.trim().is_empty() {
                                 nb = nb.with_basic_auth(username, password);
                                 info!("Configured ntfy with basic authentication (username: {})", username);
+                            } else {
+                                info!("Username/password fields exist but are empty");
                             }
+                        } else {
+                            info!("No authentication configured for ntfy backend");
                         }
                         
                         // Register the same topic for all services (they all go to the same topic)
