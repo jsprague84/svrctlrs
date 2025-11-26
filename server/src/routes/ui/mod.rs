@@ -1,7 +1,6 @@
 //! UI routes module - HTMX frontend
 
-use askama::Template;
-use axum::{response::{Html, IntoResponse}, Router};
+use axum::{response::IntoResponse, Router};
 use tower_http::services::ServeDir;
 
 use crate::state::AppState;
@@ -43,9 +42,9 @@ pub async fn get_user_from_session() -> Option<User> {
 
 /// 404 handler
 async fn not_found() -> Result<impl IntoResponse, AppError> {
+    use crate::templates::NotFoundTemplate;
     use askama::Template;
     use axum::response::Html;
-    use crate::templates::NotFoundTemplate;
 
     let user = get_user_from_session().await;
     let template = NotFoundTemplate { user };

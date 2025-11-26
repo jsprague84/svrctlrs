@@ -10,8 +10,8 @@ use axum::{
 use serde::Deserialize;
 use svrctlrs_database::{models::server as db_server, queries};
 
-use crate::{state::AppState, templates::*};
 use super::{get_user_from_session, AppError};
+use crate::{state::AppState, templates::*};
 
 /// Create servers router
 pub fn routes() -> Router<AppState> {

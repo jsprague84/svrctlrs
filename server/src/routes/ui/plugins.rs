@@ -4,14 +4,13 @@ use askama::Template;
 use axum::{
     extract::{Path, State},
     response::Html,
-    routing::{get, post, put},
+    routing::{get, post},
     Form, Router,
 };
-use serde::Deserialize;
 use svrctlrs_database::queries;
 
-use crate::{state::AppState, templates::*};
 use super::{get_user_from_session, AppError};
+use crate::{state::AppState, templates::*};
 
 /// Create plugins router
 pub fn routes() -> Router<AppState> {

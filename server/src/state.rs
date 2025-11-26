@@ -170,8 +170,15 @@ impl AppState {
                     // Calculate and update next run time
                     match queries::tasks::calculate_next_run(&schedule) {
                         Ok(next_run) => {
-                            if let Err(e) = queries::tasks::update_task_next_run(db.pool(), task_id, next_run).await {
-                                tracing::warn!("Failed to update next_run_at for task {}: {}", task_id, e);
+                            if let Err(e) =
+                                queries::tasks::update_task_next_run(db.pool(), task_id, next_run)
+                                    .await
+                            {
+                                tracing::warn!(
+                                    "Failed to update next_run_at for task {}: {}",
+                                    task_id,
+                                    e
+                                );
                             } else {
                                 tracing::debug!(
                                     "Updated next_run_at for task {} ({}): {:?}",
@@ -182,7 +189,11 @@ impl AppState {
                             }
                         }
                         Err(e) => {
-                            tracing::warn!("Failed to calculate next_run_at for task {}: {}", task_id, e);
+                            tracing::warn!(
+                                "Failed to calculate next_run_at for task {}: {}",
+                                task_id,
+                                e
+                            );
                         }
                     }
 
@@ -273,8 +284,14 @@ impl AppState {
                 // Calculate and update next run time
                 match queries::tasks::calculate_next_run(&schedule) {
                     Ok(next_run) => {
-                        if let Err(e) = queries::tasks::update_task_next_run(db.pool(), task.id, next_run).await {
-                            tracing::warn!("Failed to update next_run_at for task {}: {}", task.id, e);
+                        if let Err(e) =
+                            queries::tasks::update_task_next_run(db.pool(), task.id, next_run).await
+                        {
+                            tracing::warn!(
+                                "Failed to update next_run_at for task {}: {}",
+                                task.id,
+                                e
+                            );
                         } else {
                             tracing::debug!(
                                 "Updated next_run_at for task {} ({}): {:?}",
@@ -285,7 +302,11 @@ impl AppState {
                         }
                     }
                     Err(e) => {
-                        tracing::warn!("Failed to calculate next_run_at for task {}: {}", task.id, e);
+                        tracing::warn!(
+                            "Failed to calculate next_run_at for task {}: {}",
+                            task.id,
+                            e
+                        );
                     }
                 }
 

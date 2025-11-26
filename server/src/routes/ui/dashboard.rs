@@ -1,16 +1,11 @@
 //! Dashboard page routes
 
 use askama::Template;
-use axum::{
-    extract::State,
-    response::Html,
-    routing::get,
-    Router,
-};
+use axum::{extract::State, response::Html, routing::get, Router};
 use svrctlrs_database::queries;
 
-use crate::{state::AppState, templates::*};
 use super::{get_user_from_session, AppError};
+use crate::{state::AppState, templates::*};
 
 /// Create dashboard router
 pub fn routes() -> Router<AppState> {

@@ -69,21 +69,27 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
     };
 
     // Use transaction to ensure atomicity of history recording and stats update
-    if let Err(e) = queries::tasks::record_task_execution_with_stats(db.pool(), &history_entry).await {
+    if let Err(e) =
+        queries::tasks::record_task_execution_with_stats(db.pool(), &history_entry).await
+    {
         error!("Failed to record task execution and update stats: {}", e);
     }
 
     // Calculate and update next run time after execution
     match queries::tasks::calculate_next_run(&task.schedule) {
         Ok(next_run) => {
-            if let Err(e) = queries::tasks::update_task_next_run(db.pool(), task_id, next_run).await {
+            if let Err(e) = queries::tasks::update_task_next_run(db.pool(), task_id, next_run).await
+            {
                 warn!("Failed to update next_run_at for task {}: {}", task_id, e);
             } else {
                 debug!("Updated next_run_at for task {}: {:?}", task_id, next_run);
             }
         }
         Err(e) => {
-            warn!("Failed to calculate next_run_at for task {}: {}", task_id, e);
+            warn!(
+                "Failed to calculate next_run_at for task {}: {}",
+                task_id, e
+            );
         }
     }
 

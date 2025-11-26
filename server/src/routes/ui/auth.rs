@@ -8,8 +8,8 @@ use axum::{
     Form, Router,
 };
 
-use crate::{state::AppState, templates::*};
 use super::AppError;
+use crate::{state::AppState, templates::*};
 
 /// Create auth router
 pub fn routes() -> Router<AppState> {

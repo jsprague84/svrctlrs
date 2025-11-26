@@ -45,7 +45,9 @@ fn verify_token(headers: &HeaderMap, request_token: &Option<String>) -> bool {
 
     if expected_token.is_none() {
         // No token configured, allow all requests (development mode)
-        warn!("WEBHOOK_SECRET or WEBHOOK_SECRET_FILE not configured - accepting all webhook requests");
+        warn!(
+            "WEBHOOK_SECRET or WEBHOOK_SECRET_FILE not configured - accepting all webhook requests"
+        );
         return true;
     }
 

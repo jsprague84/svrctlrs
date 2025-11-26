@@ -247,6 +247,7 @@ pub struct NotificationBackend {
     pub priority: i32,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct CreateNotificationInput {
     pub name: String,
@@ -257,10 +258,10 @@ pub struct CreateNotificationInput {
     pub username: Option<String>,
     pub password: Option<String>,
     pub priority: Option<i32>,
-    #[allow(dead_code)]
     pub enabled: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct UpdateNotificationInput {
     pub name: Option<String>,
@@ -270,7 +271,6 @@ pub struct UpdateNotificationInput {
     pub username: Option<String>,
     pub password: Option<String>,
     pub priority: Option<i32>,
-    #[allow(dead_code)]
     pub enabled: Option<String>,
 }
 

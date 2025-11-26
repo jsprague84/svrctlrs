@@ -361,7 +361,7 @@ pub async fn record_task_execution_with_stats(
     .bind(&history_entry.output)
     .bind(&history_entry.error)
     .bind(history_entry.duration_ms as i64)
-    .bind(&history_entry.executed_at)
+    .bind(history_entry.executed_at)
     .execute(&mut *tx)
     .await
     .map_err(|e| Error::DatabaseError(format!("Failed to record task execution: {}", e)))?;
