@@ -18,11 +18,40 @@ use svrctlrs_core::{
 use tracing::{info, instrument};
 
 /// System and package updates monitoring plugin
-pub struct UpdatesPlugin {}
+pub struct UpdatesPlugin {
+    config: UpdatesConfig,
+}
+
+#[derive(Debug, Clone)]
+struct UpdatesConfig {
+    send_summary: bool,
+}
+
+impl Default for UpdatesConfig {
+    fn default() -> Self {
+        Self {
+            send_summary: false,
+        }
+    }
+}
 
 impl UpdatesPlugin {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            config: UpdatesConfig::default(),
+        }
+    }
+
+    pub fn from_config(config: serde_json::Value) -> Result<Self> {
+        let send_summary = config.get("send_summary")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        Ok(Self {
+            config: UpdatesConfig {
+                send_summary,
+            },
+        })
     }
 }
 
@@ -146,6 +175,14 @@ impl UpdatesPlugin {
         // Send notification if updates available
         if update_info.total_updates > 0 {
             self.send_update_notification(
+                &context.notification_manager,
+                &update_info,
+                &server_name,
+            )
+            .await?;
+        } else if self.config.send_summary {
+            // Send summary even when no updates
+            self.send_no_updates_summary(
                 &context.notification_manager,
                 &update_info,
                 &server_name,
@@ -315,6 +352,38 @@ impl UpdatesPlugin {
             } else {
                 3
             },
+            actions: vec![],
+        };
+
+        notify_mgr
+            .send_for_service("updates", &message)
+            .await
+            .map_err(|e| Error::PluginError(format!("Failed to send notification: {}", e)))?;
+
+        Ok(())
+    }
+
+    async fn send_no_updates_summary(
+        &self,
+        notify_mgr: &svrctlrs_core::NotificationManager,
+        update_info: &detection::UpdateInfo,
+        server_name: &str,
+    ) -> Result<()> {
+        let title = format!("Updates Status: {}", server_name);
+
+        let body = format!(
+            "📊 System Up to Date ✓\n\n\
+            **Server**: {}\n\
+            **Package Manager**: {}\n\
+            **Status**: No updates available\n\n\
+            All packages are current.",
+            server_name, update_info.package_manager
+        );
+
+        let message = svrctlrs_core::NotificationMessage {
+            title,
+            body,
+            priority: 3,
             actions: vec![],
         };
 

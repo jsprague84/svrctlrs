@@ -65,7 +65,8 @@ impl AppState {
                 #[cfg(feature = "plugin-updates")]
                 "updates" => {
                     tracing::info!("Registering Updates plugin (enabled in database)");
-                    let plugin = svrctlrs_plugin_updates::UpdatesPlugin::new();
+                    let config = db_plugin.get_config();
+                    let plugin = svrctlrs_plugin_updates::UpdatesPlugin::from_config(config)?;
                     registry.register(Box::new(plugin))?;
                 }
                 
