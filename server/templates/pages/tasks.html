@@ -6,14 +6,28 @@
 {% block content %}
 <h1>Tasks</h1>
 
-<!-- Task List (with auto-refresh) -->
+<!-- Task List (with smart auto-refresh that preserves editing state) -->
 <div id="task-list" 
      hx-get="/tasks/list" 
      hx-trigger="load, every 5s"
-     hx-swap="innerHTML">
+     hx-swap="innerHTML"
+     hx-swap-oob="true">
     <div class="card">
         <p class="text-secondary">Loading tasks...</p>
     </div>
 </div>
+
+<script>
+// Prevent refresh from interrupting inline editing
+document.body.addEventListener('htmx:beforeSwap', function(evt) {
+    // Check if any schedule is being edited
+    const editingSchedule = document.querySelector('.schedule-input');
+    if (editingSchedule && document.activeElement === editingSchedule) {
+        // Cancel the swap to preserve editing state
+        evt.preventDefault();
+        console.log('Prevented refresh during schedule edit');
+    }
+});
+</script>
 {% endblock %}
 
