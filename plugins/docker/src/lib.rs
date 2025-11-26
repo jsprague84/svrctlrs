@@ -94,6 +94,12 @@ impl Plugin for DockerPlugin {
                 enabled: true,
             },
             ScheduledTask {
+                id: "docker_images_report".to_string(),
+                schedule: "0 0 10 * * *".to_string(), // Daily at 10 AM
+                description: "Check for Docker image updates across all servers".to_string(),
+                enabled: true,
+            },
+            ScheduledTask {
                 id: "docker_cleanup".to_string(),
                 schedule: "0 0 2 * * 0".to_string(), // Sundays at 2 AM
                 description: "Analyze Docker cleanup opportunities".to_string(),
@@ -113,6 +119,7 @@ impl Plugin for DockerPlugin {
 
         match task_id {
             "docker_health" => self.check_health(context).await,
+            "docker_images_report" => self.check_image_updates(context).await,
             "docker_cleanup" => self.analyze_cleanup(context).await,
             "docker_analysis" => self.advanced_analysis(context).await,
             _ => Ok(PluginResult {
@@ -168,6 +175,81 @@ impl DockerPlugin {
             success: with_issues == 0,
             message,
             data: Some(data),
+            metrics: Some(metrics),
+        })
+    }
+
+    #[instrument(skip(self, context))]
+    async fn check_image_updates(&self, context: &PluginContext) -> Result<PluginResult> {
+        info!("Checking Docker image updates across all servers");
+
+        // Get all servers from context
+        let servers = &context.servers;
+        
+        if servers.is_empty() {
+            return Ok(PluginResult {
+                success: true,
+                message: "No servers configured".to_string(),
+                data: None,
+                metrics: None,
+            });
+        }
+
+        // For now, we'll check the local Docker instance
+        // In the future, this could be extended to check remote Docker instances via SSH
+        let monitor = HealthMonitor::new().await?;
+        
+        // Get list of running containers and their images
+        let docker = bollard::Docker::connect_with_unix_defaults()
+            .map_err(|e| Error::PluginError(format!("Failed to connect to Docker: {}", e)))?;
+
+        use bollard::container::ListContainersOptions;
+        let containers = docker
+            .list_containers(Some(ListContainersOptions::<String> {
+                all: false, // Only running containers
+                ..Default::default()
+            }))
+            .await
+            .map_err(|e| Error::PluginError(format!("Failed to list containers: {}", e)))?;
+
+        let mut image_info = Vec::new();
+        let mut unique_images = std::collections::HashSet::new();
+        let container_count = containers.len();
+
+        for container in &containers {
+            if let Some(image) = &container.image {
+                if unique_images.insert(image.clone()) {
+                    image_info.push(json!({
+                        "image": image,
+                        "container_count": 1,
+                    }));
+                }
+            }
+        }
+
+        // Send report
+        self.send_image_update_report(
+            &context.notification_manager,
+            &image_info,
+        )
+        .await?;
+
+        let message = format!(
+            "Docker image report: {} unique images in use across {} containers",
+            unique_images.len(),
+            container_count
+        );
+
+        let mut metrics = HashMap::new();
+        metrics.insert("unique_images".to_string(), unique_images.len() as f64);
+        metrics.insert("running_containers".to_string(), container_count as f64);
+
+        Ok(PluginResult {
+            success: true,
+            message,
+            data: Some(json!({
+                "images": image_info,
+            })),
             metrics: Some(metrics),
         })
     }
@@ -380,6 +462,48 @@ impl DockerPlugin {
             "  {:.1} MB unique layers\n",
             image_layers.total_unique_bytes as f64 / 1024.0 / 1024.0
         ));
+
+        let message = svrctlrs_core::NotificationMessage {
+            title,
+            body,
+            priority: 3,
+            actions: vec![],
+        };
+
+        notify_mgr
+            .send_for_service("docker", &message)
+            .await
+            .map_err(|e| Error::PluginError(format!("Failed to send notification: {}", e)))?;
+
+        Ok(())
+    }
+
+    async fn send_image_update_report(
+        &self,
+        notify_mgr: &svrctlrs_core::NotificationManager,
+        image_info: &[serde_json::Value],
+    ) -> Result<()> {
+        let title = "Docker Image Status Report".to_string();
+
+        let mut body = String::new();
+        body.push_str("📦 **Docker Image Status**\n\n");
+        
+        body.push_str(&format!(
+            "**Images in Use**: {}\n\n",
+            image_info.len()
+        ));
+
+        if image_info.is_empty() {
+            body.push_str("No running containers found.\n");
+        } else {
+            body.push_str("**Active Images**:\n");
+            for (i, info) in image_info.iter().enumerate() {
+                let image = info["image"].as_str().unwrap_or("unknown");
+                body.push_str(&format!("{}. {}\n", i + 1, image));
+            }
+
+            body.push_str("\n💡 **Tip**: Run `docker pull <image>` to check for updates\n");
+        }
 
         let message = svrctlrs_core::NotificationMessage {
             title,
