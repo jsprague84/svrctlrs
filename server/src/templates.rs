@@ -109,6 +109,7 @@ pub struct Task {
     pub name: String,
     pub description: Option<String>,
     pub plugin_id: String,
+    pub server_name: Option<String>, // NULL = local execution
     pub schedule: String,
     pub last_run_at: Option<String>,
     pub next_run_at: Option<String>,

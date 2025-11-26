@@ -373,6 +373,7 @@ async fn get_tasks(state: &AppState) -> Vec<Task> {
         name: t.name,
         description: t.description,
         plugin_id: t.plugin_id,
+        server_name: t.server_name,
         schedule: t.schedule,
         last_run_at: t.last_run_at.map(|dt| dt.to_rfc3339()),
         next_run_at: t.next_run_at.map(|dt| dt.to_rfc3339()),
@@ -589,25 +590,14 @@ async fn plugin_config_save(
         };
         queries::tasks::update_task(db.pool(), task.id, &update_task).await?;
     } else {
-        // Create new task for localhost
-        // TODO: In the future, allow selecting which server(s) to create tasks for
-        let localhost_server = queries::servers::list_servers(db.pool())
-            .await?
-            .into_iter()
-            .find(|s| s.name == "localhost");
-        
-        let (server_id, server_name) = if let Some(server) = localhost_server {
-            (Some(server.id), Some("localhost".to_string()))
-        } else {
-            (None, Some("localhost".to_string()))
-        };
-        
+        // Create new task for local execution (server_id = NULL)
+        // Local plugin tasks run on the SvrCtlRS host without SSH
         let create_task = svrctlrs_database::models::task::CreateTask {
             name: format!("{} Task", id),
             description: Some(format!("Scheduled task for {} plugin", id)),
             plugin_id: id.clone(),
-            server_id,
-            server_name,
+            server_id: None, // NULL = local execution
+            server_name: None, // No server name for local tasks
             schedule: schedule.clone(),
             command: "execute".to_string(),
             args: Some(config_json),

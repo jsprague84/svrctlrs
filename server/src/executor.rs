@@ -45,22 +45,12 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
     }
     
     // Execute based on task type
+    // Clean architecture: NULL server_id = local plugin, Some(id) = remote SSH
     let result = if let Some(server_id) = task.server_id {
-        // Check if this is the localhost server (which should run plugins locally)
-        let db = state.db().await;
-        let server = queries::servers::get_server(db.pool(), server_id)
-            .await
-            .context("Failed to load server")?;
-        
-        if server.name == "localhost" || server.host.is_none() {
-            // Execute plugin locally for localhost
-            execute_plugin_task(state, &task).await
-        } else {
-            // Task requires SSH execution on a remote server
-            execute_remote_task(state, &task, server_id).await
-        }
+        // Task requires SSH execution on a remote server
+        execute_remote_task(state, &task, server_id).await
     } else {
-        // Task is a local plugin execution (legacy tasks without server_id)
+        // Task is a local plugin execution (server_id = NULL)
         execute_plugin_task(state, &task).await
     };
     
@@ -126,8 +116,7 @@ async fn execute_remote_task(state: &AppState, task: &Task, server_id: i64) -> R
     }
     
     // Build SSH configuration
-    // Note: This function should only be called for remote servers with a host configured
-    let host = server.host.ok_or_else(|| anyhow::anyhow!("Server {} has no host configured (should execute locally)", server.name))?;
+    let host = server.host.ok_or_else(|| anyhow::anyhow!("Server {} has no host configured", server.name))?;
     let ssh_config = SshConfig {
         host,
         port: server.port as u16,

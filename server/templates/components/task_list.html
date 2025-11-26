@@ -9,6 +9,7 @@
             <tr>
                 <th>Task</th>
                 <th>Plugin</th>
+                <th>Server</th>
                 <th>Schedule</th>
                 <th>Last Run</th>
                 <th>Next Run</th>
@@ -27,6 +28,14 @@
                     {% endmatch %}
                 </td>
                 <td>{{ task.plugin_id }}</td>
+                <td>
+                    {% match task.server_name %}
+                    {% when Some with (name) %}
+                    <span class="badge">{{ name }}</span>
+                    {% when None %}
+                    <span class="badge badge-primary">Local</span>
+                    {% endmatch %}
+                </td>
                 <td><code>{{ task.schedule }}</code></td>
                 <td>
                     {% match task.last_run_at %}
