@@ -11,7 +11,6 @@ mod routes;
 mod ssh;
 mod state;
 mod templates;
-mod ui_routes;
 
 use config::Config;
 use state::AppState;
@@ -73,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
     state.start_scheduler().await?;
 
     // Build UI router with state
-    let ui_router = ui_routes::ui_routes().with_state(state.clone());
+    let ui_router = routes::ui::ui_routes().with_state(state.clone());
 
     // Build main router
     let app = Router::new()

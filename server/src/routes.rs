@@ -4,6 +4,7 @@ mod api;
 mod notifications;
 mod plugins;
 mod servers;
+pub mod ui;
 mod webhooks;
 
 use axum::Router;

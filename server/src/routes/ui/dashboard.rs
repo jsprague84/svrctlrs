@@ -1,5 +1,6 @@
 //! Dashboard page routes
 
+use askama::Template;
 use axum::{
     extract::State,
     response::Html,

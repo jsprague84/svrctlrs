@@ -1,6 +1,8 @@
 //! UI routes module - HTMX frontend
 
-use axum::{response::IntoResponse, Router};
+use askama::Template;
+use axum::{response::{Html, IntoResponse}, Router};
+use tower_http::services::ServeDir;
 
 use crate::state::AppState;
 use crate::templates::User;
@@ -22,6 +24,13 @@ pub fn ui_routes() -> Router<AppState> {
         .merge(plugins::routes())
         .merge(settings::routes())
         .merge(auth::routes())
+        // Static files
+        .nest_service(
+            "/static",
+            ServeDir::new(
+                std::env::var("STATIC_DIR").unwrap_or_else(|_| "server/static".to_string()),
+            ),
+        )
         // 404 handler
         .fallback(not_found)
 }
