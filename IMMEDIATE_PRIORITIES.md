@@ -5,37 +5,24 @@ Based on user feedback after v1.0.0 release.
 ## 🐛 Critical Issues (Fix First)
 
 ### Issue 1: ntfy Notifications Not Delivering
-**Status:** Needs investigation  
-**Priority:** 🔴 Critical
+**Status:** ✅ **FIXED** (2024-11-26)
+**Priority:** ~~🔴 Critical~~ → ✅ Resolved
 
-**Symptoms:**
-- Gotify notifications working
-- ntfy notifications not arriving
+**Solution:**
+- ntfy backend required authentication (auth token or basicAuth)
+- Added support for auth token in ntfy configuration
+- Notifications now delivering successfully
 
-**Possible Causes:**
-1. Topic configuration incorrect
-2. URL format issue
-3. Authentication failing
-4. Service name mismatch
+**What Was Missing:**
+- ntfy.sh requires authentication for some topics/servers
+- SvrCtlRS ntfy backend now supports:
+  - Bearer token authentication
+  - Basic authentication (username/password)
+  - Anonymous access (for public topics)
 
-**Debug Steps:**
-```bash
-# Check ntfy backend config in database
-docker compose exec svrctlrs sqlite3 /app/data/svrctlrs.db \
-  "SELECT * FROM notification_backends WHERE backend_type='ntfy';"
-
-# Check logs for ntfy errors
-docker compose logs svrctlrs | grep -i ntfy
-
-# Test ntfy manually
-curl -d "Test message" https://ntfy.sh/your-topic
-```
-
-**Fix Plan:**
-1. Add debug logging to ntfy backend
-2. Verify topic format (should be just topic name, not URL)
-3. Check if auth token is needed
-4. Test with curl to verify ntfy server is reachable
+**Verified Working:**
+- ✅ Gotify notifications working
+- ✅ ntfy notifications working with auth
 
 ---
 
@@ -115,7 +102,7 @@ NotificationAction {
 | Speedtest | ✅ | ✅ | Complete |
 | **Notifications** |
 | Gotify | ✅ | ✅ | Complete |
-| ntfy.sh | ✅ | ⚠️ | Needs debugging |
+| ntfy.sh | ✅ | ✅ | **Fixed 2024-11-26** |
 | Action buttons | ✅ | ❌ | Not implemented |
 | **Reports** |
 | Daily summaries | ✅ | ❌ | Not implemented |
@@ -145,8 +132,8 @@ NotificationAction {
 | Charts/graphs | ✅ | ❌ | Not implemented |
 
 **Summary:**
-- ✅ Complete: 15 features
-- ⚠️ Partial: 7 features
+- ✅ Complete: 16 features (+1 ntfy fixed)
+- ⚠️ Partial: 6 features (-1)
 - ❌ Missing: 10 features
 
 ---
@@ -298,7 +285,7 @@ Potential areas:
 
 ## 🐛 Known Issues
 
-1. **ntfy notifications not delivering** - Needs investigation
+1. ~~**ntfy notifications not delivering**~~ - ✅ **FIXED 2024-11-26**
 2. **No status reports when healthy** - By design, needs config option
 3. **No action buttons** - Not implemented yet
 4. **Health plugin is placeholder** - Needs actual metrics collection
