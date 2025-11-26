@@ -63,6 +63,7 @@ svrctlrs/
 - ✅ **REST API**: Full HTTP API for programmatic access
 - ✅ **CLI Tool**: `svrctl` command-line interface
 - ✅ **Notification System**: Rich notifications with action buttons
+- ✅ **Status Reports**: Periodic "all OK" summaries even when healthy
 - ✅ **Database Persistence**: SQLite for historical data
 - ✅ **Mobile Responsive**: Works on desktop and mobile devices
 
@@ -73,6 +74,61 @@ svrctlrs/
 - ✅ **Health Plugin**: System metrics (CPU, memory, disk, network)
 - ✅ **Weather Plugin**: OpenWeatherMap integration (optional)
 - ✅ **Speed Test Plugin**: Ookla speed test monitoring (optional)
+
+### 📊 Status Reports
+
+**Get regular "all systems OK" confirmations even when nothing is wrong!**
+
+SvrCtlRS supports **status report summaries** - periodic health confirmations sent even when your infrastructure is healthy. This gives you peace of mind that monitoring is working, not just silence when things are fine.
+
+**How It Works:**
+- **Alerts**: Sent immediately when issues detected (high CPU, updates available, unhealthy containers)
+- **Summaries**: Sent on schedule when everything is normal (configurable per plugin)
+
+**Example Summary Notifications:**
+
+```
+Docker Health Summary
+📊 All containers healthy ✓
+
+Containers: 19 total, 19 running, 0 stopped
+Average CPU: 12.3% | Average Memory: 45.6%
+All systems operational.
+```
+
+```
+System Health Summary
+📊 System Status ✓
+
+CPU Usage: 15.2%
+Memory Usage: 45.8%
+Disk Usage: 62.1%
+All systems within normal parameters.
+```
+
+```
+Updates Status: localhost
+📊 System Up to Date ✓
+
+Server: localhost
+Package Manager: apt
+Last Checked: 2025-11-26 14:30:00
+```
+
+**Enable Summaries:**
+1. Navigate to **Plugins** page → Click **Configure** on any plugin
+2. Check **"Send summary reports even when healthy"** checkbox
+3. Click **Save Configuration**
+4. Receive regular health confirmations according to schedule
+
+**Default Schedules:**
+- **Docker Health**: Every 5 minutes
+- **System Health**: Every 5 minutes
+- **Updates Check**: Every 6 hours
+- **Updates Report**: Daily at 9 AM (multi-server summary)
+- **Docker Cleanup**: Weekly on Sundays at 2 AM
+
+**See [TEST_SUMMARY_REPORTS.md](./TEST_SUMMARY_REPORTS.md) for testing guide.**
 
 ## 🚀 Quick Start (Docker Compose - Recommended)
 
