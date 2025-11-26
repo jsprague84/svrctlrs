@@ -73,12 +73,36 @@
             </div>
             
             <div class="form-group">
-                <label for="token">Access Token (optional)</label>
+                <label>Authentication (optional)</label>
+                <small class="text-secondary">Choose one method if your topic is protected</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="token">Access Token</label>
                 <input type="text" 
                        id="token" 
                        name="token" 
                        value="{{ config_token }}"
-                       placeholder="For protected topics">
+                       placeholder="Bearer token for protected topics">
+                <small class="text-secondary">OR use username/password below</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" 
+                       id="username" 
+                       name="username" 
+                       value="{{ config_username }}"
+                       placeholder="For Basic Auth">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" 
+                       id="password" 
+                       name="password" 
+                       value="{{ config_password }}"
+                       placeholder="For Basic Auth">
             </div>
         {% endif %}
         
@@ -173,15 +197,38 @@
             </div>
             
             <div class="form-group">
-                <label for="ntfy_token">Access Token (optional)</label>
+                <label>Authentication (optional)</label>
+                <small class="text-secondary">Choose one method if your topic is protected</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="ntfy_token">Access Token</label>
                 <input type="text" 
                        id="ntfy_token" 
                        name="token" 
-                       placeholder="For protected topics"
+                       placeholder="Bearer token for protected topics"
+                       disabled>
+                <small class="text-secondary">OR use username/password below</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="ntfy_username">Username</label>
+                <input type="text" 
+                       id="ntfy_username" 
+                       name="username" 
+                       placeholder="For Basic Auth"
                        disabled>
             </div>
-        </div>
-        
+            
+            <div class="form-group">
+                <label for="ntfy_password">Password</label>
+                <input type="password" 
+                       id="ntfy_password" 
+                       name="password" 
+                       placeholder="For Basic Auth"
+                       disabled>
+            </div>
+        </div>        
         <div class="form-group">
             <label for="priority">Priority (1-10)</label>
             <input type="number" 
@@ -227,6 +274,8 @@
         const ntfyUrl = document.getElementById('ntfy_url');
         const ntfyTopic = document.getElementById('ntfy_topic');
         const ntfyToken = document.getElementById('ntfy_token');
+        const ntfyUsername = document.getElementById('ntfy_username');
+        const ntfyPassword = document.getElementById('ntfy_password');
         
         if (type === 'gotify') {
             // Enable Gotify fields
@@ -240,6 +289,8 @@
             ntfyTopic.disabled = true;
             ntfyTopic.required = false;
             ntfyToken.disabled = true;
+            ntfyUsername.disabled = true;
+            ntfyPassword.disabled = true;
         } else if (type === 'ntfy') {
             // Enable ntfy fields
             ntfyUrl.disabled = false;
@@ -247,6 +298,8 @@
             ntfyTopic.disabled = false;
             ntfyTopic.required = true;
             ntfyToken.disabled = false;
+            ntfyUsername.disabled = false;
+            ntfyPassword.disabled = false;
             // Disable Gotify fields so they don't get submitted
             gotifyUrl.disabled = true;
             gotifyUrl.required = false;
@@ -263,6 +316,8 @@
             ntfyTopic.disabled = true;
             ntfyTopic.required = false;
             ntfyToken.disabled = true;
+            ntfyUsername.disabled = true;
+            ntfyPassword.disabled = true;
         }
     }
     </script>

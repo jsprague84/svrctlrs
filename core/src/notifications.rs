@@ -252,9 +252,18 @@ pub struct NtfyBackend {
     base_url: String,
     /// Service-specific topics: service_name -> topic
     topics: HashMap<String, String>,
-    /// Optional auth token
-    auth_token: Option<String>,
+    /// Authentication method
+    auth: Option<NtfyAuth>,
     debug: bool,
+}
+
+/// ntfy authentication methods
+#[derive(Debug, Clone)]
+pub enum NtfyAuth {
+    /// Bearer token authentication
+    Token(String),
+    /// Basic authentication (username:password)
+    Basic { username: String, password: String },
 }
 
 impl NtfyBackend {
@@ -262,7 +271,25 @@ impl NtfyBackend {
     pub fn new(client: Client) -> Result<Self> {
         let base_url = env::var("NTFY_URL").unwrap_or_else(|_| "https://ntfy.sh".to_string());
 
-        let auth_token = env::var("NTFY_AUTH").ok().filter(|s| !s.trim().is_empty());
+        // Try to load auth from environment
+        let auth = if let Ok(token) = env::var("NTFY_TOKEN") {
+            if !token.trim().is_empty() {
+                Some(NtfyAuth::Token(token.trim().to_string()))
+            } else {
+                None
+            }
+        } else if let (Ok(username), Ok(password)) = (env::var("NTFY_USERNAME"), env::var("NTFY_PASSWORD")) {
+            if !username.trim().is_empty() && !password.trim().is_empty() {
+                Some(NtfyAuth::Basic {
+                    username: username.trim().to_string(),
+                    password: password.trim().to_string(),
+                })
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         let debug = env::var("NTFY_DEBUG")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
@@ -272,7 +299,7 @@ impl NtfyBackend {
             client,
             base_url,
             topics: HashMap::new(),
-            auth_token,
+            auth,
             debug,
         })
     }
@@ -286,9 +313,30 @@ impl NtfyBackend {
             client,
             base_url: url.into(),
             topics,
-            auth_token: None,
+            auth: None,
             debug: false,
         })
+    }
+
+    /// Set authentication for this backend
+    pub fn with_auth(mut self, auth: NtfyAuth) -> Self {
+        self.auth = Some(auth);
+        self
+    }
+
+    /// Set token authentication
+    pub fn with_token(mut self, token: impl Into<String>) -> Self {
+        self.auth = Some(NtfyAuth::Token(token.into()));
+        self
+    }
+
+    /// Set basic authentication
+    pub fn with_basic_auth(mut self, username: impl Into<String>, password: impl Into<String>) -> Self {
+        self.auth = Some(NtfyAuth::Basic {
+            username: username.into(),
+            password: password.into(),
+        });
+        self
     }
 
     /// Register a service-specific topic
@@ -369,9 +417,22 @@ impl NtfyBackend {
         let url = self.base_url.trim_end_matches('/');
         let mut request = self.client.post(url).json(&json_body);
 
-        // Add auth if configured
-        if let Some(token) = &self.auth_token {
-            request = request.header("Authorization", format!("Bearer {}", token));
+        // Add authentication if configured
+        if let Some(auth) = &self.auth {
+            match auth {
+                NtfyAuth::Token(token) => {
+                    request = request.header("Authorization", format!("Bearer {}", token));
+                    if self.debug {
+                        debug!("Using Bearer token authentication");
+                    }
+                }
+                NtfyAuth::Basic { username, password } => {
+                    request = request.basic_auth(username, Some(password));
+                    if self.debug {
+                        debug!("Using Basic authentication with username: {}", username);
+                    }
+                }
+            }
         }
 
         let response = request

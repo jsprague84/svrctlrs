@@ -202,6 +202,8 @@ pub struct NotificationFormTemplate {
     pub config_url: String,
     pub config_token: String,
     pub config_topic: String,
+    pub config_username: String,
+    pub config_password: String,
     pub error: Option<String>,
 }
 
@@ -221,6 +223,8 @@ pub struct CreateNotificationInput {
     pub url: Option<String>,
     pub token: Option<String>,
     pub topic: Option<String>,
+    pub username: Option<String>,
+    pub password: Option<String>,
     pub priority: Option<i32>,
     pub enabled: Option<String>,
 }
@@ -231,6 +235,8 @@ pub struct UpdateNotificationInput {
     pub url: Option<String>,
     pub token: Option<String>,
     pub topic: Option<String>,
+    pub username: Option<String>,
+    pub password: Option<String>,
     pub priority: Option<i32>,
     pub enabled: Option<String>,
 }

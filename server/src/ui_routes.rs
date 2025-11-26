@@ -607,6 +607,8 @@ async fn notification_form_new() -> Result<Html<String>, AppError> {
         config_url: String::new(),
         config_token: String::new(),
         config_topic: String::new(),
+        config_username: String::new(),
+        config_password: String::new(),
         error: None,
     };
     Ok(Html(template.render()?))
@@ -627,12 +629,16 @@ async fn notification_form_edit(
             let config_url = config.get("url").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let config_token = config.get("token").and_then(|v| v.as_str()).unwrap_or("").to_string();
             let config_topic = config.get("topic").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let config_username = config.get("username").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let config_password = config.get("password").and_then(|v| v.as_str()).unwrap_or("").to_string();
             
             let template = NotificationFormTemplate {
                 notification: template_notification,
                 config_url,
                 config_token,
                 config_topic,
+                config_username,
+                config_password,
                 error: None,
             };
             return Ok(Html(template.render()?));
@@ -648,6 +654,8 @@ async fn notification_form_edit(
         config_url: String::new(),
         config_token: String::new(),
         config_topic: String::new(),
+        config_username: String::new(),
+        config_password: String::new(),
         error,
     };
     Ok(Html(template.render()?))
@@ -667,6 +675,8 @@ async fn notification_create(
             config_url: String::new(),
             config_token: String::new(),
             config_topic: String::new(),
+            config_username: String::new(),
+            config_password: String::new(),
             error: Some("Name and backend type are required".to_string()),
         };
         return Ok(Html(template.render()?));
@@ -679,11 +689,30 @@ async fn notification_create(
             "token": input.token.unwrap_or_default(),
         })
     } else {
-        serde_json::json!({
+        // ntfy backend - include username/password if provided
+        let mut config = serde_json::json!({
             "url": input.url.unwrap_or_default(),
             "topic": input.topic.unwrap_or_default(),
-            "token": input.token.unwrap_or_default(),
-        })
+        });
+        
+        // Add token if provided
+        if let Some(token) = input.token {
+            if !token.trim().is_empty() {
+                config["token"] = serde_json::json!(token);
+            }
+        }
+        
+        // Add username/password if provided
+        if let Some(username) = input.username {
+            if !username.trim().is_empty() {
+                config["username"] = serde_json::json!(username);
+                if let Some(password) = input.password {
+                    config["password"] = serde_json::json!(password);
+                }
+            }
+        }
+        
+        config
     };
     
     // Save to database
@@ -743,11 +772,30 @@ async fn notification_update(
             "token": input.token.unwrap_or_default(),
         })
     } else {
-        serde_json::json!({
+        // ntfy backend - include username/password if provided
+        let mut config = serde_json::json!({
             "url": input.url.unwrap_or_default(),
             "topic": input.topic.unwrap_or_default(),
-            "token": input.token.unwrap_or_default(),
-        })
+        });
+        
+        // Add token if provided
+        if let Some(token) = input.token {
+            if !token.trim().is_empty() {
+                config["token"] = serde_json::json!(token);
+            }
+        }
+        
+        // Add username/password if provided
+        if let Some(username) = input.username {
+            if !username.trim().is_empty() {
+                config["username"] = serde_json::json!(username);
+                if let Some(password) = input.password {
+                    config["password"] = serde_json::json!(password);
+                }
+            }
+        }
+        
+        config
     };
     
     // Get backend name for success message

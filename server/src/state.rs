@@ -232,6 +232,22 @@ impl AppState {
             ) {
                 match NtfyBackend::with_url_and_topic(client.clone(), url, topic) {
                     Ok(mut nb) => {
+                        // Add authentication if configured
+                        if let Some(token) = config.get("token").and_then(|v| v.as_str()) {
+                            if !token.trim().is_empty() {
+                                nb = nb.with_token(token);
+                                info!("Configured ntfy with token authentication");
+                            }
+                        } else if let (Some(username), Some(password)) = (
+                            config.get("username").and_then(|v| v.as_str()),
+                            config.get("password").and_then(|v| v.as_str()),
+                        ) {
+                            if !username.trim().is_empty() && !password.trim().is_empty() {
+                                nb = nb.with_basic_auth(username, password);
+                                info!("Configured ntfy with basic authentication (username: {})", username);
+                            }
+                        }
+                        
                         // Register the same topic for all services (they all go to the same topic)
                         // This allows plugins to call send_for_service("weather", msg) etc.
                         let services = vec!["docker", "updates", "health", "weather", "speedtest"];
