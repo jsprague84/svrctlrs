@@ -360,12 +360,12 @@ async fn tasks_page(State(_state): State<AppState>) -> Result<Html<String>, AppE
 async fn task_list(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let tasks = get_tasks(&state).await;
     
-    tracing::debug!("Loaded {} tasks for grouping", tasks.len());
+    tracing::info!("📋 Loaded {} tasks for grouping", tasks.len());
     
     // Group tasks by server
     let mut task_groups = std::collections::HashMap::<Option<String>, Vec<Task>>::new();
     for task in tasks {
-        tracing::debug!("Task '{}' has server_name: {:?}", task.name, task.server_name);
+        tracing::info!("  Task '{}' has server_name: {:?}", task.name, task.server_name);
         task_groups.entry(task.server_name.clone()).or_insert_with(Vec::new).push(task);
     }
     
@@ -384,9 +384,9 @@ async fn task_list(State(state): State<AppState>) -> Result<Html<String>, AppErr
         }
     });
     
-    tracing::debug!("Created {} task groups", groups.len());
+    tracing::info!("📊 Created {} task groups", groups.len());
     for group in &groups {
-        tracing::debug!("  Group '{:?}' has {} tasks", group.server_name, group.tasks.len());
+        tracing::info!("  Group '{:?}' has {} tasks", group.server_name, group.tasks.len());
     }
     
     let template = TaskListTemplate { task_groups: groups };

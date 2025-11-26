@@ -10,9 +10,10 @@
 <div id="task-list" 
      hx-get="/tasks/list" 
      hx-trigger="load, every 5s"
-     hx-swap="innerHTML">
+     hx-swap="innerHTML"
+     hx-indicator=".htmx-indicator">
     <div class="card">
-        <p class="text-secondary">Loading tasks...</p>
+        <p class="text-secondary">Loading tasks... <span class="htmx-indicator">🔄</span></p>
     </div>
 </div>
 
