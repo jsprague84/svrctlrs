@@ -12,7 +12,7 @@ You need to manually mark the migration as complete and ensure the data is corre
 
 ```bash
 cd ~/docker-compose/svrctlrs
-docker-compose down
+docker compose down
 ```
 
 ### Step 2: Find the database file location
@@ -74,13 +74,13 @@ The second query should return `0`.
 ### Step 8: Start the container
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
 ### Step 9: Check logs
 
 ```bash
-docker-compose logs -f
+docker compose logs -f
 ```
 
 The container should start successfully without migration errors.
@@ -91,9 +91,9 @@ If you don't have important data and want to start fresh:
 
 ```bash
 cd ~/docker-compose/svrctlrs
-docker-compose down
+docker compose down
 rm -rf ./data/svrctlrs.db*  # or delete the Docker volume
-docker-compose up -d
+docker compose up -d
 ```
 
 This will create a fresh database with all migrations applied correctly.

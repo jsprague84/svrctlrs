@@ -8,7 +8,7 @@ echo ""
 
 # Stop container
 echo "1. Stopping container..."
-docker-compose down
+docker compose down
 
 # Determine database path
 if [ -f "./data/svrctlrs.db" ]; then
@@ -79,8 +79,8 @@ fi
 # Start container
 echo ""
 echo "7. Starting container..."
-docker-compose up -d
+docker compose up -d
 
 echo ""
-echo "✅ Fix complete! Check logs with: docker-compose logs -f"
+echo "✅ Fix complete! Check logs with: docker compose logs -f"
 
