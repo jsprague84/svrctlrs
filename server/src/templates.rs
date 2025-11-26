@@ -136,12 +136,20 @@ pub struct PluginListTemplate {
 pub struct PluginConfigFormTemplate {
     pub plugin: Plugin,
     pub config_schedule: String,
+    // Weather plugin
     pub config_api_key: String,
     pub config_zip: String,
     pub config_location: String,
     pub config_units: String,
+    // Speedtest plugin
     pub config_min_down: String,
     pub config_min_up: String,
+    // Docker plugin
+    pub config_send_summary: bool,
+    pub config_cpu_warn_pct: String,
+    pub config_mem_warn_pct: String,
+    // Updates plugin
+    pub config_updates_send_summary: bool,
     pub error: Option<String>,
 }
 
@@ -166,6 +174,12 @@ pub struct PluginConfigInput {
     // Speedtest plugin
     pub min_down: Option<String>,
     pub min_up: Option<String>,
+    // Docker plugin
+    pub send_summary: Option<String>, // checkbox "on" or None
+    pub cpu_warn_pct: Option<String>,
+    pub mem_warn_pct: Option<String>,
+    // Updates plugin  
+    pub updates_send_summary: Option<String>, // checkbox "on" or None
 }
 
 // ============================================================================

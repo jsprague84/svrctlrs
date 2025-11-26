@@ -475,12 +475,20 @@ async fn plugin_config_form(
     let template = PluginConfigFormTemplate {
         plugin: db_plugin_to_ui(db_plugin),
         config_schedule: config.get("schedule").and_then(|v| v.as_str()).unwrap_or("0 */5 * * * *").to_string(),
+        // Weather plugin
         config_api_key: config.get("api_key").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         config_zip: config.get("zip").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         config_location: config.get("location").and_then(|v| v.as_str()).unwrap_or("").to_string(),
         config_units: config.get("units").and_then(|v| v.as_str()).unwrap_or("imperial").to_string(),
+        // Speedtest plugin
         config_min_down: config.get("min_down").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_else(|| "100".to_string()),
         config_min_up: config.get("min_up").and_then(|v| v.as_i64()).map(|v| v.to_string()).unwrap_or_else(|| "20".to_string()),
+        // Docker plugin
+        config_send_summary: config.get("send_summary").and_then(|v| v.as_bool()).unwrap_or(false),
+        config_cpu_warn_pct: config.get("cpu_warn_pct").and_then(|v| v.as_f64()).map(|v| v.to_string()).unwrap_or_else(|| "80.0".to_string()),
+        config_mem_warn_pct: config.get("mem_warn_pct").and_then(|v| v.as_f64()).map(|v| v.to_string()).unwrap_or_else(|| "80.0".to_string()),
+        // Updates plugin
+        config_updates_send_summary: config.get("send_summary").and_then(|v| v.as_bool()).unwrap_or(false),
         error: None,
     };
     
@@ -522,6 +530,18 @@ async fn plugin_config_save(
             "schedule": schedule,
             "min_down": input.min_down.and_then(|s| s.parse::<i64>().ok()).unwrap_or(100),
             "min_up": input.min_up.and_then(|s| s.parse::<i64>().ok()).unwrap_or(20),
+        })
+    } else if id == "docker" {
+        serde_json::json!({
+            "schedule": schedule,
+            "send_summary": input.send_summary.is_some(),
+            "cpu_warn_pct": input.cpu_warn_pct.and_then(|s| s.parse::<f64>().ok()).unwrap_or(80.0),
+            "mem_warn_pct": input.mem_warn_pct.and_then(|s| s.parse::<f64>().ok()).unwrap_or(80.0),
+        })
+    } else if id == "updates" {
+        serde_json::json!({
+            "schedule": schedule,
+            "send_summary": input.updates_send_summary.is_some(),
         })
     } else {
         serde_json::json!({
