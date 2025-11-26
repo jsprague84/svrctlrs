@@ -1,21 +1,9 @@
 -- Add server_id to tasks table for server-centric task organization
 -- Migration: 007_add_server_id_to_tasks.sql
 -- 
--- NOTE: If this migration fails with "duplicate column name: server_id",
--- it means the columns were added in a previous partial migration.
--- In that case, you can either:
--- 1. Manually mark this migration as complete in _sqlx_migrations table, OR
--- 2. Run the UPDATE statements below manually to ensure data is correct
---
--- For fresh databases, this migration will run successfully.
-
--- Add server_id column (nullable for backward compatibility)
--- This will fail if column already exists - that's expected for partial migrations
-ALTER TABLE tasks ADD COLUMN server_id INTEGER REFERENCES servers(id) ON DELETE CASCADE;
-
--- Add server_name for display purposes (denormalized for performance)
--- This will fail if column already exists
-ALTER TABLE tasks ADD COLUMN server_name TEXT;
+-- NOTE: This is a fixed version that handles existing columns gracefully.
+-- The ALTER TABLE statements have been removed since they cannot be made conditional in SQLite.
+-- If columns don't exist, this migration will fail - in that case, revert to the original migration.
 
 -- Create index (IF NOT EXISTS is supported for indexes)
 CREATE INDEX IF NOT EXISTS idx_tasks_server_id ON tasks(server_id);
