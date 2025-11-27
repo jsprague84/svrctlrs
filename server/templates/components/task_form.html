@@ -333,6 +333,20 @@ document.addEventListener('close-form', () => {
         formContainer.innerHTML = '';
     }
 });
+
+// Auto-close form after successful task creation
+// When the task list gets updated (swap complete), clear the form
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    // Only trigger for task list updates from the task form
+    if (evt.detail.target.id === 'task-list' && evt.detail.requestConfig.verb === 'post') {
+        // Task was successfully created, close the form
+        const formContainer = document.getElementById('task-form-container');
+        if (formContainer) {
+            formContainer.innerHTML = '';
+            console.log('Task created successfully, form closed');
+        }
+    }
+});
 </script>
 
 <style>
