@@ -240,6 +240,7 @@ async fn task_form_new(State(state): State<AppState>) -> Result<Html<String>, Ap
 
     let plugins: Vec<crate::templates::Plugin> = db_plugins
         .into_iter()
+        .filter(|p| p.id != "ssh") // Exclude virtual SSH plugin from UI
         .map(|p| crate::templates::Plugin {
             id: p.id,
             name: p.name,
@@ -295,6 +296,7 @@ async fn task_create(
 
         let plugins: Vec<crate::templates::Plugin> = db_plugins
             .into_iter()
+            .filter(|p| p.id != "ssh") // Exclude virtual SSH plugin from UI
             .map(|p| crate::templates::Plugin {
                 id: p.id,
                 name: p.name,
