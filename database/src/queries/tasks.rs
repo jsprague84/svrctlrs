@@ -350,16 +350,15 @@ pub async fn record_task_execution_with_stats(
     // Insert execution history
     let result = sqlx::query(
         r#"
-        INSERT INTO task_executions (task_id, plugin_id, server_id, success, output, error, duration_ms, executed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO task_history (task_id, plugin_id, server_id, success, message, duration_ms, timestamp)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         "#,
     )
-    .bind(history_entry.task_id)
+    .bind(history_entry.task_id.to_string())
     .bind(&history_entry.plugin_id)
     .bind(history_entry.server_id)
     .bind(history_entry.success)
     .bind(&history_entry.output)
-    .bind(&history_entry.error)
     .bind(history_entry.duration_ms as i64)
     .bind(history_entry.executed_at)
     .execute(&mut *tx)
