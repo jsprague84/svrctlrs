@@ -228,7 +228,7 @@ impl HealthPlugin {
         metrics.insert("disk_usage_pct".to_string(), disk_usage_pct);
 
         Ok(PluginResult {
-            success: issues.is_empty(),
+            success: true, // Task executed successfully (finding issues is not a failure)
             message,
             data: Some(data),
             metrics: Some(metrics),
