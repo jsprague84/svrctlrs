@@ -7,16 +7,14 @@
 -- Note: SQLite doesn't support RENAME COLUMN directly in older versions,
 -- so we'll use a temporary table approach for compatibility
 
--- IMPORTANT: Disable foreign key constraints during migration
--- The old schema had FK to plugins table, but new schema uses feature_id without FK
-PRAGMA foreign_keys = OFF;
-
 -- Step 1: Create new tasks table with feature_id
+-- Note: Temporarily omitting FK constraints to avoid issues during data migration
+-- FK constraints will be added in a future migration if needed
 CREATE TABLE IF NOT EXISTS tasks_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     description TEXT,
-    feature_id TEXT NOT NULL,  -- Renamed from plugin_id
+    feature_id TEXT NOT NULL,  -- Renamed from plugin_id, no FK (features are code-level)
     server_id INTEGER,  -- NULL for local, server ID for remote
     server_name TEXT,
     command TEXT NOT NULL,
@@ -29,8 +27,9 @@ CREATE TABLE IF NOT EXISTS tasks_new (
     success_count INTEGER NOT NULL DEFAULT 0,
     failure_count INTEGER NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- Note: server_id FK constraint omitted for migration compatibility
+    -- FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
 );
 
 -- Step 2: Copy all data from old table to new table
@@ -73,7 +72,7 @@ CREATE INDEX IF NOT EXISTS idx_tasks_enabled ON tasks(enabled);
 CREATE INDEX IF NOT EXISTS idx_tasks_next_run ON tasks(next_run_at);
 
 -- Step 6: Update task_history table to use feature_id
--- Create new table
+-- Create new table (FK constraints omitted for migration compatibility)
 CREATE TABLE IF NOT EXISTS task_history_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     task_id INTEGER NOT NULL,
@@ -83,9 +82,10 @@ CREATE TABLE IF NOT EXISTS task_history_new (
     output TEXT,
     error TEXT,
     duration_ms INTEGER NOT NULL,
-    executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
-    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE SET NULL
+    executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    -- Note: FK constraints omitted to handle orphaned records in legacy data
+    -- FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    -- FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE SET NULL
 );
 
 -- Copy data from old schema
@@ -118,8 +118,7 @@ ALTER TABLE task_history_new RENAME TO task_history;
 CREATE INDEX IF NOT EXISTS idx_task_history_task_id ON task_history(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_history_executed_at ON task_history(executed_at);
 
--- Re-enable foreign key constraints
-PRAGMA foreign_keys = ON;
-
 -- Note: We're keeping the plugins table for now to maintain backward compatibility
 -- It can be dropped in a future migration once all references are removed
+-- Foreign key constraints have been omitted from this migration to ensure compatibility
+-- They can be re-added in a future migration if needed
