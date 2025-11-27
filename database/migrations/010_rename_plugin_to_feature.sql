@@ -30,15 +30,30 @@ CREATE TABLE IF NOT EXISTS tasks_new (
 );
 
 -- Step 2: Copy all data from old table to new table
+-- Handle old schema which had run_count instead of success_count/failure_count
 INSERT INTO tasks_new (
     id, name, description, feature_id, server_id, server_name, command, args,
     schedule, enabled, timeout, last_run_at, next_run_at,
     success_count, failure_count, created_at, updated_at
 )
 SELECT
-    id, name, description, plugin_id, server_id, server_name, command, args,
-    schedule, enabled, timeout, last_run_at, next_run_at,
-    success_count, failure_count, created_at, updated_at
+    id,
+    name,
+    description,
+    plugin_id as feature_id,
+    server_id,
+    COALESCE(server_name, 'localhost') as server_name,
+    command,
+    args,
+    schedule,
+    enabled,
+    COALESCE(timeout, 300) as timeout,
+    last_run_at,
+    next_run_at,
+    0 as success_count,  -- Old schema had run_count, start fresh with new counters
+    0 as failure_count,
+    created_at,
+    updated_at
 FROM tasks;
 
 -- Step 3: Drop old table
@@ -69,12 +84,26 @@ CREATE TABLE IF NOT EXISTS task_history_new (
     FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE SET NULL
 );
 
--- Copy data
+-- Copy data from old schema
+-- Old schema had: message, stdout, stderr, error_message, timestamp, finished_at
+-- New schema has: output, error, executed_at
 INSERT INTO task_history_new (
     id, task_id, feature_id, server_id, success, output, error, duration_ms, executed_at
 )
 SELECT
-    id, task_id, plugin_id, server_id, success, output, error, duration_ms, executed_at
+    id,
+    task_id,
+    plugin_id as feature_id,
+    server_id,
+    success,
+    COALESCE(stdout, message, '') as output,
+    CASE
+        WHEN error_message IS NOT NULL THEN error_message
+        WHEN stderr IS NOT NULL AND stderr != '' THEN stderr
+        ELSE NULL
+    END as error,
+    COALESCE(duration_ms, 0) as duration_ms,
+    COALESCE(finished_at, timestamp, CURRENT_TIMESTAMP) as executed_at
 FROM task_history;
 
 -- Drop old table and rename
