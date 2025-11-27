@@ -19,6 +19,7 @@ pub fn routes() -> Router<AppState> {
         .route("/tasks", get(tasks_page).post(task_create))
         .route("/tasks/new", get(task_form_new))
         .route("/tasks/list", get(task_list))
+        .route("/tasks/{id}", axum::routing::delete(task_delete))
         .route("/tasks/{id}/run", post(task_run_now))
         .route("/tasks/{id}/schedule", put(task_update_schedule))
 }
@@ -399,6 +400,49 @@ async fn task_create(
     }
 
     // Reload scheduler to pick up new task
+    state.reload_config().await?;
+
+    // Return updated task list
+    let tasks = get_tasks(&state).await;
+    let mut task_groups = std::collections::HashMap::<Option<String>, Vec<Task>>::new();
+    for task in tasks {
+        task_groups
+            .entry(task.server_name.clone())
+            .or_default()
+            .push(task);
+    }
+
+    let mut groups: Vec<crate::templates::TaskGroup> = task_groups
+        .into_iter()
+        .map(|(server_name, tasks)| crate::templates::TaskGroup { server_name, tasks })
+        .collect();
+
+    groups.sort_by(|a, b| match (&a.server_name, &b.server_name) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(a_name), Some(b_name)) => a_name.cmp(b_name),
+    });
+
+    let template = TaskListTemplate {
+        task_groups: groups,
+    };
+    Ok(Html(template.render()?))
+}
+
+/// Delete task handler
+async fn task_delete(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    tracing::info!("Deleting task {}", id);
+
+    let db = state.db().await;
+
+    // Delete the task
+    queries::tasks::delete_task(db.pool(), id).await?;
+
+    // Reload scheduler to remove the task
     state.reload_config().await?;
 
     // Return updated task list
