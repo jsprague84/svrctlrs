@@ -5,7 +5,7 @@ use axum::{
     http::StatusCode,
     response::{Html, IntoResponse},
     routing::{get, post},
-    Json, Router,
+    Form, Json, Router,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -218,11 +218,19 @@ async fn execute_task(
     })))
 }
 
+/// Test notification input
+#[derive(Debug, Deserialize)]
+struct TestNotificationInput {
+    /// Optional topic for ntfy (overrides configured topic)
+    topic: Option<String>,
+}
+
 /// Test notification endpoint - sends a test message to verify backend configuration
 #[instrument(skip(state))]
 async fn test_notification(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    Form(input): Form<TestNotificationInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Html<String>)> {
     use svrctlrs_core::{
         GotifyBackend, NotificationBackend as CoreBackend, NotificationMessage, NtfyBackend,
@@ -292,7 +300,20 @@ async fn test_notification(
         "ntfy" => {
             let config = backend.get_config();
             let url = config["url"].as_str().unwrap_or("https://ntfy.sh");
-            let topic = config["topic"].as_str().unwrap_or_default();
+
+            // Use custom topic if provided, otherwise use configured topic
+            let topic = input
+                .topic
+                .as_ref()
+                .and_then(|t| {
+                    if t.trim().is_empty() {
+                        None
+                    } else {
+                        Some(t.trim())
+                    }
+                })
+                .or_else(|| config["topic"].as_str())
+                .unwrap_or_default();
 
             let mut ntfy = NtfyBackend::with_url_and_topic(client, url, topic)
                 .map_err(|e| {

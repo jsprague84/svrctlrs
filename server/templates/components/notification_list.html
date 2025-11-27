@@ -20,15 +20,29 @@
         
         <div id="test-result-{{ notification.id }}" class="mb-2"></div>
 
-        <div class="flex gap-2 mt-2">
-            <button hx-post="/api/v1/notifications/{{ notification.id }}/test"
-                    hx-target="#test-result-{{ notification.id }}"
-                    hx-swap="innerHTML"
+        <!-- Test notification form -->
+        <form hx-post="/api/v1/notifications/{{ notification.id }}/test"
+              hx-target="#test-result-{{ notification.id }}"
+              hx-swap="innerHTML"
+              class="flex gap-2 mb-2 align-items-end">
+            {% if notification.backend_type == "ntfy" %}
+            <div class="form-group mb-0" style="flex: 1;">
+                <label for="test-topic-{{ notification.id }}" class="text-sm">Test Topic:</label>
+                <input type="text"
+                       name="topic"
+                       id="test-topic-{{ notification.id }}"
+                       placeholder="Leave empty for default topic"
+                       class="form-control form-control-sm">
+            </div>
+            {% endif %}
+            <button type="submit"
                     class="btn btn-primary btn-sm"
                     {% if notification.enabled %}{% else %}disabled{% endif %}>
                 🧪 Test
             </button>
+        </form>
 
+        <div class="flex gap-2">
             <button hx-get="/settings/notifications/{{ notification.id }}/edit"
                     hx-target="#notification-form-container"
                     hx-swap="innerHTML"
