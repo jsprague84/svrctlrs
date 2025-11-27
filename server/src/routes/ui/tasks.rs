@@ -243,7 +243,9 @@ async fn task_form_new(State(state): State<AppState>) -> Result<Html<String>, Ap
         .map(|p| crate::templates::Plugin {
             id: p.id,
             name: p.name,
-            description: p.description.unwrap_or_else(|| "No description".to_string()),
+            description: p
+                .description
+                .unwrap_or_else(|| "No description".to_string()),
             version: "1.0.0".to_string(), // Plugin version not stored in DB
             enabled: p.enabled,
         })
@@ -296,7 +298,9 @@ async fn task_create(
             .map(|p| crate::templates::Plugin {
                 id: p.id,
                 name: p.name,
-                description: p.description.unwrap_or_else(|| "No description".to_string()),
+                description: p
+                    .description
+                    .unwrap_or_else(|| "No description".to_string()),
                 version: "1.0.0".to_string(),
                 enabled: p.enabled,
             })
@@ -320,9 +324,7 @@ async fn task_create(
         let plugin_id = input
             .plugin_id
             .ok_or_else(|| anyhow::anyhow!("Plugin ID required for local tasks"))?;
-        let command = input
-            .command
-            .unwrap_or_else(|| "plugin_task".to_string());
+        let command = input.command.unwrap_or_else(|| "plugin_task".to_string());
 
         (None, Some("localhost".to_string()), plugin_id, command)
     } else {
@@ -372,7 +374,11 @@ async fn task_create(
             }
         }
         Err(e) => {
-            tracing::warn!("Failed to calculate next_run_at for task {}: {}", task_id, e);
+            tracing::warn!(
+                "Failed to calculate next_run_at for task {}: {}",
+                task_id,
+                e
+            );
         }
     }
 
