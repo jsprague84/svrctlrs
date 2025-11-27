@@ -7,6 +7,10 @@
 -- Note: SQLite doesn't support RENAME COLUMN directly in older versions,
 -- so we'll use a temporary table approach for compatibility
 
+-- IMPORTANT: Disable foreign key constraints during migration
+-- The old schema had FK to plugins table, but new schema uses feature_id without FK
+PRAGMA foreign_keys = OFF;
+
 -- Step 1: Create new tasks table with feature_id
 CREATE TABLE IF NOT EXISTS tasks_new (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,6 +117,9 @@ ALTER TABLE task_history_new RENAME TO task_history;
 -- Recreate indexes
 CREATE INDEX IF NOT EXISTS idx_task_history_task_id ON task_history(task_id);
 CREATE INDEX IF NOT EXISTS idx_task_history_executed_at ON task_history(executed_at);
+
+-- Re-enable foreign key constraints
+PRAGMA foreign_keys = ON;
 
 -- Note: We're keeping the plugins table for now to maintain backward compatibility
 -- It can be dropped in a future migration once all references are removed
