@@ -21,7 +21,8 @@ pub struct Task {
     pub updated_at: DateTime<Utc>,
     pub last_run_at: Option<DateTime<Utc>>,
     pub next_run_at: Option<DateTime<Utc>>,
-    pub run_count: i32,
+    pub success_count: i32,
+    pub failure_count: i32,
 }
 
 /// Create task input

@@ -11,7 +11,7 @@ pub async fn list_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
     sqlx::query_as::<_, Task>(
         r#"
         SELECT id, name, description, feature_id, server_id, server_name, schedule, enabled, command, args,
-               timeout, created_at, updated_at, last_run_at, next_run_at, run_count
+               timeout, created_at, updated_at, last_run_at, next_run_at, success_count, failure_count
         FROM tasks
         ORDER BY server_name, name
         "#,
@@ -26,7 +26,7 @@ pub async fn get_task(pool: &Pool<Sqlite>, id: i64) -> Result<Task> {
     sqlx::query_as::<_, Task>(
         r#"
         SELECT id, name, description, feature_id, server_id, server_name, schedule, enabled, command, args,
-               timeout, created_at, updated_at, last_run_at, next_run_at, run_count
+               timeout, created_at, updated_at, last_run_at, next_run_at, success_count, failure_count
         FROM tasks
         WHERE id = ?
         "#,
@@ -156,7 +156,9 @@ pub async fn update_task_next_run(
     Ok(())
 }
 
-/// Update task run info
+/// Update task run info (deprecated - use record_task_execution_with_stats instead)
+/// This function is kept for backward compatibility but doesn't update counters
+#[deprecated(note = "Use record_task_execution_with_stats to properly track success/failure counts")]
 pub async fn update_task_run_info(
     pool: &Pool<Sqlite>,
     id: i64,
@@ -166,8 +168,7 @@ pub async fn update_task_run_info(
         r#"
         UPDATE tasks
         SET last_run_at = CURRENT_TIMESTAMP,
-            next_run_at = ?,
-            run_count = run_count + 1
+            next_run_at = ?
         WHERE id = ?
         "#,
     )
@@ -185,7 +186,7 @@ pub async fn list_enabled_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
     sqlx::query_as::<_, Task>(
         r#"
         SELECT id, name, description, feature_id, server_id, server_name, schedule, enabled, command, args,
-               timeout, created_at, updated_at, last_run_at, next_run_at, run_count
+               timeout, created_at, updated_at, last_run_at, next_run_at, success_count, failure_count
         FROM tasks
         WHERE enabled = 1
         ORDER BY next_run_at
@@ -201,7 +202,7 @@ pub async fn list_tasks_by_plugin(pool: &Pool<Sqlite>, feature_id: &str) -> Resu
     sqlx::query_as::<_, Task>(
         r#"
         SELECT id, name, description, feature_id, server_id, server_name, schedule, enabled, command, args,
-               timeout, created_at, updated_at, last_run_at, next_run_at, run_count
+               timeout, created_at, updated_at, last_run_at, next_run_at, success_count, failure_count
         FROM tasks
         WHERE feature_id = ?
         ORDER BY server_name, name
@@ -218,7 +219,7 @@ pub async fn list_tasks_by_server(pool: &Pool<Sqlite>, server_id: i64) -> Result
     sqlx::query_as::<_, Task>(
         r#"
         SELECT id, name, description, feature_id, server_id, server_name, schedule, enabled, command, args,
-               timeout, created_at, updated_at, last_run_at, next_run_at, run_count
+               timeout, created_at, updated_at, last_run_at, next_run_at, success_count, failure_count
         FROM tasks
         WHERE server_id = ?
         ORDER BY name
@@ -316,19 +317,28 @@ pub async fn record_task_execution(
 }
 
 /// Update task statistics after execution
-pub async fn update_task_stats(pool: &Pool<Sqlite>, task_id: i64) -> Result<()> {
-    sqlx::query(
+pub async fn update_task_stats(pool: &Pool<Sqlite>, task_id: i64, success: bool) -> Result<()> {
+    let update_query = if success {
         r#"
         UPDATE tasks
         SET last_run_at = CURRENT_TIMESTAMP,
-            run_count = run_count + 1
+            success_count = success_count + 1
         WHERE id = ?
-        "#,
-    )
-    .bind(task_id)
-    .execute(pool)
-    .await
-    .map_err(|e| Error::DatabaseError(format!("Failed to update task stats: {}", e)))?;
+        "#
+    } else {
+        r#"
+        UPDATE tasks
+        SET last_run_at = CURRENT_TIMESTAMP,
+            failure_count = failure_count + 1
+        WHERE id = ?
+        "#
+    };
+
+    sqlx::query(update_query)
+        .bind(task_id)
+        .execute(pool)
+        .await
+        .map_err(|e| Error::DatabaseError(format!("Failed to update task stats: {}", e)))?;
 
     Ok(())
 }
@@ -367,19 +377,28 @@ pub async fn record_task_execution_with_stats(
 
     let execution_id = result.last_insert_rowid();
 
-    // Update task statistics
-    sqlx::query(
+    // Update task statistics - increment success_count or failure_count based on result
+    let update_query = if history_entry.success {
         r#"
         UPDATE tasks
         SET last_run_at = CURRENT_TIMESTAMP,
-            run_count = run_count + 1
+            success_count = success_count + 1
         WHERE id = ?
-        "#,
-    )
-    .bind(history_entry.task_id)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| Error::DatabaseError(format!("Failed to update task stats: {}", e)))?;
+        "#
+    } else {
+        r#"
+        UPDATE tasks
+        SET last_run_at = CURRENT_TIMESTAMP,
+            failure_count = failure_count + 1
+        WHERE id = ?
+        "#
+    };
+
+    sqlx::query(update_query)
+        .bind(history_entry.task_id)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| Error::DatabaseError(format!("Failed to update task stats: {}", e)))?;
 
     // Commit transaction
     tx.commit()
