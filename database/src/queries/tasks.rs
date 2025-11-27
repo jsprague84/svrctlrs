@@ -158,7 +158,9 @@ pub async fn update_task_next_run(
 
 /// Update task run info (deprecated - use record_task_execution_with_stats instead)
 /// This function is kept for backward compatibility but doesn't update counters
-#[deprecated(note = "Use record_task_execution_with_stats to properly track success/failure counts")]
+#[deprecated(
+    note = "Use record_task_execution_with_stats to properly track success/failure counts"
+)]
 pub async fn update_task_run_info(
     pool: &Pool<Sqlite>,
     id: i64,
