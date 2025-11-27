@@ -17,8 +17,7 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
     let user = get_user_from_session().await;
 
     // Get stats
-    let plugins = state.plugins.read().await;
-    let enabled_plugins = plugins.plugins().len();
+    let enabled_plugins = 4; // Built-in features: ssh, docker, updates, health
 
     // Get server count from database
     let db = state.db().await;

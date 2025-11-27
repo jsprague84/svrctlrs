@@ -10,7 +10,7 @@ use crate::models::{CreateTask, Task, TaskHistory, TaskHistoryEntry, UpdateTask}
 pub async fn list_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
     sqlx::query_as::<_, Task>(
         r#"
-        SELECT id, name, description, plugin_id, server_id, server_name, schedule, enabled, command, args,
+        SELECT id, name, description, feature_id, server_id, server_name, schedule, enabled, command, args,
                timeout, created_at, updated_at, last_run_at, next_run_at, run_count
         FROM tasks
         ORDER BY server_name, name
@@ -25,7 +25,7 @@ pub async fn list_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
 pub async fn get_task(pool: &Pool<Sqlite>, id: i64) -> Result<Task> {
     sqlx::query_as::<_, Task>(
         r#"
-        SELECT id, name, description, plugin_id, server_id, server_name, schedule, enabled, command, args,
+        SELECT id, name, description, feature_id, server_id, server_name, schedule, enabled, command, args,
                timeout, created_at, updated_at, last_run_at, next_run_at, run_count
         FROM tasks
         WHERE id = ?
@@ -46,13 +46,13 @@ pub async fn create_task(pool: &Pool<Sqlite>, task: &CreateTask) -> Result<i64> 
 
     let result = sqlx::query(
         r#"
-        INSERT INTO tasks (name, description, plugin_id, server_id, server_name, schedule, command, args, timeout)
+        INSERT INTO tasks (name, description, feature_id, server_id, server_name, schedule, command, args, timeout)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&task.name)
     .bind(&task.description)
-    .bind(&task.plugin_id)
+    .bind(&task.feature_id)
     .bind(task.server_id)
     .bind(&task.server_name)
     .bind(&task.schedule)
@@ -184,7 +184,7 @@ pub async fn update_task_run_info(
 pub async fn list_enabled_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
     sqlx::query_as::<_, Task>(
         r#"
-        SELECT id, name, description, plugin_id, server_id, server_name, schedule, enabled, command, args,
+        SELECT id, name, description, feature_id, server_id, server_name, schedule, enabled, command, args,
                timeout, created_at, updated_at, last_run_at, next_run_at, run_count
         FROM tasks
         WHERE enabled = 1
@@ -197,17 +197,17 @@ pub async fn list_enabled_tasks(pool: &Pool<Sqlite>) -> Result<Vec<Task>> {
 }
 
 /// List tasks by plugin
-pub async fn list_tasks_by_plugin(pool: &Pool<Sqlite>, plugin_id: &str) -> Result<Vec<Task>> {
+pub async fn list_tasks_by_plugin(pool: &Pool<Sqlite>, feature_id: &str) -> Result<Vec<Task>> {
     sqlx::query_as::<_, Task>(
         r#"
-        SELECT id, name, description, plugin_id, server_id, server_name, schedule, enabled, command, args,
+        SELECT id, name, description, feature_id, server_id, server_name, schedule, enabled, command, args,
                timeout, created_at, updated_at, last_run_at, next_run_at, run_count
         FROM tasks
-        WHERE plugin_id = ?
+        WHERE feature_id = ?
         ORDER BY server_name, name
         "#,
     )
-    .bind(plugin_id)
+    .bind(feature_id)
     .fetch_all(pool)
     .await
     .map_err(|e| Error::DatabaseError(format!("Failed to list tasks by plugin: {}", e)))
@@ -217,7 +217,7 @@ pub async fn list_tasks_by_plugin(pool: &Pool<Sqlite>, plugin_id: &str) -> Resul
 pub async fn list_tasks_by_server(pool: &Pool<Sqlite>, server_id: i64) -> Result<Vec<Task>> {
     sqlx::query_as::<_, Task>(
         r#"
-        SELECT id, name, description, plugin_id, server_id, server_name, schedule, enabled, command, args,
+        SELECT id, name, description, feature_id, server_id, server_name, schedule, enabled, command, args,
                timeout, created_at, updated_at, last_run_at, next_run_at, run_count
         FROM tasks
         WHERE server_id = ?
@@ -242,7 +242,7 @@ pub async fn get_task_history(
 ) -> Result<Vec<TaskHistory>> {
     sqlx::query_as::<_, TaskHistory>(
         r#"
-        SELECT id, task_id, plugin_id, server_id, started_at, finished_at, duration_ms,
+        SELECT id, task_id, feature_id, server_id, started_at, finished_at, duration_ms,
                status, exit_code, stdout, stderr, error_message, triggered_by, success, message, timestamp
         FROM task_history
         WHERE task_id = ?
@@ -261,7 +261,7 @@ pub async fn get_task_history(
 pub async fn get_recent_task_history(pool: &Pool<Sqlite>, limit: i64) -> Result<Vec<TaskHistory>> {
     sqlx::query_as::<_, TaskHistory>(
         r#"
-        SELECT id, task_id, plugin_id, server_id, started_at, finished_at, duration_ms,
+        SELECT id, task_id, feature_id, server_id, started_at, finished_at, duration_ms,
                status, exit_code, stdout, stderr, error_message, triggered_by, success, message, timestamp
         FROM task_history
         ORDER BY started_at DESC
@@ -297,12 +297,12 @@ pub async fn record_task_execution(
 ) -> Result<i64> {
     let result = sqlx::query(
         r#"
-        INSERT INTO task_history (task_id, plugin_id, server_id, success, message, duration_ms, timestamp)
+        INSERT INTO task_history (task_id, feature_id, server_id, success, message, duration_ms, timestamp)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(entry.task_id.to_string()) // Convert i64 to TEXT
-    .bind(&entry.plugin_id)
+    .bind(&entry.feature_id)
     .bind(entry.server_id)
     .bind(entry.success)
     .bind(&entry.output)
@@ -350,12 +350,12 @@ pub async fn record_task_execution_with_stats(
     // Insert execution history
     let result = sqlx::query(
         r#"
-        INSERT INTO task_history (task_id, plugin_id, server_id, success, message, duration_ms, timestamp)
+        INSERT INTO task_history (task_id, feature_id, server_id, success, message, duration_ms, timestamp)
         VALUES (?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(history_entry.task_id.to_string())
-    .bind(&history_entry.plugin_id)
+    .bind(&history_entry.feature_id)
     .bind(history_entry.server_id)
     .bind(history_entry.success)
     .bind(&history_entry.output)

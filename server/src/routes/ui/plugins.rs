@@ -240,7 +240,7 @@ async fn plugin_config_save(
 
     // Check if task already exists for this plugin
     let existing_tasks = queries::tasks::list_tasks(db.pool()).await?;
-    let existing_task = existing_tasks.iter().find(|t| t.plugin_id == id);
+    let existing_task = existing_tasks.iter().find(|t| t.feature_id == id);
 
     if let Some(task) = existing_task {
         // Update existing task
@@ -260,7 +260,7 @@ async fn plugin_config_save(
         let create_task = svrctlrs_database::models::task::CreateTask {
             name: format!("{} Task", id),
             description: Some(format!("Scheduled task for {} plugin", id)),
-            plugin_id: id.clone(),
+            feature_id: id.clone(),
             server_id: None,   // NULL = local execution
             server_name: None, // No server name for local tasks
             schedule: schedule.clone(),

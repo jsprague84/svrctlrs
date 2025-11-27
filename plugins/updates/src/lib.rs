@@ -3,7 +3,7 @@
 //! Provides OS update detection, execution, and cleanup operations
 
 mod cleanup;
-mod detection;
+pub mod detection;
 mod execution;
 
 use async_trait::async_trait;

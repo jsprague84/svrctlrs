@@ -95,38 +95,13 @@ async fn trigger_task(
         ));
     }
 
-    let registry = state.plugins.read().await;
+    // Legacy endpoint - plugin tasks are now managed in the database
+    warn!(feature_id = %plugin_id, task_id = %task_id, "Deprecated webhook endpoint called");
 
-    let plugin = registry.get(&plugin_id).ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            format!("Plugin {} not found", plugin_id),
-        )
-    })?;
-
-    // Create plugin context
-    let context = svrctlrs_core::PluginContext {
-        servers: state.config.servers.clone(),
-        config: HashMap::new(),
-        notification_manager: state.notification_manager().await,
-    };
-
-    // Execute the task
-    let result = plugin.execute(&task_id, &context).await.map_err(|e| {
-        error!(error = %e, "Webhook task execution failed");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Task execution failed: {}", e),
-        )
-    })?;
-
-    info!(success = result.success, "Webhook task execution completed");
-
-    Ok(Json(json!({
-        "success": result.success,
-        "message": result.message,
-        "executed_at": chrono::Utc::now().to_rfc3339()
-    })))
+    Err::<Json<serde_json::Value>, _>((
+        StatusCode::GONE,
+        format!("This webhook endpoint is deprecated. Feature: {}, Task: {}. Use database-managed tasks instead.", plugin_id, task_id),
+    ))
 }
 
 /// Trigger Docker health check
@@ -245,40 +220,15 @@ async fn trigger_os_cleanup(
 
 /// Helper function to trigger a specific task
 async fn trigger_specific_task(
-    state: AppState,
-    plugin_id: &str,
+    _state: AppState,
+    feature_id: &str,
     task_id: &str,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let registry = state.plugins.read().await;
+    // Legacy function - feature tasks are now managed in the database
+    warn!(feature_id = %feature_id, task_id = %task_id, "Deprecated webhook helper called");
 
-    let plugin = registry.get(plugin_id).ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            format!("Plugin {} not found", plugin_id),
-        )
-    })?;
-
-    // Create plugin context
-    let context = svrctlrs_core::PluginContext {
-        servers: state.config.servers.clone(),
-        config: HashMap::new(),
-        notification_manager: state.notification_manager().await,
-    };
-
-    // Execute the task
-    let result = plugin.execute(task_id, &context).await.map_err(|e| {
-        error!(error = %e, "Webhook task execution failed");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Task execution failed: {}", e),
-        )
-    })?;
-
-    info!(success = result.success, "Webhook task execution completed");
-
-    Ok(Json(json!({
-        "success": result.success,
-        "message": result.message,
-        "executed_at": chrono::Utc::now().to_rfc3339()
-    })))
+    Err::<Json<serde_json::Value>, _>((
+        StatusCode::GONE,
+        format!("This webhook endpoint is deprecated. Feature: {}, Task: {}. Use database-managed tasks instead.", feature_id, task_id),
+    ))
 }

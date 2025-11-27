@@ -17,6 +17,7 @@ use svrctlrs_database::{
 };
 
 use crate::{
+    features::{self, FeatureResult},
     ssh::{self, SshConfig},
     state::AppState,
 };
@@ -45,13 +46,26 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
     }
 
     // Execute based on task type
-    // Clean architecture: NULL server_id = local plugin, Some(id) = remote SSH
-    let result = if let Some(server_id) = task.server_id {
-        // Task requires SSH execution on a remote server
-        execute_remote_task(state, &task, server_id).await
+    // New architecture: Use features with RemoteExecutor for both local and remote
+    let result = if task.feature_id == "ssh" || task.feature_id.starts_with("ssh:") {
+        // Legacy SSH command task - execute directly
+        if let Some(server_id) = task.server_id {
+            execute_remote_task(state, &task, server_id).await
+        } else {
+            anyhow::bail!("SSH tasks require a server_id")
+        }
+    } else if task.feature_id == "docker" {
+        // New feature-based execution: Docker monitoring
+        execute_docker_feature(state, &task).await
+    } else if task.feature_id == "updates" {
+        // New feature-based execution: Updates monitoring
+        execute_updates_feature(state, &task).await
+    } else if task.feature_id == "health" {
+        // New feature-based execution: Health monitoring
+        execute_health_feature(state, &task).await
     } else {
-        // Task is a local plugin execution (server_id = NULL)
-        execute_plugin_task(state, &task).await
+        // Unknown feature - return error
+        anyhow::bail!("Unknown feature: {}. Supported features: ssh, docker, updates, health", task.feature_id)
     };
 
     let duration_ms = start_time.elapsed().as_millis() as u64;
@@ -59,7 +73,7 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
     // Record execution in task history and update stats atomically
     let history_entry = TaskHistoryEntry {
         task_id,
-        plugin_id: task.plugin_id.clone(),
+        feature_id: task.feature_id.clone(),
         server_id: task.server_id,
         success: result.is_ok(),
         output: result.as_ref().map(|s| s.clone()).unwrap_or_default(),
@@ -195,94 +209,162 @@ async fn execute_remote_task(state: &AppState, task: &Task, server_id: i64) -> R
     Ok(output.stdout)
 }
 
-/// Execute a plugin task locally
-async fn execute_plugin_task(state: &AppState, task: &Task) -> Result<String> {
-    use std::collections::HashMap;
-    use svrctlrs_core::{PluginContext, Server as CoreServer};
+/// Helper: Load server from database or create localhost server
+async fn load_server_for_task(state: &AppState, task: &Task) -> Result<svrctlrs_core::Server> {
+    use svrctlrs_core::Server as CoreServer;
+
+    let db = state.db().await;
+    if let Some(server_id) = task.server_id {
+        let db_server = queries::servers::get_server(db.pool(), server_id)
+            .await
+            .context("Failed to load server")?;
+
+        if !db_server.enabled {
+            anyhow::bail!("Server {} is disabled", db_server.name);
+        }
+
+        // Build SSH host string
+        let ssh_host = db_server.host.map(|host| {
+            if db_server.port != 22 {
+                format!("{}@{}:{}", db_server.username, host, db_server.port)
+            } else {
+                format!("{}@{}", db_server.username, host)
+            }
+        });
+
+        Ok(CoreServer {
+            name: db_server.name,
+            ssh_host,
+        })
+    } else {
+        // Localhost execution
+        Ok(CoreServer {
+            name: "localhost".to_string(),
+            ssh_host: None,
+        })
+    }
+}
+
+/// Execute a Docker feature task
+async fn execute_docker_feature(state: &AppState, task: &Task) -> Result<String> {
+    use svrctlrs_core::RemoteExecutor;
 
     debug!(
-        "Executing plugin task {} for plugin {}",
-        task.id, task.plugin_id
+        "Executing Docker feature task {} ({})",
+        task.command, task.name
     );
 
-    // Get plugin from registry
-    let plugins = state.plugins.read().await;
-    let plugin = plugins
-        .get(&task.plugin_id)
-        .ok_or_else(|| anyhow::anyhow!("Plugin '{}' not found in registry", task.plugin_id))?;
+    let server = load_server_for_task(state, task).await?;
+    let ssh_key_path = std::env::var("SSH_KEY_PATH").ok();
+    let executor = RemoteExecutor::new(ssh_key_path);
+    let notify = state.notification_manager().await;
+    let config = features::docker::DockerConfig::default();
 
-    // Build plugin context
-    let db = state.db().await;
-
-    // Load servers from database (all enabled servers)
-    let db_servers = queries::servers::list_servers(db.pool())
-        .await
-        .context("Failed to load servers for plugin execution")?;
-
-    let servers: Vec<CoreServer> = db_servers
-        .into_iter()
-        .filter(|s| s.enabled)
-        .map(|s| {
-            // Build SSH host string (username@host:port)
-            let ssh_host = s.host.map(|host| {
-                if s.port != 22 {
-                    format!("{}@{}:{}", s.username, host, s.port)
-                } else {
-                    format!("{}@{}", s.username, host)
-                }
-            });
-
-            CoreServer {
-                name: s.name,
-                ssh_host,
-            }
-        })
-        .collect();
-
-    // Parse task config from args
-    let config: HashMap<String, String> = if let Some(args_str) = &task.args {
-        match serde_json::from_str::<JsonValue>(args_str) {
-            Ok(JsonValue::Object(obj)) => obj
-                .iter()
-                .filter_map(|(k, v)| v.as_str().map(|s| (k.clone(), s.to_string())))
-                .collect(),
-            _ => HashMap::new(),
+    let result: FeatureResult = match task.command.as_str() {
+        "docker_health" => {
+            features::docker::check_health(&server, &executor, &notify, &config).await?
         }
-    } else {
-        HashMap::new()
+        "docker_images_report" => {
+            features::docker::check_image_updates(&server, &executor, &notify).await?
+        }
+        _ => {
+            anyhow::bail!("Unknown Docker feature task: {}", task.command);
+        }
     };
-
-    // Get notification manager
-    let notification_manager = state.notification_manager().await;
-
-    let context = PluginContext {
-        servers,
-        config,
-        notification_manager,
-    };
-
-    // Execute plugin with the task's command as the plugin task ID
-    // The command field stores the plugin's task ID (e.g., "docker_health", "system_metrics")
-    info!(
-        "Executing plugin {} task '{}' ({})",
-        task.plugin_id, task.command, task.name
-    );
-    let result = plugin
-        .execute(&task.command, &context)
-        .await
-        .context(format!("Plugin {} execution failed", task.plugin_id))?;
 
     if result.success {
-        Ok(format!(
-            "Plugin {} executed successfully: {}",
-            task.plugin_id, result.message
-        ))
+        Ok(result.message)
     } else {
-        anyhow::bail!(
-            "Plugin {} execution failed: {}",
-            task.plugin_id,
-            result.message
-        )
+        anyhow::bail!("Docker feature failed: {}", result.message);
+    }
+}
+
+/// Execute an Updates feature task
+async fn execute_updates_feature(state: &AppState, task: &Task) -> Result<String> {
+    use svrctlrs_core::RemoteExecutor;
+
+    debug!(
+        "Executing Updates feature task {} ({})",
+        task.command, task.name
+    );
+
+    let server = load_server_for_task(state, task).await?;
+    let ssh_key_path = std::env::var("SSH_KEY_PATH").ok();
+    let executor = RemoteExecutor::new(ssh_key_path);
+    let notify = state.notification_manager().await;
+    let config = features::updates::UpdatesConfig::default();
+
+    let result: FeatureResult = match task.command.as_str() {
+        "updates_check" => {
+            features::updates::check_updates(&server, &executor, &notify, &config).await?
+        }
+        "updates_report" => {
+            // Load all enabled servers for multi-server report
+            let db = state.db().await;
+            let db_servers = queries::servers::list_servers(db.pool())
+                .await
+                .context("Failed to load servers")?;
+
+            let servers: Vec<svrctlrs_core::Server> = db_servers
+                .into_iter()
+                .filter(|s| s.enabled)
+                .map(|s| {
+                    let ssh_host = s.host.map(|host| {
+                        if s.port != 22 {
+                            format!("{}@{}:{}", s.username, host, s.port)
+                        } else {
+                            format!("{}@{}", s.username, host)
+                        }
+                    });
+                    svrctlrs_core::Server {
+                        name: s.name,
+                        ssh_host,
+                    }
+                })
+                .collect();
+
+            features::updates::generate_updates_report(&servers, &executor, &notify).await?
+        }
+        _ => {
+            anyhow::bail!("Unknown Updates feature task: {}", task.command);
+        }
+    };
+
+    if result.success {
+        Ok(result.message)
+    } else {
+        anyhow::bail!("Updates feature failed: {}", result.message);
+    }
+}
+
+/// Execute a Health feature task
+async fn execute_health_feature(state: &AppState, task: &Task) -> Result<String> {
+    use svrctlrs_core::RemoteExecutor;
+
+    debug!(
+        "Executing Health feature task {} ({})",
+        task.command, task.name
+    );
+
+    let server = load_server_for_task(state, task).await?;
+    let ssh_key_path = std::env::var("SSH_KEY_PATH").ok();
+    let executor = RemoteExecutor::new(ssh_key_path);
+    let notify = state.notification_manager().await;
+    let config = features::health::HealthConfig::default();
+
+    let result: FeatureResult = match task.command.as_str() {
+        "system_metrics" => {
+            features::health::collect_metrics(&server, &executor, &notify, &config).await?
+        }
+        _ => {
+            anyhow::bail!("Unknown Health feature task: {}", task.command);
+        }
+    };
+
+    if result.success {
+        Ok(result.message)
+    } else {
+        anyhow::bail!("Health feature failed: {}", result.message);
     }
 }
 

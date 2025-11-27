@@ -46,9 +46,6 @@ async fn health_check() -> impl IntoResponse {
 /// Server status endpoint
 #[instrument(skip(state))]
 async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
-    let plugins = state.plugins.read().await;
-    let plugin_count = plugins.plugin_ids().len();
-
     let scheduler = state.scheduler.read().await;
     let scheduler_running = scheduler.is_some();
     let task_count = if let Some(ref sched) = *scheduler {
@@ -57,9 +54,12 @@ async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
         0
     };
 
+    // Built-in features: ssh, docker, updates, health
+    let features_available = 4;
+
     Json(json!({
         "status": "running",
-        "plugins_loaded": plugin_count,
+        "features_available": features_available,
         "scheduler_running": scheduler_running,
         "scheduled_tasks": task_count,
         "servers": state.config.servers.len()
@@ -84,9 +84,6 @@ async fn reload_config(
         )
     })?;
 
-    let plugins = state.plugins.read().await;
-    let plugin_count = plugins.plugin_ids().len();
-
     let scheduler = state.scheduler.read().await;
     let task_count = if let Some(ref sched) = *scheduler {
         sched.task_count().await
@@ -100,10 +97,10 @@ async fn reload_config(
         r#"<div class="alert alert-success">
             ✅ Configuration reloaded successfully!<br>
             <small class="text-secondary">
-                Plugins loaded: {} | Scheduled tasks: {}
+                Scheduled tasks: {}
             </small>
         </div>"#,
-        plugin_count, task_count
+        task_count
     )))
 }
 
@@ -113,58 +110,35 @@ async fn get_metrics(State(state): State<AppState>) -> impl IntoResponse {
     // TODO: Fetch actual metrics from database
     Json(json!({
         "metrics": {
-            "plugins_loaded": state.plugins.read().await.plugin_ids().len(),
+            "features_available": 4, // ssh, docker, updates, health
             "servers_configured": state.config.servers.len()
         }
     }))
 }
 
-/// Get plugin-specific metrics
-#[instrument(skip(state))]
+/// Get feature-specific metrics
+#[instrument(skip(_state))]
 async fn plugin_metrics(
-    State(state): State<AppState>,
-    Path(plugin_id): Path<String>,
+    State(_state): State<AppState>,
+    Path(feature_id): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    let registry = state.plugins.read().await;
-
-    // Verify plugin exists
-    registry.get(&plugin_id).ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            format!("Plugin {} not found", plugin_id),
-        )
-    })?;
-
+    // Legacy endpoint - features are now built-in
     // TODO: Fetch actual metrics from database
     Ok(Json(json!({
-        "plugin_id": plugin_id,
-        "metrics": {}
+        "feature_id": feature_id,
+        "metrics": {},
+        "note": "This endpoint is deprecated. Features are now built-in."
     })))
 }
 
 /// List all scheduled tasks
-#[instrument(skip(state))]
-async fn list_all_tasks(State(state): State<AppState>) -> impl IntoResponse {
-    let registry = state.plugins.read().await;
-    let mut all_tasks = Vec::new();
-
-    for plugin_id in registry.plugin_ids() {
-        if let Some(plugin) = registry.get(&plugin_id) {
-            let tasks = plugin.scheduled_tasks();
-            for task in tasks {
-                all_tasks.push(json!({
-                    "plugin_id": plugin_id,
-                    "task_id": task.id,
-                    "description": task.description,
-                    "schedule": task.schedule,
-                    "enabled": task.enabled
-                }));
-            }
-        }
-    }
-
+#[instrument(skip(_state))]
+async fn list_all_tasks(State(_state): State<AppState>) -> impl IntoResponse {
+    // Legacy endpoint - tasks are now managed in the database
+    // Use /tasks/list or query the database directly
     Json(json!({
-        "tasks": all_tasks
+        "tasks": [],
+        "note": "This endpoint is deprecated. Tasks are now managed in the database. Use the UI or database API."
     }))
 }
 
@@ -176,46 +150,18 @@ struct ExecuteTaskRequest {
 }
 
 /// Execute a task manually
-#[instrument(skip(state))]
+#[instrument(skip(_state))]
 async fn execute_task(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Json(req): Json<ExecuteTaskRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    info!(plugin_id = %req.plugin_id, task_id = %req.task_id, "Manual task execution requested");
+    info!(feature_id = %req.plugin_id, task_id = %req.task_id, "Manual task execution requested (deprecated endpoint)");
 
-    let registry = state.plugins.read().await;
-
-    let plugin = registry.get(&req.plugin_id).ok_or_else(|| {
-        (
-            StatusCode::NOT_FOUND,
-            format!("Plugin {} not found", req.plugin_id),
-        )
-    })?;
-
-    // Create plugin context
-    let context = svrctlrs_core::PluginContext {
-        servers: state.config.servers.clone(),
-        config: HashMap::new(),
-        notification_manager: state.notification_manager().await,
-    };
-
-    // Execute the task
-    let result = plugin.execute(&req.task_id, &context).await.map_err(|e| {
-        error!(error = %e, "Task execution failed");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Task execution failed: {}", e),
-        )
-    })?;
-
-    info!(success = result.success, "Task execution completed");
-
-    Ok(Json(json!({
-        "success": result.success,
-        "message": result.message,
-        "data": result.data,
-        "metrics": result.metrics
-    })))
+    // Legacy endpoint - task execution is now done through database task IDs
+    Err::<Json<serde_json::Value>, _>((
+        StatusCode::GONE,
+        format!("This endpoint is deprecated. Use POST /tasks/<task_id>/run instead. Feature: {}, Task: {}", req.plugin_id, req.task_id)
+    ))
 }
 
 /// Test notification input

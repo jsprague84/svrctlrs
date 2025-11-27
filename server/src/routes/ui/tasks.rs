@@ -96,7 +96,7 @@ async fn get_tasks(state: &AppState) -> Vec<Task> {
             id: t.id,
             name: t.name,
             description: t.description,
-            plugin_id: t.plugin_id,
+            feature_id: t.feature_id,
             server_id: t.server_id,
             server_name: t.server_name,
             command: t.command,
@@ -322,14 +322,14 @@ async fn task_create(
     let db = state.db().await;
 
     // Parse server_id and determine task type
-    let (server_id, server_name, plugin_id, command) = if input.server_id == "local" {
-        // Local plugin task
-        let plugin_id = input
-            .plugin_id
-            .ok_or_else(|| anyhow::anyhow!("Plugin ID required for local tasks"))?;
-        let command = input.command.unwrap_or_else(|| "plugin_task".to_string());
+    let (server_id, server_name, feature_id, command) = if input.server_id == "local" {
+        // Local feature task
+        let feature_id = input
+            .feature_id
+            .ok_or_else(|| anyhow::anyhow!("Feature ID required for local tasks"))?;
+        let command = input.command.unwrap_or_else(|| "feature_task".to_string());
 
-        (None, Some("localhost".to_string()), plugin_id, command)
+        (None, Some("localhost".to_string()), feature_id, command)
     } else {
         // Remote SSH task
         let id = input
@@ -354,7 +354,7 @@ async fn task_create(
     let create_task = svrctlrs_database::models::task::CreateTask {
         name: input.name,
         description: input.description,
-        plugin_id,
+        feature_id,
         server_id,
         server_name,
         schedule: input.schedule.clone(),

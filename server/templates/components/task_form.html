@@ -6,7 +6,7 @@
    Parameters:
    - task: Option<Task> - Existing task for editing (None for new task)
    - servers: Vec<Server> - Available servers for selection
-   - plugins: Vec<Plugin> - Available plugins for local tasks
+   - plugins: Vec<Plugin> - Available features for local tasks
    - error: Option<String> - Validation error message
 #}
 
@@ -80,27 +80,27 @@
             </small>
         </div>
 
-        {# Plugin Selection (shown for local tasks) #}
+        {# Feature Selection (shown for local tasks) #}
         <div class="form-group" x-show="isLocalTask" x-cloak>
-            <label for="task-plugin">Plugin *</label>
-            <select id="task-plugin"
-                    name="plugin_id"
+            <label for="task-feature">Feature *</label>
+            <select id="task-feature"
+                    name="feature_id"
                     :required="isLocalTask"
-                    x-model="selectedPlugin"
+                    x-model="selectedFeature"
                     class="form-control">
-                <option value="">-- Select Plugin --</option>
+                <option value="">-- Select Feature --</option>
                 {% for plugin in plugins %}
                 <option value="{{ plugin.id }}">
                     {{ plugin.name }}
                 </option>
                 {% endfor %}
             </select>
-            <small class="text-secondary">Plugin to execute on the local system</small>
+            <small class="text-secondary">Feature to execute on the local system</small>
         </div>
 
-        {# Plugin Task Selection (shown when plugin selected) #}
-        <div class="form-group" x-show="isLocalTask && selectedPlugin" x-cloak>
-            <label for="task-command">Plugin Task *</label>
+        {# Feature Task Selection (shown when feature selected) #}
+        <div class="form-group" x-show="isLocalTask && selectedFeature" x-cloak>
+            <label for="task-command">Feature Task *</label>
             <input type="text"
                    id="task-command"
                    name="command"
@@ -109,7 +109,7 @@
                    value="{% if let Some(t) = task %}{{ t.command }}{% endif %}"
                    class="form-control">
             <small class="text-secondary">
-                The specific task ID from the plugin (e.g., docker_health, system_metrics)
+                The specific task ID from the feature (e.g., docker_health, system_metrics)
             </small>
         </div>
 
@@ -236,7 +236,7 @@
 function taskForm(isEditing) {
     // Get initial values from the form if editing
     const serverIdSelect = document.querySelector('[name="server_id"]');
-    const pluginIdSelect = document.querySelector('[name="plugin_id"]');
+    const featureIdSelect = document.querySelector('[name="feature_id"]');
     const scheduleInput = document.querySelector('[name="schedule"]');
 
     // Determine initial server selection
@@ -252,17 +252,17 @@ function taskForm(isEditing) {
     {% when None %}
     {% endmatch %}
 
-    // Determine initial plugin selection
-    let initialPluginSelection = '';
+    // Determine initial feature selection
+    let initialFeatureSelection = '';
     {% match task %}
     {% when Some with (t) %}
-        initialPluginSelection = '{{ t.plugin_id }}';
+        initialFeatureSelection = '{{ t.feature_id }}';
     {% when None %}
     {% endmatch %}
 
     return {
         serverSelection: isEditing && initialServerSelection ? initialServerSelection : (serverIdSelect?.value || ''),
-        selectedPlugin: isEditing && initialPluginSelection ? initialPluginSelection : (pluginIdSelect?.value || ''),
+        selectedFeature: isEditing && initialFeatureSelection ? initialFeatureSelection : (featureIdSelect?.value || ''),
         scheduleExpression: scheduleInput?.value || '0 */5 * * * *',
         submitting: false,
 
@@ -271,8 +271,8 @@ function taskForm(isEditing) {
             if (this.serverSelection && serverIdSelect) {
                 serverIdSelect.value = this.serverSelection;
             }
-            if (this.selectedPlugin && pluginIdSelect) {
-                pluginIdSelect.value = this.selectedPlugin;
+            if (this.selectedFeature && featureIdSelect) {
+                featureIdSelect.value = this.selectedFeature;
             }
         },
 
@@ -281,15 +281,15 @@ function taskForm(isEditing) {
         },
 
         updateTaskType() {
-            // Clear plugin selection when switching to remote
+            // Clear feature selection when switching to remote
             if (!this.isLocalTask) {
-                this.selectedPlugin = '';
+                this.selectedFeature = '';
             }
         },
 
         isValid() {
             if (!this.serverSelection) return false;
-            if (this.isLocalTask && !this.selectedPlugin) return false;
+            if (this.isLocalTask && !this.selectedFeature) return false;
             if (!this.scheduleExpression) return false;
             return true;
         },

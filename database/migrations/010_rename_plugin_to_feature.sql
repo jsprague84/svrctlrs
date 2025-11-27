@@ -1,0 +1,89 @@
+-- Rename plugin_id to feature_id in tasks table
+-- This migration supports the architectural shift from plugins to built-in features
+--
+-- Features are now code-level modules (server/src/features/) rather than database-driven plugins
+-- The feature_id column stores the feature type (e.g., "docker", "updates", "health", "ssh")
+
+-- Note: SQLite doesn't support RENAME COLUMN directly in older versions,
+-- so we'll use a temporary table approach for compatibility
+
+-- Step 1: Create new tasks table with feature_id
+CREATE TABLE IF NOT EXISTS tasks_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    feature_id TEXT NOT NULL,  -- Renamed from plugin_id
+    server_id INTEGER,  -- NULL for local, server ID for remote
+    server_name TEXT,
+    command TEXT NOT NULL,
+    args TEXT,
+    schedule TEXT NOT NULL,
+    enabled BOOLEAN NOT NULL DEFAULT 1,
+    timeout INTEGER NOT NULL DEFAULT 300,
+    last_run_at DATETIME,
+    next_run_at DATETIME,
+    success_count INTEGER NOT NULL DEFAULT 0,
+    failure_count INTEGER NOT NULL DEFAULT 0,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE
+);
+
+-- Step 2: Copy all data from old table to new table
+INSERT INTO tasks_new (
+    id, name, description, feature_id, server_id, server_name, command, args,
+    schedule, enabled, timeout, last_run_at, next_run_at,
+    success_count, failure_count, created_at, updated_at
+)
+SELECT
+    id, name, description, plugin_id, server_id, server_name, command, args,
+    schedule, enabled, timeout, last_run_at, next_run_at,
+    success_count, failure_count, created_at, updated_at
+FROM tasks;
+
+-- Step 3: Drop old table
+DROP TABLE tasks;
+
+-- Step 4: Rename new table to tasks
+ALTER TABLE tasks_new RENAME TO tasks;
+
+-- Step 5: Recreate indexes (if they existed)
+CREATE INDEX IF NOT EXISTS idx_tasks_feature_id ON tasks(feature_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_server_id ON tasks(server_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_enabled ON tasks(enabled);
+CREATE INDEX IF NOT EXISTS idx_tasks_next_run ON tasks(next_run_at);
+
+-- Step 6: Update task_history table to use feature_id
+-- Create new table
+CREATE TABLE IF NOT EXISTS task_history_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    feature_id TEXT NOT NULL,  -- Renamed from plugin_id
+    server_id INTEGER,
+    success BOOLEAN NOT NULL,
+    output TEXT,
+    error TEXT,
+    duration_ms INTEGER NOT NULL,
+    executed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE SET NULL
+);
+
+-- Copy data
+INSERT INTO task_history_new (
+    id, task_id, feature_id, server_id, success, output, error, duration_ms, executed_at
+)
+SELECT
+    id, task_id, plugin_id, server_id, success, output, error, duration_ms, executed_at
+FROM task_history;
+
+-- Drop old table and rename
+DROP TABLE task_history;
+ALTER TABLE task_history_new RENAME TO task_history;
+
+-- Recreate indexes
+CREATE INDEX IF NOT EXISTS idx_task_history_task_id ON task_history(task_id);
+CREATE INDEX IF NOT EXISTS idx_task_history_executed_at ON task_history(executed_at);
+
+-- Note: We're keeping the plugins table for now to maintain backward compatibility
+-- It can be dropped in a future migration once all references are removed

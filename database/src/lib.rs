@@ -119,7 +119,7 @@ impl Database {
 pub async fn record_metric(
     pool: &Pool<Sqlite>,
     server_id: i64,
-    plugin_id: &str,
+    feature_id: &str,
     metric_name: &str,
     metric_value: f64,
     metric_unit: Option<&str>,
@@ -132,7 +132,7 @@ pub async fn record_metric(
         "#,
     )
     .bind(server_id)
-    .bind(plugin_id)
+    .bind(feature_id)
     .bind(metric_name)
     .bind(metric_value)
     .bind(metric_unit)
@@ -213,7 +213,7 @@ pub async fn record_webhook(
 pub async fn record_task_execution(
     pool: &Pool<Sqlite>,
     task_id: &str,
-    plugin_id: &str,
+    feature_id: &str,
     server_id: Option<i64>,
     success: bool,
     message: Option<&str>,
@@ -221,12 +221,12 @@ pub async fn record_task_execution(
 ) -> Result<()> {
     sqlx::query(
         r#"
-        INSERT INTO task_history (task_id, plugin_id, server_id, success, message, duration_ms)
+        INSERT INTO task_history (task_id, feature_id, server_id, success, message, duration_ms)
         VALUES (?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(task_id)
-    .bind(plugin_id)
+    .bind(feature_id)
     .bind(server_id)
     .bind(success)
     .bind(message)

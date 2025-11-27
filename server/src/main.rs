@@ -7,6 +7,7 @@
 // Server-side modules
 mod config;
 mod executor;
+mod features;
 mod routes;
 mod ssh;
 mod state;
@@ -62,10 +63,6 @@ async fn main() -> anyhow::Result<()> {
 
     // Initialize application state
     let state = AppState::new(config, database).await?;
-
-    // Initialize plugins
-    info!("Initializing plugins");
-    state.init_plugins().await?;
 
     // Start scheduler
     info!("Starting scheduler");

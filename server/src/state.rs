@@ -1,7 +1,7 @@
 //! Application state
 
 use std::sync::Arc;
-use svrctlrs_core::{NotificationManager, PluginRegistry, RemoteExecutor, Result};
+use svrctlrs_core::{NotificationManager, RemoteExecutor, Result};
 use svrctlrs_database::Database;
 use svrctlrs_scheduler::Scheduler;
 use tokio::sync::RwLock;
@@ -16,7 +16,6 @@ use crate::config::Config;
 pub struct AppState {
     pub config: Arc<Config>,
     pub database: Arc<RwLock<Database>>,
-    pub plugins: Arc<RwLock<PluginRegistry>>,
     pub scheduler: Arc<RwLock<Option<Scheduler>>>,
     #[allow(dead_code)]
     pub executor: Arc<RemoteExecutor>,
@@ -26,85 +25,13 @@ impl AppState {
     /// Create new application state
     pub async fn new(config: Config, database: Database) -> Result<Self> {
         let executor = Arc::new(RemoteExecutor::new(config.ssh_key_path.clone()));
-        let plugins = Arc::new(RwLock::new(PluginRegistry::new()));
 
         Ok(Self {
             config: Arc::new(config),
             database: Arc::new(RwLock::new(database)),
-            plugins,
             scheduler: Arc::new(RwLock::new(None)),
             executor,
         })
-    }
-
-    /// Initialize all plugins based on database configuration
-    pub async fn init_plugins(&self) -> Result<()> {
-        use svrctlrs_database::queries;
-
-        let mut registry = self.plugins.write().await;
-        let db = self.database.read().await;
-
-        // Load enabled plugins from database
-        let enabled_plugins = queries::plugins::list_enabled_plugins(db.pool()).await?;
-
-        tracing::info!(
-            "Loading {} enabled plugins from database",
-            enabled_plugins.len()
-        );
-
-        // Register each enabled plugin
-        for db_plugin in enabled_plugins {
-            match db_plugin.id.as_str() {
-                #[cfg(feature = "plugin-docker")]
-                "docker" => {
-                    tracing::info!("Registering Docker plugin (enabled in database)");
-                    let config = db_plugin.get_config();
-                    let plugin = svrctlrs_plugin_docker::DockerPlugin::from_config(config)?;
-                    registry.register(Box::new(plugin))?;
-                }
-
-                #[cfg(feature = "plugin-updates")]
-                "updates" => {
-                    tracing::info!("Registering Updates plugin (enabled in database)");
-                    let config = db_plugin.get_config();
-                    let plugin = svrctlrs_plugin_updates::UpdatesPlugin::from_config(config)?;
-                    registry.register(Box::new(plugin))?;
-                }
-
-                #[cfg(feature = "plugin-health")]
-                "health" => {
-                    tracing::info!("Registering Health plugin (enabled in database)");
-                    let config = db_plugin.get_config();
-                    let plugin = svrctlrs_plugin_health::HealthPlugin::from_config(config)?;
-                    registry.register(Box::new(plugin))?;
-                }
-
-                #[cfg(feature = "plugin-weather")]
-                "weather" => {
-                    tracing::info!("Registering Weather plugin (enabled in database)");
-                    let config = db_plugin.get_config();
-                    let plugin = svrctlrs_plugin_weather::WeatherPlugin::from_config(config)?;
-                    registry.register(Box::new(plugin))?;
-                }
-
-                #[cfg(feature = "plugin-speedtest")]
-                "speedtest" => {
-                    tracing::info!("Registering SpeedTest plugin (enabled in database)");
-                    let config = db_plugin.get_config();
-                    let plugin = svrctlrs_plugin_speedtest::SpeedTestPlugin::from_config(config)?;
-                    registry.register(Box::new(plugin))?;
-                }
-
-                _ => {
-                    tracing::warn!("Unknown plugin in database: {}", db_plugin.id);
-                }
-            }
-        }
-
-        // Initialize all registered plugins
-        registry.init_all().await?;
-
-        Ok(())
     }
 
     /// Start the scheduler
@@ -230,7 +157,6 @@ impl AppState {
 
     /// Reload configuration from database without restarting
     /// This reloads:
-    /// - Plugin configurations
     /// - Task schedules
     /// - Notification backends
     pub async fn reload_config(&self) -> Result<()> {
@@ -238,16 +164,7 @@ impl AppState {
 
         tracing::info!("🔄 Reloading configuration from database");
 
-        // 1. Reload plugins
-        tracing::info!("Reloading plugins...");
-        {
-            let mut registry = self.plugins.write().await;
-            registry.clear();
-            drop(registry);
-        }
-        self.init_plugins().await?;
-
-        // 2. Reload scheduler tasks
+        // Reload scheduler tasks
         tracing::info!("Reloading scheduler tasks...");
         if let Some(scheduler) = self.scheduler.read().await.as_ref() {
             // Clear existing tasks
