@@ -9,7 +9,7 @@ pub struct Task {
     pub id: i64,
     pub name: String,
     pub description: Option<String>,
-    pub feature_id: String,  // Renamed from plugin_id - identifies the feature (docker, updates, health, ssh)
+    pub feature_id: String, // Renamed from plugin_id - identifies the feature (docker, updates, health, ssh)
     pub server_id: Option<i64>,
     pub server_name: Option<String>, // Denormalized for display
     pub schedule: String,            // Cron expression
@@ -29,7 +29,7 @@ pub struct Task {
 pub struct CreateTask {
     pub name: String,
     pub description: Option<String>,
-    pub feature_id: String,  // Renamed from plugin_id
+    pub feature_id: String, // Renamed from plugin_id
     pub server_id: Option<i64>,
     pub server_name: Option<String>,
     pub schedule: String,
@@ -76,7 +76,7 @@ pub struct TaskHistory {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskHistoryEntry {
     pub task_id: i64,
-    pub feature_id: String,  // Renamed from plugin_id
+    pub feature_id: String, // Renamed from plugin_id
     pub server_id: Option<i64>,
     pub success: bool,
     pub output: String,

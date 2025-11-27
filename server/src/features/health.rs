@@ -13,6 +13,7 @@ use super::FeatureResult;
 
 /// Health monitoring configuration
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct HealthConfig {
     pub send_summary: bool,
     pub cpu_warn_pct: f64,
@@ -33,6 +34,7 @@ impl Default for HealthConfig {
 
 /// System metrics
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct SystemMetrics {
     pub cpu_percent: Option<f64>,
     pub mem_total_mb: u64,
@@ -135,14 +137,8 @@ pub async fn collect_metrics(
     let mut metrics_map = HashMap::new();
     metrics_map.insert("memory_percent".to_string(), metrics.mem_percent);
     metrics_map.insert("disk_percent".to_string(), metrics.disk_percent);
-    metrics_map.insert(
-        "memory_used_mb".to_string(),
-        metrics.mem_used_mb as f64,
-    );
-    metrics_map.insert(
-        "disk_used_gb".to_string(),
-        metrics.disk_used_gb,
-    );
+    metrics_map.insert("memory_used_mb".to_string(), metrics.mem_used_mb as f64);
+    metrics_map.insert("disk_used_gb".to_string(), metrics.disk_used_gb);
     if let Some(load) = metrics.load_1min {
         metrics_map.insert("load_1min".to_string(), load);
     }
@@ -254,7 +250,11 @@ async fn send_health_notification(
     let title = if issues.is_empty() {
         format!("System Health: {} ✓", server_name)
     } else {
-        format!("System Health Alert: {} ({} issues)", server_name, issues.len())
+        format!(
+            "System Health Alert: {} ({} issues)",
+            server_name,
+            issues.len()
+        )
     };
 
     let mut body = String::new();
@@ -274,7 +274,9 @@ async fn send_health_notification(
     ));
 
     // Load
-    if let (Some(l1), Some(l5), Some(l15)) = (metrics.load_1min, metrics.load_5min, metrics.load_15min) {
+    if let (Some(l1), Some(l5), Some(l15)) =
+        (metrics.load_1min, metrics.load_5min, metrics.load_15min)
+    {
         body.push_str(&format!(
             "⚙️  **Load**: {:.2}, {:.2}, {:.2} (1m, 5m, 15m)\n",
             l1, l5, l15

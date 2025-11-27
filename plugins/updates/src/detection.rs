@@ -155,11 +155,12 @@ pub struct UpdateInfo {
 }
 
 /// Update detector
+#[derive(Default)]
 pub struct UpdateDetector {}
 
 impl UpdateDetector {
     pub fn new() -> Self {
-        Self {}
+        Self::default()
     }
 
     /// Detect package manager on a remote server

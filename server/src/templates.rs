@@ -123,7 +123,7 @@ pub struct Task {
     pub id: i64,
     pub name: String,
     pub description: Option<String>,
-    pub feature_id: String,  // Renamed from plugin_id - identifies the feature (docker, updates, health, ssh)
+    pub feature_id: String, // Renamed from plugin_id - identifies the feature (docker, updates, health, ssh)
     pub server_id: Option<i64>,
     pub server_name: Option<String>, // NULL = local execution
     pub command: String,
@@ -138,8 +138,8 @@ pub struct Task {
 pub struct CreateTaskInput {
     pub name: String,
     pub description: Option<String>,
-    pub server_id: String, // "local" or server ID
-    pub feature_id: Option<String>,  // Renamed from plugin_id
+    pub server_id: String,          // "local" or server ID
+    pub feature_id: Option<String>, // Renamed from plugin_id
     pub command: Option<String>,
     pub remote_command: Option<String>,
     pub schedule: String,

@@ -13,6 +13,7 @@ pub mod updates;
 
 /// Feature execution result
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct FeatureResult {
     /// Whether execution was successful
     pub success: bool,
@@ -50,6 +51,7 @@ impl FeatureResult {
     }
 
     /// Create an error result
+    #[allow(dead_code)]
     pub fn error(message: impl Into<String>) -> Self {
         Self {
             success: false,

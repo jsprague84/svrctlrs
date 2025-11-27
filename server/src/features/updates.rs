@@ -15,17 +15,9 @@ use super::FeatureResult;
 use svrctlrs_plugin_updates::detection::{get_checker, PackageManager, UpdateInfo};
 
 /// Updates monitoring configuration
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct UpdatesConfig {
     pub send_summary: bool,
-}
-
-impl Default for UpdatesConfig {
-    fn default() -> Self {
-        Self {
-            send_summary: false,
-        }
-    }
 }
 
 /// Check for available OS updates on a server
@@ -68,10 +60,7 @@ pub async fn check_updates(
     let total_updates = packages.len();
 
     // Count security updates
-    let security_updates = packages
-        .iter()
-        .filter(|p| p.contains("(security)"))
-        .count();
+    let security_updates = packages.iter().filter(|p| p.contains("(security)")).count();
 
     let update_info = UpdateInfo {
         package_manager: package_manager.display_name().to_string(),
@@ -129,7 +118,10 @@ async fn detect_package_manager(
         }
     }
 
-    anyhow::bail!("No supported package manager found on server {}", server.name);
+    anyhow::bail!(
+        "No supported package manager found on server {}",
+        server.name
+    );
 }
 
 /// Send update notification
@@ -238,7 +230,10 @@ pub async fn generate_updates_report(
     executor: &RemoteExecutor,
     notify: &NotificationManager,
 ) -> Result<FeatureResult> {
-    info!("Generating OS update status report for {} servers", servers.len());
+    info!(
+        "Generating OS update status report for {} servers",
+        servers.len()
+    );
 
     if servers.is_empty() {
         return Ok(FeatureResult::success("No servers configured"));
@@ -328,10 +323,7 @@ async fn detect_and_check_updates(
     let output = executor.execute(server, cmd, &args).await?;
     let packages = checker.parse_updates(&output);
 
-    let security_updates = packages
-        .iter()
-        .filter(|p| p.contains("(security)"))
-        .count();
+    let security_updates = packages.iter().filter(|p| p.contains("(security)")).count();
 
     Ok(UpdateInfo {
         package_manager: package_manager.display_name().to_string(),

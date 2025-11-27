@@ -65,7 +65,10 @@ pub async fn execute_task(state: &AppState, task_id: i64) -> Result<TaskExecutio
         execute_health_feature(state, &task).await
     } else {
         // Unknown feature - return error
-        anyhow::bail!("Unknown feature: {}. Supported features: ssh, docker, updates, health", task.feature_id)
+        anyhow::bail!(
+            "Unknown feature: {}. Supported features: ssh, docker, updates, health",
+            task.feature_id
+        )
     };
 
     let duration_ms = start_time.elapsed().as_millis() as u64;

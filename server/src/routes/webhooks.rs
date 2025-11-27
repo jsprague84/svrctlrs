@@ -8,10 +8,8 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
-use serde_json::json;
-use std::collections::HashMap;
 use subtle::ConstantTimeEq;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, info, instrument, warn};
 
 use crate::config::get_secret;
 use crate::state::AppState;
@@ -77,9 +75,9 @@ fn verify_token(headers: &HeaderMap, request_token: &Option<String>) -> bool {
 }
 
 /// Generic task trigger endpoint
-#[instrument(skip(state, headers))]
+#[instrument(skip(_state, headers))]
 async fn trigger_task(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Path((plugin_id, task_id)): Path<(String, String)>,
     headers: HeaderMap,
     Json(req): Json<TriggerRequest>,

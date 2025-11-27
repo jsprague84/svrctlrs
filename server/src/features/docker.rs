@@ -14,6 +14,7 @@ use super::FeatureResult;
 
 /// Docker monitoring configuration
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct DockerConfig {
     pub send_summary: bool,
     pub cpu_warn_pct: f64,
@@ -71,11 +72,7 @@ pub async fn check_health(
 
     // List all containers using docker ps
     let ps_output = executor
-        .execute(
-            server,
-            "docker",
-            &["ps", "-a", "--format", "{{json .}}"],
-        )
+        .execute(server, "docker", &["ps", "-a", "--format", "{{json .}}"])
         .await
         .context("Failed to list Docker containers")?;
 
@@ -131,13 +128,7 @@ pub async fn check_health(
 
     // Send notification if there are issues or if summary is requested
     if containers_with_issues > 0 || config.send_summary {
-        send_health_notification(
-            notify,
-            server,
-            &health_statuses,
-            containers_with_issues,
-        )
-        .await?;
+        send_health_notification(notify, server, &health_statuses, containers_with_issues).await?;
     }
 
     let total = containers.len();
@@ -181,7 +172,10 @@ async fn send_health_notification(
     containers_with_issues: usize,
 ) -> Result<()> {
     let title = if containers_with_issues > 0 {
-        format!("Docker Health Alert: {} - {} issues", server.name, containers_with_issues)
+        format!(
+            "Docker Health Alert: {} - {} issues",
+            server.name, containers_with_issues
+        )
     } else {
         format!("Docker Health Summary: {}", server.name)
     };
@@ -241,11 +235,7 @@ pub async fn check_image_updates(
 
     // List running containers
     let ps_output = executor
-        .execute(
-            server,
-            "docker",
-            &["ps", "--format", "{{json .}}"],
-        )
+        .execute(server, "docker", &["ps", "--format", "{{json .}}"])
         .await
         .context("Failed to list Docker containers")?;
 

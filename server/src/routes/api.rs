@@ -9,7 +9,6 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use std::collections::HashMap;
 use tracing::{debug, error, info, instrument};
 
 use crate::state::AppState;
