@@ -103,6 +103,15 @@ pub struct TaskListTemplate {
     pub task_groups: Vec<TaskGroup>,
 }
 
+#[derive(Template, WebTemplate)]
+#[template(path = "components/task_form.html")]
+pub struct TaskFormTemplate {
+    pub task: Option<Task>,
+    pub servers: Vec<Server>,
+    pub plugins: Vec<Plugin>,
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskGroup {
     pub server_name: Option<String>, // None = Local tasks
@@ -115,10 +124,27 @@ pub struct Task {
     pub name: String,
     pub description: Option<String>,
     pub plugin_id: String,
+    pub server_id: Option<i64>,
     pub server_name: Option<String>, // NULL = local execution
+    pub command: String,
     pub schedule: String,
+    pub enabled: bool,
+    pub timeout: i32,
     pub last_run_at: Option<String>,
     pub next_run_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTaskInput {
+    pub name: String,
+    pub description: Option<String>,
+    pub server_id: String, // "local" or server ID
+    pub plugin_id: Option<String>,
+    pub command: Option<String>,
+    pub remote_command: Option<String>,
+    pub schedule: String,
+    pub timeout: Option<i32>,
+    pub enabled: Option<String>, // checkbox "on" or None
 }
 
 // ============================================================================

@@ -4,7 +4,18 @@
 {% block nav_tasks %}active{% endblock %}
 
 {% block content %}
-<h1>Tasks</h1>
+<div class="flex justify-between items-center mb-4">
+    <h1>Tasks</h1>
+    <button hx-get="/tasks/new"
+            hx-target="#task-form-container"
+            hx-swap="innerHTML"
+            class="btn btn-primary">
+        ➕ Create Task
+    </button>
+</div>
+
+<!-- Task Form Container (for create/edit forms) -->
+<div id="task-form-container"></div>
 
 <!-- Task List (with smart auto-refresh that preserves editing state) -->
 <div id="task-list"

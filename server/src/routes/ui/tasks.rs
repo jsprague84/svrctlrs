@@ -16,7 +16,8 @@ use crate::{state::AppState, templates::*};
 /// Create tasks router
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/tasks", get(tasks_page))
+        .route("/tasks", get(tasks_page).post(task_create))
+        .route("/tasks/new", get(task_form_new))
         .route("/tasks/list", get(task_list))
         .route("/tasks/{id}/run", post(task_run_now))
         .route("/tasks/{id}/schedule", put(task_update_schedule))
@@ -95,8 +96,12 @@ async fn get_tasks(state: &AppState) -> Vec<Task> {
             name: t.name,
             description: t.description,
             plugin_id: t.plugin_id,
+            server_id: t.server_id,
             server_name: t.server_name,
+            command: t.command,
             schedule: t.schedule,
+            enabled: t.enabled,
+            timeout: t.timeout,
             last_run_at: t
                 .last_run_at
                 .map(|dt| dt.format("%Y-%m-%d %I:%M:%S %p").to_string()),
@@ -207,4 +212,211 @@ async fn task_run_now(
             )))
         }
     }
+}
+
+/// Show task creation form
+async fn task_form_new(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+    tracing::info!("Loading task creation form");
+
+    let db = state.db().await;
+
+    // Load available servers and plugins
+    let db_servers = queries::servers::list_servers(db.pool()).await?;
+    let db_plugins = queries::plugins::list_plugins(db.pool()).await?;
+
+    // Convert to template types
+    let servers: Vec<crate::templates::Server> = db_servers
+        .into_iter()
+        .map(|s| crate::templates::Server {
+            id: s.id,
+            name: s.name,
+            host: s.host.unwrap_or_default(),
+            port: Some(s.port),
+            username: Some(s.username),
+            description: s.description,
+            enabled: s.enabled,
+        })
+        .collect();
+
+    let plugins: Vec<crate::templates::Plugin> = db_plugins
+        .into_iter()
+        .map(|p| crate::templates::Plugin {
+            id: p.id,
+            name: p.name,
+            description: p.description.unwrap_or_else(|| "No description".to_string()),
+            version: "1.0.0".to_string(), // Plugin version not stored in DB
+            enabled: p.enabled,
+        })
+        .collect();
+
+    let template = crate::templates::TaskFormTemplate {
+        task: None,
+        servers,
+        plugins,
+        error: None,
+    };
+
+    Ok(Html(template.render()?))
+}
+
+/// Create new task handler
+async fn task_create(
+    State(state): State<AppState>,
+    Form(input): Form<crate::templates::CreateTaskInput>,
+) -> Result<Html<String>, AppError> {
+    use cron::Schedule;
+    use std::str::FromStr;
+
+    tracing::info!("Creating new task: {}", input.name);
+
+    // Validate cron expression
+    if let Err(e) = Schedule::from_str(&input.schedule) {
+        tracing::warn!("Invalid cron expression: {}", e);
+
+        // Return error in form
+        let db = state.db().await;
+        let db_servers = queries::servers::list_servers(db.pool()).await?;
+        let db_plugins = queries::plugins::list_plugins(db.pool()).await?;
+
+        let servers: Vec<crate::templates::Server> = db_servers
+            .into_iter()
+            .map(|s| crate::templates::Server {
+                id: s.id,
+                name: s.name,
+                host: s.host.unwrap_or_default(),
+                port: Some(s.port),
+                username: Some(s.username),
+                description: s.description,
+                enabled: s.enabled,
+            })
+            .collect();
+
+        let plugins: Vec<crate::templates::Plugin> = db_plugins
+            .into_iter()
+            .map(|p| crate::templates::Plugin {
+                id: p.id,
+                name: p.name,
+                description: p.description.unwrap_or_else(|| "No description".to_string()),
+                version: "1.0.0".to_string(),
+                enabled: p.enabled,
+            })
+            .collect();
+
+        let template = crate::templates::TaskFormTemplate {
+            task: None,
+            servers,
+            plugins,
+            error: Some(format!("Invalid cron expression: {}", e)),
+        };
+
+        return Ok(Html(template.render()?));
+    }
+
+    let db = state.db().await;
+
+    // Parse server_id and determine task type
+    let (server_id, server_name, plugin_id, command) = if input.server_id == "local" {
+        // Local plugin task
+        let plugin_id = input
+            .plugin_id
+            .ok_or_else(|| anyhow::anyhow!("Plugin ID required for local tasks"))?;
+        let command = input
+            .command
+            .unwrap_or_else(|| "plugin_task".to_string());
+
+        (None, Some("localhost".to_string()), plugin_id, command)
+    } else {
+        // Remote SSH task
+        let id = input
+            .server_id
+            .parse::<i64>()
+            .map_err(|_| anyhow::anyhow!("Invalid server ID"))?;
+
+        let server = queries::servers::get_server(db.pool(), id).await?;
+        let remote_command = input
+            .remote_command
+            .ok_or_else(|| anyhow::anyhow!("Command required for remote tasks"))?;
+
+        (
+            Some(id),
+            Some(server.name),
+            "ssh".to_string(),
+            remote_command,
+        )
+    };
+
+    // Create task
+    let create_task = svrctlrs_database::models::task::CreateTask {
+        name: input.name,
+        description: input.description,
+        plugin_id,
+        server_id,
+        server_name,
+        schedule: input.schedule.clone(),
+        command,
+        args: None,
+        timeout: input.timeout.unwrap_or(300),
+    };
+
+    let task_id = queries::tasks::create_task(db.pool(), &create_task).await?;
+    tracing::info!("Created task with ID: {}", task_id);
+
+    // Calculate and set next_run_at
+    match queries::tasks::calculate_next_run(&input.schedule) {
+        Ok(next_run) => {
+            if let Err(e) = queries::tasks::update_task_next_run(db.pool(), task_id, next_run).await
+            {
+                tracing::warn!("Failed to update next_run_at for task {}: {}", task_id, e);
+            } else {
+                tracing::debug!("Updated next_run_at for task {}: {:?}", task_id, next_run);
+            }
+        }
+        Err(e) => {
+            tracing::warn!("Failed to calculate next_run_at for task {}: {}", task_id, e);
+        }
+    }
+
+    // If task is enabled, update enabled status
+    if input.enabled.is_some() {
+        let update_task = svrctlrs_database::models::task::UpdateTask {
+            name: None,
+            description: None,
+            schedule: None,
+            enabled: Some(true),
+            command: None,
+            args: None,
+            timeout: None,
+        };
+        queries::tasks::update_task(db.pool(), task_id, &update_task).await?;
+    }
+
+    // Reload scheduler to pick up new task
+    state.reload_config().await?;
+
+    // Return updated task list
+    let tasks = get_tasks(&state).await;
+    let mut task_groups = std::collections::HashMap::<Option<String>, Vec<Task>>::new();
+    for task in tasks {
+        task_groups
+            .entry(task.server_name.clone())
+            .or_default()
+            .push(task);
+    }
+
+    let mut groups: Vec<crate::templates::TaskGroup> = task_groups
+        .into_iter()
+        .map(|(server_name, tasks)| crate::templates::TaskGroup { server_name, tasks })
+        .collect();
+
+    groups.sort_by(|a, b| match (&a.server_name, &b.server_name) {
+        (None, None) => std::cmp::Ordering::Equal,
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(a_name), Some(b_name)) => a_name.cmp(b_name),
+    });
+
+    let template = TaskListTemplate {
+        task_groups: groups,
+    };
+    Ok(Html(template.render()?))
 }
