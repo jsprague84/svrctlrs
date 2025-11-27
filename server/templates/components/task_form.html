@@ -206,8 +206,9 @@
         <div class="flex gap-2 mt-4">
             <button type="submit"
                     class="btn btn-primary"
-                    :disabled="!isValid()">
-                {% if task.is_some() %}Update Task{% else %}Create Task{% endif %}
+                    :disabled="!isValid() || submitting">
+                <span x-show="!submitting">{% if task.is_some() %}Update Task{% else %}Create Task{% endif %}</span>
+                <span x-show="submitting">Creating...</span>
             </button>
 
             <button type="button"
@@ -263,6 +264,7 @@ function taskForm(isEditing) {
         serverSelection: isEditing && initialServerSelection ? initialServerSelection : (serverIdSelect?.value || ''),
         selectedPlugin: isEditing && initialPluginSelection ? initialPluginSelection : (pluginIdSelect?.value || ''),
         scheduleExpression: scheduleInput?.value || '0 */5 * * * *',
+        submitting: false,
 
         init() {
             // Set initial values for select elements
@@ -313,7 +315,12 @@ function taskForm(isEditing) {
         },
 
         handleSubmit(event) {
-            // Additional client-side validation could go here
+            // Prevent double submission
+            if (this.submitting) {
+                event.preventDefault();
+                return false;
+            }
+            this.submitting = true;
             console.log('Submitting task form');
         }
     };
