@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="flex justify-between items-center mb-4">
-    <h1>Tasks</h1>
+    <h1>Tasks <span class="htmx-indicator text-muted">🔄</span></h1>
     <button hx-get="/tasks/new"
             hx-target="#task-form-container"
             hx-swap="innerHTML"
@@ -25,7 +25,7 @@
      hx-indicator=".htmx-indicator"
      data-editing="false">
     <div class="card">
-        <p class="text-secondary">Loading tasks... <span class="htmx-indicator">🔄</span></p>
+        <p class="text-secondary">Loading tasks...</p>
     </div>
 </div>
 
