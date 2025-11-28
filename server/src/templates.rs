@@ -533,6 +533,57 @@ impl From<svrctlrs_database::models::JobTemplate> for JobTemplateDisplay {
     }
 }
 
+// Optimized From implementation using joined data
+impl From<svrctlrs_database::queries::JobTemplateWithNames> for JobTemplateDisplay {
+    fn from(jt: svrctlrs_database::queries::JobTemplateWithNames) -> Self {
+        use chrono::Local;
+
+        let variables_json = jt
+            .variables
+            .as_ref()
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "{}".to_string());
+        let metadata_json = jt
+            .metadata
+            .as_ref()
+            .map(|m| m.to_string())
+            .unwrap_or_else(|| "{}".to_string());
+        let created_at = jt
+            .created_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        let updated_at = jt
+            .updated_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+
+        Self {
+            id: jt.id,
+            name: jt.name,
+            display_name: jt.display_name,
+            description: jt.description,
+            job_type_id: jt.job_type_id,
+            job_type_name: jt.job_type_name, // ✅ From JOIN
+            is_composite: jt.is_composite,
+            command_template_id: jt.command_template_id,
+            variables_json,
+            timeout_seconds: jt.timeout_seconds,
+            retry_count: jt.retry_count,
+            retry_delay_seconds: jt.retry_delay_seconds,
+            notify_on_success: jt.notify_on_success,
+            notify_on_failure: jt.notify_on_failure,
+            notification_policy_id: jt.notification_policy_id,
+            step_count: 0,     // TODO: Count from job_template_steps table
+            schedule_count: 0, // TODO: Count from job_schedules table
+            metadata_json,
+            created_at,
+            updated_at,
+        }
+    }
+}
+
 // ============================================================================
 // Job Template Steps
 // ============================================================================

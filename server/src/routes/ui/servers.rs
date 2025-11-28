@@ -401,34 +401,300 @@ async fn server_test_by_id(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Html<String>, AppError> {
+    use crate::ssh::{test_connection, SshConfig};
+    use std::time::Duration;
+
     let db = state.db().await;
     let server = servers_queries::get_server(db.pool(), id).await?;
 
     tracing::info!("Testing connection for server: {}", server.name);
 
-    // TODO: Implement actual capability detection
-    Ok(Html(format!(
-        r#"<div class="alert alert-info">Connection test for '{}' - Feature coming soon</div>"#,
-        server.name
-    )))
+    // Handle local server
+    if server.is_local {
+        return Ok(Html(
+            r#"<div class="alert alert-success">✅ Local server - no SSH connection needed</div>"#
+                .to_string(),
+        ));
+    }
+
+    // Validate server configuration
+    let hostname = match &server.hostname {
+        Some(h) if !h.is_empty() => h.clone(),
+        _ => {
+            return Ok(Html(
+                r#"<div class="alert alert-error">❌ No hostname configured</div>"#.to_string(),
+            ));
+        }
+    };
+
+    let username = match &server.username {
+        Some(u) if !u.is_empty() => u.clone(),
+        _ => {
+            return Ok(Html(
+                r#"<div class="alert alert-error">❌ No username configured</div>"#.to_string(),
+            ));
+        }
+    };
+
+    // Get credential if specified
+    let key_path = if let Some(cred_id) = server.credential_id {
+        match credentials::get_credential(db.pool(), cred_id).await {
+            Ok(cred) => Some(cred.value),
+            Err(e) => {
+                tracing::warn!("Failed to load credential {}: {}", cred_id, e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Create SSH config
+    let ssh_config = SshConfig {
+        host: hostname.clone(),
+        port: server.port as u16,
+        username: username.clone(),
+        key_path,
+        timeout: Duration::from_secs(10),
+    };
+
+    // Test connection
+    match test_connection(&ssh_config).await {
+        Ok(output) => {
+            // Update server status (success - no error)
+            let _ = servers_queries::update_server_status(db.pool(), id, None).await;
+
+            Ok(Html(format!(
+                r#"<div class="alert alert-success">
+                    ✅ Connection successful!
+                    <br><small class="text-secondary">{}</small>
+                </div>"#,
+                output
+            )))
+        }
+        Err(e) => {
+            tracing::warn!("SSH connection test failed for {}: {}", server.name, e);
+
+            // Update server status (failure - with error)
+            let _ = servers_queries::update_server_status(db.pool(), id, Some(e.to_string())).await;
+
+            Ok(Html(format!(
+                r#"<div class="alert alert-error">
+                    ❌ Connection failed: {}
+                    <br><small class="text-secondary">Check hostname, port, username, and SSH key</small>
+                </div>"#,
+                e
+            )))
+        }
+    }
 }
 
-/// Get server capabilities
+/// Get server capabilities (detect and update)
 async fn server_capabilities(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Html<String>, AppError> {
+    use crate::ssh::{execute_command, SshConfig};
+    use std::time::Duration;
+
     let db = state.db().await;
     let server = servers_queries::get_server(db.pool(), id).await?;
-    let capabilities = servers_queries::get_server_capabilities(db.pool(), id).await?;
 
-    let template = ServerCapabilitiesTemplate {
-        server_id: id,
-        server: server_to_display(&server),
-        capabilities: capabilities.into_iter().map(|c| c.capability).collect(),
+    tracing::info!("Detecting capabilities for server: {}", server.name);
+
+    // Handle local server
+    if server.is_local {
+        // Detect local capabilities
+        let mut detected_caps = Vec::new();
+
+        // Check for Docker
+        if which::which("docker").is_ok() {
+            detected_caps.push(("docker", true));
+            servers_queries::set_server_capability(db.pool(), id, "docker", true, None).await?;
+        }
+
+        // Check for systemd
+        if which::which("systemctl").is_ok() {
+            detected_caps.push(("systemd", true));
+            servers_queries::set_server_capability(db.pool(), id, "systemd", true, None).await?;
+        }
+
+        // Check for package managers
+        if which::which("apt").is_ok() {
+            detected_caps.push(("apt", true));
+            servers_queries::set_server_capability(db.pool(), id, "apt", true, None).await?;
+        }
+        if which::which("dnf").is_ok() {
+            detected_caps.push(("dnf", true));
+            servers_queries::set_server_capability(db.pool(), id, "dnf", true, None).await?;
+        }
+        if which::which("pacman").is_ok() {
+            detected_caps.push(("pacman", true));
+            servers_queries::set_server_capability(db.pool(), id, "pacman", true, None).await?;
+        }
+
+        // Update server metadata with OS info
+        if let Ok(os_info) = std::fs::read_to_string("/etc/os-release") {
+            if let Some(os_name) = os_info.lines().find(|l| l.starts_with("ID=")) {
+                let os_distro = os_name.trim_start_matches("ID=").trim_matches('"');
+                let update = UpdateServer {
+                    os_distro: Some(os_distro.to_string()),
+                    ..Default::default()
+                };
+                let _ = servers_queries::update_server(db.pool(), id, &update).await;
+            }
+        }
+
+        let capabilities = servers_queries::get_server_capabilities(db.pool(), id).await?;
+        let template = ServerCapabilitiesTemplate {
+            server_id: id,
+            server: server_to_display(&server),
+            capabilities: capabilities.into_iter().map(|c| c.capability).collect(),
+        };
+        return Ok(Html(template.render()?));
+    }
+
+    // Remote server - detect via SSH
+    let hostname = match &server.hostname {
+        Some(h) if !h.is_empty() => h.clone(),
+        _ => {
+            return Ok(Html(
+                r#"<div class="alert alert-error">❌ No hostname configured</div>"#.to_string(),
+            ));
+        }
     };
 
-    Ok(Html(template.render()?))
+    let username = match &server.username {
+        Some(u) if !u.is_empty() => u.clone(),
+        _ => {
+            return Ok(Html(
+                r#"<div class="alert alert-error">❌ No username configured</div>"#.to_string(),
+            ));
+        }
+    };
+
+    // Get credential if specified
+    let key_path = if let Some(cred_id) = server.credential_id {
+        match credentials::get_credential(db.pool(), cred_id).await {
+            Ok(cred) => Some(cred.value),
+            Err(e) => {
+                tracing::warn!("Failed to load credential {}: {}", cred_id, e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Create SSH config
+    let ssh_config = SshConfig {
+        host: hostname.clone(),
+        port: server.port as u16,
+        username: username.clone(),
+        key_path,
+        timeout: Duration::from_secs(30),
+    };
+
+    // Detection script
+    let detection_script = r#"
+#!/bin/bash
+echo "OS_RELEASE_START"
+cat /etc/os-release 2>/dev/null || echo "unknown"
+echo "OS_RELEASE_END"
+
+echo "DOCKER=$(command -v docker >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "SYSTEMD=$(command -v systemctl >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "APT=$(command -v apt >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "DNF=$(command -v dnf >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "PACMAN=$(command -v pacman >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "ZFS=$(command -v zpool >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "LVM=$(command -v lvm >/dev/null 2>&1 && echo '1' || echo '0')"
+"#;
+
+    match execute_command(&ssh_config, detection_script).await {
+        Ok(result) => {
+            let output = result.stdout;
+            tracing::debug!("Capability detection output: {}", output);
+
+            // Parse output
+            let mut detected_caps = Vec::new();
+
+            for line in output.lines() {
+                if line.starts_with("DOCKER=1") {
+                    detected_caps.push("docker");
+                    servers_queries::set_server_capability(db.pool(), id, "docker", true, None)
+                        .await?;
+                } else if line.starts_with("SYSTEMD=1") {
+                    detected_caps.push("systemd");
+                    servers_queries::set_server_capability(db.pool(), id, "systemd", true, None)
+                        .await?;
+                } else if line.starts_with("APT=1") {
+                    detected_caps.push("apt");
+                    servers_queries::set_server_capability(db.pool(), id, "apt", true, None)
+                        .await?;
+                } else if line.starts_with("DNF=1") {
+                    detected_caps.push("dnf");
+                    servers_queries::set_server_capability(db.pool(), id, "dnf", true, None)
+                        .await?;
+                } else if line.starts_with("PACMAN=1") {
+                    detected_caps.push("pacman");
+                    servers_queries::set_server_capability(db.pool(), id, "pacman", true, None)
+                        .await?;
+                } else if line.starts_with("ZFS=1") {
+                    detected_caps.push("zfs");
+                    servers_queries::set_server_capability(db.pool(), id, "zfs", true, None)
+                        .await?;
+                } else if line.starts_with("LVM=1") {
+                    detected_caps.push("lvm");
+                    servers_queries::set_server_capability(db.pool(), id, "lvm", true, None)
+                        .await?;
+                }
+            }
+
+            // Parse OS info
+            if let Some(os_start) = output.find("OS_RELEASE_START") {
+                if let Some(os_end) = output.find("OS_RELEASE_END") {
+                    let os_info = &output[os_start + 16..os_end];
+                    if let Some(os_line) = os_info.lines().find(|l| l.starts_with("ID=")) {
+                        let os_distro = os_line.trim_start_matches("ID=").trim_matches('"');
+                        let update = UpdateServer {
+                            os_distro: Some(os_distro.to_string()),
+                            ..Default::default()
+                        };
+                        let _ = servers_queries::update_server(db.pool(), id, &update).await;
+                    }
+                }
+            }
+
+            // Update last seen (success - no error)
+            let _ = servers_queries::update_server_status(db.pool(), id, None).await;
+
+            tracing::info!(
+                "Detected {} capabilities for server '{}'",
+                detected_caps.len(),
+                server.name
+            );
+
+            // Return updated capabilities
+            let capabilities = servers_queries::get_server_capabilities(db.pool(), id).await?;
+            let template = ServerCapabilitiesTemplate {
+                server_id: id,
+                server: server_to_display(&server),
+                capabilities: capabilities.into_iter().map(|c| c.capability).collect(),
+            };
+            Ok(Html(template.render()?))
+        }
+        Err(e) => {
+            tracing::warn!("Capability detection failed for {}: {}", server.name, e);
+            Ok(Html(format!(
+                r#"<div class="alert alert-error">
+                    ❌ Capability detection failed: {}
+                    <br><small class="text-secondary">Ensure SSH connection is working</small>
+                </div>"#,
+                e
+            )))
+        }
+    }
 }
 
 /// Add tag to server input

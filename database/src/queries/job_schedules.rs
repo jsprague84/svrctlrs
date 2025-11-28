@@ -27,6 +27,62 @@ pub async fn list_job_schedules(pool: &Pool<Sqlite>) -> Result<Vec<JobSchedule>>
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
+/// Extended job schedule with joined names for display
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct JobScheduleWithNames {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub job_template_id: i64,
+    pub job_template_name: String,
+    pub server_id: Option<i64>,
+    pub server_name: Option<String>,
+    pub schedule: String,
+    pub enabled: bool,
+    pub timeout_seconds: Option<i32>,
+    pub retry_count: Option<i32>,
+    pub notify_on_success: bool,
+    pub notify_on_failure: bool,
+    pub notification_policy_id: Option<i64>,
+    pub last_run_at: Option<DateTime<Utc>>,
+    pub last_run_status: Option<String>,
+    pub next_run_at: Option<DateTime<Utc>>,
+    pub success_count: i64,
+    pub failure_count: i64,
+    pub metadata: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// List all job schedules with joined names (optimized for display)
+#[instrument(skip(pool))]
+pub async fn list_job_schedules_with_names(
+    pool: &Pool<Sqlite>,
+) -> Result<Vec<JobScheduleWithNames>> {
+    sqlx::query_as::<_, JobScheduleWithNames>(
+        r#"
+        SELECT 
+            js.id, js.name, js.description, js.job_template_id,
+            jt.name as job_template_name,
+            js.server_id,
+            s.name as server_name,
+            js.schedule, js.enabled, js.timeout_seconds, js.retry_count,
+            js.notify_on_success, js.notify_on_failure, js.notification_policy_id,
+            js.last_run_at, js.last_run_status, js.next_run_at,
+            js.success_count, js.failure_count, js.metadata,
+            js.created_at, js.updated_at
+        FROM job_schedules js
+        INNER JOIN job_templates jt ON js.job_template_id = jt.id
+        LEFT JOIN servers s ON js.server_id = s.id
+        ORDER BY js.name
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .context("Failed to list job schedules with names")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
 /// List enabled job schedules only
 #[instrument(skip(pool))]
 pub async fn list_enabled_schedules(pool: &Pool<Sqlite>) -> Result<Vec<JobSchedule>> {

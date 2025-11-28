@@ -33,6 +33,65 @@ pub async fn list_job_runs(pool: &Pool<Sqlite>, limit: i64, offset: i64) -> Resu
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
+/// Extended job run with joined names for display
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct JobRunWithNames {
+    pub id: i64,
+    pub job_schedule_id: Option<i64>,
+    pub job_schedule_name: Option<String>,
+    pub job_template_id: i64,
+    pub job_template_name: String,
+    pub server_id: Option<i64>,
+    pub server_name: Option<String>,
+    pub status: String,
+    pub started_at: chrono::DateTime<Utc>,
+    pub finished_at: Option<chrono::DateTime<Utc>>,
+    pub duration_ms: Option<i64>,
+    pub exit_code: Option<i32>,
+    pub output: Option<String>,
+    pub error: Option<String>,
+    pub retry_attempt: i32,
+    pub is_retry: bool,
+    pub notification_sent: bool,
+    pub notification_error: Option<String>,
+    pub metadata: Option<String>,
+}
+
+/// List recent job runs with joined names (optimized for display)
+#[instrument(skip(pool))]
+pub async fn list_job_runs_with_names(
+    pool: &Pool<Sqlite>,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<JobRunWithNames>> {
+    sqlx::query_as::<_, JobRunWithNames>(
+        r#"
+        SELECT 
+            jr.id, jr.job_schedule_id,
+            js.name as job_schedule_name,
+            jr.job_template_id,
+            jt.name as job_template_name,
+            jr.server_id,
+            s.name as server_name,
+            jr.status, jr.started_at, jr.finished_at, jr.duration_ms, jr.exit_code,
+            jr.output, jr.error, jr.retry_attempt, jr.is_retry,
+            jr.notification_sent, jr.notification_error, jr.metadata
+        FROM job_runs jr
+        INNER JOIN job_templates jt ON jr.job_template_id = jt.id
+        LEFT JOIN job_schedules js ON jr.job_schedule_id = js.id
+        LEFT JOIN servers s ON jr.server_id = s.id
+        ORDER BY jr.started_at DESC
+        LIMIT ? OFFSET ?
+        "#,
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await
+    .context("Failed to list job runs with names")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
 /// Alias for list_job_runs for backwards compatibility
 pub use list_job_runs as list_job_runs_paginated;
 

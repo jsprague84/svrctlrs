@@ -32,6 +32,57 @@ pub async fn list_job_templates(pool: &Pool<Sqlite>) -> Result<Vec<JobTemplate>>
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
+/// Extended job template with joined names for display
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct JobTemplateWithNames {
+    pub id: i64,
+    pub name: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub job_type_id: i64,
+    pub job_type_name: String,
+    pub is_composite: bool,
+    pub command_template_id: Option<i64>,
+    pub command_template_name: Option<String>,
+    pub variables: Option<String>,
+    pub timeout_seconds: i32,
+    pub retry_count: i32,
+    pub retry_delay_seconds: i32,
+    pub notify_on_success: bool,
+    pub notify_on_failure: bool,
+    pub notification_policy_id: Option<i64>,
+    pub metadata: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// List all job templates with joined names (optimized for display)
+#[instrument(skip(pool))]
+pub async fn list_job_templates_with_names(
+    pool: &Pool<Sqlite>,
+) -> Result<Vec<JobTemplateWithNames>> {
+    sqlx::query_as::<_, JobTemplateWithNames>(
+        r#"
+        SELECT 
+            jt.id, jt.name, jt.display_name, jt.description, jt.job_type_id,
+            jtype.name as job_type_name,
+            jt.is_composite, jt.command_template_id,
+            ct.name as command_template_name,
+            jt.variables, jt.timeout_seconds, jt.retry_count, jt.retry_delay_seconds,
+            jt.notify_on_success, jt.notify_on_failure, jt.notification_policy_id,
+            jt.metadata, jt.created_at, jt.updated_at
+        FROM job_templates jt
+        INNER JOIN job_types jtype ON jt.job_type_id = jtype.id
+        LEFT JOIN command_templates ct ON jt.command_template_id = ct.id
+        ORDER BY jt.name
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .context("Failed to list job templates with names")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
 /// Get job template by ID with steps (if composite)
 #[instrument(skip(pool))]
 pub async fn get_job_template(pool: &Pool<Sqlite>, id: i64) -> Result<JobTemplate> {
