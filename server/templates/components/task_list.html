@@ -8,9 +8,9 @@
     <h3>
         {% match group.server_name %}
         {% when Some with (name) %}
-        📡 {{ name }}
+        <i data-lucide="server" style="width: 18px; height: 18px; vertical-align: text-bottom;"></i> {{ name }}
         {% when None %}
-        💻 Local Tasks
+        <i data-lucide="laptop" style="width: 18px; height: 18px; vertical-align: text-bottom;"></i> Local Tasks
         {% endmatch %}
     </h3>
     

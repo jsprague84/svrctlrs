@@ -67,11 +67,11 @@
                 <option value="">-- Select Target --</option>
                 <option value="local"
                         {% if task.is_some() %}{% if task.as_ref().unwrap().server_id.is_none() %}selected{% endif %}{% endif %}>
-                    💻 Local (Plugin Task)
+                    Local (Feature Task)
                 </option>
                 {% for server in servers %}
                 <option value="{{ server.id }}">
-                    📡 {{ server.name }}{% if !server.host.is_empty() %} ({{ server.host }}){% endif %}
+                    {{ server.name }}{% if !server.host.is_empty() %} ({{ server.host }}){% endif %}
                 </option>
                 {% endfor %}
             </select>

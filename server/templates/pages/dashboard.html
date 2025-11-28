@@ -20,7 +20,7 @@
     
     <div class="stat-card">
         <div class="stat-value">{{ stats.enabled_plugins }}</div>
-        <div class="stat-label">Enabled Plugins</div>
+        <div class="stat-label">Enabled Features</div>
     </div>
     
     <div class="stat-card">
@@ -36,9 +36,15 @@
     </div>
     
     <div class="flex gap-2">
-        <a href="/servers" class="btn btn-primary">Manage Servers</a>
-        <a href="/tasks" class="btn btn-primary">View Tasks</a>
-        <a href="/plugins" class="btn btn-primary">Configure Plugins</a>
+        <a href="/servers" class="btn btn-primary">
+            <i data-lucide="server" style="width: 16px; height: 16px;"></i> Manage Servers
+        </a>
+        <a href="/tasks" class="btn btn-primary">
+            <i data-lucide="list-checks" style="width: 16px; height: 16px;"></i> View Tasks
+        </a>
+        <a href="/features" class="btn btn-primary">
+            <i data-lucide="box" style="width: 16px; height: 16px;"></i> Configure Features
+        </a>
     </div>
 </div>
 
