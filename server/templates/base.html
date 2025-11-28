@@ -18,13 +18,27 @@
     <!-- Styles - Technical/Dense Theme (Professional) -->
     <!-- To revert to friendly theme: change to /static/css/styles.css -->
     <link rel="stylesheet" href="/static/css/styles-technical.css">
-    
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
     <!-- Alpine.js for client-side interactivity -->
     <script defer src="/static/js/alpine.min.js"></script>
 
     <!-- HTMX -->
     <script defer src="/static/js/htmx.min.js"></script>
-    
+
+    <!-- Initialize Lucide icons after DOM loads -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            lucide.createIcons();
+        });
+        // Re-initialize icons after HTMX swaps
+        document.body.addEventListener('htmx:afterSwap', function() {
+            lucide.createIcons();
+        });
+    </script>
+
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -32,22 +46,22 @@
         <!-- Header -->
         <header class="header">
             <!-- Mobile menu button -->
-            <button @click="sidebarOpen = !sidebarOpen" 
+            <button @click="sidebarOpen = !sidebarOpen"
                     class="mobile-menu-btn"
                     :aria-label="sidebarOpen ? 'Close menu' : 'Open menu'">
-                ☰
+                <i data-lucide="menu" style="width: 20px; height: 20px;"></i>
             </button>
-            
+
             <a href="/" class="header-title">SvrCtlRS</a>
-            
+
             <div class="header-spacer"></div>
-            
+
             <!-- Theme toggle -->
-            <button @click="theme = theme === 'light' ? 'dark' : 'light'" 
+            <button @click="theme = theme === 'light' ? 'dark' : 'light'"
                     class="btn btn-secondary"
                     title="Toggle theme">
-                <span x-show="theme === 'light'">🌙</span>
-                <span x-show="theme === 'dark'">☀️</span>
+                <span x-show="theme === 'light'"><i data-lucide="moon" style="width: 16px; height: 16px;"></i></span>
+                <span x-show="theme === 'dark'"><i data-lucide="sun" style="width: 16px; height: 16px;"></i></span>
             </button>
             
             {% match user %}
@@ -77,19 +91,19 @@
             <aside class="sidebar" :class="{ 'open': sidebarOpen }">
                 <nav>
                     <a href="/" class="nav-link {% block nav_dashboard %}{% endblock %}">
-                        📊 Dashboard
+                        <i data-lucide="layout-dashboard" style="width: 16px; height: 16px;"></i> Dashboard
                     </a>
                     <a href="/servers" class="nav-link {% block nav_servers %}{% endblock %}">
-                        🖥️ Servers
+                        <i data-lucide="server" style="width: 16px; height: 16px;"></i> Servers
                     </a>
                     <a href="/tasks" class="nav-link {% block nav_tasks %}{% endblock %}">
-                        ⚙️ Tasks
+                        <i data-lucide="list-checks" style="width: 16px; height: 16px;"></i> Tasks
                     </a>
-                    <a href="/plugins" class="nav-link {% block nav_plugins %}{% endblock %}">
-                        🔌 Plugins
+                    <a href="/features" class="nav-link {% block nav_features %}{% endblock %}">
+                        <i data-lucide="box" style="width: 16px; height: 16px;"></i> Features
                     </a>
                     <a href="/settings" class="nav-link {% block nav_settings %}{% endblock %}">
-                        ⚙️ Settings
+                        <i data-lucide="settings" style="width: 16px; height: 16px;"></i> Settings
                     </a>
                 </nav>
             </aside>
