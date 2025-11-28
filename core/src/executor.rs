@@ -1008,16 +1008,20 @@ impl JobExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::sqlite::SqlitePoolOptions;
 
-    #[test]
-    fn test_substitute_variables() {
-        #[allow(invalid_value)]
-        let executor = JobExecutor::new(
-            // We can't easily create a real pool here, but we won't use it in this test
-            unsafe { std::mem::zeroed() },
-            None,
-            DEFAULT_MAX_CONCURRENT_JOBS,
-        );
+    async fn create_test_executor() -> JobExecutor {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect(":memory:")
+            .await
+            .unwrap();
+        JobExecutor::new(pool, None, DEFAULT_MAX_CONCURRENT_JOBS)
+    }
+
+    #[tokio::test]
+    async fn test_substitute_variables() {
+        let executor = create_test_executor().await;
 
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), "test".to_string());
@@ -1028,14 +1032,9 @@ mod tests {
         assert_eq!(result, "echo test has value 123");
     }
 
-    #[test]
-    fn test_substitute_variables_partial() {
-        #[allow(invalid_value)]
-        let executor = JobExecutor::new(
-            unsafe { std::mem::zeroed() },
-            None,
-            DEFAULT_MAX_CONCURRENT_JOBS,
-        );
+    #[tokio::test]
+    async fn test_substitute_variables_partial() {
+        let executor = create_test_executor().await;
 
         let mut vars = HashMap::new();
         vars.insert("name".to_string(), "test".to_string());

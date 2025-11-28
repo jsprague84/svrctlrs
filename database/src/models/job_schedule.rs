@@ -271,7 +271,7 @@ mod tests {
         );
         assert_eq!(
             JobRunStatus::from_str("failure"),
-            Some(JobRunStatus::Failure)
+            Some(JobRunStatus::Failed)
         );
         assert_eq!(
             JobRunStatus::from_str("timeout"),

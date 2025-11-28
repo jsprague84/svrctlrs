@@ -277,11 +277,11 @@ mod tests {
     async fn test_tag_lifecycle() {
         let pool = setup_test_db().await;
 
-        // Create tag
+        // Create tag (use unique name to avoid conflict with seeded tags)
         let input = CreateTag {
-            name: "prod".to_string(),
-            color: Some("#BF616A".to_string()),
-            description: Some("Production servers".to_string()),
+            name: "test-tag".to_string(),
+            color: Some("#A3BE8C".to_string()),
+            description: Some("Test tag".to_string()),
         };
 
         let id = create_tag(&pool, &input).await.unwrap();
@@ -289,8 +289,8 @@ mod tests {
 
         // Get tag
         let tag = get_tag(&pool, id).await.unwrap();
-        assert_eq!(tag.name, "prod");
-        assert_eq!(tag.color, Some("#BF616A".to_string()));
+        assert_eq!(tag.name, "test-tag");
+        assert_eq!(tag.color, Some("#A3BE8C".to_string()));
 
         // Update tag
         let update = UpdateTag {
@@ -317,20 +317,33 @@ mod tests {
     async fn test_server_tags() {
         let pool = setup_test_db().await;
 
-        // Note: Assumes localhost server with id=1 exists from migration
-        let server_id = 1;
+        // Create a test server first (migration 011 doesn't seed servers)
+        let server_input = crate::models::CreateServer {
+            name: "test-server".to_string(),
+            hostname: Some("test.example.com".to_string()),
+            port: 22,
+            username: Some("testuser".to_string()),
+            credential_id: None,
+            description: None,
+            is_local: false,
+            enabled: true,
+            metadata: None,
+        };
+        let server_id = crate::queries::servers::create_server(&pool, &server_input)
+            .await
+            .unwrap();
 
-        // Create tags
+        // Create tags (use unique names to avoid conflict with seeded tags)
         let tag1_input = CreateTag {
-            name: "prod".to_string(),
-            color: Some("#BF616A".to_string()),
+            name: "test-tag-1".to_string(),
+            color: Some("#A3BE8C".to_string()),
             description: None,
         };
         let tag1_id = create_tag(&pool, &tag1_input).await.unwrap();
 
         let tag2_input = CreateTag {
-            name: "docker".to_string(),
-            color: Some("#88C0D0".to_string()),
+            name: "test-tag-2".to_string(),
+            color: Some("#81A1C1".to_string()),
             description: None,
         };
         let tag2_id = create_tag(&pool, &tag2_input).await.unwrap();
@@ -354,6 +367,6 @@ mod tests {
 
         let tags = get_server_tags(&pool, server_id).await.unwrap();
         assert_eq!(tags.len(), 1);
-        assert_eq!(tags[0].name, "prod");
+        assert_eq!(tags[0].name, "test-tag-1");
     }
 }
