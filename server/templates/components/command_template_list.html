@@ -17,15 +17,7 @@
                     <p class="text-secondary" style="font-size: 0.875rem;">{{ d }}</p>
                     {% when None %}
                     {% endmatch %}
-                    <code style="display: block; background: var(--bg); padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.875rem;">{{ ct.command_template }}</code>
-                    {% if !ct.default_args.is_empty() %}
-                    <div class="text-secondary mt-1" style="font-size: 0.875rem;">
-                        <strong>Default Args:</strong>
-                        {% for arg in ct.default_args %}
-                        <code style="background: var(--bg); padding: 0.25rem 0.5rem; border-radius: 3px;">{{ arg.key }}={{ arg.value }}</code>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
+                    <code style="display: block; background: var(--bg); padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.875rem;">{{ ct.command }}</code>
                 </div>
                 <div class="flex gap-1">
                     <button hx-get="/job-types/{{ job_type_id }}/command-templates/{{ ct.id }}/edit"

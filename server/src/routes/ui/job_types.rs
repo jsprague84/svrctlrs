@@ -2,7 +2,8 @@ use askama::Template;
 use axum::{
     extract::{Path, State},
     response::Html,
-    Form,
+    routing::{get, post, put},
+    Form, Router,
 };
 use serde::Deserialize;
 use svrctlrs_database::{
@@ -20,6 +21,18 @@ use crate::{
     },
 };
 
+/// Create job types router
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/job-types", get(job_types_page).post(create_job_type))
+        .route("/job-types/new", get(new_job_type_form))
+        .route("/job-types/list", get(get_job_types_list))
+        .route("/job-types/{id}/edit", get(edit_job_type_form))
+        .route("/job-types/{id}", put(update_job_type).delete(delete_job_type))
+        .route("/job-types/{job_type_id}/command-templates", get(get_command_templates).post(create_command_template))
+        .route("/job-types/{job_type_id}/command-templates/{id}", put(update_command_template).delete(delete_command_template))
+}
+
 // ============================================================================
 // Page Routes
 // ============================================================================
@@ -34,7 +47,10 @@ pub async fn job_types_page(State(state): State<AppState>) -> Result<Html<String
         .map_err(|e| {
             error!(error = %e, "Failed to fetch job types");
             AppError::DatabaseError(e.to_string())
-        })?;
+        })?
+        .into_iter()
+        .map(Into::into)
+        .collect();
 
     let template = JobTypesTemplate {
         user: None, // TODO: Add authentication
@@ -65,7 +81,10 @@ pub async fn get_job_types_list(
         .map_err(|e| {
             error!(error = %e, "Failed to fetch job types");
             AppError::DatabaseError(e.to_string())
-        })?;
+        })?
+        .into_iter()
+        .map(Into::into)
+        .collect();
 
     let template = JobTypeListTemplate { job_types };
 
@@ -115,7 +134,7 @@ pub async fn edit_job_type_form(
         })?;
 
     let template = JobTypeFormTemplate {
-        job_type: Some(job_type),
+        job_type: Some(job_type.into()),
         error: None,
     };
 
@@ -308,7 +327,7 @@ pub async fn update_job_type(
                 .await
                 .map_err(|e| AppError::DatabaseError(e.to_string()))?;
             let template = JobTypeFormTemplate {
-                job_type: Some(job_type),
+                job_type: Some(job_type.into()),
                 error: Some("Display name cannot be empty".to_string()),
             };
             let html = template.render().map_err(|e| {
@@ -383,11 +402,14 @@ pub async fn get_command_templates(
         .map_err(|e| {
             error!(job_type_id, error = %e, "Failed to fetch command templates");
             AppError::DatabaseError(e.to_string())
-        })?;
+        })?
+        .into_iter()
+        .map(Into::into)
+        .collect();
 
     let template = CommandTemplateListTemplate {
         job_type_id,
-        templates,
+        command_templates: templates,
     };
 
     let html = template.render().map_err(|e| {

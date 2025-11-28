@@ -2,7 +2,8 @@ use askama::Template;
 use axum::{
     extract::{Path, State},
     response::Html,
-    Form,
+    routing::{get, post, put},
+    Form, Router,
 };
 use chrono::Utc;
 use serde::Deserialize;
@@ -23,6 +24,27 @@ use crate::{
         GroupedSchedulesTemplate,
     },
 };
+
+/// Create router with all job schedule routes
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        // Main page (also mapped to /tasks for compatibility)
+        .route("/job-schedules", get(job_schedules_page).post(create_job_schedule))
+        .route("/tasks", get(job_schedules_page))
+        // List endpoint
+        .route("/job-schedules/list", get(get_job_schedules_list))
+        // Form endpoints
+        .route("/job-schedules/new", get(new_job_schedule_form))
+        .route("/job-schedules/:id/edit", get(edit_job_schedule_form))
+        // CRUD endpoints
+        .route(
+            "/job-schedules/:id",
+            put(update_job_schedule).delete(delete_job_schedule),
+        )
+        // Action endpoints
+        .route("/job-schedules/:id/run", post(run_job_schedule))
+        .route("/job-schedules/:id/toggle", post(toggle_job_schedule))
+}
 
 // ============================================================================
 // Page Routes

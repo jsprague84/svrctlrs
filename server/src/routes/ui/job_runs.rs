@@ -2,6 +2,8 @@ use askama::Template;
 use axum::{
     extract::{Path, Query, State},
     response::Html,
+    routing::{get, post},
+    Router,
 };
 use chrono::Utc;
 use serde::Deserialize;
@@ -19,6 +21,26 @@ use crate::{
         ServerJobResultsTemplate, ServerJobResultDetailTemplate,
     },
 };
+
+/// Create router with all job run routes
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        // Main page
+        .route("/job-runs", get(job_runs_page))
+        // List and filter endpoints
+        .route("/job-runs/list", get(get_job_runs_list))
+        .route("/job-runs/filter", get(get_filtered_job_runs))
+        .route("/job-runs/stats", get(get_job_run_stats))
+        // Detail endpoints
+        .route("/job-runs/:id", get(get_job_run_detail))
+        .route("/job-runs/:id/results", get(get_job_run_results))
+        .route(
+            "/job-runs/:run_id/results/:result_id",
+            get(get_server_result_detail),
+        )
+        // Action endpoints
+        .route("/job-runs/:id/cancel", post(cancel_job_run))
+}
 
 // ============================================================================
 // Page Routes

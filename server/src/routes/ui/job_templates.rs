@@ -2,12 +2,14 @@ use askama::Template;
 use axum::{
     extract::{Path, State},
     response::Html,
-    Form,
+    routing::{get, post, put},
+    Form, Router,
 };
 use serde::Deserialize;
 use svrctlrs_database::{
-    models::{JobTemplate, JobTemplateStep},
-    queries::{job_templates as queries, job_template_steps as step_queries, job_types},
+    models::{CreateJobTemplate, JobTemplate, JobTemplateStep},
+    queries::job_templates as queries,
+    queries::job_types,
 };
 use tracing::{error, info, instrument, warn};
 
@@ -19,6 +21,36 @@ use crate::{
         JobTemplateStepFormTemplate, JobTemplateStepListTemplate,
     },
 };
+
+/// Create router with all job template routes
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        // Main page
+        .route("/job-templates", get(job_templates_page).post(create_job_template))
+        // List endpoint
+        .route("/job-templates/list", get(get_job_templates_list))
+        // Form endpoints
+        .route("/job-templates/new", get(new_job_template_form))
+        .route("/job-templates/:id/edit", get(edit_job_template_form))
+        // CRUD endpoints
+        .route(
+            "/job-templates/:id",
+            put(update_job_template).delete(delete_job_template),
+        )
+        // Template steps
+        .route(
+            "/job-templates/:template_id/steps",
+            get(get_template_steps).post(create_template_step),
+        )
+        .route(
+            "/job-templates/:template_id/steps/:step_id",
+            put(update_template_step).delete(delete_template_step),
+        )
+        .route(
+            "/job-templates/:template_id/steps/reorder",
+            post(reorder_template_steps),
+        )
+}
 
 // ============================================================================
 // Page Routes

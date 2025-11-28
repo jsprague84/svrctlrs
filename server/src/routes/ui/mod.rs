@@ -10,11 +10,12 @@ use crate::templates::User;
 pub mod auth;
 pub mod credentials;
 pub mod dashboard;
-// TODO: Re-enable these routes after fixing missing imports/queries
+// TODO: Fix these routes to match new database query signatures
 // pub mod job_runs;
 // pub mod job_schedules;
 // pub mod job_templates;
-// pub mod job_types;
+pub mod job_types;
+// TODO: Fix NotificationPolicies template errors before enabling
 // pub mod notifications;
 pub mod servers;
 pub mod settings;
@@ -29,12 +30,13 @@ pub fn ui_routes() -> Router<AppState> {
         .merge(servers::routes())
         .merge(credentials::routes())
         .merge(tags::routes())
-        // Jobs - TODO: Re-enable after fixing imports
-        // .merge(job_types::routes())
+        // Jobs
+        .merge(job_types::routes())
+        // TODO: Fix these routes to match new database query signatures
         // .merge(job_templates::routes())
         // .merge(job_schedules::routes())
         // .merge(job_runs::routes())
-        // Notifications - TODO: Re-enable after fixing imports
+        // Notifications (TODO: Fix template errors)
         // .merge(notifications::routes())
         // Settings
         .merge(settings::routes())
