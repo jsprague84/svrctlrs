@@ -5,12 +5,12 @@
 
 {% block content %}
 <div class="flex justify-between items-center mb-4">
-    <h1>Tasks <span class="htmx-indicator text-muted">🔄</span></h1>
+    <h1>Tasks <span class="htmx-indicator text-muted"><i data-lucide="loader-2" style="width: 16px; height: 16px;"></i></span></h1>
     <button hx-get="/tasks/new"
             hx-target="#task-form-container"
             hx-swap="innerHTML"
             class="btn btn-primary">
-        ➕ Create Task
+        <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Create Task
     </button>
 </div>
 

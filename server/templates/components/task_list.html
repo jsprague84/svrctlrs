@@ -76,14 +76,14 @@
                                 hx-post="/tasks/{{ task.id }}/run"
                                 hx-target="#task-run-result-{{ task.id }}"
                                 hx-swap="innerHTML">
-                            ▶ Run
+                            <i data-lucide="play" style="width: 14px; height: 14px;"></i> Run
                         </button>
                         <button class="btn btn-sm btn-danger"
                                 hx-delete="/tasks/{{ task.id }}"
                                 hx-target="#task-list"
                                 hx-swap="innerHTML"
                                 hx-confirm="Delete task '{{ task.name }}'? This cannot be undone.">
-                            🗑️ Delete
+                            <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
                         </button>
                     </div>
                     <div id="task-run-result-{{ task.id }}"></div>

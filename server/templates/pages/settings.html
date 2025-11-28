@@ -25,7 +25,7 @@
     
     <!-- Configuration Reload -->
     <div class="card">
-        <h2>🔄 Configuration Reload</h2>
+        <h2><i data-lucide="refresh-cw" style="width: 20px; height: 20px;"></i> Configuration Reload</h2>
         <p class="text-secondary mb-3">
             Reload configuration from database without restarting the container. This will reload plugins, task schedules, and notification backends.
         </p>
@@ -35,14 +35,14 @@
                 hx-indicator="#reload-spinner"
                 hx-swap="innerHTML"
                 class="btn btn-primary">
-            <span id="reload-spinner" class="htmx-indicator">⏳ Reloading...</span>
-            <span class="htmx-not-indicator">🔄 Reload Configuration</span>
+            <span id="reload-spinner" class="htmx-indicator"><i data-lucide="loader-2" style="width: 16px; height: 16px;"></i> Reloading...</span>
+            <span class="htmx-not-indicator"><i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i> Reload Configuration</span>
         </button>
     </div>
     
     <!-- General Settings -->
     <div class="card">
-        <h2>⚙️ General Settings</h2>
+        <h2><i data-lucide="settings" style="width: 20px; height: 20px;"></i> General Settings</h2>
         <p class="text-secondary mb-3">
             Application preferences, logging, and system configuration.
         </p>

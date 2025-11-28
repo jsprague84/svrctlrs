@@ -153,7 +153,7 @@
             <button type="button"
                     @click="showAdvanced = !showAdvanced"
                     class="btn btn-secondary btn-sm">
-                <span x-text="showAdvanced ? '▼' : '▶'"></span>
+                <i :data-lucide="showAdvanced ? 'chevron-down' : 'chevron-right'" style="width: 14px; height: 14px;"></i>
                 Advanced Options
             </button>
 
@@ -223,7 +223,7 @@
                     hx-target="#task-run-result"
                     hx-swap="innerHTML"
                     class="btn btn-success ml-auto">
-                ▶ Test Run
+                <i data-lucide="play" style="width: 14px; height: 14px;"></i> Test Run
             </button>
             {% endif %}
         </div>

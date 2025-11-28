@@ -32,7 +32,7 @@
                     hx-target="#server-form-container"
                     hx-swap="innerHTML"
                     class="btn btn-sm btn-secondary">
-                ✏️ Edit
+                <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
             </button>
 
             <button hx-delete="/servers/{{ server.id }}"
@@ -40,7 +40,7 @@
                     hx-swap="outerHTML"
                     hx-confirm="Delete server '{{ server.name }}'?"
                     class="btn btn-sm btn-danger">
-                🗑️ Delete
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
             </button>
         </div>
     </div>
