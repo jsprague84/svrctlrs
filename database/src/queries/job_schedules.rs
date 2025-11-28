@@ -305,3 +305,38 @@ pub async fn record_schedule_run(
 
     Ok(())
 }
+
+/// Count total job schedules
+#[instrument(skip(pool))]
+pub async fn count_job_schedules(pool: &Pool<Sqlite>) -> Result<i64> {
+    let count: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) as count
+        FROM job_schedules
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .context("Failed to count job schedules")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(count.0)
+}
+
+/// Count enabled job schedules
+#[instrument(skip(pool))]
+pub async fn count_enabled_schedules(pool: &Pool<Sqlite>) -> Result<i64> {
+    let count: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) as count
+        FROM job_schedules
+        WHERE enabled = 1
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .context("Failed to count enabled job schedules")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(count.0)
+}

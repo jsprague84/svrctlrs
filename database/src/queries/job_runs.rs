@@ -430,3 +430,42 @@ pub async fn update_step_execution_result(
 
     Ok(())
 }
+
+// ============================================================================
+// Statistics Queries
+// ============================================================================
+
+/// Count currently running job runs
+#[instrument(skip(pool))]
+pub async fn count_running_jobs(pool: &Pool<Sqlite>) -> Result<i64> {
+    let count: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) as count
+        FROM job_runs
+        WHERE status = 'running'
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .context("Failed to count running jobs")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(count.0)
+}
+
+/// Count total job runs
+#[instrument(skip(pool))]
+pub async fn count_job_runs(pool: &Pool<Sqlite>) -> Result<i64> {
+    let count: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) as count
+        FROM job_runs
+        "#,
+    )
+    .fetch_one(pool)
+    .await
+    .context("Failed to count job runs")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(count.0)
+}
