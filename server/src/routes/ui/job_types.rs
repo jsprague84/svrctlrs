@@ -6,8 +6,8 @@ use axum::{
 };
 use serde::Deserialize;
 use svrctlrs_database::{
-    models::{JobType, JobTypeCommandTemplate},
-    queries::{job_types as queries, command_templates as template_queries},
+    models::{JobType, CommandTemplate, CreateJobType, UpdateJobType, CreateCommandTemplate, UpdateCommandTemplate},
+    queries::job_types as queries,
 };
 use tracing::{error, info, instrument, warn};
 
@@ -132,21 +132,65 @@ pub async fn edit_job_type_form(
 // ============================================================================
 
 #[derive(Debug, Deserialize)]
-pub struct CreateJobTypeInput {
+pub struct CreateJobTypeFormInput {
     pub name: String,
+    pub display_name: String,
     pub description: Option<String>,
-    pub execution_type: String, // "simple", "composite", "script"
-    pub default_timeout_seconds: Option<i64>,
-    pub requires_confirmation: Option<String>, // "on" or absent
     pub icon: Option<String>,
     pub color: Option<String>,
+    pub requires_capabilities: Option<String>, // JSON array string
+    pub metadata: Option<String>, // JSON object string
+    pub enabled: Option<String>, // "on" or absent
+}
+
+impl CreateJobTypeFormInput {
+    fn to_model(&self) -> Result<CreateJobType, AppError> {
+        // Parse capabilities
+        let requires_capabilities = if let Some(ref caps_str) = self.requires_capabilities {
+            if !caps_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(caps_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid capabilities JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Parse metadata
+        let metadata = if let Some(ref meta_str) = self.metadata {
+            if !meta_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(meta_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid metadata JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Ok(CreateJobType {
+            name: self.name.clone(),
+            display_name: self.display_name.clone(),
+            description: self.description.clone().filter(|s| !s.trim().is_empty()),
+            icon: self.icon.clone().filter(|s| !s.trim().is_empty()),
+            color: self.color.clone().filter(|s| !s.trim().is_empty()),
+            requires_capabilities,
+            metadata,
+            enabled: self.enabled.is_some(),
+        })
+    }
 }
 
 /// Create a new job type
 #[instrument(skip(state))]
 pub async fn create_job_type(
     State(state): State<AppState>,
-    Form(input): Form<CreateJobTypeInput>,
+    Form(input): Form<CreateJobTypeFormInput>,
 ) -> Result<Html<String>, AppError> {
     info!(name = %input.name, "Creating job type");
 
@@ -164,12 +208,11 @@ pub async fn create_job_type(
         return Ok(Html(html));
     }
 
-    // Validate execution type
-    if !["simple", "composite", "script"].contains(&input.execution_type.as_str()) {
-        warn!(execution_type = %input.execution_type, "Invalid execution type");
+    if input.display_name.trim().is_empty() {
+        warn!("Job type display name is empty");
         let template = JobTypeFormTemplate {
             job_type: None,
-            error: Some("Invalid execution type".to_string()),
+            error: Some("Display name is required".to_string()),
         };
         let html = template.render().map_err(|e| {
             error!(error = %e, "Failed to render error template");
@@ -178,38 +221,74 @@ pub async fn create_job_type(
         return Ok(Html(html));
     }
 
-    // Create job type
-    let job_type_id = queries::create_job_type(
-        &state.pool,
-        &input.name,
-        input.description.as_deref(),
-        &input.execution_type,
-        input.default_timeout_seconds,
-        input.requires_confirmation.is_some(),
-        input.icon.as_deref(),
-        input.color.as_deref(),
-    )
-    .await
-    .map_err(|e| {
-        error!(error = %e, "Failed to create job type");
-        AppError::DatabaseError(e.to_string())
-    })?;
+    // Convert to model
+    let create_input = input.to_model()?;
 
-    info!(job_type_id, name = %input.name, "Job type created successfully");
+    // Create job type
+    let job_type_id = queries::create_job_type(&state.pool, &create_input)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to create job type");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    info!(job_type_id, name = %create_input.name, "Job type created successfully");
 
     // Return updated list
     get_job_types_list(State(state)).await
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateJobTypeInput {
-    pub name: String,
+pub struct UpdateJobTypeFormInput {
+    pub display_name: Option<String>,
     pub description: Option<String>,
-    pub execution_type: String,
-    pub default_timeout_seconds: Option<i64>,
-    pub requires_confirmation: Option<String>,
     pub icon: Option<String>,
     pub color: Option<String>,
+    pub requires_capabilities: Option<String>, // JSON array string
+    pub metadata: Option<String>, // JSON object string
+    pub enabled: Option<String>, // "on" or absent
+}
+
+impl UpdateJobTypeFormInput {
+    fn to_model(&self) -> Result<UpdateJobType, AppError> {
+        // Parse capabilities
+        let requires_capabilities = if let Some(ref caps_str) = self.requires_capabilities {
+            if !caps_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(caps_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid capabilities JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Parse metadata
+        let metadata = if let Some(ref meta_str) = self.metadata {
+            if !meta_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(meta_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid metadata JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Ok(UpdateJobType {
+            display_name: self.display_name.clone().filter(|s| !s.trim().is_empty()),
+            description: self.description.clone().filter(|s| !s.trim().is_empty()),
+            icon: self.icon.clone().filter(|s| !s.trim().is_empty()),
+            color: self.color.clone().filter(|s| !s.trim().is_empty()),
+            requires_capabilities,
+            metadata,
+            enabled: Some(self.enabled.is_some()),
+        })
+    }
 }
 
 /// Update an existing job type
@@ -217,61 +296,39 @@ pub struct UpdateJobTypeInput {
 pub async fn update_job_type(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Form(input): Form<UpdateJobTypeInput>,
+    Form(input): Form<UpdateJobTypeFormInput>,
 ) -> Result<Html<String>, AppError> {
-    info!(job_type_id = id, name = %input.name, "Updating job type");
+    info!(job_type_id = id, "Updating job type");
 
-    // Validate input
-    if input.name.trim().is_empty() {
-        warn!("Job type name is empty");
-        let job_type = queries::get_job_type(&state.pool, id)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let template = JobTypeFormTemplate {
-            job_type,
-            error: Some("Name is required".to_string()),
-        };
-        let html = template.render().map_err(|e| {
-            error!(error = %e, "Failed to render error template");
-            AppError::TemplateError(e.to_string())
-        })?;
-        return Ok(Html(html));
+    // Validate display name if provided
+    if let Some(ref display_name) = input.display_name {
+        if display_name.trim().is_empty() {
+            warn!("Job type display name is empty");
+            let job_type = queries::get_job_type(&state.pool, id)
+                .await
+                .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+            let template = JobTypeFormTemplate {
+                job_type: Some(job_type),
+                error: Some("Display name cannot be empty".to_string()),
+            };
+            let html = template.render().map_err(|e| {
+                error!(error = %e, "Failed to render error template");
+                AppError::TemplateError(e.to_string())
+            })?;
+            return Ok(Html(html));
+        }
     }
 
-    // Validate execution type
-    if !["simple", "composite", "script"].contains(&input.execution_type.as_str()) {
-        warn!(execution_type = %input.execution_type, "Invalid execution type");
-        let job_type = queries::get_job_type(&state.pool, id)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let template = JobTypeFormTemplate {
-            job_type,
-            error: Some("Invalid execution type".to_string()),
-        };
-        let html = template.render().map_err(|e| {
-            error!(error = %e, "Failed to render error template");
-            AppError::TemplateError(e.to_string())
-        })?;
-        return Ok(Html(html));
-    }
+    // Convert to model
+    let update_input = input.to_model()?;
 
     // Update job type
-    queries::update_job_type(
-        &state.pool,
-        id,
-        &input.name,
-        input.description.as_deref(),
-        &input.execution_type,
-        input.default_timeout_seconds,
-        input.requires_confirmation.is_some(),
-        input.icon.as_deref(),
-        input.color.as_deref(),
-    )
-    .await
-    .map_err(|e| {
-        error!(job_type_id = id, error = %e, "Failed to update job type");
-        AppError::DatabaseError(e.to_string())
-    })?;
+    queries::update_job_type(&state.pool, id, &update_input)
+        .await
+        .map_err(|e| {
+            error!(job_type_id = id, error = %e, "Failed to update job type");
+            AppError::DatabaseError(e.to_string())
+        })?;
 
     info!(job_type_id = id, "Job type updated successfully");
 
@@ -321,7 +378,7 @@ pub async fn get_command_templates(
 ) -> Result<Html<String>, AppError> {
     info!(job_type_id, "Fetching command templates");
 
-    let templates = template_queries::list_command_templates_for_job_type(&state.pool, job_type_id)
+    let templates = queries::get_command_templates(&state.pool, job_type_id)
         .await
         .map_err(|e| {
             error!(job_type_id, error = %e, "Failed to fetch command templates");
@@ -342,11 +399,115 @@ pub async fn get_command_templates(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CreateCommandTemplateInput {
+pub struct CreateCommandTemplateFormInput {
     pub name: String,
-    pub command: String,
+    pub display_name: String,
     pub description: Option<String>,
-    pub order_index: Option<i64>,
+    pub command: String,
+    pub required_capabilities: Option<String>, // JSON array string
+    pub os_filter: Option<String>, // JSON object string
+    pub timeout_seconds: Option<i32>,
+    pub working_directory: Option<String>,
+    pub environment: Option<String>, // JSON object string
+    pub output_format: Option<String>,
+    pub parse_output: Option<String>, // "on" or absent
+    pub output_parser: Option<String>, // JSON object string
+    pub notify_on_success: Option<String>, // "on" or absent
+    pub notify_on_failure: Option<String>, // "on" or absent
+    pub metadata: Option<String>, // JSON object string
+}
+
+impl CreateCommandTemplateFormInput {
+    fn to_model(&self, job_type_id: i64) -> Result<CreateCommandTemplate, AppError> {
+        // Parse required_capabilities
+        let required_capabilities = if let Some(ref caps_str) = self.required_capabilities {
+            if !caps_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(caps_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid capabilities JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Parse os_filter
+        let os_filter = if let Some(ref filter_str) = self.os_filter {
+            if !filter_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(filter_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid OS filter JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Parse environment
+        let environment = if let Some(ref env_str) = self.environment {
+            if !env_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(env_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid environment JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Parse output_parser
+        let output_parser = if let Some(ref parser_str) = self.output_parser {
+            if !parser_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(parser_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid output parser JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Parse metadata
+        let metadata = if let Some(ref meta_str) = self.metadata {
+            if !meta_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(meta_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid metadata JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Ok(CreateCommandTemplate {
+            job_type_id,
+            name: self.name.clone(),
+            display_name: self.display_name.clone(),
+            description: self.description.clone().filter(|s| !s.trim().is_empty()),
+            command: self.command.clone(),
+            required_capabilities,
+            os_filter,
+            timeout_seconds: self.timeout_seconds.unwrap_or(300),
+            working_directory: self.working_directory.clone().filter(|s| !s.trim().is_empty()),
+            environment,
+            output_format: self.output_format.clone().filter(|s| !s.trim().is_empty()),
+            parse_output: self.parse_output.is_some(),
+            output_parser,
+            notify_on_success: self.notify_on_success.is_some(),
+            notify_on_failure: self.notify_on_failure.is_some() || self.notify_on_failure.is_none(),
+            metadata,
+        })
+    }
 }
 
 /// Add a command template to a job type
@@ -354,7 +515,7 @@ pub struct CreateCommandTemplateInput {
 pub async fn create_command_template(
     State(state): State<AppState>,
     Path(job_type_id): Path<i64>,
-    Form(input): Form<CreateCommandTemplateInput>,
+    Form(input): Form<CreateCommandTemplateFormInput>,
 ) -> Result<Html<String>, AppError> {
     info!(job_type_id, name = %input.name, "Creating command template");
 
@@ -366,20 +527,23 @@ pub async fn create_command_template(
         ));
     }
 
+    if input.display_name.trim().is_empty() {
+        warn!("Command template display name is empty");
+        return Err(AppError::ValidationError(
+            "Display name is required".to_string(),
+        ));
+    }
+
+    // Convert to model
+    let create_input = input.to_model(job_type_id)?;
+
     // Create command template
-    template_queries::create_command_template(
-        &state.pool,
-        job_type_id,
-        &input.name,
-        &input.command,
-        input.description.as_deref(),
-        input.order_index.unwrap_or(0),
-    )
-    .await
-    .map_err(|e| {
-        error!(job_type_id, error = %e, "Failed to create command template");
-        AppError::DatabaseError(e.to_string())
-    })?;
+    queries::create_command_template(&state.pool, &create_input)
+        .await
+        .map_err(|e| {
+            error!(job_type_id, error = %e, "Failed to create command template");
+            AppError::DatabaseError(e.to_string())
+        })?;
 
     info!(job_type_id, "Command template created successfully");
 
@@ -388,11 +552,112 @@ pub async fn create_command_template(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateCommandTemplateInput {
-    pub name: String,
-    pub command: String,
+pub struct UpdateCommandTemplateFormInput {
+    pub display_name: Option<String>,
     pub description: Option<String>,
-    pub order_index: Option<i64>,
+    pub command: Option<String>,
+    pub required_capabilities: Option<String>, // JSON array string
+    pub os_filter: Option<String>, // JSON object string
+    pub timeout_seconds: Option<i32>,
+    pub working_directory: Option<String>,
+    pub environment: Option<String>, // JSON object string
+    pub output_format: Option<String>,
+    pub parse_output: Option<String>, // "on" or absent
+    pub output_parser: Option<String>, // JSON object string
+    pub notify_on_success: Option<String>, // "on" or absent
+    pub notify_on_failure: Option<String>, // "on" or absent
+    pub metadata: Option<String>, // JSON object string
+}
+
+impl UpdateCommandTemplateFormInput {
+    fn to_model(&self) -> Result<UpdateCommandTemplate, AppError> {
+        // Parse required_capabilities
+        let required_capabilities = if let Some(ref caps_str) = self.required_capabilities {
+            if !caps_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(caps_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid capabilities JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Parse os_filter
+        let os_filter = if let Some(ref filter_str) = self.os_filter {
+            if !filter_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(filter_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid OS filter JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Parse environment
+        let environment = if let Some(ref env_str) = self.environment {
+            if !env_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(env_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid environment JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Parse output_parser
+        let output_parser = if let Some(ref parser_str) = self.output_parser {
+            if !parser_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(parser_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid output parser JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Parse metadata
+        let metadata = if let Some(ref meta_str) = self.metadata {
+            if !meta_str.trim().is_empty() {
+                Some(
+                    serde_json::from_str(meta_str)
+                        .map_err(|e| AppError::ValidationError(format!("Invalid metadata JSON: {}", e)))?,
+                )
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        Ok(UpdateCommandTemplate {
+            display_name: self.display_name.clone().filter(|s| !s.trim().is_empty()),
+            description: self.description.clone().filter(|s| !s.trim().is_empty()),
+            command: self.command.clone().filter(|s| !s.trim().is_empty()),
+            required_capabilities,
+            os_filter,
+            timeout_seconds: self.timeout_seconds,
+            working_directory: self.working_directory.clone().filter(|s| !s.trim().is_empty()),
+            environment,
+            output_format: self.output_format.clone().filter(|s| !s.trim().is_empty()),
+            parse_output: Some(self.parse_output.is_some()),
+            output_parser,
+            notify_on_success: Some(self.notify_on_success.is_some()),
+            notify_on_failure: Some(self.notify_on_failure.is_some()),
+            metadata,
+        })
+    }
 }
 
 /// Update a command template
@@ -400,44 +665,47 @@ pub struct UpdateCommandTemplateInput {
 pub async fn update_command_template(
     State(state): State<AppState>,
     Path(template_id): Path<i64>,
-    Form(input): Form<UpdateCommandTemplateInput>,
+    Form(input): Form<UpdateCommandTemplateFormInput>,
 ) -> Result<Html<String>, AppError> {
-    info!(template_id, name = %input.name, "Updating command template");
+    info!(template_id, "Updating command template");
 
     // Get template to find job_type_id
-    let template = template_queries::get_command_template_by_id(&state.pool, template_id)
+    let template = queries::get_command_template(&state.pool, template_id)
         .await
         .map_err(|e| {
             error!(template_id, error = %e, "Failed to fetch command template");
             AppError::DatabaseError(e.to_string())
-        })?
-        .ok_or_else(|| {
-            warn!(template_id, "Command template not found");
-            AppError::NotFound(format!("Command template {} not found", template_id))
         })?;
 
     // Validate input
-    if input.name.trim().is_empty() || input.command.trim().is_empty() {
-        warn!("Command template name or command is empty");
-        return Err(AppError::ValidationError(
-            "Name and command are required".to_string(),
-        ));
+    if let Some(ref display_name) = input.display_name {
+        if display_name.trim().is_empty() {
+            warn!("Command template display name is empty");
+            return Err(AppError::ValidationError(
+                "Display name cannot be empty".to_string(),
+            ));
+        }
     }
 
+    if let Some(ref command) = input.command {
+        if command.trim().is_empty() {
+            warn!("Command template command is empty");
+            return Err(AppError::ValidationError(
+                "Command cannot be empty".to_string(),
+            ));
+        }
+    }
+
+    // Convert to model
+    let update_input = input.to_model()?;
+
     // Update command template
-    template_queries::update_command_template(
-        &state.pool,
-        template_id,
-        &input.name,
-        &input.command,
-        input.description.as_deref(),
-        input.order_index.unwrap_or(0),
-    )
-    .await
-    .map_err(|e| {
-        error!(template_id, error = %e, "Failed to update command template");
-        AppError::DatabaseError(e.to_string())
-    })?;
+    queries::update_command_template(&state.pool, template_id, &update_input)
+        .await
+        .map_err(|e| {
+            error!(template_id, error = %e, "Failed to update command template");
+            AppError::DatabaseError(e.to_string())
+        })?;
 
     info!(template_id, "Command template updated successfully");
 
@@ -454,21 +722,17 @@ pub async fn delete_command_template(
     info!(template_id, "Deleting command template");
 
     // Get template to find job_type_id
-    let template = template_queries::get_command_template_by_id(&state.pool, template_id)
+    let template = queries::get_command_template(&state.pool, template_id)
         .await
         .map_err(|e| {
             error!(template_id, error = %e, "Failed to fetch command template");
             AppError::DatabaseError(e.to_string())
-        })?
-        .ok_or_else(|| {
-            warn!(template_id, "Command template not found");
-            AppError::NotFound(format!("Command template {} not found", template_id))
         })?;
 
     let job_type_id = template.job_type_id;
 
     // Delete command template
-    template_queries::delete_command_template(&state.pool, template_id)
+    queries::delete_command_template(&state.pool, template_id)
         .await
         .map_err(|e| {
             error!(template_id, error = %e, "Failed to delete command template");
