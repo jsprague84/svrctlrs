@@ -12,13 +12,13 @@ use svrctlrs_database::queries;
 use super::{get_user_from_session, AppError};
 use crate::{state::AppState, templates::*};
 
-/// Create plugins router
+/// Create features router (formerly plugins)
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/plugins", get(plugins_page))
-        .route("/plugins/{id}/toggle", post(plugin_toggle))
+        .route("/features", get(plugins_page))
+        .route("/features/{id}/toggle", post(plugin_toggle))
         .route(
-            "/plugins/{id}/config",
+            "/features/{id}/config",
             get(plugin_config_form).put(plugin_config_save),
         )
 }
