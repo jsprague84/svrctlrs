@@ -1,32 +1,186 @@
 # CLAUDE.md - AI Development Guide
 
-This file provides comprehensive guidance for AI assistants (Claude, GPT, etc.) when working with the SvrCtlRS codebase.
+This file provides comprehensive guidance for AI assistants working with the SvrCtlRS codebase.
+
+**Last Updated**: 2025-11-28
+**Architecture Version**: v2.0 (Job-Based System)
+**Status**: ✅ Active Development
+
+---
 
 ## 🎯 Project Mission
 
-**SvrCtlRS** (Server Control Rust) is a plugin-based infrastructure monitoring and automation platform for Linux servers and Docker containers, featuring a modern HTMX web UI.
+**SvrCtlRS** (Server Control Rust) is a **job-based infrastructure automation platform** for managing Linux servers and Docker containers via SSH, featuring a modern HTMX web UI.
 
-**Original Project**: `/home/jsprague/Development/weatherust` (reference for feature parity)
+**Key Innovation**: Complete restructure from plugin-based to **job-based architecture** with:
+- Built-in command templates
+- Composite workflows (multi-step jobs)
+- Server capability detection
+- Credential management
+- Tag-based organization
 
-## 📋 Current Status
+---
 
-**Version**: v2.1.0  
-**Last Updated**: 2024-11-25  
-**Status**: ✅ Production Ready
+## 📋 Current Architecture
 
-### Completed Features
+### **Job-Based System** (Migration 011 - Complete Restructure)
 
-- ✅ Plugin architecture with core traits
-- ✅ Notification backends (Gotify + ntfy.sh)
-- ✅ Axum 0.8 backend with REST API
-- ✅ Built-in cron-like scheduler
-- ✅ SQLite database layer
-- ✅ Docker, Updates, Health plugins
-- ✅ **HTMX + Askama web UI** (migrated from Dioxus)
-- ✅ GitHub Actions CI/CD workflows
-- ✅ Docker multi-arch builds (AMD64 + ARM64)
+**Old System** (DEPRECATED):
+- ❌ Plugins (hardcoded monitoring features)
+- ❌ Tasks (simple scheduled commands)
+- ❌ No remote execution framework
+- ❌ No workflow support
 
-### Technology Stack
+**New System** (CURRENT):
+- ✅ **Job Types**: Categories of work (docker, os_maintenance, backups, custom)
+- ✅ **Command Templates**: Reusable commands with `{{variable}}` substitution
+- ✅ **Job Templates**: User-defined jobs (simple or composite workflows)
+- ✅ **Job Schedules**: Cron-scheduled job instances on specific servers
+- ✅ **Job Runs**: Execution history with full output capture
+- ✅ **Server Capabilities**: Auto-detected (docker, systemd, apt, dnf, etc.)
+- ✅ **Credentials**: SSH keys, API tokens, managed securely
+- ✅ **Tags**: Server organization (prod, staging, docker-hosts, etc.)
+
+---
+
+## 🏗️ Directory Structure
+
+```
+svrctlrs/
+├── core/                       # Shared types, plugin system (legacy)
+│   └── src/
+│       ├── lib.rs             # Public API exports
+│       ├── error.rs           # Error types
+│       ├── plugin.rs          # Plugin trait (DEPRECATED - for old plugins)
+│       ├── notifications.rs   # Notification backends (Gotify + ntfy.sh)
+│       ├── remote.rs          # SSH remote execution (DEPRECATED)
+│       └── types.rs           # Shared types
+│
+├── server/                     # Axum backend + HTMX UI
+│   ├── src/
+│   │   ├── main.rs            # Server entry point
+│   │   ├── config.rs          # Configuration loading
+│   │   ├── state.rs           # Application state
+│   │   ├── routes.rs          # Route registration
+│   │   ├── templates.rs       # Askama template structs + Display models
+│   │   ├── ssh.rs             # SSH connection pool
+│   │   ├── routes/
+│   │   │   ├── api.rs         # REST API endpoints
+│   │   │   ├── servers.rs     # Server management API
+│   │   │   ├── webhooks.rs    # Webhook endpoints
+│   │   │   └── ui/            # HTMX UI routes
+│   │   │       ├── auth.rs
+│   │   │       ├── credentials.rs
+│   │   │       ├── dashboard.rs
+│   │   │       ├── job_runs.rs
+│   │   │       ├── job_schedules.rs
+│   │   │       ├── job_templates.rs
+│   │   │       ├── job_types.rs
+│   │   │       ├── notifications.rs
+│   │   │       ├── servers.rs
+│   │   │       ├── settings.rs
+│   │   │       └── tags.rs
+│   │   └── filters.rs         # Custom Askama filters
+│   │
+│   ├── templates/              # Askama HTML templates
+│   │   ├── base.html          # Base layout
+│   │   ├── pages/             # Full page templates
+│   │   │   ├── dashboard.html
+│   │   │   ├── servers.html
+│   │   │   ├── job_types.html
+│   │   │   ├── job_templates.html
+│   │   │   ├── job_schedules.html
+│   │   │   ├── job_runs.html
+│   │   │   └── ...
+│   │   └── components/        # HTMX partials
+│   │       ├── server_list.html
+│   │       ├── job_type_list.html
+│   │       ├── job_type_form.html
+│   │       ├── job_type_view.html
+│   │       └── ...
+│   │
+│   └── static/                 # Static assets
+│       ├── css/styles.css     # Nord-inspired theme
+│       └── js/                # HTMX + Alpine.js
+│
+├── scheduler/                  # Built-in cron scheduler
+│   └── src/
+│       └── lib.rs             # Cron expression evaluator
+│
+├── database/                   # SQLite abstraction
+│   ├── src/
+│   │   ├── lib.rs             # Database connection + migrations
+│   │   ├── notification_service.rs  # Notification backend queries
+│   │   ├── models/            # Database models
+│   │   │   ├── credential.rs
+│   │   │   ├── job_run.rs
+│   │   │   ├── job_schedule.rs
+│   │   │   ├── job_template.rs
+│   │   │   ├── job_type.rs
+│   │   │   ├── notification.rs
+│   │   │   ├── server.rs
+│   │   │   ├── setting.rs
+│   │   │   ├── tag.rs
+│   │   │   └── ...
+│   │   └── queries/           # Database query functions
+│   │       ├── credentials.rs
+│   │       ├── job_runs.rs
+│   │       ├── job_schedules.rs
+│   │       ├── job_templates.rs
+│   │       ├── job_types.rs
+│   │       ├── notifications.rs
+│   │       ├── servers.rs
+│   │       ├── settings.rs
+│   │       └── tags.rs
+│   │
+│   └── migrations/            # SQL migrations
+│       ├── 000_initial_schema.sql
+│       ├── ...
+│       └── 011_complete_restructure.sql  # ← CURRENT SCHEMA
+│
+└── plugins/                   # OLD monitoring plugins (DEPRECATED)
+    ├── docker/                # Legacy - being replaced by job types
+    ├── updates/
+    ├── health/
+    ├── weather/
+    └── speedtest/
+```
+
+---
+
+## 💾 Database Schema (Current)
+
+### Core Entities
+
+1. **credentials** - SSH keys, API tokens, passwords
+2. **tags** - Server organization labels
+3. **servers** - Execution targets (local or remote via SSH)
+4. **server_tags** - Many-to-many server ↔ tags
+5. **server_capabilities** - Auto-detected capabilities per server
+
+### Job System
+
+6. **job_types** - Categories (docker, os_maintenance, backup, custom)
+7. **command_templates** - Reusable commands with `{{variables}}`
+8. **job_templates** - User-defined jobs (simple or composite)
+9. **job_template_steps** - Multi-step workflow definitions
+10. **job_schedules** - Cron-scheduled jobs on specific servers
+11. **job_runs** - Execution history with full output
+12. **server_job_results** - Per-server results for multi-server jobs
+
+### Notifications
+
+13. **notification_policies** - Reusable notification configs
+14. **notification_channels** - Gotify/ntfy.sh backends
+15. **notifications** - Sent notification history
+
+### Settings
+
+16. **settings** - Key-value configuration store
+
+---
+
+## 🔧 Technology Stack
 
 | Component | Technology | Version |
 |-----------|-----------|---------|
@@ -35,307 +189,220 @@ This file provides comprehensive guidance for AI assistants (Claude, GPT, etc.) 
 | Templates | Askama | 0.12 |
 | Database | SQLite + sqlx | Latest |
 | Runtime | Tokio | Latest |
+| SSH | openssh_sftp_client | Latest |
 | Container | Docker | Latest |
 
-## 🏗️ Architecture Overview
+---
 
-### Directory Structure
+## 🎨 HTMX + Askama Patterns
 
-```
-svrctlrs/
-├── core/                    # Shared types, plugin system, notifications
-│   └── src/
-│       ├── lib.rs          # Public API exports
-│       ├── error.rs        # Error types
-│       ├── plugin.rs       # Plugin trait + registry
-│       ├── notifications.rs # Gotify + ntfy.sh
-│       ├── remote.rs       # SSH remote execution
-│       └── types.rs        # Shared types
-├── server/                  # Axum backend + HTMX UI
-│   ├── src/
-│   │   ├── main.rs         # Server entry point
-│   │   ├── config.rs       # Configuration loading
-│   │   ├── state.rs        # Application state
-│   │   ├── ui_routes.rs    # HTMX UI route handlers
-│   │   ├── templates.rs    # Askama template structs
-│   │   └── routes/         # REST API routes
-│   │       ├── api.rs      # API endpoints
-│   │       └── webhooks.rs # Webhook endpoints
-│   ├── templates/           # Askama HTML templates
-│   │   ├── base.html       # Base layout
-│   │   ├── pages/          # Full page templates
-│   │   └── components/     # HTMX partials
-│   └── static/              # Static assets
-│       ├── css/styles.css  # Nord-inspired theme
-│       └── js/             # HTMX + Alpine.js
-├── scheduler/               # Built-in cron scheduler
-├── database/                # SQLite abstraction
-└── plugins/                 # Monitoring plugins
-    ├── docker/             # Docker monitoring
-    ├── updates/            # OS update monitoring
-    ├── health/             # System health metrics
-    ├── weather/            # Weather (optional)
-    └── speedtest/          # Speed test (optional)
-```
+### Display Model Pattern (CRITICAL)
 
-### Key Design Principles
+**Problem**: Askama templates cannot handle `serde_json::Value`, `HashMap`, or complex Serialize types.
 
-1. **Plugin Architecture**: All features are plugins implementing the `Plugin` trait
-2. **Service-Specific Notifications**: Each plugin can have its own Gotify key/ntfy topic
-3. **Remote Execution**: SSH-based operations via `RemoteExecutor`
-4. **Dual Notifications**: Both Gotify and ntfy.sh support
-5. **Webhook Triggers**: HTTP endpoints for remote-triggered actions
-6. **Built-in Scheduler**: No external dependencies
-7. **HTMX for Interactivity**: Lightweight, server-driven UI updates
+**Solution**: Create "Display" models that convert database models to template-friendly types.
 
-## 🔧 Development Patterns
+#### Pattern Rules
 
-### Plugin Implementation
+1. **Remove Serialize/Deserialize** - Display models should NOT derive these
+2. **Pre-serialize JSON fields** - Convert `Option<JsonValue>` to `String`
+3. **Use From trait** - Implement `From<DatabaseModel>` for automatic conversion
+4. **Format timestamps** - Convert `DateTime<Utc>` to `String` with local timezone
+5. **Extract computed values** - Calculate before moving fields (borrow checker)
 
+#### Example Implementation
+
+**Database Model** (`database/src/models.rs`):
 ```rust
-use async_trait::async_trait;
-use svrctlrs_core::{Plugin, PluginMetadata, Result, ScheduledTask};
-
-pub struct MyPlugin {}
-
-impl MyPlugin {
-    pub fn new() -> Self {
-        Self {}
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JobType {
+    pub id: i64,
+    pub name: String,
+    pub required_capabilities: Option<JsonValue>,  // ❌ Cannot use in templates
+    pub metadata: Option<JsonValue>,                // ❌ Cannot use in templates
+    pub created_at: DateTime<Utc>,                  // ❌ Cannot format in templates
 }
 
-#[async_trait]
-impl Plugin for MyPlugin {
-    fn metadata(&self) -> PluginMetadata {
-        PluginMetadata {
-            id: "myplugin".to_string(),
-            name: "My Plugin".to_string(),
-            description: "What it does".to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            author: "SvrCtlRS".to_string(),
-        }
+impl JobType {
+    pub fn get_required_capabilities(&self) -> Vec<String> {
+        // Extract from JSON
     }
+}
+```
 
-    fn scheduled_tasks(&self) -> Vec<ScheduledTask> {
-        vec![
-            ScheduledTask {
-                id: "my_task".to_string(),
-                schedule: "0 */5 * * * *".to_string(), // Every 5 minutes
-                description: "Task description".to_string(),
-                enabled: true,
-            },
-        ]
-    }
+**Display Model** (`server/src/templates.rs`):
+```rust
+use chrono::Local;
 
-    async fn execute(&self, task_id: &str, context: &PluginContext) -> Result<PluginResult> {
-        match task_id {
-            "my_task" => self.run_task(context).await,
-            _ => Ok(PluginResult::error(format!("Unknown task: {}", task_id))),
+#[derive(Debug, Clone)]  // ✅ NO Serialize/Deserialize!
+pub struct JobTypeDisplay {
+    pub id: i64,
+    pub name: String,
+
+    // ✅ Pre-serialized JSON (String instead of JsonValue)
+    pub required_capabilities_json: String,
+    pub metadata_json: String,
+
+    // ✅ Formatted timestamps (String instead of DateTime)
+    pub created_at: String,
+
+    // ✅ Computed display-only fields
+    pub required_capabilities: Vec<String>,
+    pub command_template_count: i64,
+}
+
+impl From<svrctlrs_database::models::JobType> for JobTypeDisplay {
+    fn from(jt: svrctlrs_database::models::JobType) -> Self {
+        // Extract computed values BEFORE moving fields
+        let required_capabilities = jt.get_required_capabilities();
+
+        // Pre-serialize JSON
+        let metadata_json = serde_json::to_string(&jt.metadata)
+            .unwrap_or_else(|_| "{}".to_string());
+
+        // Format timestamp
+        let created_at = jt.created_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+
+        Self {
+            id: jt.id,
+            name: jt.name,
+            metadata_json,
+            created_at,
+            required_capabilities,
+            command_template_count: 0,  // TODO: Load via JOIN
         }
     }
 }
 ```
 
-### HTMX UI Routes
+**Route Handler**:
+```rust
+async fn job_types_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+    let job_types = state.db.get_all_job_types().await?;
+
+    // ✅ Automatic From conversion
+    let job_types: Vec<JobTypeDisplay> = job_types
+        .into_iter()
+        .map(Into::into)
+        .collect();
+
+    let template = JobTypesPageTemplate { job_types };
+    Ok(Html(template.render()?))
+}
+```
+
+**Template**:
+```html
+{% for jt in job_types %}
+<div class="card">
+    <h3>{{ jt.name }}</h3>
+    <p>Created: {{ jt.created_at }}</p>  <!-- ✅ Formatted string -->
+
+    {% for cap in jt.required_capabilities %}  <!-- ✅ Can iterate Vec -->
+        <span class="badge">{{ cap }}</span>
+    {% endfor %}
+
+    <!-- ✅ Can use JSON in Alpine.js -->
+    <div x-data='{ metadata: {{ jt.metadata_json }} }'></div>
+</div>
+{% endfor %}
+```
+
+#### Modules Using Display Pattern
+
+✅ **Completed**:
+- JobTypes → JobTypeDisplay
+- CommandTemplates → CommandTemplateDisplay
+
+⏳ **In Progress** (models exist, templates need updates):
+- JobTemplates → JobTemplateDisplay
+- JobTemplateSteps → JobTemplateStepDisplay
+- JobSchedules → JobScheduleDisplay
+- JobRuns → JobRunDisplay
+- ServerJobResults → ServerJobResultDisplay
+
+---
+
+## 🔨 Development Workflows
+
+### Working with Job Types
 
 ```rust
-use askama::Template;
-use axum::{
-    extract::{Path, State},
-    response::Html,
-    Form,
+use svrctlrs_database::{models::CreateJobType, queries::job_types};
+
+// Create a job type
+let docker_type = CreateJobType {
+    name: "docker_operations".to_string(),
+    display_name: "Docker Operations".to_string(),
+    description: Some("Manage Docker containers and images".to_string()),
+    requires_capabilities: Some(json!(["docker"])),
+    enabled: true,
+    ..Default::default()
 };
 
-#[derive(Template)]
-#[template(path = "pages/mypage.html")]
-pub struct MyPageTemplate {
-    pub user: Option<User>,
-    pub data: Vec<MyData>,
-}
-
-async fn my_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
-    let user = get_user_from_session().await;
-    let data = state.get_my_data().await?;
-    
-    let template = MyPageTemplate { user, data };
-    Ok(Html(template.render()?))
-}
-
-async fn create_item(
-    State(state): State<AppState>,
-    Form(input): Form<CreateItemInput>,
-) -> Result<Html<String>, AppError> {
-    // Validate and create
-    state.create_item(input).await?;
-    
-    // Return updated list (HTMX will swap this in)
-    let data = state.get_my_data().await?;
-    let template = MyListTemplate { data };
-    Ok(Html(template.render()?))
-}
+let id = job_types::create_job_type(&pool, &docker_type).await?;
 ```
 
-### Askama Templates
-
-```html
-<!-- templates/pages/mypage.html -->
-{% extends "base.html" %}
-
-{% block title %}My Page - SvrCtlRS{% endblock %}
-{% block nav_mypage %}active{% endblock %}
-
-{% block content %}
-<h1>My Page</h1>
-
-<button hx-get="/mypage/new" 
-        hx-target="#form-container" 
-        hx-swap="innerHTML"
-        class="btn-primary">
-    Add Item
-</button>
-
-<div id="form-container"></div>
-
-<div id="item-list">
-    {% include "components/item_list.html" %}
-</div>
-{% endblock %}
-```
-
-### Notification Pattern
+### Working with Command Templates
 
 ```rust
-use svrctlrs_core::{NotificationManager, NotificationMessage, NotificationAction};
+use svrctlrs_database::{models::CreateCommandTemplate, queries::job_types};
 
-let manager = NotificationManager::new(client.clone(), &["myplugin"])?;
+// Create a command template with variable substitution
+let template = CreateCommandTemplate {
+    job_type_id: docker_type_id,
+    name: "list_containers".to_string(),
+    display_name: "List Containers".to_string(),
+    command: "docker ps --filter 'status={{status}}'".to_string(),
+    required_capabilities: Some(json!(["docker"])),
+    timeout_seconds: 30,
+    ..Default::default()
+};
 
-manager.send_for_service(
-    "myplugin",
-    &NotificationMessage {
-        title: "Alert Title".into(),
-        body: "Alert details here".into(),
-        priority: 4,
-        actions: vec![
-            NotificationAction::view("View Details", "https://..."),
-            NotificationAction::http_post("Fix It", "https://webhook.../fix"),
-        ],
-    },
-).await?;
+job_types::create_command_template(&pool, &template).await?;
 ```
 
-### Remote Execution Pattern
+### Working with Job Templates
 
 ```rust
-use svrctlrs_core::{RemoteExecutor, Server};
+use svrctlrs_database::{models::CreateJobTemplate, queries::job_templates};
 
-let executor = RemoteExecutor::new(Some("/path/to/ssh/key".to_string()));
-let server = Server::remote("myserver", "user@host");
+// Simple job (single command)
+let job = CreateJobTemplate {
+    name: "list_running_containers".to_string(),
+    display_name: "List Running Containers".to_string(),
+    job_type_id: docker_type_id,
+    is_composite: false,
+    command_template_id: Some(list_containers_template_id),
+    variables: Some(json!({"status": "running"})),
+    ..Default::default()
+};
 
-let output = executor.execute(&server, "docker ps").await?;
+let id = job_templates::create_job_template(&pool, &job).await?;
 ```
 
-## 🎨 HTMX + Askama Implementation
+### Scheduling Jobs
 
-### Why HTMX Over Dioxus?
+```rust
+use svrctlrs_database::{models::CreateJobSchedule, queries::job_schedules};
 
-The project migrated from Dioxus 0.7 to HTMX + Askama for:
-- ✅ **Reliability**: No WASM build issues
-- ✅ **Simplicity**: Pure HTML templates
-- ✅ **Size**: 94KB vs 500KB+ bundle
-- ✅ **Speed**: Faster builds (5-8 min vs 15-20 min)
-- ✅ **Maintainability**: Easier to debug and extend
+// Schedule job to run every hour
+let schedule = CreateJobSchedule {
+    name: "hourly_container_check".to_string(),
+    job_template_id: job_template_id,
+    server_id: server_id,
+    schedule: "0 * * * *".to_string(),  // Cron expression
+    enabled: true,
+    ..Default::default()
+};
 
-### HTMX Patterns
-
-**Form Submission:**
-```html
-<form hx-post="/servers" 
-      hx-target="#server-list" 
-      hx-swap="innerHTML">
-    <input type="text" name="name" required>
-    <button type="submit">Save</button>
-</form>
+job_schedules::create_job_schedule(&pool, &schedule).await?;
 ```
 
-**Auto-refresh:**
-```html
-<div id="task-list" 
-     hx-get="/tasks/list" 
-     hx-trigger="every 5s"
-     hx-swap="innerHTML">
-    {% include "components/task_list.html" %}
-</div>
-```
-
-**Delete with Confirmation:**
-```html
-<button hx-delete="/servers/{{ server.id }}"
-        hx-target="#server-{{ server.id }}"
-        hx-swap="outerHTML"
-        hx-confirm="Delete {{ server.name }}?">
-    Delete
-</button>
-```
-
-### Alpine.js for Client-Side State
-
-```html
-<body x-data="{ sidebarOpen: false, theme: 'dark' }">
-    <!-- Mobile menu toggle -->
-    <button @click="sidebarOpen = !sidebarOpen">☰</button>
-    
-    <!-- Theme toggle -->
-    <button @click="theme = theme === 'light' ? 'dark' : 'light'">
-        <span x-show="theme === 'light'">🌙</span>
-        <span x-show="theme === 'dark'">☀️</span>
-    </button>
-    
-    <!-- Sidebar with conditional class -->
-    <aside :class="{ 'open': sidebarOpen }">
-        <!-- Navigation -->
-    </aside>
-</body>
-```
-
-## 🚀 CI/CD Workflows
-
-### Two-Workflow Strategy
-
-**Develop Branch** (`.github/workflows/docker-publish-develop.yml`):
-- **Trigger**: Push to `develop`
-- **Platform**: AMD64 only
-- **Build Time**: ~5-8 minutes
-- **Image**: `ghcr.io/jsprague84/svrctlrs:develop`
-- **Purpose**: Fast iteration for testing
-
-**Main Branch** (`.github/workflows/docker-publish-main.yml`):
-- **Trigger**: Push to `main` or version tags
-- **Platforms**: AMD64 + ARM64
-- **Build Time**: ~15-20 minutes
-- **Images**: `latest`, `main`, `v*.*.*`
-- **Purpose**: Production releases
-
-### Development Flow
-
-```bash
-# 1. Make changes
-git add .
-git commit -m "feat: new feature"
-git push origin develop
-
-# 2. GitHub Actions builds AMD64 image (~5-8 min)
-
-# 3. Pull on docker-vm
-docker-compose pull
-docker-compose up -d
-
-# 4. Test and iterate
-
-# 5. When stable, merge to main
-git checkout main
-git merge develop
-git push origin main  # Multi-arch build (~15-20 min)
-```
+---
 
 ## 📝 Code Standards
 
@@ -348,10 +415,10 @@ pub async fn my_function() -> Result<()> {
     let data = fetch_data()
         .await
         .context("Failed to fetch data")?;
-    
+
     process_data(&data)
         .context("Failed to process data")?;
-    
+
     Ok(())
 }
 ```
@@ -364,7 +431,7 @@ use tracing::{info, warn, error, instrument};
 #[instrument(skip(sensitive_data))]
 pub async fn my_function(id: &str, sensitive_data: &str) -> Result<()> {
     info!(id, "Starting operation");
-    
+
     match perform_operation().await {
         Ok(result) => {
             info!(id, "Operation succeeded");
@@ -378,149 +445,93 @@ pub async fn my_function(id: &str, sensitive_data: &str) -> Result<()> {
 }
 ```
 
-### Documentation
+---
 
-```rust
-/// Brief one-line description.
-///
-/// Longer description explaining purpose and behavior.
-///
-/// # Arguments
-///
-/// * `param1` - Description
-/// * `param2` - Description
-///
-/// # Errors
-///
-/// Returns `Error::SomeVariant` if X happens.
-///
-/// # Examples
-///
-/// ```no_run
-/// let result = my_function(arg1, arg2).await?;
-/// ```
-#[instrument(skip(sensitive_param))]
-pub async fn my_function(param1: &str, sensitive_param: &str) -> Result<()> {
-    // Implementation
-}
-```
+## 🚀 CI/CD Workflows
 
-## 🧪 Testing
+### Two-Workflow Strategy
 
-### Unit Tests
+**Develop Branch** (`.github/workflows/docker-publish-develop.yml`):
+- **Trigger**: Push to `develop`
+- **Platform**: AMD64 only
+- **Build Time**: ~5-8 minutes
+- **Image**: `ghcr.io/jsprague84/svrctlrs:develop`
+- **Purpose**: Fast iteration
 
-```rust
-#[cfg(test)]
-mod tests {
-    use super::*;
+**Main Branch** (`.github/workflows/docker-publish-main.yml`):
+- **Trigger**: Push to `main` or version tags
+- **Platforms**: AMD64 + ARM64
+- **Build Time**: ~15-20 minutes
+- **Images**: `latest`, `main`, `v*.*.*`
+- **Purpose**: Production releases
 
-    #[tokio::test]
-    async fn test_my_function() {
-        let result = my_function("test").await;
-        assert!(result.is_ok());
-    }
-}
-```
-
-### Integration Tests
-
-```bash
-# Run all tests
-cargo test --workspace
-
-# Run specific plugin tests
-cargo test --package svrctlrs-plugin-docker
-
-# Run with logging
-RUST_LOG=debug cargo test --workspace -- --nocapture
-```
-
-## 🔍 Feature Parity with Weatherust
-
-### Environment Variable Mapping
-
-**Weatherust → SvrCtlRS:**
-- `WEATHERUST_GOTIFY_KEY` → `WEATHER_GOTIFY_KEY`
-- `UPDATEMON_GOTIFY_KEY` → `UPDATES_GOTIFY_KEY`
-- `HEALTHMON_GOTIFY_KEY` → `HEALTH_GOTIFY_KEY`
-- `DOCKERMON_GOTIFY_KEY` → `DOCKER_GOTIFY_KEY`
-
-### Porting Checklist
-
-When porting a feature from weatherust:
-1. ✅ Read the weatherust implementation
-2. ✅ Understand the notification pattern
-3. ✅ Convert to plugin architecture
-4. ✅ Maintain environment variable compatibility
-5. ✅ Add UI components
-6. ✅ Test on docker-vm
+---
 
 ## 🚨 Common Pitfalls
 
 ### Things to Avoid
 
-1. ❌ **Don't duplicate code** - Check `core/` first
-2. ❌ **Don't hard-code values** - Use environment variables
-3. ❌ **Don't skip error handling** - Use `Result` types
-4. ❌ **Don't use `unwrap()`** - Use proper error handling
-5. ❌ **Don't skip tracing** - Add `#[instrument]` to key functions
-6. ❌ **Don't forget mobile** - Test responsive design
+1. ❌ **Don't use old plugin system** - Use job types instead
+2. ❌ **Don't use core/remote.rs** - Use server/ssh.rs instead
+3. ❌ **Don't skip Display models** - Required for complex types in templates
+4. ❌ **Don't use unwrap()** - Use proper error handling
+5. ❌ **Don't hard-code capabilities** - Check server_capabilities table
+6. ❌ **Don't bypass credential management** - Use credentials table
 
 ### Things to Remember
 
-1. ✅ **Use MCP tools** - For up-to-date library patterns
-2. ✅ **Read weatherust** - For feature reference
-3. ✅ **Update this file** - When making significant progress
-4. ✅ **Commit frequently** - Small, focused commits
-5. ✅ **Test on docker-vm** - Before considering complete
-6. ✅ **Check mobile view** - Responsive design is required
+1. ✅ **Job Types = Categories** (docker, os_maintenance, backup)
+2. ✅ **Command Templates = Reusable commands** with `{{variables}}`
+3. ✅ **Job Templates = User-defined jobs** (simple or composite)
+4. ✅ **Job Schedules = Cron-scheduled instances** on specific servers
+5. ✅ **Display Models = Template-safe types** (no Serialize/Deserialize)
+6. ✅ **Check migration 011** for current schema
+
+---
 
 ## 📚 Key Files Reference
 
-### Core Files
-- `core/src/plugin.rs` - Plugin trait and registry
-- `core/src/notifications.rs` - Notification manager
-- `core/src/remote.rs` - SSH remote execution
-- `core/src/error.rs` - Error types
+### Database
+- `database/migrations/011_complete_restructure.sql` - Current schema
+- `database/src/models/` - Database models (use for DB operations)
+- `database/src/queries/` - Query functions (use instead of raw SQL)
 
-### Server Files
+### Server
 - `server/src/main.rs` - Server entry point
-- `server/src/state.rs` - Application state
-- `server/src/ui_routes.rs` - HTMX UI routes
-- `server/src/templates.rs` - Askama template structs
-- `server/templates/base.html` - Base layout
-- `server/static/css/styles.css` - Nord theme
+- `server/src/state.rs` - Application state (DB pool, SSH pool)
+- `server/src/ssh.rs` - SSH connection management
+- `server/src/templates.rs` - Display models (use for templates)
+- `server/src/routes/ui/` - HTMX UI route handlers
+- `server/templates/` - Askama HTML templates
 
 ### Configuration
 - `config/example.toml` - Example configuration
 - `docker-compose.yml` - Docker Compose setup
 - `Dockerfile` - Multi-stage Docker build
-- `.github/workflows/` - CI/CD workflows
 
-## 💡 Quick Tips for AI Assistants
+---
 
-### When Starting a Session
+## 💡 Quick Reference
 
-1. **Read this file first** - Get current context
-2. **Check README.md** - Project overview
-3. **Review recent commits** - See latest changes
-4. **Use MCP tools** - Research libraries as needed
+### Migration Path: Old → New
 
-### When Writing Code
+| Old Concept | New Concept | Migration |
+|------------|-------------|-----------|
+| Plugins | Job Types | Define job type, create command templates |
+| Tasks | Job Schedules | Create job template, schedule on server |
+| Plugin config | Command Templates | Create template with variables |
+| Remote executor (core) | SSH pool (server) | Use AppState.ssh_pool |
+| Hard-coded commands | Command templates | Create reusable templates |
 
-1. **Check weatherust** - For feature reference
-2. **Use existing patterns** - From `core/`
-3. **Add instrumentation** - `#[instrument]` on functions
-4. **Handle errors properly** - Structured Error types
-5. **Test compilation** - `cargo check --workspace`
-6. **Test UI** - Check HTMX interactions work
+### Key Architecture Changes
 
-### When Stuck
+1. **Plugins → Job Types**: Hardcoded monitoring replaced by user-defined job categories
+2. **Tasks → Job Schedules**: Simple commands replaced by scheduled job template instances
+3. **No workflows → Composite Jobs**: Added multi-step workflow support
+4. **Static targets → Server Management**: Added SSH pool, capability detection, tags
+5. **Embedded creds → Credential Store**: Centralized SSH key and token management
 
-1. **Read weatherust implementation** - How was it done before?
-2. **Use MCP tools** - Look up library examples
-3. **Check documentation** - README, this file
-4. **Review similar code** - Other plugins, core modules
+---
 
 ## 🔗 External References
 
@@ -530,38 +541,27 @@ When porting a feature from weatherust:
 - Askama: https://docs.rs/askama
 - Alpine.js: https://alpinejs.dev/
 - Tokio: https://docs.rs/tokio
-- Bollard: https://docs.rs/bollard
 - sqlx: https://docs.rs/sqlx
-
-### Weatherust Reference
-- Location: `/home/jsprague/Development/weatherust`
-- Key files:
-  - `common/src/lib.rs` - Shared notification logic
-  - `updatectl/src/` - Update execution & cleanup
-  - `healthmon/src/` - Docker health monitoring
-  - `updatemon/src/` - Update monitoring
-
-## 📌 Project Information
-
-### Project Owner
-- Name: Josh Sprague (jsprague84)
-- GitHub: https://github.com/jsprague84/svrctlrs
-- Reference project: weatherust
-
-### Deployment Environment
-- Primary: Docker containers
-- Test server: docker-vm
-- OS: Linux (Fedora/Ubuntu/Debian support)
-- Container runtime: Docker
-
-### Current Version
-- **Version**: v2.1.0
-- **Status**: Production Ready
-- **Last Major Change**: Migrated from Dioxus to HTMX + Askama
-- **Next Steps**: Feature additions, performance metrics, historical data
 
 ---
 
-**Last Updated**: 2024-11-25  
-**Status**: ✅ Production Ready  
-**Current Focus**: Feature expansion and refinement
+## 📌 Project Information
+
+- **Owner**: Josh Sprague (jsprague84)
+- **GitHub**: https://github.com/jsprague84/svrctlrs
+- **Original Project**: weatherust (reference for feature parity)
+- **Test Environment**: docker-vm
+- **Primary Use**: Infrastructure automation via SSH
+
+---
+
+**IMPORTANT NOTES FOR AI ASSISTANTS**:
+
+1. **Architecture has been completely restructured** - Ignore old plugin-focused documentation
+2. **Read migration 011** to understand current schema
+3. **Use Display models** for ALL complex types in Askama templates
+4. **Check server/src/routes/ui/** for current UI implementation patterns
+5. **Old plugins/** directory is deprecated** - Do not extend old plugin system
+6. **Use job types + command templates** instead of creating new plugins
+
+**Archive**: Previous documentation saved to `CLAUDE.archive.md` (not in repo)

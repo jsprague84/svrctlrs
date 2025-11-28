@@ -17,6 +17,7 @@ use crate::{
     state::AppState,
     templates::{
         CommandTemplateListTemplate, JobTypeFormTemplate, JobTypeListTemplate, JobTypesTemplate,
+        JobTypeViewTemplate,
     },
 };
 
@@ -29,7 +30,7 @@ pub fn routes() -> Router<AppState> {
         .route("/job-types/{id}/edit", get(edit_job_type_form))
         .route(
             "/job-types/{id}",
-            put(update_job_type).delete(delete_job_type),
+            get(view_job_type).put(update_job_type).delete(delete_job_type),
         )
         .route(
             "/job-types/{job_type_id}/command-templates",
@@ -144,6 +145,43 @@ pub async fn edit_job_type_form(
 
     let html = template.render().map_err(|e| {
         error!(error = %e, "Failed to render job type form template");
+        AppError::TemplateError(e.to_string())
+    })?;
+
+    Ok(Html(html))
+}
+
+/// View job type details (HTMX)
+#[instrument(skip(state))]
+pub async fn view_job_type(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    info!(job_type_id = id, "Viewing job type details");
+
+    let job_type = queries::get_job_type(&state.pool, id).await.map_err(|e| {
+        warn!(job_type_id = id, error = %e, "Job type not found");
+        AppError::NotFound(format!("Job type {} not found", id))
+    })?;
+
+    // Get command templates for this job type
+    let command_templates = queries::get_command_templates(&state.pool, id)
+        .await
+        .map_err(|e| {
+            error!(job_type_id = id, error = %e, "Failed to fetch command templates");
+            AppError::DatabaseError(e.to_string())
+        })?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+
+    let template = JobTypeViewTemplate {
+        job_type: job_type.into(),
+        command_templates,
+    };
+
+    let html = template.render().map_err(|e| {
+        error!(error = %e, "Failed to render job type view template");
         AppError::TemplateError(e.to_string())
     })?;
 

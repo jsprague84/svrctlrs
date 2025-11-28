@@ -250,6 +250,13 @@ pub struct JobTypeFormTemplate {
     pub error: Option<String>,
 }
 
+#[derive(Template)]
+#[template(path = "components/job_type_view.html")]
+pub struct JobTypeViewTemplate {
+    pub job_type: JobTypeDisplay,
+    pub command_templates: Vec<CommandTemplateDisplay>,
+}
+
 #[derive(Debug, Clone)]
 pub struct JobTypeDisplay {
     pub id: i64,

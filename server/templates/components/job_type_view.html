@@ -1,0 +1,147 @@
+<div class="card">
+    <div class="flex-between mb-3">
+        <div>
+            <h2>{{ job_type.display_name }}</h2>
+            <p class="text-secondary">{{ job_type.name }}</p>
+        </div>
+        <div class="flex gap-2">
+            <button hx-get="/job-types/{{ job_type.id }}/edit"
+                    hx-target="#job-type-form-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('job-type-form-container').innerHTML = ''"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="x" style="width: 14px; height: 14px;"></i> Close
+            </button>
+        </div>
+    </div>
+
+    <!-- Description -->
+    {% match job_type.description %}
+    {% when Some with (d) %}
+    <div class="mb-3">
+        <strong class="text-secondary">Description:</strong>
+        <p>{{ d }}</p>
+    </div>
+    {% when None %}
+    {% endmatch %}
+
+    <!-- Basic Info -->
+    <div class="grid grid-cols-2 gap-4 mb-3">
+        <div>
+            <strong class="text-secondary">Execution Type:</strong>
+            <p>{{ job_type.execution_type }}</p>
+        </div>
+        <div>
+            <strong class="text-secondary">Status:</strong>
+            <p>
+                {% if job_type.enabled %}
+                    <span class="badge badge-success">Enabled</span>
+                {% else %}
+                    <span class="badge badge-secondary">Disabled</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- Icon and Color -->
+    <div class="grid grid-cols-2 gap-4 mb-3">
+        {% match job_type.icon %}
+        {% when Some with (icon) %}
+        <div>
+            <strong class="text-secondary">Icon:</strong>
+            <p>
+                <i data-lucide="{{ icon }}" style="width: 16px; height: 16px;"></i>
+                {{ icon }}
+            </p>
+        </div>
+        {% when None %}
+        {% endmatch %}
+
+        {% match job_type.color %}
+        {% when Some with (color) %}
+        <div>
+            <strong class="text-secondary">Color:</strong>
+            <p>
+                <span style="display: inline-block; width: 20px; height: 20px; background-color: {{ color }}; border: 1px solid #ccc; border-radius: 4px; vertical-align: middle;"></span>
+                {{ color }}
+            </p>
+        </div>
+        {% when None %}
+        {% endmatch %}
+    </div>
+
+    <!-- Required Capabilities -->
+    {% if !job_type.required_capabilities.is_empty() %}
+    <div class="mb-3">
+        <strong class="text-secondary">Required Capabilities:</strong>
+        <div class="flex gap-1 flex-wrap mt-1">
+            {% for cap in job_type.required_capabilities %}
+            <span class="badge badge-warning">{{ cap }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Counts -->
+    <div class="grid grid-cols-2 gap-4 mb-3">
+        <div>
+            <strong class="text-secondary">Command Templates:</strong>
+            <p>{{ job_type.command_template_count }}</p>
+        </div>
+        <div>
+            <strong class="text-secondary">Job Templates:</strong>
+            <p>{{ job_type.job_template_count }}</p>
+        </div>
+    </div>
+
+    <!-- Metadata -->
+    {% if job_type.metadata_json != "{}" && job_type.metadata_json != "null" %}
+    <div class="mb-3">
+        <strong class="text-secondary">Metadata:</strong>
+        <pre class="bg-base-300 p-2 rounded mt-1" style="font-size: 0.875rem; overflow-x: auto;">{{ job_type.metadata_json }}</pre>
+    </div>
+    {% endif %}
+
+    <!-- Timestamps -->
+    <div class="grid grid-cols-2 gap-4 text-sm text-secondary">
+        <div>
+            <strong>Created:</strong> {{ job_type.created_at }}
+        </div>
+    </div>
+
+    <!-- Command Templates List -->
+    {% if !command_templates.is_empty() %}
+    <hr class="my-4">
+    <h3>Command Templates</h3>
+    <div class="mt-2">
+        {% for ct in command_templates %}
+        <div class="card bg-base-200" style="margin-bottom: 0.5rem;">
+            <div class="flex-between">
+                <div class="flex-1">
+                    <strong>{{ ct.display_name }}</strong>
+                    <p class="text-secondary" style="font-size: 0.875rem;">{{ ct.name }}</p>
+                    {% match ct.description %}
+                    {% when Some with (d) %}
+                    <p class="text-secondary" style="font-size: 0.875rem;">{{ d }}</p>
+                    {% when None %}
+                    {% endmatch %}
+                    <code style="display: block; background: var(--bg); padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.75rem;">{{ ct.command }}</code>
+
+                    {% if !ct.required_capabilities.is_empty() %}
+                    <div class="flex gap-1 flex-wrap mt-2">
+                        {% for cap in ct.required_capabilities %}
+                        <span class="badge badge-warning" style="font-size: 0.75rem;">{{ cap }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
