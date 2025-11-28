@@ -1,4 +1,4 @@
-<div class="card">
+<div class="card" x-data="jobTypeForm()">
     <h2>{% match job_type %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Job Type</h2>
 
     {% match error %}
@@ -11,78 +11,107 @@
     {% when Some with (jt) %}
     <form hx-put="/job-types/{{ jt.id }}"
           hx-target="#job-type-list"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          @submit="updateCapabilitiesJson(); updateMetadataJson()">
 
+        <!-- Internal Name (read-only for editing) -->
         <div class="form-group">
-            <label for="name">Job Type Name *</label>
+            <label for="name">Internal Name</label>
             <input type="text"
                    id="name"
-                   name="name"
                    value="{{ jt.name }}"
-                   placeholder="System Update"
+                   readonly
+                   disabled
+                   class="bg-base-300">
+            <small class="text-secondary">Internal identifier (cannot be changed)</small>
+        </div>
+
+        <!-- Display Name -->
+        <div class="form-group">
+            <label for="display_name">Display Name *</label>
+            <input type="text"
+                   id="display_name"
+                   name="display_name"
+                   value="{{ jt.display_name }}"
+                   placeholder="Docker Operations"
                    required>
+            <small class="text-secondary">Name shown in the UI</small>
         </div>
 
+        <!-- Description -->
         <div class="form-group">
-            <label for="execution_type">Execution Type *</label>
-            <select id="execution_type"
-                    name="execution_type"
-                    required>
-                <option value="shell" {% if jt.execution_type == "shell" %}selected{% endif %}>Shell Command</option>
-                <option value="docker" {% if jt.execution_type == "docker" %}selected{% endif %}>Docker Operation</option>
-                <option value="systemd" {% if jt.execution_type == "systemd" %}selected{% endif %}>systemd Service</option>
-                <option value="composite" {% if jt.execution_type == "composite" %}selected{% endif %}>Composite (Multiple Steps)</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="required_capabilities">Required Server Capabilities</label>
-            <div style="border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="required_capabilities"
-                           value="docker"
-                           {% for cap in jt.required_capabilities %}{% match cap %}{% when svrctlrs_database::models::ServerCapability::Docker %}checked{% when _ %}{% endmatch %}{% endfor %}>
-                    <span>Docker</span>
-                </label>
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="required_capabilities"
-                           value="systemd"
-                           {% for cap in jt.required_capabilities %}{% match cap %}{% when svrctlrs_database::models::ServerCapability::Systemd %}checked{% when _ %}{% endmatch %}{% endfor %}>
-                    <span>systemd</span>
-                </label>
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="required_capabilities"
-                           value="apt_get"
-                           {% for cap in jt.required_capabilities %}{% match cap %}{% when svrctlrs_database::models::ServerCapability::AptGet %}checked{% when _ %}{% endmatch %}{% endfor %}>
-                    <span>apt-get</span>
-                </label>
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="required_capabilities"
-                           value="dnf"
-                           {% for cap in jt.required_capabilities %}{% match cap %}{% when svrctlrs_database::models::ServerCapability::Dnf %}checked{% when _ %}{% endmatch %}{% endfor %}>
-                    <span>dnf</span>
-                </label>
-                <label class="flex gap-2 align-center" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="required_capabilities"
-                           value="yum"
-                           {% for cap in jt.required_capabilities %}{% match cap %}{% when svrctlrs_database::models::ServerCapability::Yum %}checked{% when _ %}{% endmatch %}{% endfor %}>
-                    <span>yum</span>
-                </label>
-            </div>
-            <small class="text-secondary">Jobs will only run on servers with these capabilities</small>
-        </div>
-
-        <div class="form-group">
-            <label for="description">Description (optional)</label>
+            <label for="description">Description</label>
             <textarea id="description"
                       name="description"
                       rows="2"
                       placeholder="What this job type does">{% match jt.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
+        </div>
+
+        <!-- Icon & Color Row -->
+        <div class="grid grid-cols-2 gap-4">
+            <div class="form-group">
+                <label for="icon">Icon Name</label>
+                <input type="text"
+                       id="icon"
+                       name="icon"
+                       value="{% match jt.icon %}{% when Some with (i) %}{{ i }}{% when None %}{% endmatch %}"
+                       placeholder="package">
+                <small class="text-secondary">Lucide icon name</small>
+            </div>
+
+            <div class="form-group">
+                <label for="color">Color (Hex)</label>
+                <input type="color"
+                       id="color"
+                       name="color"
+                       value="{% match jt.color %}{% when Some with (c) %}{{ c }}{% when None %}#5E81AC{% endmatch %}">
+                <small class="text-secondary">UI display color</small>
+            </div>
+        </div>
+
+        <!-- Required Capabilities -->
+        <div class="form-group">
+            <label>Required Capabilities</label>
+            <input type="hidden" name="requires_capabilities" x-model="capabilitiesJson">
+            <div class="flex flex-wrap gap-2 mb-2">
+                <template x-for="(cap, index) in capabilities" :key="index">
+                    <span class="badge badge-primary">
+                        <span x-text="cap"></span>
+                        <button type="button" @click="removeCapability(index)" class="ml-1 text-error">✕</button>
+                    </span>
+                </template>
+            </div>
+            <div class="flex gap-2">
+                <input type="text"
+                       x-model="newCapability"
+                       @keydown.enter.prevent="addCapability()"
+                       placeholder="docker, systemd, apt, dnf, etc.">
+                <button type="button" @click="addCapability()" class="btn btn-sm btn-secondary">Add</button>
+            </div>
+            <small class="text-secondary">Jobs will only run on servers with all these capabilities</small>
+        </div>
+
+        <!-- Metadata (JSON) -->
+        <div class="form-group">
+            <label for="metadata">Metadata (JSON)</label>
+            <input type="hidden" name="metadata" x-model="metadataJson">
+            <textarea id="metadata-editor"
+                      x-model="metadataText"
+                      rows="4"
+                      class="font-mono text-sm"
+                      placeholder='{"category": "system", "priority": "high"}'></textarea>
+            <small class="text-secondary">Additional configuration as JSON</small>
+        </div>
+
+        <!-- Enabled -->
+        <div class="form-group">
+            <label class="flex gap-2 align-center" style="cursor: pointer;">
+                <input type="checkbox"
+                       name="enabled"
+                       {% match jt.enabled %}{% when true %}checked{% when false %}{% endmatch %}>
+                <span>Enabled</span>
+            </label>
+            <small class="text-secondary">Disabled job types cannot be scheduled</small>
         </div>
 
         <div class="flex gap-2">
@@ -99,77 +128,110 @@
     {% when None %}
     <form hx-post="/job-types"
           hx-target="#job-type-list"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          @submit="updateCapabilitiesJson(); updateMetadataJson()">
 
+        <!-- Internal Name -->
         <div class="form-group">
-            <label for="name">Job Type Name *</label>
+            <label for="name">Internal Name *</label>
             <input type="text"
                    id="name"
                    name="name"
-                   placeholder="System Update"
+                   placeholder="docker_operations"
+                   pattern="[a-z0-9_]+"
                    required>
+            <small class="text-secondary">Lowercase, numbers, underscores only (e.g., docker_operations)</small>
         </div>
 
+        <!-- Display Name -->
         <div class="form-group">
-            <label for="execution_type">Execution Type *</label>
-            <select id="execution_type"
-                    name="execution_type"
-                    required>
-                <option value="shell">Shell Command</option>
-                <option value="docker">Docker Operation</option>
-                <option value="systemd">systemd Service</option>
-                <option value="composite">Composite (Multiple Steps)</option>
-            </select>
+            <label for="display_name">Display Name *</label>
+            <input type="text"
+                   id="display_name"
+                   name="display_name"
+                   placeholder="Docker Operations"
+                   required>
+            <small class="text-secondary">Name shown in the UI</small>
         </div>
 
+        <!-- Description -->
         <div class="form-group">
-            <label for="required_capabilities">Required Server Capabilities</label>
-            <div style="border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="required_capabilities"
-                           value="docker">
-                    <span>Docker</span>
-                </label>
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="required_capabilities"
-                           value="systemd">
-                    <span>systemd</span>
-                </label>
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="required_capabilities"
-                           value="apt_get">
-                    <span>apt-get</span>
-                </label>
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="required_capabilities"
-                           value="dnf">
-                    <span>dnf</span>
-                </label>
-                <label class="flex gap-2 align-center" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="required_capabilities"
-                           value="yum">
-                    <span>yum</span>
-                </label>
-            </div>
-            <small class="text-secondary">Jobs will only run on servers with these capabilities</small>
-        </div>
-
-        <div class="form-group">
-            <label for="description">Description (optional)</label>
+            <label for="description">Description</label>
             <textarea id="description"
                       name="description"
                       rows="2"
-                      placeholder="What this job type does"></textarea>
+                      placeholder="Manage Docker containers and images"></textarea>
+        </div>
+
+        <!-- Icon & Color Row -->
+        <div class="grid grid-cols-2 gap-4">
+            <div class="form-group">
+                <label for="icon">Icon Name</label>
+                <input type="text"
+                       id="icon"
+                       name="icon"
+                       placeholder="package">
+                <small class="text-secondary">Lucide icon name</small>
+            </div>
+
+            <div class="form-group">
+                <label for="color">Color (Hex)</label>
+                <input type="color"
+                       id="color"
+                       name="color"
+                       value="#5E81AC">
+                <small class="text-secondary">UI display color</small>
+            </div>
+        </div>
+
+        <!-- Required Capabilities -->
+        <div class="form-group">
+            <label>Required Capabilities</label>
+            <input type="hidden" name="requires_capabilities" x-model="capabilitiesJson">
+            <div class="flex flex-wrap gap-2 mb-2">
+                <template x-for="(cap, index) in capabilities" :key="index">
+                    <span class="badge badge-primary">
+                        <span x-text="cap"></span>
+                        <button type="button" @click="removeCapability(index)" class="ml-1 text-error">✕</button>
+                    </span>
+                </template>
+            </div>
+            <div class="flex gap-2">
+                <input type="text"
+                       x-model="newCapability"
+                       @keydown.enter.prevent="addCapability()"
+                       placeholder="docker, systemd, apt, dnf, etc.">
+                <button type="button" @click="addCapability()" class="btn btn-sm btn-secondary">Add</button>
+            </div>
+            <small class="text-secondary">Jobs will only run on servers with all these capabilities</small>
+        </div>
+
+        <!-- Metadata (JSON) -->
+        <div class="form-group">
+            <label for="metadata">Metadata (JSON)</label>
+            <input type="hidden" name="metadata" x-model="metadataJson">
+            <textarea id="metadata-editor"
+                      x-model="metadataText"
+                      rows="4"
+                      class="font-mono text-sm"
+                      placeholder='{"category": "system", "priority": "high"}'></textarea>
+            <small class="text-secondary">Additional configuration as JSON</small>
+        </div>
+
+        <!-- Enabled -->
+        <div class="form-group">
+            <label class="flex gap-2 align-center" style="cursor: pointer;">
+                <input type="checkbox"
+                       name="enabled"
+                       checked>
+                <span>Enabled</span>
+            </label>
+            <small class="text-secondary">Disabled job types cannot be scheduled</small>
         </div>
 
         <div class="flex gap-2">
             <button type="submit" class="btn btn-primary">
-                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Create
             </button>
             <button type="button"
                     onclick="document.getElementById('job-type-form-container').innerHTML = ''"
@@ -180,3 +242,52 @@
     </form>
     {% endmatch %}
 </div>
+
+<script>
+function jobTypeForm() {
+    return {
+        capabilities: {% match job_type %}{% when Some with (jt) %}{{ jt.get_requires_capabilities()|json|safe }}{% when None %}[]{% endmatch %},
+        newCapability: '',
+        capabilitiesJson: '',
+        metadataText: {% match job_type %}{% when Some with (jt) %}'{{ jt.get_metadata()|json|safe }}'{% when None %}'{}'{% endmatch %},
+        metadataJson: '',
+
+        init() {
+            this.updateCapabilitiesJson();
+            this.updateMetadataJson();
+        },
+
+        addCapability() {
+            if (this.newCapability && !this.capabilities.includes(this.newCapability.trim())) {
+                this.capabilities.push(this.newCapability.trim());
+                this.newCapability = '';
+                this.updateCapabilitiesJson();
+            }
+        },
+
+        removeCapability(index) {
+            this.capabilities.splice(index, 1);
+            this.updateCapabilitiesJson();
+        },
+
+        updateCapabilitiesJson() {
+            this.capabilitiesJson = this.capabilities.length > 0 ? JSON.stringify(this.capabilities) : '';
+        },
+
+        updateMetadataJson() {
+            try {
+                // Validate JSON
+                if (this.metadataText.trim()) {
+                    JSON.parse(this.metadataText);
+                    this.metadataJson = this.metadataText.trim();
+                } else {
+                    this.metadataJson = '';
+                }
+            } catch (e) {
+                // Invalid JSON - leave metadataJson empty or previous value
+                console.warn('Invalid metadata JSON:', e);
+            }
+        }
+    };
+}
+</script>
