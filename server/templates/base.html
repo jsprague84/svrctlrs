@@ -1,17 +1,17 @@
 <!DOCTYPE html>
-<html lang="en" 
-      x-data="{ sidebarOpen: false, theme: localStorage.getItem('theme') || 'dark' }" 
+<html lang="en"
+      x-data="{ sidebarOpen: false, theme: localStorage.getItem('theme') || 'tokyo' }"
       x-init="$watch('theme', val => localStorage.setItem('theme', val))"
       :data-theme="theme">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}SvrCtlRS{% endblock %}</title>
-    
+
     <!-- Prevent FOUC (Flash of Unstyled Content) - Set theme immediately -->
     <script>
         // Set theme on html element before page renders
-        const theme = localStorage.getItem('theme') || 'dark';
+        const theme = localStorage.getItem('theme') || 'tokyo';
         document.documentElement.setAttribute('data-theme', theme);
     </script>
     
@@ -56,12 +56,13 @@
 
             <div class="header-spacer"></div>
 
-            <!-- Theme toggle -->
-            <button @click="theme = theme === 'light' ? 'dark' : 'light'"
+            <!-- Theme toggle: Tokyo Night → Nord Dark → Light → Tokyo -->
+            <button @click="theme = theme === 'tokyo' ? 'dark' : (theme === 'dark' ? 'light' : 'tokyo')"
                     class="btn btn-secondary"
-                    title="Toggle theme">
-                <span x-show="theme === 'light'"><i data-lucide="moon" style="width: 16px; height: 16px;"></i></span>
-                <span x-show="theme === 'dark'"><i data-lucide="sun" style="width: 16px; height: 16px;"></i></span>
+                    :title="'Theme: ' + (theme === 'tokyo' ? 'Tokyo Night' : (theme === 'dark' ? 'Nord Dark' : 'Light'))">
+                <span x-show="theme === 'tokyo'"><i data-lucide="moon-star" style="width: 16px; height: 16px;"></i></span>
+                <span x-show="theme === 'dark'"><i data-lucide="moon" style="width: 16px; height: 16px;"></i></span>
+                <span x-show="theme === 'light'"><i data-lucide="sun" style="width: 16px; height: 16px;"></i></span>
             </button>
             
             {% match user %}

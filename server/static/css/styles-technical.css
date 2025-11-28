@@ -19,9 +19,10 @@
  */
 
 /* ============================================================================
-   THEME COLORS - Nord Palette
+   THEME COLORS - Multiple Palettes
    ============================================================================ */
 
+/* Light Theme - Nord */
 :root[data-theme="light"] {
     --bg-primary: #ffffff;
     --bg-secondary: #f5f7fa;
@@ -38,6 +39,7 @@
     --shadow: rgba(0, 0, 0, 0.1);
 }
 
+/* Dark Theme - Nord (Default) */
 :root[data-theme="dark"] {
     --bg-primary: #2e3440;
     --bg-secondary: #3b4252;
@@ -52,6 +54,23 @@
     --accent-info: #88c0d0;
     --border-color: #4c566a;
     --shadow: rgba(0, 0, 0, 0.3);
+}
+
+/* Dark Theme - Tokyo Night */
+:root[data-theme="tokyo"] {
+    --bg-primary: #1a1b26;
+    --bg-secondary: #16161e;
+    --bg-tertiary: #24283b;
+    --text-primary: #c0caf5;
+    --text-secondary: #a9b1d6;
+    --text-muted: #565f89;
+    --accent-primary: #7aa2f7;
+    --accent-success: #9ece6a;
+    --accent-warning: #e0af68;
+    --accent-error: #f7768e;
+    --accent-info: #7dcfff;
+    --border-color: #292e42;
+    --shadow: rgba(0, 0, 0, 0.4);
 }
 
 /* ============================================================================
