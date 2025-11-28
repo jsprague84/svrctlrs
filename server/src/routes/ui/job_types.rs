@@ -2,12 +2,12 @@ use askama::Template;
 use axum::{
     extract::{Path, State},
     response::Html,
-    routing::{get, post, put},
+    routing::{get, put},
     Form, Router,
 };
 use serde::Deserialize;
 use svrctlrs_database::{
-    models::{JobType, CommandTemplate, CreateJobType, UpdateJobType, CreateCommandTemplate, UpdateCommandTemplate},
+    models::{CreateCommandTemplate, CreateJobType, UpdateCommandTemplate, UpdateJobType},
     queries::job_types as queries,
 };
 use tracing::{error, info, instrument, warn};
@@ -16,8 +16,7 @@ use crate::{
     routes::ui::AppError,
     state::AppState,
     templates::{
-        JobTypeFormTemplate, JobTypeListTemplate, JobTypesTemplate,
-        CommandTemplateFormTemplate, CommandTemplateListTemplate,
+        CommandTemplateListTemplate, JobTypeFormTemplate, JobTypeListTemplate, JobTypesTemplate,
     },
 };
 
@@ -28,9 +27,18 @@ pub fn routes() -> Router<AppState> {
         .route("/job-types/new", get(new_job_type_form))
         .route("/job-types/list", get(get_job_types_list))
         .route("/job-types/{id}/edit", get(edit_job_type_form))
-        .route("/job-types/{id}", put(update_job_type).delete(delete_job_type))
-        .route("/job-types/{job_type_id}/command-templates", get(get_command_templates).post(create_command_template))
-        .route("/job-types/{job_type_id}/command-templates/{id}", put(update_command_template).delete(delete_command_template))
+        .route(
+            "/job-types/{id}",
+            put(update_job_type).delete(delete_job_type),
+        )
+        .route(
+            "/job-types/{job_type_id}/command-templates",
+            get(get_command_templates).post(create_command_template),
+        )
+        .route(
+            "/job-types/{job_type_id}/command-templates/{id}",
+            put(update_command_template).delete(delete_command_template),
+        )
 }
 
 // ============================================================================
@@ -71,9 +79,7 @@ pub async fn job_types_page(State(state): State<AppState>) -> Result<Html<String
 
 /// Get the job types list (HTMX)
 #[instrument(skip(state))]
-pub async fn get_job_types_list(
-    State(state): State<AppState>,
-) -> Result<Html<String>, AppError> {
+pub async fn get_job_types_list(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     info!("Fetching job types list");
 
     let job_types = queries::list_job_types(&state.pool)
@@ -126,12 +132,10 @@ pub async fn edit_job_type_form(
 ) -> Result<Html<String>, AppError> {
     info!(job_type_id = id, "Rendering edit job type form");
 
-    let job_type = queries::get_job_type(&state.pool, id)
-        .await
-        .map_err(|e| {
-            warn!(job_type_id = id, error = %e, "Job type not found");
-            AppError::NotFound(format!("Job type {} not found", id))
-        })?;
+    let job_type = queries::get_job_type(&state.pool, id).await.map_err(|e| {
+        warn!(job_type_id = id, error = %e, "Job type not found");
+        AppError::NotFound(format!("Job type {} not found", id))
+    })?;
 
     let template = JobTypeFormTemplate {
         job_type: Some(job_type.into()),
@@ -158,8 +162,8 @@ pub struct CreateJobTypeFormInput {
     pub icon: Option<String>,
     pub color: Option<String>,
     pub requires_capabilities: Option<String>, // JSON array string
-    pub metadata: Option<String>, // JSON object string
-    pub enabled: Option<String>, // "on" or absent
+    pub metadata: Option<String>,              // JSON object string
+    pub enabled: Option<String>,               // "on" or absent
 }
 
 impl CreateJobTypeFormInput {
@@ -167,10 +171,9 @@ impl CreateJobTypeFormInput {
         // Parse capabilities
         let requires_capabilities = if let Some(ref caps_str) = self.requires_capabilities {
             if !caps_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(caps_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid capabilities JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(caps_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid capabilities JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -181,10 +184,9 @@ impl CreateJobTypeFormInput {
         // Parse metadata
         let metadata = if let Some(ref meta_str) = self.metadata {
             if !meta_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(meta_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid metadata JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(meta_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid metadata JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -264,8 +266,8 @@ pub struct UpdateJobTypeFormInput {
     pub icon: Option<String>,
     pub color: Option<String>,
     pub requires_capabilities: Option<String>, // JSON array string
-    pub metadata: Option<String>, // JSON object string
-    pub enabled: Option<String>, // "on" or absent
+    pub metadata: Option<String>,              // JSON object string
+    pub enabled: Option<String>,               // "on" or absent
 }
 
 impl UpdateJobTypeFormInput {
@@ -273,10 +275,9 @@ impl UpdateJobTypeFormInput {
         // Parse capabilities
         let requires_capabilities = if let Some(ref caps_str) = self.requires_capabilities {
             if !caps_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(caps_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid capabilities JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(caps_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid capabilities JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -287,10 +288,9 @@ impl UpdateJobTypeFormInput {
         // Parse metadata
         let metadata = if let Some(ref meta_str) = self.metadata {
             if !meta_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(meta_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid metadata JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(meta_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid metadata JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -364,12 +364,10 @@ pub async fn delete_job_type(
     info!(job_type_id = id, "Deleting job type");
 
     // Check if job type exists
-    let job_type = queries::get_job_type(&state.pool, id)
-        .await
-        .map_err(|e| {
-            warn!(job_type_id = id, error = %e, "Job type not found");
-            AppError::NotFound(format!("Job type {} not found", id))
-        })?;
+    let job_type = queries::get_job_type(&state.pool, id).await.map_err(|e| {
+        warn!(job_type_id = id, error = %e, "Job type not found");
+        AppError::NotFound(format!("Job type {} not found", id))
+    })?;
 
     // Delete job type
     queries::delete_job_type(&state.pool, id)
@@ -427,16 +425,16 @@ pub struct CreateCommandTemplateFormInput {
     pub description: Option<String>,
     pub command: String,
     pub required_capabilities: Option<String>, // JSON array string
-    pub os_filter: Option<String>, // JSON object string
+    pub os_filter: Option<String>,             // JSON object string
     pub timeout_seconds: Option<i32>,
     pub working_directory: Option<String>,
     pub environment: Option<String>, // JSON object string
     pub output_format: Option<String>,
-    pub parse_output: Option<String>, // "on" or absent
-    pub output_parser: Option<String>, // JSON object string
+    pub parse_output: Option<String>,      // "on" or absent
+    pub output_parser: Option<String>,     // JSON object string
     pub notify_on_success: Option<String>, // "on" or absent
     pub notify_on_failure: Option<String>, // "on" or absent
-    pub metadata: Option<String>, // JSON object string
+    pub metadata: Option<String>,          // JSON object string
 }
 
 impl CreateCommandTemplateFormInput {
@@ -444,10 +442,9 @@ impl CreateCommandTemplateFormInput {
         // Parse required_capabilities
         let required_capabilities = if let Some(ref caps_str) = self.required_capabilities {
             if !caps_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(caps_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid capabilities JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(caps_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid capabilities JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -458,10 +455,9 @@ impl CreateCommandTemplateFormInput {
         // Parse os_filter
         let os_filter = if let Some(ref filter_str) = self.os_filter {
             if !filter_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(filter_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid OS filter JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(filter_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid OS filter JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -472,10 +468,9 @@ impl CreateCommandTemplateFormInput {
         // Parse environment
         let environment = if let Some(ref env_str) = self.environment {
             if !env_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(env_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid environment JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(env_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid environment JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -486,10 +481,9 @@ impl CreateCommandTemplateFormInput {
         // Parse output_parser
         let output_parser = if let Some(ref parser_str) = self.output_parser {
             if !parser_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(parser_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid output parser JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(parser_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid output parser JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -500,10 +494,9 @@ impl CreateCommandTemplateFormInput {
         // Parse metadata
         let metadata = if let Some(ref meta_str) = self.metadata {
             if !meta_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(meta_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid metadata JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(meta_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid metadata JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -520,7 +513,10 @@ impl CreateCommandTemplateFormInput {
             required_capabilities,
             os_filter,
             timeout_seconds: self.timeout_seconds.unwrap_or(300),
-            working_directory: self.working_directory.clone().filter(|s| !s.trim().is_empty()),
+            working_directory: self
+                .working_directory
+                .clone()
+                .filter(|s| !s.trim().is_empty()),
             environment,
             output_format: self.output_format.clone().filter(|s| !s.trim().is_empty()),
             parse_output: self.parse_output.is_some(),
@@ -579,16 +575,16 @@ pub struct UpdateCommandTemplateFormInput {
     pub description: Option<String>,
     pub command: Option<String>,
     pub required_capabilities: Option<String>, // JSON array string
-    pub os_filter: Option<String>, // JSON object string
+    pub os_filter: Option<String>,             // JSON object string
     pub timeout_seconds: Option<i32>,
     pub working_directory: Option<String>,
     pub environment: Option<String>, // JSON object string
     pub output_format: Option<String>,
-    pub parse_output: Option<String>, // "on" or absent
-    pub output_parser: Option<String>, // JSON object string
+    pub parse_output: Option<String>,      // "on" or absent
+    pub output_parser: Option<String>,     // JSON object string
     pub notify_on_success: Option<String>, // "on" or absent
     pub notify_on_failure: Option<String>, // "on" or absent
-    pub metadata: Option<String>, // JSON object string
+    pub metadata: Option<String>,          // JSON object string
 }
 
 impl UpdateCommandTemplateFormInput {
@@ -596,10 +592,9 @@ impl UpdateCommandTemplateFormInput {
         // Parse required_capabilities
         let required_capabilities = if let Some(ref caps_str) = self.required_capabilities {
             if !caps_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(caps_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid capabilities JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(caps_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid capabilities JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -610,10 +605,9 @@ impl UpdateCommandTemplateFormInput {
         // Parse os_filter
         let os_filter = if let Some(ref filter_str) = self.os_filter {
             if !filter_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(filter_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid OS filter JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(filter_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid OS filter JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -624,10 +618,9 @@ impl UpdateCommandTemplateFormInput {
         // Parse environment
         let environment = if let Some(ref env_str) = self.environment {
             if !env_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(env_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid environment JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(env_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid environment JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -638,10 +631,9 @@ impl UpdateCommandTemplateFormInput {
         // Parse output_parser
         let output_parser = if let Some(ref parser_str) = self.output_parser {
             if !parser_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(parser_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid output parser JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(parser_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid output parser JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -652,10 +644,9 @@ impl UpdateCommandTemplateFormInput {
         // Parse metadata
         let metadata = if let Some(ref meta_str) = self.metadata {
             if !meta_str.trim().is_empty() {
-                Some(
-                    serde_json::from_str(meta_str)
-                        .map_err(|e| AppError::ValidationError(format!("Invalid metadata JSON: {}", e)))?,
-                )
+                Some(serde_json::from_str(meta_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid metadata JSON: {}", e))
+                })?)
             } else {
                 None
             }
@@ -670,7 +661,10 @@ impl UpdateCommandTemplateFormInput {
             required_capabilities,
             os_filter,
             timeout_seconds: self.timeout_seconds,
-            working_directory: self.working_directory.clone().filter(|s| !s.trim().is_empty()),
+            working_directory: self
+                .working_directory
+                .clone()
+                .filter(|s| !s.trim().is_empty()),
             environment,
             output_format: self.output_format.clone().filter(|s| !s.trim().is_empty()),
             parse_output: Some(self.parse_output.is_some()),

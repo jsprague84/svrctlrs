@@ -3,9 +3,7 @@
 #![allow(dead_code)]
 
 use askama::Template;
-use askama_web::WebTemplate;
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 
 // ============================================================================
 // Askama Filters
@@ -35,7 +33,7 @@ pub struct User {
 // Dashboard
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/dashboard.html")]
 pub struct DashboardTemplate {
     pub user: Option<User>,
@@ -67,7 +65,7 @@ pub struct RecentJobRun {
 // Servers
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/servers.html")]
 pub struct ServersTemplate {
     pub user: Option<User>,
@@ -76,13 +74,13 @@ pub struct ServersTemplate {
     pub tags: Vec<TagDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/server_list.html")]
 pub struct ServerListTemplate {
     pub servers: Vec<ServerDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/server_form.html")]
 pub struct ServerFormTemplate {
     pub server: Option<ServerDisplay>,
@@ -92,7 +90,7 @@ pub struct ServerFormTemplate {
     pub error: Option<String>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/server_capabilities.html")]
 pub struct ServerCapabilitiesTemplate {
     pub server_id: i64,
@@ -153,20 +151,20 @@ pub struct UpdateServerInput {
 // Credentials
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/credentials.html")]
 pub struct CredentialsTemplate {
     pub user: Option<User>,
     pub credentials: Vec<CredentialDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/credential_list.html")]
 pub struct CredentialListTemplate {
     pub credentials: Vec<CredentialDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/credential_form.html")]
 pub struct CredentialFormTemplate {
     pub credential: Option<CredentialDisplay>,
@@ -192,20 +190,20 @@ pub struct CredentialDisplay {
 // Tags
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/tags.html")]
 pub struct TagsTemplate {
     pub user: Option<User>,
     pub tags: Vec<TagDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/tag_list.html")]
 pub struct TagListTemplate {
     pub tags: Vec<TagDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/tag_form.html")]
 pub struct TagFormTemplate {
     pub tag: Option<TagDisplay>,
@@ -226,27 +224,27 @@ pub struct TagDisplay {
 // Job Types
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/job_types.html")]
 pub struct JobTypesTemplate {
     pub user: Option<User>,
     pub job_types: Vec<JobTypeDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_type_list.html")]
 pub struct JobTypeListTemplate {
     pub job_types: Vec<JobTypeDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_type_form.html")]
 pub struct JobTypeFormTemplate {
     pub job_type: Option<JobTypeDisplay>,
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct JobTypeDisplay {
     pub id: i64,
     pub name: String,
@@ -254,13 +252,13 @@ pub struct JobTypeDisplay {
     pub description: Option<String>,
     pub icon: Option<String>,
     pub color: Option<String>,
-    pub execution_type: String,  // "local", "remote", "composite"
+    pub execution_type: String, // "local", "remote", "composite"
     pub required_capabilities: Vec<String>,
     pub command_template_count: i64,
     pub job_template_count: i64,
     pub enabled: bool,
     pub created_at: String,
-    pub metadata: Option<JsonValue>,
+    pub metadata_json: String, // Pre-serialized JSON for templates
 }
 
 impl JobTypeDisplay {
@@ -268,8 +266,8 @@ impl JobTypeDisplay {
         self.required_capabilities.clone()
     }
 
-    pub fn get_metadata(&self) -> JsonValue {
-        self.metadata.clone().unwrap_or(JsonValue::Object(serde_json::Map::new()))
+    pub fn get_metadata(&self) -> String {
+        self.metadata_json.clone()
     }
 }
 
@@ -280,8 +278,13 @@ impl From<svrctlrs_database::models::JobType> for JobTypeDisplay {
 
         // Extract computed values first before moving fields
         let required_capabilities = jt.get_requires_capabilities();
-        let metadata = Some(jt.get_metadata());
-        let created_at = jt.created_at.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S").to_string();
+        let metadata_json =
+            serde_json::to_string(&jt.get_metadata()).unwrap_or_else(|_| "{}".to_string());
+        let created_at = jt
+            .created_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
 
         Self {
             id: jt.id,
@@ -296,7 +299,7 @@ impl From<svrctlrs_database::models::JobType> for JobTypeDisplay {
             job_template_count: 0,     // Will be set by query join
             enabled: jt.enabled,
             created_at,
-            metadata,
+            metadata_json,
         }
     }
 }
@@ -305,14 +308,14 @@ impl From<svrctlrs_database::models::JobType> for JobTypeDisplay {
 // Command Templates
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/command_template_list.html")]
 pub struct CommandTemplateListTemplate {
     pub job_type_id: i64,
     pub command_templates: Vec<CommandTemplateDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/command_template_form.html")]
 pub struct CommandTemplateFormTemplate {
     pub job_type_id: i64,
@@ -320,7 +323,7 @@ pub struct CommandTemplateFormTemplate {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct CommandTemplateDisplay {
     pub id: i64,
     pub job_type_id: i64,
@@ -329,16 +332,16 @@ pub struct CommandTemplateDisplay {
     pub description: Option<String>,
     pub command: String,
     pub required_capabilities: Vec<String>,
-    pub os_filter: Option<JsonValue>,
+    pub os_filter_json: String, // Pre-serialized JSON
     pub timeout_seconds: i32,
     pub working_directory: Option<String>,
-    pub environment: Option<std::collections::HashMap<String, String>>,
+    pub environment_json: String, // Pre-serialized JSON
     pub output_format: Option<String>,
     pub parse_output: bool,
-    pub output_parser: Option<JsonValue>,
+    pub output_parser_json: String, // Pre-serialized JSON
     pub notify_on_success: bool,
     pub notify_on_failure: bool,
-    pub metadata: Option<JsonValue>,
+    pub metadata_json: String, // Pre-serialized JSON
     pub created_at: String,
 }
 
@@ -347,20 +350,20 @@ impl CommandTemplateDisplay {
         self.required_capabilities.clone()
     }
 
-    pub fn get_os_filter(&self) -> JsonValue {
-        self.os_filter.clone().unwrap_or(JsonValue::Object(serde_json::Map::new()))
+    pub fn get_os_filter(&self) -> String {
+        self.os_filter_json.clone()
     }
 
-    pub fn get_environment(&self) -> std::collections::HashMap<String, String> {
-        self.environment.clone().unwrap_or_default()
+    pub fn get_environment(&self) -> String {
+        self.environment_json.clone()
     }
 
-    pub fn get_output_parser(&self) -> JsonValue {
-        self.output_parser.clone().unwrap_or(JsonValue::Object(serde_json::Map::new()))
+    pub fn get_output_parser(&self) -> String {
+        self.output_parser_json.clone()
     }
 
-    pub fn get_metadata(&self) -> JsonValue {
-        self.metadata.clone().unwrap_or(JsonValue::Object(serde_json::Map::new()))
+    pub fn get_metadata(&self) -> String {
+        self.metadata_json.clone()
     }
 }
 
@@ -369,13 +372,21 @@ impl From<svrctlrs_database::models::CommandTemplate> for CommandTemplateDisplay
     fn from(ct: svrctlrs_database::models::CommandTemplate) -> Self {
         use chrono::Local;
 
-        // Extract computed values first before moving fields
+        // Extract and serialize computed values first before moving fields
         let required_capabilities = ct.get_required_capabilities();
-        let os_filter = Some(ct.get_os_filter());
-        let environment = Some(ct.get_environment());
-        let output_parser = Some(ct.get_output_parser());
-        let metadata = Some(ct.get_metadata());
-        let created_at = ct.created_at.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S").to_string();
+        let os_filter_json =
+            serde_json::to_string(&ct.get_os_filter()).unwrap_or_else(|_| "{}".to_string());
+        let environment_json =
+            serde_json::to_string(&ct.get_environment()).unwrap_or_else(|_| "{}".to_string());
+        let output_parser_json =
+            serde_json::to_string(&ct.get_output_parser()).unwrap_or_else(|_| "{}".to_string());
+        let metadata_json =
+            serde_json::to_string(&ct.get_metadata()).unwrap_or_else(|_| "{}".to_string());
+        let created_at = ct
+            .created_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
 
         Self {
             id: ct.id,
@@ -385,16 +396,16 @@ impl From<svrctlrs_database::models::CommandTemplate> for CommandTemplateDisplay
             description: ct.description,
             command: ct.command,
             required_capabilities,
-            os_filter,
+            os_filter_json,
             timeout_seconds: ct.timeout_seconds,
             working_directory: ct.working_directory,
-            environment,
+            environment_json,
             output_format: ct.output_format,
             parse_output: ct.parse_output,
-            output_parser,
+            output_parser_json,
             notify_on_success: ct.notify_on_success,
             notify_on_failure: ct.notify_on_failure,
-            metadata,
+            metadata_json,
             created_at,
         }
     }
@@ -405,7 +416,7 @@ impl From<svrctlrs_database::models::CommandTemplate> for CommandTemplateDisplay
 // Job Templates (COMMENTED OUT - Field mismatches with new schema)
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/job_templates.html")]
 pub struct JobTemplatesTemplate {
     pub user: Option<User>,
@@ -413,13 +424,13 @@ pub struct JobTemplatesTemplate {
     pub job_types: Vec<JobTypeDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_template_list.html")]
 pub struct JobTemplateListTemplate {
     pub job_templates: Vec<JobTemplateDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_template_form.html")]
 pub struct JobTemplateFormTemplate {
     pub job_template: Option<JobTemplateDisplay>,
@@ -454,14 +465,14 @@ pub struct JobTemplateDisplay {
 // Job Template Steps
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_template_steps.html")]
 pub struct JobTemplateStepsTemplate {
     pub job_template_id: i64,
     pub steps: Vec<JobTemplateStepDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_template_step_form.html")]
 pub struct JobTemplateStepFormTemplate {
     pub job_template_id: i64,
@@ -470,7 +481,7 @@ pub struct JobTemplateStepFormTemplate {
     pub error: Option<String>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_template_step_list.html")]
 pub struct JobTemplateStepListTemplate {
     pub job_template_id: i64,
@@ -495,7 +506,7 @@ pub struct JobTemplateStepDisplay {
 // Job Schedules (COMMENTED OUT - Field mismatches with new schema)
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/job_schedules.html")]
 pub struct JobSchedulesTemplate {
     pub user: Option<User>,
@@ -504,13 +515,13 @@ pub struct JobSchedulesTemplate {
     pub servers: Vec<ServerDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_schedule_list.html")]
 pub struct JobScheduleListTemplate {
     pub schedules: Vec<JobScheduleDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_schedule_form.html")]
 pub struct JobScheduleFormTemplate {
     pub job_schedule: Option<JobScheduleDisplay>,
@@ -519,7 +530,7 @@ pub struct JobScheduleFormTemplate {
     pub error: Option<String>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/grouped_schedules.html")]
 pub struct GroupedSchedulesTemplate {
     pub grouped_schedules: Vec<ServerScheduleGroup>,
@@ -558,7 +569,7 @@ pub struct JobScheduleDisplay {
 // Job Runs (COMMENTED OUT - Field mismatches with new schema)
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/job_runs.html")]
 pub struct JobRunsTemplate {
     pub user: Option<User>,
@@ -568,7 +579,7 @@ pub struct JobRunsTemplate {
     pub per_page: usize,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_run_list.html")]
 pub struct JobRunListTemplate {
     pub job_runs: Vec<JobRunDisplay>,
@@ -577,7 +588,7 @@ pub struct JobRunListTemplate {
     pub per_page: usize,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/job_run_detail.html")]
 pub struct JobRunDetailTemplate {
     pub user: Option<User>,
@@ -634,7 +645,7 @@ pub struct ServerJobResultDisplay {
     pub error: Option<String>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/server_job_results.html")]
 pub struct ServerJobResultsTemplate {
     pub job_run_id: i64,
@@ -642,7 +653,7 @@ pub struct ServerJobResultsTemplate {
     pub servers: Vec<ServerDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/server_job_result_detail.html")]
 pub struct ServerJobResultDetailTemplate {
     pub result: ServerJobResultDisplay,
@@ -653,20 +664,20 @@ pub struct ServerJobResultDetailTemplate {
 // Notification Channels
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/notification_channels.html")]
 pub struct NotificationChannelsTemplate {
     pub user: Option<User>,
     pub channels: Vec<NotificationChannelDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/notification_channel_list.html")]
 pub struct NotificationChannelListTemplate {
     pub channels: Vec<NotificationChannelDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/notification_channel_form.html")]
 pub struct NotificationChannelFormTemplate {
     pub channel: Option<NotificationChannelDisplay>,
@@ -691,7 +702,7 @@ pub struct NotificationChannelDisplay {
 // Notification Policies (COMMENTED OUT - Template errors)
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/notification_policies.html")]
 pub struct NotificationPoliciesTemplate {
     pub user: Option<User>,
@@ -699,14 +710,14 @@ pub struct NotificationPoliciesTemplate {
     pub channels: Vec<NotificationChannelDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/notification_policy_list.html")]
 pub struct NotificationPolicyListTemplate {
     pub policies: Vec<NotificationPolicyDisplay>,
     pub channels: Vec<NotificationChannelDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/notification_policy_form.html")]
 pub struct NotificationPolicyFormTemplate {
     pub policy: Option<NotificationPolicyDisplay>,
@@ -734,19 +745,19 @@ pub struct NotificationPolicyDisplay {
 // Tasks (Legacy - Keep for backward compatibility)
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/tasks.html")]
 pub struct TasksTemplate {
     pub user: Option<User>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/task_list.html")]
 pub struct TaskListTemplate {
     pub task_groups: Vec<TaskGroup>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/task_form.html")]
 pub struct TaskFormTemplate {
     pub task: Option<Task>,
@@ -794,20 +805,20 @@ pub struct CreateTaskInput {
 // Plugins (Legacy - Keep for backward compatibility)
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/plugins.html")]
 pub struct PluginsTemplate {
     pub user: Option<User>,
     pub plugins: Vec<Plugin>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/plugin_list.html")]
 pub struct PluginListTemplate {
     pub plugins: Vec<Plugin>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/plugin_config_form.html")]
 pub struct PluginConfigFormTemplate {
     pub plugin: Plugin,
@@ -873,7 +884,7 @@ pub struct PluginConfigInput {
 // Settings
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/settings.html")]
 pub struct SettingsTemplate {
     pub user: Option<User>,
@@ -884,20 +895,20 @@ pub struct SettingsTemplate {
 // ============================================================================
 
 // Legacy notification templates (using old naming)
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/notifications.html")]
 pub struct NotificationsTemplate {
     pub user: Option<User>,
     pub notifications: Vec<NotificationChannelDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/notification_list.html")]
 pub struct NotificationListTemplate {
     pub notifications: Vec<NotificationChannelDisplay>,
 }
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "components/notification_form.html")]
 pub struct NotificationFormTemplate {
     pub notification: Option<NotificationChannelDisplay>,
@@ -951,7 +962,7 @@ pub struct UpdateNotificationInput {
 // Auth
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/login.html")]
 pub struct LoginTemplate {
     pub error: Option<String>,
@@ -969,7 +980,7 @@ pub struct LoginForm {
 // Error Pages
 // ============================================================================
 
-#[derive(Template, WebTemplate)]
+#[derive(Template)]
 #[template(path = "pages/404.html")]
 pub struct NotFoundTemplate {
     pub user: Option<User>,

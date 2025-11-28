@@ -53,7 +53,7 @@
                       name="command"
                       rows="4"
                       class="font-mono"
-                      placeholder="docker ps --filter 'status={{status}}'"
+                      placeholder="docker ps --filter 'status={{"{{"}}status{{"}}"}}''"
                       required>{{ ct.command }}</textarea>
             <small class="text-secondary">Use {{"{{"}}variable{{"}}"}} syntax for substitution</small>
         </div>
@@ -248,7 +248,7 @@
                       name="command"
                       rows="4"
                       class="font-mono"
-                      placeholder="docker ps --filter 'status={{status}}'"
+                      placeholder="docker ps --filter 'status={{"{{"}}status{{"}}"}}''"
                       required></textarea>
             <small class="text-secondary">Use {{"{{"}}variable{{"}}"}} syntax for substitution</small>
         </div>

@@ -30,13 +30,7 @@
             <div class="flex gap-1 flex-wrap mt-1">
                 {% for cap in jt.required_capabilities %}
                 <span class="badge badge-warning" style="font-size: 0.75rem;">
-                    {% match cap %}
-                    {% when svrctlrs_database::models::ServerCapability::Docker %}Docker
-                    {% when svrctlrs_database::models::ServerCapability::Systemd %}systemd
-                    {% when svrctlrs_database::models::ServerCapability::AptGet %}apt
-                    {% when svrctlrs_database::models::ServerCapability::Dnf %}dnf
-                    {% when svrctlrs_database::models::ServerCapability::Yum %}yum
-                    {% endmatch %}
+                    {{ cap }}
                 </span>
                 {% endfor %}
             </div>
