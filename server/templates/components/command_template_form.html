@@ -1,0 +1,155 @@
+<div class="card" x-data="{ args: {% match command_template %}{% when Some with (ct) %}{{ ct.default_args | json }}{% when None %}[]{% endmatch %} }">
+    <h3>{% match command_template %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Command Template</h3>
+
+    {% match error %}
+    {% when Some with (e) %}
+    <div class="alert alert-error">{{ e }}</div>
+    {% when None %}
+    {% endmatch %}
+
+    {% match command_template %}
+    {% when Some with (ct) %}
+    <form hx-put="/job-types/{{ job_type_id }}/command-templates/{{ ct.id }}"
+          hx-target="#command-template-list"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Template Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   value="{{ ct.name }}"
+                   placeholder="Default Update Command"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="command_template">Command Template *</label>
+            <textarea id="command_template"
+                      name="command_template"
+                      rows="4"
+                      placeholder="apt-get update && apt-get upgrade -y"
+                      required>{{ ct.command_template }}</textarea>
+            <small class="text-secondary">Use variables like {package_name} for parameterization</small>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description"
+                      name="description"
+                      rows="2"
+                      placeholder="What this command does">{% match ct.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Default Arguments (optional)</label>
+            <template x-for="(arg, index) in args" :key="index">
+                <div class="flex gap-2 mb-2">
+                    <input type="text"
+                           :name="'arg_key_' + index"
+                           x-model="arg.key"
+                           placeholder="Key"
+                           class="flex-1">
+                    <input type="text"
+                           :name="'arg_value_' + index"
+                           x-model="arg.value"
+                           placeholder="Value"
+                           class="flex-1">
+                    <button type="button"
+                            @click="args.splice(index, 1)"
+                            class="btn btn-sm btn-danger">
+                        <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                    </button>
+                </div>
+            </template>
+            <button type="button"
+                    @click="args.push({ key: '', value: '' })"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Add Argument
+            </button>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('command-template-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% when None %}
+    <form hx-post="/job-types/{{ job_type_id }}/command-templates"
+          hx-target="#command-template-list"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Template Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   placeholder="Default Update Command"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="command_template">Command Template *</label>
+            <textarea id="command_template"
+                      name="command_template"
+                      rows="4"
+                      placeholder="apt-get update && apt-get upgrade -y"
+                      required></textarea>
+            <small class="text-secondary">Use variables like {package_name} for parameterization</small>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description"
+                      name="description"
+                      rows="2"
+                      placeholder="What this command does"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Default Arguments (optional)</label>
+            <template x-for="(arg, index) in args" :key="index">
+                <div class="flex gap-2 mb-2">
+                    <input type="text"
+                           :name="'arg_key_' + index"
+                           x-model="arg.key"
+                           placeholder="Key"
+                           class="flex-1">
+                    <input type="text"
+                           :name="'arg_value_' + index"
+                           x-model="arg.value"
+                           placeholder="Value"
+                           class="flex-1">
+                    <button type="button"
+                            @click="args.splice(index, 1)"
+                            class="btn btn-sm btn-danger">
+                        <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                    </button>
+                </div>
+            </template>
+            <button type="button"
+                    @click="args.push({ key: '', value: '' })"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Add Argument
+            </button>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('command-template-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% endmatch %}
+</div>

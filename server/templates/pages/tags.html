@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Server Tags - SvrCtlRS{% endblock %}
+{% block nav_tags %}active{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-3">
+    <h1>Server Tags</h1>
+    <button hx-get="/tags/new"
+            hx-target="#tag-form-container"
+            hx-swap="innerHTML"
+            class="btn btn-primary">
+        <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Add Tag
+    </button>
+</div>
+
+<p class="text-secondary mb-3">
+    Organize servers using tags. Tags can be used for filtering and grouping servers for bulk operations.
+</p>
+
+<!-- Tag Form Container (loaded via HTMX) -->
+<div id="tag-form-container"></div>
+
+<!-- Tag List -->
+<div id="tag-list">
+    {% include "components/tag_list.html" %}
+</div>
+{% endblock %}

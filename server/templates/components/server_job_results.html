@@ -1,0 +1,84 @@
+{% if results.is_empty() %}
+<div class="alert alert-info">
+    <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+    No results available yet. Job may still be running.
+</div>
+{% else %}
+<div class="grid grid-1">
+    {% for result in results %}
+    <div class="card" style="background: var(--bg); margin-bottom: 0.5rem;">
+        <div class="flex-between mb-2">
+            <strong>{{ result.server_name }}</strong>
+            <span class="badge {% match result.status %}
+                {% when svrctlrs_database::models::JobRunStatus::Success %}badge-success
+                {% when svrctlrs_database::models::JobRunStatus::Failed %}badge-error
+                {% when svrctlrs_database::models::JobRunStatus::Running %}badge-info
+                {% when _ %}badge-secondary
+                {% endmatch %}">
+                {% match result.status %}
+                {% when svrctlrs_database::models::JobRunStatus::Success %}Success
+                {% when svrctlrs_database::models::JobRunStatus::Failed %}Failed
+                {% when svrctlrs_database::models::JobRunStatus::Running %}Running
+                {% when svrctlrs_database::models::JobRunStatus::Pending %}Pending
+                {% when _ %}Unknown
+                {% endmatch %}
+            </span>
+        </div>
+
+        <div class="text-secondary" style="font-size: 0.875rem;">
+            {% match result.started_at %}
+            {% when Some with (sa) %}
+            <strong>Started:</strong> {{ sa }}<br>
+            {% when None %}
+            {% endmatch %}
+            {% match result.completed_at %}
+            {% when Some with (ca) %}
+            <strong>Completed:</strong> {{ ca }}<br>
+            <strong>Duration:</strong> {{ result.duration_seconds }}s<br>
+            {% when None %}
+            {% endmatch %}
+            {% match result.exit_code %}
+            {% when Some with (ec) %}
+            <strong>Exit Code:</strong> {{ ec }}<br>
+            {% when None %}
+            {% endmatch %}
+        </div>
+
+        {% match result.stdout %}
+        {% when Some with (out) %}
+        {% if !out.is_empty() %}
+        <details style="margin-top: 0.5rem;">
+            <summary style="cursor: pointer; color: var(--text-secondary);">
+                <i data-lucide="terminal" style="width: 12px; height: 12px;"></i> Standard Output
+            </summary>
+            <pre style="background: var(--card-bg); padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.75rem; margin-top: 0.5rem;">{{ out }}</pre>
+        </details>
+        {% endif %}
+        {% when None %}
+        {% endmatch %}
+
+        {% match result.stderr %}
+        {% when Some with (err) %}
+        {% if !err.is_empty() %}
+        <details style="margin-top: 0.5rem;">
+            <summary style="cursor: pointer; color: var(--error);">
+                <i data-lucide="alert-circle" style="width: 12px; height: 12px;"></i> Error Output
+            </summary>
+            <pre style="background: var(--card-bg); padding: 0.5rem; border-radius: 4px; overflow-x: auto; font-size: 0.75rem; margin-top: 0.5rem; color: var(--error);">{{ err }}</pre>
+        </details>
+        {% endif %}
+        {% when None %}
+        {% endmatch %}
+
+        {% match result.error_message %}
+        {% when Some with (em) %}
+        <div class="alert alert-error" style="margin-top: 0.5rem; font-size: 0.875rem;">
+            <i data-lucide="alert-triangle" style="width: 14px; height: 14px;"></i>
+            {{ em }}
+        </div>
+        {% when None %}
+        {% endmatch %}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

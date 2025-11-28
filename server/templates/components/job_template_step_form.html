@@ -1,0 +1,149 @@
+<div class="card">
+    <h3>{% match step %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Job Step</h3>
+
+    {% match error %}
+    {% when Some with (e) %}
+    <div class="alert alert-error">{{ e }}</div>
+    {% when None %}
+    {% endmatch %}
+
+    {% match step %}
+    {% when Some with (s) %}
+    <form hx-put="/job-templates/{{ job_template_id }}/steps/{{ s.id }}"
+          hx-target="#job-template-steps"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Step Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   value="{{ s.name }}"
+                   placeholder="Update Package Cache"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="job_type_id">Job Type *</label>
+            <select id="job_type_id"
+                    name="job_type_id"
+                    required>
+                {% for job_type in job_types %}
+                <option value="{{ job_type.id }}" {% if job_type.id == s.job_type_id %}selected{% endif %}>
+                    {{ job_type.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="order_index">Step Order *</label>
+            <input type="number"
+                   id="order_index"
+                   name="order_index"
+                   value="{{ s.order_index }}"
+                   min="1"
+                   required>
+            <small class="text-secondary">Steps execute in order (1, 2, 3...)</small>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description"
+                      name="description"
+                      rows="2"
+                      placeholder="What this step does">{% match s.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="flex gap-2 align-center" style="cursor: pointer;">
+                <input type="checkbox"
+                       id="continue_on_failure"
+                       name="continue_on_failure"
+                       {% if s.continue_on_failure %}checked{% endif %}>
+                <span>Continue on Failure</span>
+            </label>
+            <small class="text-secondary">If checked, subsequent steps will run even if this step fails</small>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('job-step-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% when None %}
+    <form hx-post="/job-templates/{{ job_template_id }}/steps"
+          hx-target="#job-template-steps"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Step Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   placeholder="Update Package Cache"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="job_type_id">Job Type *</label>
+            <select id="job_type_id"
+                    name="job_type_id"
+                    required>
+                <option value="">Select a job type...</option>
+                {% for job_type in job_types %}
+                <option value="{{ job_type.id }}">
+                    {{ job_type.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="order_index">Step Order *</label>
+            <input type="number"
+                   id="order_index"
+                   name="order_index"
+                   value="{{ next_order_index }}"
+                   min="1"
+                   required>
+            <small class="text-secondary">Steps execute in order (1, 2, 3...)</small>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description"
+                      name="description"
+                      rows="2"
+                      placeholder="What this step does"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="flex gap-2 align-center" style="cursor: pointer;">
+                <input type="checkbox"
+                       id="continue_on_failure"
+                       name="continue_on_failure">
+                <span>Continue on Failure</span>
+            </label>
+            <small class="text-secondary">If checked, subsequent steps will run even if this step fails</small>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('job-step-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% endmatch %}
+</div>

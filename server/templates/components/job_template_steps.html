@@ -1,0 +1,74 @@
+{% if steps.is_empty() %}
+<div class="alert alert-info">
+    <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+    No steps defined for this composite job yet.
+</div>
+{% else %}
+<div class="card">
+    <h3>Job Steps</h3>
+    <div class="mt-2">
+        {% for step in steps %}
+        <div class="card" id="job-step-{{ step.id }}" style="margin-bottom: 0.5rem;">
+            <div class="flex-between">
+                <div class="flex-1">
+                    <div class="flex gap-2 align-center mb-1">
+                        <span class="badge badge-info">Step {{ step.order_index }}</span>
+                        <strong>{{ step.name }}</strong>
+                    </div>
+                    <p class="text-secondary" style="font-size: 0.875rem;">
+                        <strong>Job Type:</strong> {{ step.job_type_name }}
+                    </p>
+                    {% match step.description %}
+                    {% when Some with (d) %}
+                    <p class="text-secondary" style="font-size: 0.875rem;">{{ d }}</p>
+                    {% when None %}
+                    {% endmatch %}
+                </div>
+                <div class="flex gap-1">
+                    {% if step.order_index > 1 %}
+                    <button hx-post="/job-templates/{{ job_template_id }}/steps/{{ step.id }}/move-up"
+                            hx-target="#job-template-steps"
+                            hx-swap="innerHTML"
+                            class="btn btn-sm btn-secondary">
+                        <i data-lucide="arrow-up" style="width: 12px; height: 12px;"></i>
+                    </button>
+                    {% endif %}
+                    {% if step.order_index < steps | length %}
+                    <button hx-post="/job-templates/{{ job_template_id }}/steps/{{ step.id }}/move-down"
+                            hx-target="#job-template-steps"
+                            hx-swap="innerHTML"
+                            class="btn btn-sm btn-secondary">
+                        <i data-lucide="arrow-down" style="width: 12px; height: 12px;"></i>
+                    </button>
+                    {% endif %}
+                    <button hx-get="/job-templates/{{ job_template_id }}/steps/{{ step.id }}/edit"
+                            hx-target="#job-step-form-container"
+                            hx-swap="innerHTML"
+                            class="btn btn-sm btn-secondary">
+                        <i data-lucide="pencil" style="width: 12px; height: 12px;"></i>
+                    </button>
+                    <button hx-delete="/job-templates/{{ job_template_id }}/steps/{{ step.id }}"
+                            hx-target="#job-step-{{ step.id }}"
+                            hx-swap="outerHTML"
+                            hx-confirm="Delete step '{{ step.name }}'?"
+                            class="btn btn-sm btn-danger">
+                        <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="mt-2">
+    <button hx-get="/job-templates/{{ job_template_id }}/steps/new"
+            hx-target="#job-step-form-container"
+            hx-swap="innerHTML"
+            class="btn btn-sm btn-primary">
+        <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Step
+    </button>
+</div>
+
+<div id="job-step-form-container" class="mt-2"></div>

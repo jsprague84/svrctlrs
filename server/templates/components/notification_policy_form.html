@@ -1,0 +1,254 @@
+<div class="card" x-data="{ scopeType: '{% match policy %}{% when Some with (p) %}{% match p.scope_type %}{% when svrctlrs_database::models::PolicyScopeType::AllJobs %}all_jobs{% when svrctlrs_database::models::PolicyScopeType::SpecificJobTemplates %}specific_job_templates{% when svrctlrs_database::models::PolicyScopeType::JobType %}job_type{% endmatch %}{% when None %}all_jobs{% endmatch %}' }">
+    <h2>{% match policy %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Notification Policy</h2>
+
+    {% match error %}
+    {% when Some with (e) %}
+    <div class="alert alert-error">{{ e }}</div>
+    {% when None %}
+    {% endmatch %}
+
+    {% match policy %}
+    {% when Some with (p) %}
+    <form hx-put="/notification-policies/{{ p.id }}"
+          hx-target="#policy-list"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Policy Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   value="{{ p.name }}"
+                   placeholder="Alert on Update Failures"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="channel_id">Notification Channel *</label>
+            <select id="channel_id"
+                    name="channel_id"
+                    required>
+                {% for channel in channels %}
+                <option value="{{ channel.id }}" {% if channel.id == p.channel_id %}selected{% endif %}>
+                    {{ channel.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="scope_type">Policy Scope *</label>
+            <select id="scope_type"
+                    name="scope_type"
+                    x-model="scopeType"
+                    required>
+                <option value="all_jobs">All Jobs</option>
+                <option value="specific_job_templates">Specific Job Templates</option>
+                <option value="job_type">All Jobs of a Specific Type</option>
+            </select>
+        </div>
+
+        <div class="form-group" x-show="scopeType === 'specific_job_templates'">
+            <label>Select Job Templates</label>
+            <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
+                {% for jt in job_templates %}
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="job_template_ids"
+                           value="{{ jt.id }}"
+                           {% for pjt in p.job_templates %}{% if pjt.id == jt.id %}checked{% endif %}{% endfor %}>
+                    <span>{{ jt.name }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group" x-show="scopeType === 'job_type'">
+            <label for="job_type_id">Job Type</label>
+            <select id="job_type_id"
+                    name="job_type_id"
+                    :required="scopeType === 'job_type'">
+                <option value="">Select a job type...</option>
+                {% for jt in job_types %}
+                <option value="{{ jt.id }}" {% match p.job_type_id %}{% when Some with (jtid) %}{% if jt.id == jtid %}selected{% endif %}{% when None %}{% endmatch %}>
+                    {{ jt.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Notify On</label>
+            <div style="border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="notify_on_success"
+                           {% if p.notify_on_success %}checked{% endif %}>
+                    <span>Job Success</span>
+                </label>
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="notify_on_failure"
+                           {% if p.notify_on_failure %}checked{% endif %}>
+                    <span>Job Failure</span>
+                </label>
+                <label class="flex gap-2 align-center" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="notify_on_partial"
+                           {% if p.notify_on_partial %}checked{% endif %}>
+                    <span>Partial Success</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description"
+                      name="description"
+                      rows="2"
+                      placeholder="What this policy does">{% match p.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="flex gap-2 align-center" style="cursor: pointer;">
+                <input type="checkbox"
+                       id="enabled"
+                       name="enabled"
+                       {% if p.enabled %}checked{% endif %}>
+                <span>Policy Enabled</span>
+            </label>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('policy-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% when None %}
+    <form hx-post="/notification-policies"
+          hx-target="#policy-list"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Policy Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   placeholder="Alert on Update Failures"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="channel_id">Notification Channel *</label>
+            <select id="channel_id"
+                    name="channel_id"
+                    required>
+                <option value="">Select a channel...</option>
+                {% for channel in channels %}
+                <option value="{{ channel.id }}">
+                    {{ channel.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="scope_type">Policy Scope *</label>
+            <select id="scope_type"
+                    name="scope_type"
+                    x-model="scopeType"
+                    required>
+                <option value="all_jobs">All Jobs</option>
+                <option value="specific_job_templates">Specific Job Templates</option>
+                <option value="job_type">All Jobs of a Specific Type</option>
+            </select>
+        </div>
+
+        <div class="form-group" x-show="scopeType === 'specific_job_templates'">
+            <label>Select Job Templates</label>
+            <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
+                {% for jt in job_templates %}
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="job_template_ids"
+                           value="{{ jt.id }}">
+                    <span>{{ jt.name }}</span>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="form-group" x-show="scopeType === 'job_type'">
+            <label for="job_type_id">Job Type</label>
+            <select id="job_type_id"
+                    name="job_type_id"
+                    :required="scopeType === 'job_type'">
+                <option value="">Select a job type...</option>
+                {% for jt in job_types %}
+                <option value="{{ jt.id }}">
+                    {{ jt.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Notify On</label>
+            <div style="border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="notify_on_success">
+                    <span>Job Success</span>
+                </label>
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="notify_on_failure"
+                           checked>
+                    <span>Job Failure</span>
+                </label>
+                <label class="flex gap-2 align-center" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="notify_on_partial"
+                           checked>
+                    <span>Partial Success</span>
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description"
+                      name="description"
+                      rows="2"
+                      placeholder="What this policy does"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label class="flex gap-2 align-center" style="cursor: pointer;">
+                <input type="checkbox"
+                       id="enabled"
+                       name="enabled"
+                       checked>
+                <span>Policy Enabled</span>
+            </label>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('policy-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% endmatch %}
+</div>

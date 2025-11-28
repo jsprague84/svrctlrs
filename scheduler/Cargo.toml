@@ -12,12 +12,18 @@ tokio = { workspace = true }
 # Cron
 cron = { workspace = true }
 chrono = { workspace = true }
+chrono-tz = "0.10"
 
 # Error handling
+anyhow = { workspace = true }
 thiserror = { workspace = true }
+
+# Database
+sqlx = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
 
 # Core
-svrctlrs-core = { workspace = true }
+svrctlrs-core = { workspace = true, features = ["executor"] }
+svrctlrs-database = { workspace = true }

@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Notification Channels - SvrCtlRS{% endblock %}
+{% block nav_notification_channels %}active{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-3">
+    <h1>Notification Channels</h1>
+    <button hx-get="/notification-channels/new"
+            hx-target="#channel-form-container"
+            hx-swap="innerHTML"
+            class="btn btn-primary">
+        <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Add Channel
+    </button>
+</div>
+
+<p class="text-secondary mb-3">
+    Configure notification channels for job results and system alerts. Supports Gotify and ntfy.sh.
+</p>
+
+<!-- Channel Form Container (loaded via HTMX) -->
+<div id="channel-form-container"></div>
+
+<!-- Channel List -->
+<div id="channel-list">
+    {% include "components/notification_channel_list.html" %}
+</div>
+{% endblock %}

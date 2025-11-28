@@ -1,0 +1,86 @@
+{% if job_types.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No job types configured yet. Click "Add Job Type" to get started.</p>
+</div>
+{% else %}
+<div class="grid grid-2">
+    {% for jt in job_types %}
+    <div class="card" id="job-type-{{ jt.id }}">
+        <div class="card-header">
+            <h3 class="card-title">{{ jt.name }}</h3>
+            <span class="badge badge-info">
+                {% match jt.execution_type %}
+                {% when svrctlrs_database::models::ExecutionType::Shell %}Shell
+                {% when svrctlrs_database::models::ExecutionType::Docker %}Docker
+                {% when svrctlrs_database::models::ExecutionType::Systemd %}systemd
+                {% when svrctlrs_database::models::ExecutionType::Composite %}Composite
+                {% endmatch %}
+            </span>
+        </div>
+
+        {% match jt.description %}
+        {% when Some with (d) %}
+        <p class="text-secondary">{{ d }}</p>
+        {% when None %}
+        {% endmatch %}
+
+        <!-- Required Capabilities -->
+        {% if !jt.required_capabilities.is_empty() %}
+        <div class="mb-2">
+            <strong class="text-secondary">Required Capabilities:</strong>
+            <div class="flex gap-1 flex-wrap mt-1">
+                {% for cap in jt.required_capabilities %}
+                <span class="badge badge-warning" style="font-size: 0.75rem;">
+                    {% match cap %}
+                    {% when svrctlrs_database::models::ServerCapability::Docker %}Docker
+                    {% when svrctlrs_database::models::ServerCapability::Systemd %}systemd
+                    {% when svrctlrs_database::models::ServerCapability::AptGet %}apt
+                    {% when svrctlrs_database::models::ServerCapability::Dnf %}dnf
+                    {% when svrctlrs_database::models::ServerCapability::Yum %}yum
+                    {% endmatch %}
+                </span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Command Templates Count -->
+        <p class="text-secondary">
+            <strong>Command Templates:</strong> {{ jt.command_template_count }}
+        </p>
+
+        <div class="flex gap-2 mt-2">
+            <button hx-get="/job-types/{{ jt.id }}"
+                    hx-target="#job-type-form-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="eye" style="width: 14px; height: 14px;"></i> View
+            </button>
+
+            <button hx-get="/job-types/{{ jt.id }}/edit"
+                    hx-target="#job-type-form-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
+            </button>
+
+            {% if jt.job_template_count == 0 %}
+            <button hx-delete="/job-types/{{ jt.id }}"
+                    hx-target="#job-type-{{ jt.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Delete job type '{{ jt.name }}'?"
+                    class="btn btn-sm btn-danger">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
+            </button>
+            {% else %}
+            <button disabled
+                    class="btn btn-sm btn-secondary"
+                    title="Cannot delete - in use by {{ jt.job_template_count }} job template(s)">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - SvrCtlRS{% endblock %}
+{% block nav_dashboard %}active{% endblock %}
+
+{% block content %}
+<h1>Dashboard</h1>
+
+<!-- Stats Grid -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.total_servers }}</div>
+        <div class="stat-label">Servers</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.active_schedules }}</div>
+        <div class="stat-label">Active Schedules</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.job_templates }}</div>
+        <div class="stat-label">Job Templates</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-value">{{ stats.recent_runs }}</div>
+        <div class="stat-label">Recent Runs (24h)</div>
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Quick Actions</h2>
+    </div>
+
+    <div class="grid grid-2 gap-2">
+        <a href="/servers" class="btn btn-primary">
+            <i data-lucide="server" style="width: 16px; height: 16px;"></i> Manage Servers
+        </a>
+        <a href="/job-templates" class="btn btn-primary">
+            <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> Job Templates
+        </a>
+        <a href="/schedules" class="btn btn-primary">
+            <i data-lucide="calendar-clock" style="width: 16px; height: 16px;"></i> Schedules
+        </a>
+        <a href="/job-runs" class="btn btn-primary">
+            <i data-lucide="activity" style="width: 16px; height: 16px;"></i> Job History
+        </a>
+    </div>
+</div>
+
+<!-- Recent Job Runs -->
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Recent Job Runs</h2>
+        <a href="/job-runs" class="btn btn-sm btn-secondary">View All</a>
+    </div>
+
+    {% if recent_runs.is_empty() %}
+    <p class="text-secondary">No recent job runs to display.</p>
+    {% else %}
+    <div class="grid grid-1">
+        {% for run in recent_runs %}
+        <div class="card" style="background: var(--bg); margin-bottom: 0.5rem;">
+            <div class="flex-between">
+                <div>
+                    <strong>{{ run.job_template_name }}</strong>
+                    <span class="text-secondary" style="font-size: 0.875rem;">{{ run.started_at }}</span>
+                </div>
+                <span class="badge {% match run.status %}
+                    {% when svrctlrs_database::models::JobRunStatus::Success %}badge-success
+                    {% when svrctlrs_database::models::JobRunStatus::Failed %}badge-error
+                    {% when svrctlrs_database::models::JobRunStatus::PartialSuccess %}badge-warning
+                    {% when svrctlrs_database::models::JobRunStatus::Running %}badge-info
+                    {% when _ %}badge-secondary
+                    {% endmatch %}">
+                    {% match run.status %}
+                    {% when svrctlrs_database::models::JobRunStatus::Success %}Success
+                    {% when svrctlrs_database::models::JobRunStatus::Failed %}Failed
+                    {% when svrctlrs_database::models::JobRunStatus::PartialSuccess %}Partial
+                    {% when svrctlrs_database::models::JobRunStatus::Running %}Running
+                    {% when _ %}Pending
+                    {% endmatch %}
+                </span>
+            </div>
+            <div class="text-secondary" style="font-size: 0.875rem; margin-top: 0.25rem;">
+                {{ run.success_count }} succeeded, {{ run.failed_count }} failed of {{ run.total_servers }} servers
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- System Status -->
+<div class="grid grid-2">
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Server Status</h2>
+        </div>
+        <div class="text-secondary">
+            <strong>Total Servers:</strong> {{ stats.total_servers }}<br>
+            <strong>Enabled:</strong> {{ stats.enabled_servers }}<br>
+            <strong>With Tags:</strong> {{ stats.tagged_servers }}<br>
+            <strong>Credentials:</strong> {{ stats.total_credentials }}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <h2 class="card-title">Notification Status</h2>
+        </div>
+        <div class="text-secondary">
+            <strong>Channels:</strong> {{ stats.notification_channels }}<br>
+            <strong>Active Policies:</strong> {{ stats.active_policies }}<br>
+            <strong>Notifications Sent (24h):</strong> {{ stats.notifications_24h }}
+        </div>
+    </div>
+</div>
+{% endblock %}

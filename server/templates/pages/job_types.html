@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Job Types - SvrCtlRS{% endblock %}
+{% block nav_job_types %}active{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-3">
+    <h1>Job Types</h1>
+    <button hx-get="/job-types/new"
+            hx-target="#job-type-form-container"
+            hx-swap="innerHTML"
+            class="btn btn-primary">
+        <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Add Job Type
+    </button>
+</div>
+
+<p class="text-secondary mb-3">
+    Job types define categories of work with capability requirements and command templates.
+</p>
+
+<!-- Job Type Form Container (loaded via HTMX) -->
+<div id="job-type-form-container"></div>
+
+<!-- Job Type List -->
+<div id="job-type-list">
+    {% include "components/job_type_list.html" %}
+</div>
+{% endblock %}

@@ -26,3 +26,10 @@ thiserror = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
+
+# Database (for executor) - optional feature
+sqlx = { workspace = true, optional = true }
+
+[features]
+default = []
+executor = ["sqlx"]

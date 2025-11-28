@@ -1,0 +1,429 @@
+//! Job run database queries
+
+use anyhow::Context;
+use chrono::Utc;
+use sqlx::{Pool, Sqlite};
+use svrctlrs_core::{Error, Result};
+use tracing::instrument;
+
+use crate::models::{JobRun, ServerJobResult, StepExecutionResult};
+
+// ============================================================================
+// Job Run Queries
+// ============================================================================
+
+/// List recent job runs with limit and offset for pagination
+#[instrument(skip(pool))]
+pub async fn list_job_runs(pool: &Pool<Sqlite>, limit: i64, offset: i64) -> Result<Vec<JobRun>> {
+    sqlx::query_as::<_, JobRun>(
+        r#"
+        SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
+               duration_ms, exit_code, output, error, retry_attempt, is_retry, notification_sent,
+               notification_error, metadata
+        FROM job_runs
+        ORDER BY started_at DESC
+        LIMIT ? OFFSET ?
+        "#,
+    )
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await
+    .context("Failed to list job runs")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Get job run by ID with server results
+#[instrument(skip(pool))]
+pub async fn get_job_run(pool: &Pool<Sqlite>, id: i64) -> Result<JobRun> {
+    sqlx::query_as::<_, JobRun>(
+        r#"
+        SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
+               duration_ms, exit_code, output, error, retry_attempt, is_retry, notification_sent,
+               notification_error, metadata
+        FROM job_runs
+        WHERE id = ?
+        "#,
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to get job run")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Get job runs for a specific template
+#[instrument(skip(pool))]
+pub async fn get_job_runs_by_template(pool: &Pool<Sqlite>, template_id: i64, limit: i64) -> Result<Vec<JobRun>> {
+    sqlx::query_as::<_, JobRun>(
+        r#"
+        SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
+               duration_ms, exit_code, output, error, retry_attempt, is_retry, notification_sent,
+               notification_error, metadata
+        FROM job_runs
+        WHERE job_template_id = ?
+        ORDER BY started_at DESC
+        LIMIT ?
+        "#,
+    )
+    .bind(template_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .context("Failed to get job runs by template")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Get job runs for a specific schedule
+#[instrument(skip(pool))]
+pub async fn get_job_runs_by_schedule(pool: &Pool<Sqlite>, schedule_id: i64, limit: i64) -> Result<Vec<JobRun>> {
+    sqlx::query_as::<_, JobRun>(
+        r#"
+        SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
+               duration_ms, exit_code, output, error, retry_attempt, is_retry, notification_sent,
+               notification_error, metadata
+        FROM job_runs
+        WHERE job_schedule_id = ?
+        ORDER BY started_at DESC
+        LIMIT ?
+        "#,
+    )
+    .bind(schedule_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .context("Failed to get job runs by schedule")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Create a new job run
+#[instrument(skip(pool, metadata))]
+pub async fn create_job_run(
+    pool: &Pool<Sqlite>,
+    job_schedule_id: i64,
+    job_template_id: i64,
+    server_id: i64,
+    retry_attempt: i32,
+    is_retry: bool,
+    metadata: Option<String>,
+) -> Result<i64> {
+    let result = sqlx::query(
+        r#"
+        INSERT INTO job_runs (
+            job_schedule_id, job_template_id, server_id, status, retry_attempt, is_retry, metadata
+        )
+        VALUES (?, ?, ?, 'running', ?, ?, ?)
+        "#,
+    )
+    .bind(job_schedule_id)
+    .bind(job_template_id)
+    .bind(server_id)
+    .bind(retry_attempt)
+    .bind(is_retry)
+    .bind(metadata)
+    .execute(pool)
+    .await
+    .context("Failed to create job run")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(result.last_insert_rowid())
+}
+
+/// Update job run status
+#[instrument(skip(pool, metadata))]
+pub async fn update_job_run_status(
+    pool: &Pool<Sqlite>,
+    id: i64,
+    status: &str,
+    metadata: Option<String>,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        UPDATE job_runs
+        SET status = ?, metadata = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(status)
+    .bind(metadata)
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("Failed to update job run status")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Mark job run as complete with final results
+#[instrument(skip(pool, output, error))]
+pub async fn finish_job_run(
+    pool: &Pool<Sqlite>,
+    id: i64,
+    status: &str,
+    exit_code: Option<i32>,
+    output: Option<String>,
+    error: Option<String>,
+) -> Result<()> {
+    let now = Utc::now();
+
+    // Calculate duration from started_at
+    let job_run = get_job_run(pool, id).await?;
+    let duration_ms = now.signed_duration_since(job_run.started_at).num_milliseconds();
+
+    sqlx::query(
+        r#"
+        UPDATE job_runs
+        SET status = ?,
+            finished_at = ?,
+            duration_ms = ?,
+            exit_code = ?,
+            output = ?,
+            error = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(status)
+    .bind(now)
+    .bind(duration_ms)
+    .bind(exit_code)
+    .bind(output)
+    .bind(error)
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("Failed to finish job run")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Update notification sent status
+#[instrument(skip(pool))]
+pub async fn update_job_run_notification(
+    pool: &Pool<Sqlite>,
+    id: i64,
+    sent: bool,
+    error: Option<String>,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        UPDATE job_runs
+        SET notification_sent = ?, notification_error = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(sent)
+    .bind(error)
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("Failed to update job run notification status")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(())
+}
+
+// ============================================================================
+// Server Job Result Queries (for multi-server jobs)
+// ============================================================================
+
+/// Get all server results for a job run
+#[instrument(skip(pool))]
+pub async fn get_server_job_results(pool: &Pool<Sqlite>, run_id: i64) -> Result<Vec<ServerJobResult>> {
+    sqlx::query_as::<_, ServerJobResult>(
+        r#"
+        SELECT id, job_run_id, server_id, status, started_at, finished_at, duration_ms,
+               exit_code, output, error, metadata
+        FROM server_job_results
+        WHERE job_run_id = ?
+        ORDER BY server_id
+        "#,
+    )
+    .bind(run_id)
+    .fetch_all(pool)
+    .await
+    .context("Failed to get server job results")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Create a server job result
+#[instrument(skip(pool, metadata))]
+pub async fn create_server_job_result(
+    pool: &Pool<Sqlite>,
+    job_run_id: i64,
+    server_id: i64,
+    metadata: Option<String>,
+) -> Result<i64> {
+    let result = sqlx::query(
+        r#"
+        INSERT INTO server_job_results (job_run_id, server_id, status, started_at, metadata)
+        VALUES (?, ?, 'success', CURRENT_TIMESTAMP, ?)
+        "#,
+    )
+    .bind(job_run_id)
+    .bind(server_id)
+    .bind(metadata)
+    .execute(pool)
+    .await
+    .context("Failed to create server job result")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(result.last_insert_rowid())
+}
+
+/// Update a server job result
+#[instrument(skip(pool, output, error))]
+pub async fn update_server_job_result(
+    pool: &Pool<Sqlite>,
+    id: i64,
+    status: &str,
+    exit_code: Option<i32>,
+    output: Option<String>,
+    error: Option<String>,
+) -> Result<()> {
+    let now = Utc::now();
+
+    // Calculate duration
+    let result = sqlx::query_as::<_, ServerJobResult>(
+        r#"
+        SELECT id, job_run_id, server_id, status, started_at, finished_at, duration_ms,
+               exit_code, output, error, metadata
+        FROM server_job_results
+        WHERE id = ?
+        "#,
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to get server job result for update")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    let duration_ms = now.signed_duration_since(result.started_at).num_milliseconds();
+
+    sqlx::query(
+        r#"
+        UPDATE server_job_results
+        SET status = ?, finished_at = ?, duration_ms = ?, exit_code = ?, output = ?, error = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(status)
+    .bind(now)
+    .bind(duration_ms)
+    .bind(exit_code)
+    .bind(output)
+    .bind(error)
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("Failed to update server job result")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(())
+}
+
+// ============================================================================
+// Step Execution Result Queries (for composite jobs)
+// ============================================================================
+
+/// Get all step execution results for a job run
+#[instrument(skip(pool))]
+pub async fn get_step_execution_results(pool: &Pool<Sqlite>, job_run_id: i64) -> Result<Vec<StepExecutionResult>> {
+    sqlx::query_as::<_, StepExecutionResult>(
+        r#"
+        SELECT id, job_run_id, step_order, step_name, command_template_id, status, started_at,
+               finished_at, duration_ms, exit_code, output, error, metadata
+        FROM step_execution_results
+        WHERE job_run_id = ?
+        ORDER BY step_order
+        "#,
+    )
+    .bind(job_run_id)
+    .fetch_all(pool)
+    .await
+    .context("Failed to get step execution results")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Create a step execution result
+#[instrument(skip(pool, metadata))]
+pub async fn create_step_execution_result(
+    pool: &Pool<Sqlite>,
+    job_run_id: i64,
+    step_order: i32,
+    step_name: &str,
+    command_template_id: i64,
+    metadata: Option<String>,
+) -> Result<i64> {
+    let result = sqlx::query(
+        r#"
+        INSERT INTO step_execution_results (
+            job_run_id, step_order, step_name, command_template_id, status, started_at, metadata
+        )
+        VALUES (?, ?, ?, ?, 'running', CURRENT_TIMESTAMP, ?)
+        "#,
+    )
+    .bind(job_run_id)
+    .bind(step_order)
+    .bind(step_name)
+    .bind(command_template_id)
+    .bind(metadata)
+    .execute(pool)
+    .await
+    .context("Failed to create step execution result")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(result.last_insert_rowid())
+}
+
+/// Update a step execution result
+#[instrument(skip(pool, output, error))]
+pub async fn update_step_execution_result(
+    pool: &Pool<Sqlite>,
+    id: i64,
+    status: &str,
+    exit_code: Option<i32>,
+    output: Option<String>,
+    error: Option<String>,
+) -> Result<()> {
+    let now = Utc::now();
+
+    // Calculate duration
+    let result = sqlx::query_as::<_, StepExecutionResult>(
+        r#"
+        SELECT id, job_run_id, step_order, step_name, command_template_id, status, started_at,
+               finished_at, duration_ms, exit_code, output, error, metadata
+        FROM step_execution_results
+        WHERE id = ?
+        "#,
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to get step execution result for update")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    let duration_ms = now.signed_duration_since(result.started_at).num_milliseconds();
+
+    sqlx::query(
+        r#"
+        UPDATE step_execution_results
+        SET status = ?, finished_at = ?, duration_ms = ?, exit_code = ?, output = ?, error = ?
+        WHERE id = ?
+        "#,
+    )
+    .bind(status)
+    .bind(now)
+    .bind(duration_ms)
+    .bind(exit_code)
+    .bind(output)
+    .bind(error)
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("Failed to update step execution result")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(())
+}

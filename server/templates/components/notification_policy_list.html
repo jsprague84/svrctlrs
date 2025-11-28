@@ -1,0 +1,65 @@
+{% if policies.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No notification policies configured yet. Click "Add Policy" to get started.</p>
+</div>
+{% else %}
+<div class="grid grid-2">
+    {% for policy in policies %}
+    <div class="card" id="policy-{{ policy.id }}">
+        <div class="card-header">
+            <h3 class="card-title">{{ policy.name }}</h3>
+            <span class="badge {% if policy.enabled %}badge-success{% else %}badge-warning{% endif %}">
+                {% if policy.enabled %}Enabled{% else %}Disabled{% endif %}
+            </span>
+        </div>
+
+        <p class="text-secondary">
+            {% match policy.description %}
+            {% when Some with (d) %}
+            {{ d }}<br>
+            {% when None %}
+            {% endmatch %}
+            <strong>Channel:</strong> {{ policy.channel_name }}<br>
+            <strong>Scope:</strong>
+            {% match policy.scope_type %}
+            {% when svrctlrs_database::models::PolicyScopeType::AllJobs %}All Jobs
+            {% when svrctlrs_database::models::PolicyScopeType::SpecificJobTemplates %}Specific Job Templates ({{ policy.job_template_count }})
+            {% when svrctlrs_database::models::PolicyScopeType::JobType %}Job Type: {{ policy.job_type_name }}
+            {% endmatch %}<br>
+            <strong>Notify On:</strong>
+            {% if policy.notify_on_success %}Success{% endif %}
+            {% if policy.notify_on_failure %}{% if policy.notify_on_success %}, {% endif %}Failure{% endif %}
+            {% if policy.notify_on_partial %}{% if policy.notify_on_success || policy.notify_on_failure %}, {% endif %}Partial Success{% endif %}
+        </p>
+
+        <div class="flex gap-2 mt-2">
+            <button hx-get="/notification-policies/{{ policy.id }}/edit"
+                    hx-target="#policy-form-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
+            </button>
+
+            <button hx-post="/notification-policies/{{ policy.id }}/toggle"
+                    hx-target="#policy-{{ policy.id }}"
+                    hx-swap="outerHTML"
+                    class="btn btn-sm btn-secondary">
+                {% if policy.enabled %}
+                <i data-lucide="pause" style="width: 14px; height: 14px;"></i> Disable
+                {% else %}
+                <i data-lucide="play" style="width: 14px; height: 14px;"></i> Enable
+                {% endif %}
+            </button>
+
+            <button hx-delete="/notification-policies/{{ policy.id }}"
+                    hx-target="#policy-{{ policy.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Delete policy '{{ policy.name }}'?"
+                    class="btn btn-sm btn-danger">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

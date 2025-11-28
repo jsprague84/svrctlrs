@@ -7,9 +7,11 @@ use tracing::info;
 // Export models and queries
 pub mod models;
 pub mod queries;
+pub mod notification_service;
 
 pub use models::*;
 pub use queries::*;
+pub use notification_service::{NotificationService, TemplateContext, ServerResultContext};
 
 // Embed migrations at compile time
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");

@@ -1,0 +1,61 @@
+{% if command_templates.is_empty() %}
+<div class="alert alert-info">
+    <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+    No command templates defined for this job type yet.
+</div>
+{% else %}
+<div class="card">
+    <h3>Command Templates</h3>
+    <div class="mt-2">
+        {% for ct in command_templates %}
+        <div class="card" id="command-template-{{ ct.id }}" style="margin-bottom: 0.5rem;">
+            <div class="flex-between">
+                <div class="flex-1">
+                    <strong>{{ ct.name }}</strong>
+                    {% match ct.description %}
+                    {% when Some with (d) %}
+                    <p class="text-secondary" style="font-size: 0.875rem;">{{ d }}</p>
+                    {% when None %}
+                    {% endmatch %}
+                    <code style="display: block; background: var(--bg); padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.875rem;">{{ ct.command_template }}</code>
+                    {% if !ct.default_args.is_empty() %}
+                    <div class="text-secondary mt-1" style="font-size: 0.875rem;">
+                        <strong>Default Args:</strong>
+                        {% for arg in ct.default_args %}
+                        <code style="background: var(--bg); padding: 0.25rem 0.5rem; border-radius: 3px;">{{ arg.key }}={{ arg.value }}</code>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex gap-1">
+                    <button hx-get="/job-types/{{ job_type_id }}/command-templates/{{ ct.id }}/edit"
+                            hx-target="#command-template-form-container"
+                            hx-swap="innerHTML"
+                            class="btn btn-sm btn-secondary">
+                        <i data-lucide="pencil" style="width: 12px; height: 12px;"></i>
+                    </button>
+                    <button hx-delete="/job-types/{{ job_type_id }}/command-templates/{{ ct.id }}"
+                            hx-target="#command-template-{{ ct.id }}"
+                            hx-swap="outerHTML"
+                            hx-confirm="Delete command template '{{ ct.name }}'?"
+                            class="btn btn-sm btn-danger">
+                        <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="mt-2">
+    <button hx-get="/job-types/{{ job_type_id }}/command-templates/new"
+            hx-target="#command-template-form-container"
+            hx-swap="innerHTML"
+            class="btn btn-sm btn-primary">
+        <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Command Template
+    </button>
+</div>
+
+<div id="command-template-form-container" class="mt-2"></div>

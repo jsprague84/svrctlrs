@@ -1,0 +1,77 @@
+{% if job_templates.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No job templates configured yet. Click "Add Job Template" to get started.</p>
+</div>
+{% else %}
+<div class="grid grid-2">
+    {% for jt in job_templates %}
+    <div class="card" id="job-template-{{ jt.id }}">
+        <div class="card-header">
+            <h3 class="card-title">{{ jt.name }}</h3>
+            <span class="badge badge-info">{{ jt.job_type_name }}</span>
+        </div>
+
+        {% match jt.description %}
+        {% when Some with (d) %}
+        <p class="text-secondary">{{ d }}</p>
+        {% when None %}
+        {% endmatch %}
+
+        <div class="text-secondary mb-2">
+            <strong>Target:</strong>
+            {% match jt.target_type %}
+            {% when svrctlrs_database::models::TargetType::AllServers %}
+                All Servers ({{ jt.server_count }})
+            {% when svrctlrs_database::models::TargetType::Tagged %}
+                Tagged: {% for tag in jt.target_tags %}<span class="badge" style="background-color: {{ tag.color }}; color: #fff; font-size: 0.75rem;">{{ tag.name }}</span> {% endfor %}
+            {% when svrctlrs_database::models::TargetType::Specific %}
+                Specific: {{ jt.server_count }} server(s)
+            {% endmatch %}
+        </div>
+
+        {% if jt.is_composite %}
+        <div class="text-secondary mb-2">
+            <strong>Steps:</strong> {{ jt.step_count }}
+        </div>
+        {% endif %}
+
+        <div class="flex gap-2 mt-2">
+            <button hx-get="/job-templates/{{ jt.id }}"
+                    hx-target="#job-template-form-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="eye" style="width: 14px; height: 14px;"></i> View
+            </button>
+
+            <button hx-get="/job-templates/{{ jt.id }}/edit"
+                    hx-target="#job-template-form-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
+            </button>
+
+            <button hx-post="/job-templates/{{ jt.id }}/run"
+                    class="btn btn-sm btn-primary">
+                <i data-lucide="play" style="width: 14px; height: 14px;"></i> Run Now
+            </button>
+
+            {% if jt.schedule_count == 0 %}
+            <button hx-delete="/job-templates/{{ jt.id }}"
+                    hx-target="#job-template-{{ jt.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Delete job template '{{ jt.name }}'?"
+                    class="btn btn-sm btn-danger">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
+            </button>
+            {% else %}
+            <button disabled
+                    class="btn btn-sm btn-secondary"
+                    title="Cannot delete - in use by {{ jt.schedule_count }} schedule(s)">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

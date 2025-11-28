@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Job Schedules - SvrCtlRS{% endblock %}
+{% block nav_schedules %}active{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-3">
+    <h1>Job Schedules</h1>
+    <button hx-get="/schedules/new"
+            hx-target="#schedule-form-container"
+            hx-swap="innerHTML"
+            class="btn btn-primary">
+        <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Add Schedule
+    </button>
+</div>
+
+<p class="text-secondary mb-3">
+    Schedule jobs to run automatically at specified times using cron expressions.
+</p>
+
+<!-- Schedule Form Container (loaded via HTMX) -->
+<div id="schedule-form-container"></div>
+
+<!-- Schedule List (auto-refreshes) -->
+<div id="schedule-list"
+     hx-get="/schedules/list"
+     hx-trigger="every 30s"
+     hx-swap="innerHTML">
+    {% include "components/job_schedule_list.html" %}
+</div>
+{% endblock %}

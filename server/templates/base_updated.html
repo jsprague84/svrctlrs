@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en"
+      x-data="{ sidebarOpen: false, theme: localStorage.getItem('theme') || 'tokyo' }"
+      x-init="$watch('theme', val => localStorage.setItem('theme', val))"
+      :data-theme="theme">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}SvrCtlRS{% endblock %}</title>
+
+    <!-- Prevent FOUC (Flash of Unstyled Content) - Set theme immediately -->
+    <script>
+        // Set theme on html element before page renders
+        const theme = localStorage.getItem('theme') || 'tokyo';
+        document.documentElement.setAttribute('data-theme', theme);
+    </script>
+
+    <!-- Styles - Technical/Dense Theme (Professional) -->
+    <!-- To revert to friendly theme: change to /static/css/styles.css -->
+    <link rel="stylesheet" href="/static/css/styles-technical.css">
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Alpine.js for client-side interactivity -->
+    <script defer src="/static/js/alpine.min.js"></script>
+
+    <!-- HTMX -->
+    <script defer src="/static/js/htmx.min.js"></script>
+
+    <!-- Initialize Lucide icons after DOM loads -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            lucide.createIcons();
+        });
+        // Re-initialize icons after HTMX swaps
+        document.body.addEventListener('htmx:afterSwap', function() {
+            lucide.createIcons();
+        });
+    </script>
+
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <!-- Mobile menu button -->
+            <button @click="sidebarOpen = !sidebarOpen"
+                    class="mobile-menu-btn"
+                    :aria-label="sidebarOpen ? 'Close menu' : 'Open menu'">
+                <i data-lucide="menu" style="width: 20px; height: 20px;"></i>
+            </button>
+
+            <a href="/" class="header-title">SvrCtlRS</a>
+
+            <div class="header-spacer"></div>
+
+            <!-- Theme toggle: Tokyo Night → Nord Dark → Light → Tokyo -->
+            <button @click="theme = theme === 'tokyo' ? 'dark' : (theme === 'dark' ? 'light' : 'tokyo')"
+                    class="btn btn-secondary"
+                    :title="'Theme: ' + (theme === 'tokyo' ? 'Tokyo Night' : (theme === 'dark' ? 'Nord Dark' : 'Light'))">
+                <span x-show="theme === 'tokyo'"><i data-lucide="moon-star" style="width: 16px; height: 16px;"></i></span>
+                <span x-show="theme === 'dark'"><i data-lucide="moon" style="width: 16px; height: 16px;"></i></span>
+                <span x-show="theme === 'light'"><i data-lucide="sun" style="width: 16px; height: 16px;"></i></span>
+            </button>
+
+            {% match user %}
+            {% when Some with (u) %}
+            <span class="text-secondary">{{ u.username }}</span>
+            <form action="/auth/logout" method="post" style="display: inline;">
+                <button type="submit" class="btn btn-secondary">Logout</button>
+            </form>
+            {% when None %}
+            <a href="/auth/login" class="btn btn-primary">Login</a>
+            {% endmatch %}
+        </header>
+
+        <div class="main-layout">
+            <!-- Mobile backdrop -->
+            <div class="sidebar-backdrop"
+                 x-show="sidebarOpen"
+                 @click="sidebarOpen = false"
+                 x-transition:enter="transition ease-out duration-200"
+                 x-transition:enter-start="opacity-0"
+                 x-transition:enter-end="opacity-100"
+                 x-transition:leave="transition ease-in duration-150"
+                 x-transition:leave-start="opacity-100"
+                 x-transition:leave-end="opacity-0"></div>
+
+            <!-- Sidebar -->
+            <aside class="sidebar" :class="{ 'open': sidebarOpen }">
+                <nav>
+                    <a href="/" class="nav-link {% block nav_dashboard %}{% endblock %}">
+                        <i data-lucide="layout-dashboard" style="width: 16px; height: 16px;"></i> Dashboard
+                    </a>
+
+                    <!-- Infrastructure Section -->
+                    <div class="nav-section">Infrastructure</div>
+                    <a href="/servers" class="nav-link {% block nav_servers %}{% endblock %}">
+                        <i data-lucide="server" style="width: 16px; height: 16px;"></i> Servers
+                    </a>
+                    <a href="/credentials" class="nav-link {% block nav_credentials %}{% endblock %}">
+                        <i data-lucide="key" style="width: 16px; height: 16px;"></i> Credentials
+                    </a>
+                    <a href="/tags" class="nav-link {% block nav_tags %}{% endblock %}">
+                        <i data-lucide="tags" style="width: 16px; height: 16px;"></i> Tags
+                    </a>
+
+                    <!-- Jobs Section -->
+                    <div class="nav-section">Jobs</div>
+                    <a href="/job-types" class="nav-link {% block nav_job_types %}{% endblock %}">
+                        <i data-lucide="layers" style="width: 16px; height: 16px;"></i> Job Types
+                    </a>
+                    <a href="/job-templates" class="nav-link {% block nav_job_templates %}{% endblock %}">
+                        <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> Job Templates
+                    </a>
+                    <a href="/schedules" class="nav-link {% block nav_schedules %}{% endblock %}">
+                        <i data-lucide="calendar-clock" style="width: 16px; height: 16px;"></i> Schedules
+                    </a>
+                    <a href="/job-runs" class="nav-link {% block nav_job_runs %}{% endblock %}">
+                        <i data-lucide="activity" style="width: 16px; height: 16px;"></i> Job Runs
+                    </a>
+
+                    <!-- Notifications Section -->
+                    <div class="nav-section">Notifications</div>
+                    <a href="/notification-channels" class="nav-link {% block nav_notification_channels %}{% endblock %}">
+                        <i data-lucide="bell" style="width: 16px; height: 16px;"></i> Channels
+                    </a>
+                    <a href="/notification-policies" class="nav-link {% block nav_notification_policies %}{% endblock %}">
+                        <i data-lucide="shield-check" style="width: 16px; height: 16px;"></i> Policies
+                    </a>
+
+                    <!-- System Section -->
+                    <div class="nav-section">System</div>
+                    <a href="/settings" class="nav-link {% block nav_settings %}{% endblock %}">
+                        <i data-lucide="settings" style="width: 16px; height: 16px;"></i> Settings
+                    </a>
+                </nav>
+            </aside>
+
+            <!-- Main content -->
+            <main class="main-content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast notifications container -->
+    <div id="toast-container" style="position: fixed; top: 80px; right: 20px; z-index: 1000;">
+        <!-- Toasts will be injected here via HTMX -->
+    </div>
+</body>
+</html>

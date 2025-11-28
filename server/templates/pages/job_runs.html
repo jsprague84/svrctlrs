@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block title %}Job Runs - SvrCtlRS{% endblock %}
+{% block nav_job_runs %}active{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-3">
+    <h1>Job Run History</h1>
+    <button hx-get="/job-runs/list"
+            hx-target="#job-run-list"
+            hx-swap="innerHTML"
+            class="btn btn-secondary">
+        <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i> Refresh
+    </button>
+</div>
+
+<p class="text-secondary mb-3">
+    View execution history and results for all job runs.
+</p>
+
+<!-- Job Run List (auto-refreshes) -->
+<div id="job-run-list"
+     hx-get="/job-runs/list"
+     hx-trigger="every 10s"
+     hx-swap="innerHTML">
+    {% include "components/job_run_list.html" %}
+</div>
+{% endblock %}

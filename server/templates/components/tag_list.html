@@ -1,0 +1,51 @@
+{% if tags.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No tags configured yet. Click "Add Tag" to get started.</p>
+</div>
+{% else %}
+<div class="grid grid-3">
+    {% for tag in tags %}
+    <div class="card" id="tag-{{ tag.id }}">
+        <div class="card-header">
+            <div class="flex gap-2 align-center">
+                <span class="badge" style="background-color: {{ tag.color }}; color: #fff;">
+                    {{ tag.name }}
+                </span>
+                <span class="text-secondary">{{ tag.server_count }} server(s)</span>
+            </div>
+        </div>
+
+        {% match tag.description %}
+        {% when Some with (d) %}
+        <p class="text-secondary">{{ d }}</p>
+        {% when None %}
+        {% endmatch %}
+
+        <div class="flex gap-2 mt-2">
+            <button hx-get="/tags/{{ tag.id }}/edit"
+                    hx-target="#tag-form-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
+            </button>
+
+            {% if tag.server_count == 0 %}
+            <button hx-delete="/tags/{{ tag.id }}"
+                    hx-target="#tag-{{ tag.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Delete tag '{{ tag.name }}'?"
+                    class="btn btn-sm btn-danger">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
+            </button>
+            {% else %}
+            <button disabled
+                    class="btn btn-sm btn-secondary"
+                    title="Cannot delete - in use by {{ tag.server_count }} server(s)">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

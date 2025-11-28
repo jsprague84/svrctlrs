@@ -16,6 +16,7 @@ use crate::config::Config;
 pub struct AppState {
     pub config: Arc<Config>,
     pub database: Arc<RwLock<Database>>,
+    pub pool: sqlx::Pool<sqlx::Sqlite>,  // Direct pool access for convenience
     pub scheduler: Arc<RwLock<Option<Scheduler>>>,
     #[allow(dead_code)]
     pub executor: Arc<RemoteExecutor>,
@@ -25,9 +26,11 @@ impl AppState {
     /// Create new application state
     pub async fn new(config: Config, database: Database) -> Result<Self> {
         let executor = Arc::new(RemoteExecutor::new(config.ssh_key_path.clone()));
+        let pool = database.pool().clone();
 
         Ok(Self {
             config: Arc::new(config),
+            pool,
             database: Arc::new(RwLock::new(database)),
             scheduler: Arc::new(RwLock::new(None)),
             executor,

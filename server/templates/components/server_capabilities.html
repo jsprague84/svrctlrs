@@ -1,0 +1,30 @@
+{% if capabilities.is_empty() %}
+<div class="alert alert-info">
+    <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+    No capabilities detected. Click "Detect" to scan this server.
+</div>
+{% else %}
+<div class="card">
+    <h3>Detected Capabilities</h3>
+    <div class="flex gap-2 flex-wrap mt-2">
+        {% for cap in capabilities %}
+        <div class="badge badge-success">
+            <i data-lucide="{% match cap %}
+                {% when svrctlrs_database::models::ServerCapability::Docker %}package
+                {% when svrctlrs_database::models::ServerCapability::Systemd %}activity
+                {% when svrctlrs_database::models::ServerCapability::AptGet %}download
+                {% when svrctlrs_database::models::ServerCapability::Dnf %}download
+                {% when svrctlrs_database::models::ServerCapability::Yum %}download
+                {% endmatch %}" style="width: 14px; height: 14px;"></i>
+            {% match cap %}
+            {% when svrctlrs_database::models::ServerCapability::Docker %}Docker
+            {% when svrctlrs_database::models::ServerCapability::Systemd %}systemd
+            {% when svrctlrs_database::models::ServerCapability::AptGet %}apt-get
+            {% when svrctlrs_database::models::ServerCapability::Dnf %}dnf
+            {% when svrctlrs_database::models::ServerCapability::Yum %}yum
+            {% endmatch %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}

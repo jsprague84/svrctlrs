@@ -1,0 +1,266 @@
+SvrCtlRS Template Structure - Quick Reference
+==============================================
+
+NEW TEMPLATES CREATED (34 files)
+================================
+
+PART 1: CREDENTIALS
+-------------------
+pages/credentials.html
+components/credential_list.html
+components/credential_form.html
+
+PART 2: TAGS
+------------
+pages/tags.html
+components/tag_list.html
+components/tag_form.html
+
+PART 3: SERVERS (UPDATED)
+-------------------------
+pages/servers.html (updated with description)
+components/server_list_updated.html
+components/server_form_updated.html
+components/server_capabilities.html
+
+PART 4: JOB TYPES
+----------------
+pages/job_types.html
+components/job_type_list.html
+components/job_type_form.html
+
+PART 5: COMMAND TEMPLATES
+-------------------------
+components/command_template_list.html
+components/command_template_form.html
+
+PART 6: JOB TEMPLATES
+--------------------
+pages/job_templates.html
+components/job_template_list.html
+components/job_template_form.html
+
+PART 7: JOB STEPS (COMPOSITE)
+-----------------------------
+components/job_template_steps.html
+components/job_template_step_form.html
+
+PART 8: JOB SCHEDULES
+--------------------
+pages/job_schedules.html
+components/job_schedule_list.html
+components/job_schedule_form.html
+
+PART 9: JOB RUNS
+---------------
+pages/job_runs.html
+components/job_run_list.html
+components/job_run_detail.html
+components/server_job_results.html
+
+PART 10: NOTIFICATION CHANNELS
+------------------------------
+pages/notification_channels.html
+components/notification_channel_list.html
+components/notification_channel_form.html
+
+PART 11: NOTIFICATION POLICIES
+------------------------------
+pages/notification_policies.html
+components/notification_policy_list.html
+components/notification_policy_form.html
+
+PART 12: DASHBOARD
+-----------------
+pages/dashboard_updated.html
+
+PART 13: BASE LAYOUT
+-------------------
+base_updated.html
+
+
+NAVIGATION STRUCTURE
+====================
+
+Dashboard
+  └─ /
+
+Infrastructure
+  ├─ Servers         → /servers
+  ├─ Credentials     → /credentials
+  └─ Tags            → /tags
+
+Jobs
+  ├─ Job Types       → /job-types
+  ├─ Job Templates   → /job-templates
+  ├─ Schedules       → /schedules
+  └─ Job Runs        → /job-runs
+
+Notifications
+  ├─ Channels        → /notification-channels
+  └─ Policies        → /notification-policies
+
+System
+  └─ Settings        → /settings
+
+
+TEMPLATE PATTERNS
+=================
+
+Page Template Structure:
+------------------------
+{% extends "base.html" %}
+{% block title %}Page Title - SvrCtlRS{% endblock %}
+{% block nav_section %}active{% endblock %}
+{% block content %}
+  <h1>Page Title</h1>
+  <p class="text-secondary mb-3">Description</p>
+  <div id="form-container"></div>
+  <div id="list-container">
+    {% include "components/list.html" %}
+  </div>
+{% endblock %}
+
+List Component Structure:
+-------------------------
+{% if items.is_empty() %}
+  <div class="card">
+    <p class="text-secondary">Empty state message</p>
+  </div>
+{% else %}
+  <div class="grid grid-2">
+    {% for item in items %}
+      <div class="card" id="item-{{ item.id }}">
+        <!-- Content -->
+        <div class="flex gap-2 mt-2">
+          <!-- Actions -->
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+Form Component Structure:
+-------------------------
+<div class="card">
+  <h2>{% match item %}Add{% when Some %}Edit{% endmatch %} Item</h2>
+  {% match error %}
+    <div class="alert alert-error">{{ e }}</div>
+  {% endmatch %}
+  <form hx-post="/path" hx-target="#list">
+    <div class="form-group">
+      <label for="field">Field Name *</label>
+      <input type="text" id="field" name="field" required>
+    </div>
+    <div class="flex gap-2">
+      <button type="submit" class="btn btn-primary">Save</button>
+      <button type="button" class="btn btn-secondary">Cancel</button>
+    </div>
+  </form>
+</div>
+
+
+COMMON HTMX PATTERNS
+====================
+
+Load form:
+  hx-get="/items/new"
+  hx-target="#form-container"
+  hx-swap="innerHTML"
+
+Submit form:
+  hx-post="/items"
+  hx-target="#list-container"
+  hx-swap="innerHTML"
+
+Update item:
+  hx-put="/items/{{ id }}"
+  hx-target="#list-container"
+  hx-swap="innerHTML"
+
+Delete item:
+  hx-delete="/items/{{ id }}"
+  hx-target="#item-{{ id }}"
+  hx-swap="outerHTML"
+  hx-confirm="Delete '{{ name }}'?"
+
+Auto-refresh:
+  hx-get="/items/list"
+  hx-trigger="every 30s"
+  hx-swap="innerHTML"
+
+
+COMMON ALPINE.JS PATTERNS
+==========================
+
+Conditional display:
+  x-data="{ type: 'option1' }"
+  x-show="type === 'option1'"
+
+Dynamic arrays:
+  x-data="{ items: [] }"
+  <template x-for="(item, index) in items">
+    <!-- Item template -->
+  </template>
+  @click="items.push({ ... })"
+  @click="items.splice(index, 1)"
+
+Model binding:
+  x-model="fieldName"
+
+
+CSS UTILITY CLASSES
+===================
+
+Layout:
+  .grid-1, .grid-2, .grid-3
+  .flex, .flex-between, .flex-wrap
+  .gap-1, .gap-2, .gap-3
+  .mb-1, .mb-2, .mb-3, .mt-2
+
+Components:
+  .card, .card-header, .card-title
+  .btn, .btn-primary, .btn-secondary, .btn-danger
+  .btn-sm
+  .badge, .badge-success, .badge-error, .badge-warning, .badge-info
+  .alert, .alert-info, .alert-error, .alert-success
+
+Typography:
+  .text-secondary, .text-success, .text-error, .text-warning
+  .text-primary
+
+Form:
+  .form-group
+  input, select, textarea
+
+
+ICON SIZES (Lucide)
+===================
+
+Navigation:    width: 16px; height: 16px;
+Action Button: width: 14px; height: 14px;
+Small Action:  width: 12px; height: 12px;
+Header:        width: 20px; height: 20px;
+
+
+COLOR SCHEME (Tokyo Night)
+===========================
+
+Primary:    #7aa2f7 (blue)
+Success:    #9ece6a (green)
+Warning:    #e0af68 (orange)
+Error:      #f7768e (red)
+Info:       #7dcfff (cyan)
+Background: #1a1b26
+Cards:      #24283b
+
+
+FILES TO REPLACE
+================
+
+After backend integration:
+  base.html → base_updated.html
+  pages/dashboard.html → pages/dashboard_updated.html
+  components/server_list.html → components/server_list_updated.html
+  components/server_form.html → components/server_form_updated.html
+

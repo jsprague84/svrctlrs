@@ -94,15 +94,54 @@
                     <a href="/" class="nav-link {% block nav_dashboard %}{% endblock %}">
                         <i data-lucide="layout-dashboard" style="width: 16px; height: 16px;"></i> Dashboard
                     </a>
+
+                    <!-- Infrastructure -->
+                    <div class="nav-section">Infrastructure</div>
                     <a href="/servers" class="nav-link {% block nav_servers %}{% endblock %}">
                         <i data-lucide="server" style="width: 16px; height: 16px;"></i> Servers
                     </a>
+                    <a href="/credentials" class="nav-link {% block nav_credentials %}{% endblock %}">
+                        <i data-lucide="key" style="width: 16px; height: 16px;"></i> Credentials
+                    </a>
+                    <a href="/tags" class="nav-link {% block nav_tags %}{% endblock %}">
+                        <i data-lucide="tag" style="width: 16px; height: 16px;"></i> Tags
+                    </a>
+
+                    <!-- Jobs -->
+                    <div class="nav-section">Jobs</div>
+                    <a href="/job-types" class="nav-link {% block nav_job_types %}{% endblock %}">
+                        <i data-lucide="boxes" style="width: 16px; height: 16px;"></i> Job Types
+                    </a>
+                    <a href="/job-templates" class="nav-link {% block nav_job_templates %}{% endblock %}">
+                        <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> Job Templates
+                    </a>
+                    <a href="/job-schedules" class="nav-link {% block nav_schedules %}{% endblock %}">
+                        <i data-lucide="clock" style="width: 16px; height: 16px;"></i> Schedules
+                    </a>
+                    <a href="/job-runs" class="nav-link {% block nav_runs %}{% endblock %}">
+                        <i data-lucide="play-circle" style="width: 16px; height: 16px;"></i> Job Runs
+                    </a>
+
+                    <!-- Notifications -->
+                    <div class="nav-section">Notifications</div>
+                    <a href="/notification-channels" class="nav-link {% block nav_channels %}{% endblock %}">
+                        <i data-lucide="bell" style="width: 16px; height: 16px;"></i> Channels
+                    </a>
+                    <a href="/notification-policies" class="nav-link {% block nav_policies %}{% endblock %}">
+                        <i data-lucide="filter" style="width: 16px; height: 16px;"></i> Policies
+                    </a>
+
+                    <!-- Legacy (for backward compatibility) -->
+                    <div class="nav-section">Legacy</div>
                     <a href="/tasks" class="nav-link {% block nav_tasks %}{% endblock %}">
                         <i data-lucide="list-checks" style="width: 16px; height: 16px;"></i> Tasks
                     </a>
-                    <a href="/features" class="nav-link {% block nav_features %}{% endblock %}">
-                        <i data-lucide="box" style="width: 16px; height: 16px;"></i> Features
+                    <a href="/plugins" class="nav-link {% block nav_plugins %}{% endblock %}">
+                        <i data-lucide="box" style="width: 16px; height: 16px;"></i> Plugins
                     </a>
+
+                    <!-- System -->
+                    <div class="nav-section">System</div>
                     <a href="/settings" class="nav-link {% block nav_settings %}{% endblock %}">
                         <i data-lucide="settings" style="width: 16px; height: 16px;"></i> Settings
                     </a>

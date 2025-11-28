@@ -1,0 +1,66 @@
+{% if channels.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No notification channels configured yet. Click "Add Channel" to get started.</p>
+</div>
+{% else %}
+<div class="grid grid-2">
+    {% for channel in channels %}
+    <div class="card" id="channel-{{ channel.id }}">
+        <div class="card-header">
+            <h3 class="card-title">{{ channel.name }}</h3>
+            <span class="badge {% match channel.channel_type %}
+                {% when svrctlrs_database::models::NotificationChannelType::Gotify %}badge-info
+                {% when svrctlrs_database::models::NotificationChannelType::Ntfy %}badge-warning
+                {% endmatch %}">
+                {% match channel.channel_type %}
+                {% when svrctlrs_database::models::NotificationChannelType::Gotify %}Gotify
+                {% when svrctlrs_database::models::NotificationChannelType::Ntfy %}ntfy.sh
+                {% endmatch %}
+            </span>
+        </div>
+
+        <p class="text-secondary">
+            {% match channel.description %}
+            {% when Some with (d) %}
+            {{ d }}<br>
+            {% when None %}
+            {% endmatch %}
+            <strong>Endpoint:</strong> {{ channel.endpoint }}<br>
+            {% if channel.policy_count > 0 %}
+            <strong>Used by:</strong> {{ channel.policy_count }} policy(ies)
+            {% endif %}
+        </p>
+
+        <div class="flex gap-2 mt-2">
+            <button hx-post="/notification-channels/{{ channel.id }}/test"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="send" style="width: 14px; height: 14px;"></i> Test
+            </button>
+
+            <button hx-get="/notification-channels/{{ channel.id }}/edit"
+                    hx-target="#channel-form-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
+            </button>
+
+            {% if channel.policy_count == 0 %}
+            <button hx-delete="/notification-channels/{{ channel.id }}"
+                    hx-target="#channel-{{ channel.id }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Delete channel '{{ channel.name }}'?"
+                    class="btn btn-sm btn-danger">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
+            </button>
+            {% else %}
+            <button disabled
+                    class="btn btn-sm btn-secondary"
+                    title="Cannot delete - in use by {{ channel.policy_count }} policy(ies)">
+                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
+            </button>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

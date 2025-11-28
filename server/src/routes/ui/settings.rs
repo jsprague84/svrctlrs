@@ -56,7 +56,7 @@ async fn notifications_page(State(state): State<AppState>) -> Result<Html<String
 
     // Load notification backends from database
     let db = state.db().await;
-    let db_notifications = queries::notifications::list_notification_backends(db.pool()).await?;
+    let db_notifications = queries::notifications::list_notification_channels(db.pool()).await?;
     let notifications = db_notifications
         .into_iter()
         .map(db_notification_to_ui)
@@ -91,7 +91,7 @@ async fn notification_form_edit(
 ) -> Result<Html<String>, AppError> {
     // Load notification backend from database
     let db = state.db().await;
-    let db_notification = queries::notifications::get_notification_backend(db.pool(), id).await;
+    let db_notification = queries::notifications::get_notification_channel(db.pool(), id).await;
 
     let (notification, error) = match db_notification {
         Ok(n) => {
@@ -248,7 +248,7 @@ async fn notification_create(
         Ok(_) => {
             // Success - return updated list with success message
             let db_notifications =
-                queries::notifications::list_notification_backends(db.pool()).await?;
+                queries::notifications::list_notification_channels(db.pool()).await?;
             let notifications = db_notifications
                 .into_iter()
                 .map(db_notification_to_ui)
@@ -299,7 +299,7 @@ async fn notification_update(
 
     // Get existing backend to determine type
     let db = state.db().await;
-    let existing = queries::notifications::get_notification_backend(db.pool(), id).await?;
+    let existing = queries::notifications::get_notification_channel(db.pool(), id).await?;
 
     // Build config JSON based on backend type
     let config_json = if existing.backend_type == "gotify" {
@@ -354,7 +354,7 @@ async fn notification_update(
         Ok(_) => {
             // Success - return updated list with success message
             let db_notifications =
-                queries::notifications::list_notification_backends(db.pool()).await?;
+                queries::notifications::list_notification_channels(db.pool()).await?;
             let notifications = db_notifications
                 .into_iter()
                 .map(db_notification_to_ui)
@@ -387,7 +387,7 @@ async fn notification_delete(
 ) -> Result<impl IntoResponse, AppError> {
     // Get backend name before deleting
     let db = state.db().await;
-    let backend_name = queries::notifications::get_notification_backend(db.pool(), id)
+    let backend_name = queries::notifications::get_notification_channel(db.pool(), id)
         .await
         .map(|b| b.name)
         .unwrap_or_else(|_| format!("Backend {}", id));

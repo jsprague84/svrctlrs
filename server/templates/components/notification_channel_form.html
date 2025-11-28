@@ -1,0 +1,195 @@
+<div class="card" x-data="{ channelType: '{% match channel %}{% when Some with (c) %}{% match c.channel_type %}{% when svrctlrs_database::models::NotificationChannelType::Gotify %}gotify{% when svrctlrs_database::models::NotificationChannelType::Ntfy %}ntfy{% endmatch %}{% when None %}gotify{% endmatch %}' }">
+    <h2>{% match channel %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Notification Channel</h2>
+
+    {% match error %}
+    {% when Some with (e) %}
+    <div class="alert alert-error">{{ e }}</div>
+    {% when None %}
+    {% endmatch %}
+
+    {% match channel %}
+    {% when Some with (c) %}
+    <form hx-put="/notification-channels/{{ c.id }}"
+          hx-target="#channel-list"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Channel Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   value="{{ c.name }}"
+                   placeholder="Production Gotify"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="channel_type">Channel Type *</label>
+            <select id="channel_type"
+                    name="channel_type"
+                    x-model="channelType"
+                    required>
+                <option value="gotify">Gotify</option>
+                <option value="ntfy">ntfy.sh</option>
+            </select>
+        </div>
+
+        <div class="form-group" x-show="channelType === 'gotify'">
+            <label for="endpoint">Gotify Server URL *</label>
+            <input type="url"
+                   id="endpoint"
+                   name="endpoint"
+                   value="{{ c.endpoint }}"
+                   placeholder="https://gotify.example.com"
+                   :required="channelType === 'gotify'">
+        </div>
+
+        <div class="form-group" x-show="channelType === 'gotify'">
+            <label for="token">Gotify App Token *</label>
+            <input type="password"
+                   id="token"
+                   name="token"
+                   placeholder="Leave blank to keep current token"
+                   :required="channelType === 'gotify'">
+            <small class="text-secondary">Token is encrypted at rest</small>
+        </div>
+
+        <div class="form-group" x-show="channelType === 'ntfy'">
+            <label for="endpoint">ntfy.sh Server URL *</label>
+            <input type="url"
+                   id="endpoint_ntfy"
+                   name="endpoint"
+                   value="{{ c.endpoint }}"
+                   placeholder="https://ntfy.sh"
+                   :required="channelType === 'ntfy'">
+        </div>
+
+        <div class="form-group" x-show="channelType === 'ntfy'">
+            <label for="topic">ntfy.sh Topic *</label>
+            <input type="text"
+                   id="topic"
+                   name="topic"
+                   value="{% match c.config %}{% when Some with (cfg) %}{{ cfg.topic }}{% when None %}{% endmatch %}"
+                   placeholder="my-server-alerts"
+                   :required="channelType === 'ntfy'">
+        </div>
+
+        <div class="form-group" x-show="channelType === 'ntfy'">
+            <label for="token_ntfy">ntfy.sh Access Token (optional)</label>
+            <input type="password"
+                   id="token_ntfy"
+                   name="token"
+                   placeholder="Leave blank if topic is public or to keep current token">
+            <small class="text-secondary">Required for private topics. Token is encrypted at rest.</small>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description"
+                      name="description"
+                      rows="2"
+                      placeholder="Brief description of this channel">{% match c.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('channel-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% when None %}
+    <form hx-post="/notification-channels"
+          hx-target="#channel-list"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Channel Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   placeholder="Production Gotify"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="channel_type">Channel Type *</label>
+            <select id="channel_type"
+                    name="channel_type"
+                    x-model="channelType"
+                    required>
+                <option value="gotify">Gotify</option>
+                <option value="ntfy">ntfy.sh</option>
+            </select>
+        </div>
+
+        <div class="form-group" x-show="channelType === 'gotify'">
+            <label for="endpoint">Gotify Server URL *</label>
+            <input type="url"
+                   id="endpoint"
+                   name="endpoint"
+                   placeholder="https://gotify.example.com"
+                   :required="channelType === 'gotify'">
+        </div>
+
+        <div class="form-group" x-show="channelType === 'gotify'">
+            <label for="token">Gotify App Token *</label>
+            <input type="password"
+                   id="token"
+                   name="token"
+                   :required="channelType === 'gotify'">
+            <small class="text-secondary">Token is encrypted at rest</small>
+        </div>
+
+        <div class="form-group" x-show="channelType === 'ntfy'">
+            <label for="endpoint_ntfy">ntfy.sh Server URL *</label>
+            <input type="url"
+                   id="endpoint_ntfy"
+                   name="endpoint"
+                   placeholder="https://ntfy.sh"
+                   :required="channelType === 'ntfy'">
+        </div>
+
+        <div class="form-group" x-show="channelType === 'ntfy'">
+            <label for="topic">ntfy.sh Topic *</label>
+            <input type="text"
+                   id="topic"
+                   name="topic"
+                   placeholder="my-server-alerts"
+                   :required="channelType === 'ntfy'">
+        </div>
+
+        <div class="form-group" x-show="channelType === 'ntfy'">
+            <label for="token_ntfy">ntfy.sh Access Token (optional)</label>
+            <input type="password"
+                   id="token_ntfy"
+                   name="token"
+                   placeholder="Leave blank for public topics">
+            <small class="text-secondary">Required for private topics. Token is encrypted at rest.</small>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description"
+                      name="description"
+                      rows="2"
+                      placeholder="Brief description of this channel"></textarea>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('channel-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% endmatch %}
+</div>

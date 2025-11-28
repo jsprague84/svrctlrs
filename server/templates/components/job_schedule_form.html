@@ -1,0 +1,137 @@
+<div class="card">
+    <h2>{% match schedule %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Schedule</h2>
+
+    {% match error %}
+    {% when Some with (e) %}
+    <div class="alert alert-error">{{ e }}</div>
+    {% when None %}
+    {% endmatch %}
+
+    {% match schedule %}
+    {% when Some with (s) %}
+    <form hx-put="/schedules/{{ s.id }}"
+          hx-target="#schedule-list"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Schedule Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   value="{{ s.name }}"
+                   placeholder="Weekly Updates - Sundays at 2am"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="job_template_id">Job Template *</label>
+            <select id="job_template_id"
+                    name="job_template_id"
+                    required>
+                {% for jt in job_templates %}
+                <option value="{{ jt.id }}" {% if jt.id == s.job_template_id %}selected{% endif %}>
+                    {{ jt.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="cron_expression">Cron Expression *</label>
+            <input type="text"
+                   id="cron_expression"
+                   name="cron_expression"
+                   value="{{ s.cron_expression }}"
+                   placeholder="0 2 * * 0"
+                   required>
+            <small class="text-secondary">
+                Format: <code>minute hour day month weekday</code><br>
+                Examples: <code>0 2 * * *</code> (daily at 2am), <code>0 2 * * 0</code> (Sundays at 2am)
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label class="flex gap-2 align-center" style="cursor: pointer;">
+                <input type="checkbox"
+                       id="enabled"
+                       name="enabled"
+                       {% if s.enabled %}checked{% endif %}>
+                <span>Schedule Enabled</span>
+            </label>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('schedule-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% when None %}
+    <form hx-post="/schedules"
+          hx-target="#schedule-list"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Schedule Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   placeholder="Weekly Updates - Sundays at 2am"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="job_template_id">Job Template *</label>
+            <select id="job_template_id"
+                    name="job_template_id"
+                    required>
+                <option value="">Select a job template...</option>
+                {% for jt in job_templates %}
+                <option value="{{ jt.id }}">
+                    {{ jt.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="cron_expression">Cron Expression *</label>
+            <input type="text"
+                   id="cron_expression"
+                   name="cron_expression"
+                   placeholder="0 2 * * 0"
+                   required>
+            <small class="text-secondary">
+                Format: <code>minute hour day month weekday</code><br>
+                Examples: <code>0 2 * * *</code> (daily at 2am), <code>0 2 * * 0</code> (Sundays at 2am)
+            </small>
+        </div>
+
+        <div class="form-group">
+            <label class="flex gap-2 align-center" style="cursor: pointer;">
+                <input type="checkbox"
+                       id="enabled"
+                       name="enabled"
+                       checked>
+                <span>Schedule Enabled</span>
+            </label>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('schedule-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% endmatch %}
+</div>

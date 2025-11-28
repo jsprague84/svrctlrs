@@ -1,0 +1,182 @@
+<div class="card">
+    <h2>{% match job_type %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Job Type</h2>
+
+    {% match error %}
+    {% when Some with (e) %}
+    <div class="alert alert-error">{{ e }}</div>
+    {% when None %}
+    {% endmatch %}
+
+    {% match job_type %}
+    {% when Some with (jt) %}
+    <form hx-put="/job-types/{{ jt.id }}"
+          hx-target="#job-type-list"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Job Type Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   value="{{ jt.name }}"
+                   placeholder="System Update"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="execution_type">Execution Type *</label>
+            <select id="execution_type"
+                    name="execution_type"
+                    required>
+                <option value="shell" {% match jt.execution_type %}{% when svrctlrs_database::models::ExecutionType::Shell %}selected{% when _ %}{% endmatch %}>Shell Command</option>
+                <option value="docker" {% match jt.execution_type %}{% when svrctlrs_database::models::ExecutionType::Docker %}selected{% when _ %}{% endmatch %}>Docker Operation</option>
+                <option value="systemd" {% match jt.execution_type %}{% when svrctlrs_database::models::ExecutionType::Systemd %}selected{% when _ %}{% endmatch %}>systemd Service</option>
+                <option value="composite" {% match jt.execution_type %}{% when svrctlrs_database::models::ExecutionType::Composite %}selected{% when _ %}{% endmatch %}>Composite (Multiple Steps)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="required_capabilities">Required Server Capabilities</label>
+            <div style="border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="required_capabilities"
+                           value="docker"
+                           {% for cap in jt.required_capabilities %}{% match cap %}{% when svrctlrs_database::models::ServerCapability::Docker %}checked{% when _ %}{% endmatch %}{% endfor %}>
+                    <span>Docker</span>
+                </label>
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="required_capabilities"
+                           value="systemd"
+                           {% for cap in jt.required_capabilities %}{% match cap %}{% when svrctlrs_database::models::ServerCapability::Systemd %}checked{% when _ %}{% endmatch %}{% endfor %}>
+                    <span>systemd</span>
+                </label>
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="required_capabilities"
+                           value="apt_get"
+                           {% for cap in jt.required_capabilities %}{% match cap %}{% when svrctlrs_database::models::ServerCapability::AptGet %}checked{% when _ %}{% endmatch %}{% endfor %}>
+                    <span>apt-get</span>
+                </label>
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="required_capabilities"
+                           value="dnf"
+                           {% for cap in jt.required_capabilities %}{% match cap %}{% when svrctlrs_database::models::ServerCapability::Dnf %}checked{% when _ %}{% endmatch %}{% endfor %}>
+                    <span>dnf</span>
+                </label>
+                <label class="flex gap-2 align-center" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="required_capabilities"
+                           value="yum"
+                           {% for cap in jt.required_capabilities %}{% match cap %}{% when svrctlrs_database::models::ServerCapability::Yum %}checked{% when _ %}{% endmatch %}{% endfor %}>
+                    <span>yum</span>
+                </label>
+            </div>
+            <small class="text-secondary">Jobs will only run on servers with these capabilities</small>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description"
+                      name="description"
+                      rows="2"
+                      placeholder="What this job type does">{% match jt.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('job-type-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% when None %}
+    <form hx-post="/job-types"
+          hx-target="#job-type-list"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label for="name">Job Type Name *</label>
+            <input type="text"
+                   id="name"
+                   name="name"
+                   placeholder="System Update"
+                   required>
+        </div>
+
+        <div class="form-group">
+            <label for="execution_type">Execution Type *</label>
+            <select id="execution_type"
+                    name="execution_type"
+                    required>
+                <option value="shell">Shell Command</option>
+                <option value="docker">Docker Operation</option>
+                <option value="systemd">systemd Service</option>
+                <option value="composite">Composite (Multiple Steps)</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="required_capabilities">Required Server Capabilities</label>
+            <div style="border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="required_capabilities"
+                           value="docker">
+                    <span>Docker</span>
+                </label>
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="required_capabilities"
+                           value="systemd">
+                    <span>systemd</span>
+                </label>
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="required_capabilities"
+                           value="apt_get">
+                    <span>apt-get</span>
+                </label>
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="required_capabilities"
+                           value="dnf">
+                    <span>dnf</span>
+                </label>
+                <label class="flex gap-2 align-center" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="required_capabilities"
+                           value="yum">
+                    <span>yum</span>
+                </label>
+            </div>
+            <small class="text-secondary">Jobs will only run on servers with these capabilities</small>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Description (optional)</label>
+            <textarea id="description"
+                      name="description"
+                      rows="2"
+                      placeholder="What this job type does"></textarea>
+        </div>
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('job-type-form-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+    {% endmatch %}
+</div>

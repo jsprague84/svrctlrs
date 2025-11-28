@@ -1,0 +1,86 @@
+{% if job_runs.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No job runs yet. Schedules will appear here once they execute.</p>
+</div>
+{% else %}
+<div class="card">
+    {% for run in job_runs %}
+    <div class="card mb-2" id="job-run-{{ run.id }}" style="background: var(--bg);">
+        <div class="flex-between mb-2">
+            <div>
+                <strong>{{ run.job_template_name }}</strong>
+                <span class="text-secondary" style="font-size: 0.875rem;">{{ run.started_at }}</span>
+            </div>
+            <div class="flex gap-2">
+                <span class="badge {% match run.status %}
+                    {% when svrctlrs_database::models::JobRunStatus::Success %}badge-success
+                    {% when svrctlrs_database::models::JobRunStatus::Failed %}badge-error
+                    {% when svrctlrs_database::models::JobRunStatus::PartialSuccess %}badge-warning
+                    {% when svrctlrs_database::models::JobRunStatus::Running %}badge-info
+                    {% when svrctlrs_database::models::JobRunStatus::Pending %}badge-secondary
+                    {% endmatch %}">
+                    {% match run.status %}
+                    {% when svrctlrs_database::models::JobRunStatus::Success %}Success
+                    {% when svrctlrs_database::models::JobRunStatus::Failed %}Failed
+                    {% when svrctlrs_database::models::JobRunStatus::PartialSuccess %}Partial Success
+                    {% when svrctlrs_database::models::JobRunStatus::Running %}Running
+                    {% when svrctlrs_database::models::JobRunStatus::Pending %}Pending
+                    {% endmatch %}
+                </span>
+                <button hx-get="/job-runs/{{ run.id }}"
+                        hx-target="#job-run-detail-{{ run.id }}"
+                        hx-swap="innerHTML"
+                        class="btn btn-sm btn-secondary">
+                    <i data-lucide="chevron-down" style="width: 12px; height: 12px;"></i> Details
+                </button>
+            </div>
+        </div>
+
+        <div class="text-secondary" style="font-size: 0.875rem;">
+            <strong>Trigger:</strong> {% match run.trigger_type %}
+                {% when svrctlrs_database::models::TriggerType::Schedule %}Scheduled
+                {% when svrctlrs_database::models::TriggerType::Manual %}Manual
+                {% when svrctlrs_database::models::TriggerType::Webhook %}Webhook
+                {% endmatch %}<br>
+            <strong>Servers:</strong> {{ run.success_count }} succeeded, {{ run.failed_count }} failed of {{ run.total_servers }}<br>
+            {% match run.completed_at %}
+            {% when Some with (ca) %}
+            <strong>Duration:</strong> {{ run.duration_seconds }}s<br>
+            {% when None %}
+            {% match run.status %}
+            {% when svrctlrs_database::models::JobRunStatus::Running %}
+            <span class="text-info">Job is currently running...</span>
+            {% when _ %}
+            {% endmatch %}
+            {% endmatch %}
+        </div>
+
+        <!-- Expandable details -->
+        <div id="job-run-detail-{{ run.id }}" class="mt-2"></div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="flex-between mt-3">
+    <button {% if current_page == 1 %}disabled{% endif %}
+            hx-get="/job-runs/list?page={{ current_page - 1 }}"
+            hx-target="#job-run-list"
+            hx-swap="innerHTML"
+            class="btn btn-secondary">
+        <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Previous
+    </button>
+
+    <span class="text-secondary">Page {{ current_page }} of {{ total_pages }}</span>
+
+    <button {% if current_page == total_pages %}disabled{% endif %}
+            hx-get="/job-runs/list?page={{ current_page + 1 }}"
+            hx-target="#job-run-list"
+            hx-swap="innerHTML"
+            class="btn btn-secondary">
+        Next <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+    </button>
+</div>
+{% endif %}
+{% endif %}

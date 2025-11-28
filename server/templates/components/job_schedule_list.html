@@ -1,0 +1,85 @@
+{% if schedules.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No schedules configured yet. Click "Add Schedule" to get started.</p>
+</div>
+{% else %}
+<!-- Group by job template -->
+{% for group in schedule_groups %}
+<div class="card mb-3">
+    <div class="card-header">
+        <h3 class="card-title">{{ group.job_template_name }}</h3>
+        <span class="badge badge-info">{{ group.schedules | length }} schedule(s)</span>
+    </div>
+
+    <div class="grid grid-2 mt-2">
+        {% for schedule in group.schedules %}
+        <div class="card" id="schedule-{{ schedule.id }}" style="background: var(--bg);">
+            <div class="flex-between mb-2">
+                <strong>{{ schedule.name }}</strong>
+                <span class="badge {% if schedule.enabled %}badge-success{% else %}badge-warning{% endif %}">
+                    {% if schedule.enabled %}Enabled{% else %}Disabled{% endif %}
+                </span>
+            </div>
+
+            <p class="text-secondary" style="font-size: 0.875rem;">
+                <strong>Schedule:</strong> <code style="background: var(--card-bg); padding: 0.25rem 0.5rem; border-radius: 3px;">{{ schedule.cron_expression }}</code><br>
+                <strong>Next Run:</strong> {% match schedule.next_run %}{% when Some with (nr) %}{{ nr }}{% when None %}Not scheduled{% endmatch %}<br>
+                {% match schedule.last_run %}
+                {% when Some with (lr) %}
+                <strong>Last Run:</strong> {{ lr.timestamp }} -
+                <span class="{% match lr.status %}
+                    {% when svrctlrs_database::models::JobRunStatus::Success %}text-success
+                    {% when svrctlrs_database::models::JobRunStatus::Failed %}text-error
+                    {% when svrctlrs_database::models::JobRunStatus::PartialSuccess %}text-warning
+                    {% when _ %}text-secondary
+                    {% endmatch %}">
+                    {% match lr.status %}
+                    {% when svrctlrs_database::models::JobRunStatus::Success %}Success
+                    {% when svrctlrs_database::models::JobRunStatus::Failed %}Failed
+                    {% when svrctlrs_database::models::JobRunStatus::PartialSuccess %}Partial
+                    {% when svrctlrs_database::models::JobRunStatus::Running %}Running
+                    {% when svrctlrs_database::models::JobRunStatus::Pending %}Pending
+                    {% endmatch %}
+                </span>
+                {% when None %}
+                {% endmatch %}
+            </p>
+
+            <div class="flex gap-2 mt-2">
+                <button hx-get="/schedules/{{ schedule.id }}/edit"
+                        hx-target="#schedule-form-container"
+                        hx-swap="innerHTML"
+                        class="btn btn-sm btn-secondary">
+                    <i data-lucide="pencil" style="width: 12px; height: 12px;"></i> Edit
+                </button>
+
+                <button hx-post="/schedules/{{ schedule.id }}/toggle"
+                        hx-target="#schedule-{{ schedule.id }}"
+                        hx-swap="outerHTML"
+                        class="btn btn-sm btn-secondary">
+                    {% if schedule.enabled %}
+                    <i data-lucide="pause" style="width: 12px; height: 12px;"></i> Disable
+                    {% else %}
+                    <i data-lucide="play" style="width: 12px; height: 12px;"></i> Enable
+                    {% endif %}
+                </button>
+
+                <button hx-post="/schedules/{{ schedule.id }}/run-now"
+                        class="btn btn-sm btn-primary">
+                    <i data-lucide="zap" style="width: 12px; height: 12px;"></i> Run Now
+                </button>
+
+                <button hx-delete="/schedules/{{ schedule.id }}"
+                        hx-target="#schedule-{{ schedule.id }}"
+                        hx-swap="outerHTML"
+                        hx-confirm="Delete schedule '{{ schedule.name }}'?"
+                        class="btn btn-sm btn-danger">
+                    <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+{% endif %}
