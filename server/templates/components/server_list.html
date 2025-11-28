@@ -31,16 +31,16 @@
             <button hx-get="/servers/{{ server.id }}/edit"
                     hx-target="#server-form-container"
                     hx-swap="innerHTML"
-                    class="btn-secondary btn-sm">
-                Edit
+                    class="btn btn-sm btn-secondary">
+                ✏️ Edit
             </button>
-            
+
             <button hx-delete="/servers/{{ server.id }}"
                     hx-target="#server-{{ server.id }}"
                     hx-swap="outerHTML"
                     hx-confirm="Delete server '{{ server.name }}'?"
-                    class="btn-danger btn-sm">
-                Delete
+                    class="btn btn-sm btn-danger">
+                🗑️ Delete
             </button>
         </div>
     </div>
