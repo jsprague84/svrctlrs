@@ -7,14 +7,14 @@
 -- - Removes the "localhost" server hack from the database
 
 -- Update all tasks that reference the localhost server to have NULL server_id
-UPDATE tasks 
-SET server_id = NULL, server_name = NULL
+UPDATE tasks
+SET server_id = NULL
 WHERE server_id = (SELECT id FROM servers WHERE name = 'localhost' LIMIT 1);
 
 -- Also update all plugin tasks to be local (NULL server_id)
 -- Plugin tasks should run locally on the SvrCtlRS host, not via SSH
-UPDATE tasks 
-SET server_id = NULL, server_name = NULL
+UPDATE tasks
+SET server_id = NULL
 WHERE plugin_id IN ('docker', 'health', 'updates', 'weather', 'speedtest');
 
 -- Delete the localhost server (it's no longer needed)

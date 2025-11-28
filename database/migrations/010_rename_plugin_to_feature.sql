@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS tasks_new (
     description TEXT,
     feature_id TEXT NOT NULL,  -- Renamed from plugin_id, no FK (features are code-level)
     server_id INTEGER,  -- NULL for local, server ID for remote
-    server_name TEXT,
     command TEXT NOT NULL,
     args TEXT,
     schedule TEXT NOT NULL,
@@ -35,7 +34,7 @@ CREATE TABLE IF NOT EXISTS tasks_new (
 -- Step 2: Copy all data from old table to new table
 -- Handle old schema which had run_count instead of success_count/failure_count
 INSERT INTO tasks_new (
-    id, name, description, feature_id, server_id, server_name, command, args,
+    id, name, description, feature_id, server_id, command, args,
     schedule, enabled, timeout, last_run_at, next_run_at,
     success_count, failure_count, created_at, updated_at
 )
@@ -45,7 +44,6 @@ SELECT
     description,
     plugin_id as feature_id,
     server_id,
-    COALESCE(server_name, 'localhost') as server_name,
     command,
     args,
     schedule,

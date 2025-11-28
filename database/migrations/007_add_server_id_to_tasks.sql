@@ -26,8 +26,7 @@ WHERE NOT EXISTS (SELECT 1 FROM servers WHERE name = 'localhost');
 
 -- Migrate existing tasks to localhost server
 -- This is safe to run multiple times
-UPDATE tasks 
-SET 
-    server_id = COALESCE(server_id, (SELECT id FROM servers WHERE name = 'localhost' LIMIT 1)),
-    server_name = COALESCE(server_name, 'localhost')
-WHERE server_id IS NULL OR server_name IS NULL;
+UPDATE tasks
+SET
+    server_id = COALESCE(server_id, (SELECT id FROM servers WHERE name = 'localhost' LIMIT 1))
+WHERE server_id IS NULL;
