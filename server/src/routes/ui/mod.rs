@@ -119,14 +119,14 @@ impl From<askama::Error> for AppError {
     }
 }
 
-impl From<sqlx::Error> for AppError {
-    fn from(err: sqlx::Error) -> Self {
+impl From<svrctlrs_database::sqlx::Error> for AppError {
+    fn from(err: svrctlrs_database::sqlx::Error) -> Self {
         AppError::DatabaseError(err.to_string())
     }
 }
 
-impl From<anyhow::Error> for AppError {
-    fn from(err: anyhow::Error) -> Self {
+impl From<svrctlrs_core::Error> for AppError {
+    fn from(err: svrctlrs_core::Error) -> Self {
         AppError::InternalError(err.to_string())
     }
 }

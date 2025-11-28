@@ -13,6 +13,9 @@ pub use models::*;
 pub use queries::*;
 pub use notification_service::{NotificationService, TemplateContext, ServerResultContext};
 
+// Re-export sqlx types for convenience
+pub use sqlx::{self, Pool as SqlxPool, Sqlite as SqlxSqlite};
+
 // Embed migrations at compile time
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 

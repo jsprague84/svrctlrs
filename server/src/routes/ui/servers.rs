@@ -404,15 +404,11 @@ async fn server_capabilities(
     let capabilities = servers_queries::get_server_capabilities(db.pool(), id).await?;
 
     let template = ServerCapabilitiesTemplate {
+        server_id: id,
         server: server_to_display(&server),
         capabilities: capabilities
             .into_iter()
-            .map(|c| CapabilityDisplay {
-                name: c.capability,
-                available: c.available,
-                version: c.version,
-                detected_at: c.detected_at.to_rfc3339(),
-            })
+            .map(|c| c.capability)
             .collect(),
     };
 

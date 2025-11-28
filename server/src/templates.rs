@@ -75,6 +75,7 @@ pub struct ServerFormTemplate {
     pub server: Option<ServerDisplay>,
     pub credentials: Vec<CredentialDisplay>,
     pub tags: Vec<TagDisplay>,
+    pub selected_tags: Vec<i64>,  // IDs of tags selected for this server
     pub error: Option<String>,
 }
 
@@ -82,6 +83,7 @@ pub struct ServerFormTemplate {
 #[template(path = "components/server_capabilities.html")]
 pub struct ServerCapabilitiesTemplate {
     pub server_id: i64,
+    pub server: ServerDisplay,  // Full server info for display
     pub capabilities: Vec<String>,
 }
 

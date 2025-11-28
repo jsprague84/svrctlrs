@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 use svrctlrs_core::{NotificationManager, RemoteExecutor, Result};
-use svrctlrs_database::Database;
+use svrctlrs_database::{Database, sqlx, SqlxPool, SqlxSqlite};
 use svrctlrs_scheduler::Scheduler;
 use tokio::sync::RwLock;
 
@@ -16,7 +16,7 @@ use crate::config::Config;
 pub struct AppState {
     pub config: Arc<Config>,
     pub database: Arc<RwLock<Database>>,
-    pub pool: sqlx::Pool<sqlx::Sqlite>,  // Direct pool access for convenience
+    pub pool: SqlxPool<SqlxSqlite>,  // Direct pool access for convenience
     pub scheduler: Arc<RwLock<Option<Scheduler>>>,
     #[allow(dead_code)]
     pub executor: Arc<RemoteExecutor>,
