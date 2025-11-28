@@ -2,6 +2,8 @@
 //!
 //! Provides OS update detection, execution, and cleanup operations
 
+#![allow(dead_code)]
+
 mod cleanup;
 pub mod detection;
 mod execution;

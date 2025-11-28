@@ -14,6 +14,8 @@
 //! - `DEFAULT_UNITS` - Units: "imperial" (default) or "metric"
 //! - `WEATHER_SCHEDULE` - Cron schedule (default: "0 6 * * *" - 6 AM daily)
 
+#![allow(dead_code)]
+
 use async_trait::async_trait;
 use chrono::{FixedOffset, TimeZone};
 use reqwest::Client;

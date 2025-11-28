@@ -15,6 +15,7 @@ pub enum CredentialType {
 
 impl CredentialType {
     /// Parse credential type from string
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "ssh_key" => Some(Self::SshKey),
@@ -117,7 +118,7 @@ impl CreateCredential {
 }
 
 /// Input for updating an existing credential
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateCredential {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -150,10 +151,22 @@ mod tests {
 
     #[test]
     fn test_credential_type_conversion() {
-        assert_eq!(CredentialType::from_str("ssh_key"), Some(CredentialType::SshKey));
-        assert_eq!(CredentialType::from_str("api_token"), Some(CredentialType::ApiToken));
-        assert_eq!(CredentialType::from_str("password"), Some(CredentialType::Password));
-        assert_eq!(CredentialType::from_str("certificate"), Some(CredentialType::Certificate));
+        assert_eq!(
+            CredentialType::from_str("ssh_key"),
+            Some(CredentialType::SshKey)
+        );
+        assert_eq!(
+            CredentialType::from_str("api_token"),
+            Some(CredentialType::ApiToken)
+        );
+        assert_eq!(
+            CredentialType::from_str("password"),
+            Some(CredentialType::Password)
+        );
+        assert_eq!(
+            CredentialType::from_str("certificate"),
+            Some(CredentialType::Certificate)
+        );
         assert_eq!(CredentialType::from_str("invalid"), None);
 
         assert_eq!(CredentialType::SshKey.as_str(), "ssh_key");

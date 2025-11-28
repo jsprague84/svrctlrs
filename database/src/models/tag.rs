@@ -16,7 +16,9 @@ pub struct Tag {
 impl Tag {
     /// Validate hex color format
     pub fn is_valid_color(color: &str) -> bool {
-        color.starts_with('#') && color.len() == 7 && color[1..].chars().all(|c| c.is_ascii_hexdigit())
+        color.starts_with('#')
+            && color.len() == 7
+            && color[1..].chars().all(|c| c.is_ascii_hexdigit())
     }
 
     /// Get the color or a default if none is set
@@ -49,7 +51,10 @@ impl CreateTag {
 
         if let Some(ref color) = self.color {
             if !Tag::is_valid_color(color) {
-                return Err(format!("Invalid color format: {}. Expected format: #RRGGBB", color));
+                return Err(format!(
+                    "Invalid color format: {}. Expected format: #RRGGBB",
+                    color
+                ));
             }
         }
 
@@ -58,7 +63,7 @@ impl CreateTag {
 }
 
 /// Input for updating an existing tag
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateTag {
     pub name: Option<String>,
     pub color: Option<String>,
@@ -76,7 +81,10 @@ impl UpdateTag {
 
         if let Some(ref color) = self.color {
             if !Tag::is_valid_color(color) {
-                return Err(format!("Invalid color format: {}. Expected format: #RRGGBB", color));
+                return Err(format!(
+                    "Invalid color format: {}. Expected format: #RRGGBB",
+                    color
+                ));
             }
         }
 

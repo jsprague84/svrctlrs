@@ -1,5 +1,7 @@
 //! SSH connection utilities for remote server management
 
+#![allow(dead_code)]
+
 use anyhow::{Context, Result};
 use async_ssh2_tokio::{client::Client, AuthMethod, ServerCheckMethod};
 use std::time::Duration;
@@ -202,6 +204,7 @@ pub async fn connect_ssh(config: &SshConfig) -> Result<Client> {
 }
 
 /// Connect with specific auth method
+#[allow(dead_code)]
 async fn connect_with_auth(config: &SshConfig, auth_method: AuthMethod) -> Result<Client> {
     let client = Client::connect(
         (config.host.clone(), config.port),

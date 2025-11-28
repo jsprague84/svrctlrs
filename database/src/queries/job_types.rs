@@ -211,7 +211,10 @@ pub async fn delete_job_type(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
 
 /// Get all command templates for a job type
 #[instrument(skip(pool))]
-pub async fn get_command_templates(pool: &Pool<Sqlite>, job_type_id: i64) -> Result<Vec<CommandTemplate>> {
+pub async fn get_command_templates(
+    pool: &Pool<Sqlite>,
+    job_type_id: i64,
+) -> Result<Vec<CommandTemplate>> {
     sqlx::query_as::<_, CommandTemplate>(
         r#"
         SELECT id, job_type_id, name, display_name, description, command, required_capabilities,
@@ -252,7 +255,10 @@ pub async fn get_command_template(pool: &Pool<Sqlite>, id: i64) -> Result<Comman
 
 /// Create a new command template
 #[instrument(skip(pool, input))]
-pub async fn create_command_template(pool: &Pool<Sqlite>, input: &CreateCommandTemplate) -> Result<i64> {
+pub async fn create_command_template(
+    pool: &Pool<Sqlite>,
+    input: &CreateCommandTemplate,
+) -> Result<i64> {
     let result = sqlx::query(
         r#"
         INSERT INTO command_templates (

@@ -77,6 +77,7 @@ async fn not_found() -> Result<impl IntoResponse, AppError> {
 pub enum AppError {
     DatabaseError(String),
     TemplateError(String),
+    #[allow(dead_code)]
     NotFound(String),
     ValidationError(String),
     InternalError(String),
@@ -89,11 +90,17 @@ impl IntoResponse for AppError {
         let (status, message) = match &self {
             AppError::DatabaseError(msg) => {
                 tracing::error!("Database error: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", msg))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Database error: {}", msg),
+                )
             }
             AppError::TemplateError(msg) => {
                 tracing::error!("Template error: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Template error: {}", msg))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Template error: {}", msg),
+                )
             }
             AppError::NotFound(msg) => {
                 tracing::warn!("Not found: {}", msg);
@@ -105,7 +112,10 @@ impl IntoResponse for AppError {
             }
             AppError::InternalError(msg) => {
                 tracing::error!("Internal error: {}", msg);
-                (StatusCode::INTERNAL_SERVER_ERROR, format!("Internal error: {}", msg))
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Internal error: {}", msg),
+                )
             }
         };
 

@@ -160,7 +160,7 @@ impl CreateServer {
 }
 
 /// Input for updating an existing server
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateServer {
     pub name: Option<String>,
     pub hostname: Option<String>,
@@ -294,7 +294,10 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };
-        assert_eq!(remote_custom_port.display_address(), "user@example.com:2222");
+        assert_eq!(
+            remote_custom_port.display_address(),
+            "user@example.com:2222"
+        );
     }
 
     #[test]

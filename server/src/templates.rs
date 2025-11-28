@@ -1,5 +1,7 @@
 //! Askama templates for HTMX UI
 
+#![allow(dead_code)]
+
 use askama::Template;
 use askama_web::WebTemplate;
 use serde::{Deserialize, Serialize};
@@ -71,7 +73,7 @@ pub struct ServerFormTemplate {
     pub server: Option<ServerDisplay>,
     pub credentials: Vec<CredentialDisplay>,
     pub tags: Vec<TagDisplay>,
-    pub selected_tags: Vec<i64>,  // IDs of tags selected for this server
+    pub selected_tags: Vec<i64>, // IDs of tags selected for this server
     pub error: Option<String>,
 }
 
@@ -79,7 +81,7 @@ pub struct ServerFormTemplate {
 #[template(path = "components/server_capabilities.html")]
 pub struct ServerCapabilitiesTemplate {
     pub server_id: i64,
-    pub server: ServerDisplay,  // Full server info for display
+    pub server: ServerDisplay, // Full server info for display
     pub capabilities: Vec<String>,
 }
 
@@ -87,26 +89,26 @@ pub struct ServerCapabilitiesTemplate {
 pub struct ServerDisplay {
     pub id: i64,
     pub name: String,
-    pub hostname: String,  // Empty string if None (display-ready)
-    pub host: String,  // Alias for hostname (display-ready)
+    pub hostname: String, // Empty string if None (display-ready)
+    pub host: String,     // Alias for hostname (display-ready)
     pub port: i32,
-    pub username: String,  // Empty string if None (display-ready)
-    pub description: String,  // Empty string if None (display-ready)
+    pub username: String,    // Empty string if None (display-ready)
+    pub description: String, // Empty string if None (display-ready)
     pub credential_id: Option<i64>,
-    pub credential_name: String,  // Empty string if None (display-ready)
+    pub credential_name: String, // Empty string if None (display-ready)
     pub connection_type: String,
-    pub connection_string: String,  // Empty string if None (display-ready)
+    pub connection_string: String, // Empty string if None (display-ready)
     pub is_local: bool,
     pub tags: Vec<String>,
     pub capabilities: Vec<String>,
-    pub os_type: String,  // Empty string if None (display-ready)
-    pub os_distro: String,  // Empty string if None (display-ready)
-    pub os_version: String,  // Empty string if None (display-ready)
-    pub package_manager: String,  // Empty string if None (display-ready)
+    pub os_type: String,         // Empty string if None (display-ready)
+    pub os_distro: String,       // Empty string if None (display-ready)
+    pub os_version: String,      // Empty string if None (display-ready)
+    pub package_manager: String, // Empty string if None (display-ready)
     pub docker_available: bool,
     pub systemd_available: bool,
     pub enabled: bool,
-    pub last_seen_at: String,  // Empty string if None (display-ready)
+    pub last_seen_at: String, // Empty string if None (display-ready)
     pub created_at: String,
 }
 
@@ -162,10 +164,10 @@ pub struct CredentialDisplay {
     pub name: String,
     pub credential_type: String,
     pub credential_type_display: String,
-    pub auth_type: String,  // Alias for credential_type (for template compatibility)
-    pub description: String,  // Empty string if None (display-ready)
+    pub auth_type: String, // Alias for credential_type (for template compatibility)
+    pub description: String, // Empty string if None (display-ready)
     pub value_preview: String,
-    pub username: String,  // Empty string if None (display-ready)
+    pub username: String, // Empty string if None (display-ready)
     pub server_count: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -528,8 +530,8 @@ pub struct NotificationChannelDisplay {
     pub name: String,
     pub channel_type: String,
     pub channel_type_display: String,
-    pub endpoint: String,  // Empty string if None (display-ready)
-    pub description: String,  // Empty string if None (display-ready)
+    pub endpoint: String,    // Empty string if None (display-ready)
+    pub description: String, // Empty string if None (display-ready)
     pub config_preview: String,
     pub enabled: bool,
     pub created_at: String,

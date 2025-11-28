@@ -144,7 +144,12 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
     }
     if input.credential_id.is_some() {
         query.push_str(", credential_id = ?");
-        params.push(input.credential_id.map(|id| id.to_string()).unwrap_or_else(|| "NULL".to_string()));
+        params.push(
+            input
+                .credential_id
+                .map(|id| id.to_string())
+                .unwrap_or_else(|| "NULL".to_string()),
+        );
     }
     if let Some(description) = &input.description {
         query.push_str(", description = ?");
@@ -262,7 +267,10 @@ pub async fn list_enabled_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
 
 /// Get all capabilities for a server
 #[instrument(skip(pool))]
-pub async fn get_server_capabilities(pool: &Pool<Sqlite>, server_id: i64) -> Result<Vec<ServerCapability>> {
+pub async fn get_server_capabilities(
+    pool: &Pool<Sqlite>,
+    server_id: i64,
+) -> Result<Vec<ServerCapability>> {
     sqlx::query_as::<_, ServerCapability>(
         r#"
         SELECT id, server_id, capability, available, version, detected_at
@@ -354,10 +362,11 @@ pub async fn get_servers_with_capability(pool: &Pool<Sqlite>, name: &str) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::SqlitePool;
 
     async fn setup_test_db() -> Pool<Sqlite> {
         let pool = SqlitePool::connect(":memory:").await.unwrap();
-        sqlx::migrate!("../migrations").run(&pool).await.unwrap();
+        sqlx::migrate!().run(&pool).await.unwrap();
         pool
     }
 
@@ -419,9 +428,7 @@ mod tests {
         assert_eq!(caps.len(), 2);
 
         // Get servers with capability
-        let servers = get_servers_with_capability(&pool, "docker")
-            .await
-            .unwrap();
+        let servers = get_servers_with_capability(&pool, "docker").await.unwrap();
         assert_eq!(servers.len(), 1);
         assert_eq!(servers[0].id, id);
 

@@ -3,6 +3,8 @@
 //! Provides Docker container monitoring using docker CLI commands via RemoteExecutor.
 //! Works uniformly on local and remote servers.
 
+#![allow(dead_code)]
+
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::json;

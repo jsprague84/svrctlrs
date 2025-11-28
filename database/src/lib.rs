@@ -6,12 +6,12 @@ use tracing::info;
 
 // Export models and queries
 pub mod models;
-pub mod queries;
 pub mod notification_service;
+pub mod queries;
 
 pub use models::*;
+pub use notification_service::{NotificationService, ServerResultContext, TemplateContext};
 pub use queries::*;
-pub use notification_service::{NotificationService, TemplateContext, ServerResultContext};
 
 // Re-export sqlx types for convenience
 pub use sqlx::{self, Pool as SqlxPool, Sqlite as SqlxSqlite};

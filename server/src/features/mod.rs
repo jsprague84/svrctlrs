@@ -7,6 +7,8 @@
 //! Each feature module exports functions that take Server, RemoteExecutor, and
 //! NotificationManager as parameters, allowing uniform execution across all servers.
 
+#![allow(dead_code)]
+
 pub mod docker;
 pub mod health;
 pub mod updates;

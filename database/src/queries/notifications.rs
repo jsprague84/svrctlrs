@@ -7,8 +7,7 @@ use tracing::instrument;
 
 use crate::models::{
     CreateNotificationChannel, CreateNotificationPolicy, NotificationChannel, NotificationLog,
-    NotificationPolicy, UpdateNotificationChannel,
-    UpdateNotificationPolicy,
+    NotificationPolicy, UpdateNotificationChannel, UpdateNotificationPolicy,
 };
 
 // ============================================================================
@@ -52,7 +51,10 @@ pub async fn get_notification_channel(pool: &Pool<Sqlite>, id: i64) -> Result<No
 
 /// Create a new notification channel
 #[instrument(skip(pool, input))]
-pub async fn create_notification_channel(pool: &Pool<Sqlite>, input: &CreateNotificationChannel) -> Result<i64> {
+pub async fn create_notification_channel(
+    pool: &Pool<Sqlite>,
+    input: &CreateNotificationChannel,
+) -> Result<i64> {
     let result = sqlx::query(
         r#"
         INSERT INTO notification_channels (
@@ -215,7 +217,10 @@ pub async fn get_notification_policy(pool: &Pool<Sqlite>, id: i64) -> Result<Not
 
 /// Get channels linked to a policy
 #[instrument(skip(pool))]
-pub async fn get_policy_channels(pool: &Pool<Sqlite>, policy_id: i64) -> Result<Vec<NotificationChannel>> {
+pub async fn get_policy_channels(
+    pool: &Pool<Sqlite>,
+    policy_id: i64,
+) -> Result<Vec<NotificationChannel>> {
     sqlx::query_as::<_, NotificationChannel>(
         r#"
         SELECT nc.id, nc.name, nc.channel_type, nc.description, nc.config, nc.enabled,
@@ -236,7 +241,10 @@ pub async fn get_policy_channels(pool: &Pool<Sqlite>, policy_id: i64) -> Result<
 
 /// Create a new notification policy
 #[instrument(skip(pool, input))]
-pub async fn create_notification_policy(pool: &Pool<Sqlite>, input: &CreateNotificationPolicy) -> Result<i64> {
+pub async fn create_notification_policy(
+    pool: &Pool<Sqlite>,
+    input: &CreateNotificationPolicy,
+) -> Result<i64> {
     let result = sqlx::query(
         r#"
         INSERT INTO notification_policies (
@@ -396,7 +404,11 @@ pub async fn add_policy_channel(
 
 /// Unlink a channel from a policy
 #[instrument(skip(pool))]
-pub async fn remove_policy_channel(pool: &Pool<Sqlite>, policy_id: i64, channel_id: i64) -> Result<()> {
+pub async fn remove_policy_channel(
+    pool: &Pool<Sqlite>,
+    policy_id: i64,
+    channel_id: i64,
+) -> Result<()> {
     sqlx::query(
         r#"
         DELETE FROM notification_policy_channels
@@ -418,6 +430,7 @@ pub async fn remove_policy_channel(pool: &Pool<Sqlite>, policy_id: i64, channel_
 // ============================================================================
 
 /// Log a sent notification
+#[allow(clippy::too_many_arguments)]
 #[instrument(skip(pool))]
 pub async fn log_notification(
     pool: &Pool<Sqlite>,
@@ -459,7 +472,11 @@ pub async fn log_notification(
 
 /// Get recent notification logs
 #[instrument(skip(pool))]
-pub async fn get_notification_log(pool: &Pool<Sqlite>, limit: i64, offset: i64) -> Result<Vec<NotificationLog>> {
+pub async fn get_notification_log(
+    pool: &Pool<Sqlite>,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<NotificationLog>> {
     sqlx::query_as::<_, NotificationLog>(
         r#"
         SELECT id, channel_id, policy_id, job_run_id, title, body, priority,
@@ -479,7 +496,10 @@ pub async fn get_notification_log(pool: &Pool<Sqlite>, limit: i64, offset: i64) 
 
 /// Get notification logs for a specific job run
 #[instrument(skip(pool))]
-pub async fn get_notification_logs_for_run(pool: &Pool<Sqlite>, run_id: i64) -> Result<Vec<NotificationLog>> {
+pub async fn get_notification_logs_for_run(
+    pool: &Pool<Sqlite>,
+    run_id: i64,
+) -> Result<Vec<NotificationLog>> {
     sqlx::query_as::<_, NotificationLog>(
         r#"
         SELECT id, channel_id, policy_id, job_run_id, title, body, priority,

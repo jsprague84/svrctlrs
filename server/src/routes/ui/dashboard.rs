@@ -68,10 +68,7 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
             job_name,
             server_name,
             status: run.status_str.clone(),
-            started_at: run
-                .started_at
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string(),
+            started_at: run.started_at.format("%Y-%m-%d %H:%M:%S").to_string(),
             duration_seconds: run.duration_ms.map(|ms| ms as f64 / 1000.0),
         });
     }

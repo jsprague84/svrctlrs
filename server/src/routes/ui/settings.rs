@@ -45,11 +45,13 @@ fn db_notification_to_ui(
         Some(ChannelType::Discord) => "Discord",
         Some(ChannelType::Webhook) => "Webhook",
         None => "Unknown",
-    }.to_string();
+    }
+    .to_string();
 
     // Parse config to extract endpoint
     let config = db.get_config();
-    let endpoint = config.get("url")
+    let endpoint = config
+        .get("url")
         .and_then(|v| v.as_str())
         .or_else(|| config.get("topic").and_then(|v| v.as_str()))
         .unwrap_or("")
@@ -58,7 +60,13 @@ fn db_notification_to_ui(
     // Create config preview
     let config_preview = match ChannelType::from_str(&db.channel_type_str) {
         Some(ChannelType::Gotify) => format!("URL: {}", endpoint),
-        Some(ChannelType::Ntfy) => format!("Topic: {}", config.get("topic").and_then(|v| v.as_str()).unwrap_or("N/A")),
+        Some(ChannelType::Ntfy) => format!(
+            "Topic: {}",
+            config
+                .get("topic")
+                .and_then(|v| v.as_str())
+                .unwrap_or("N/A")
+        ),
         _ => endpoint.clone(),
     };
 
@@ -190,7 +198,7 @@ async fn notification_form_edit(
 /// Create notification backend input
 #[derive(Debug, Deserialize)]
 struct CreateNotificationInput {
-    channel_type: String,  // Will be parsed to ChannelType enum
+    channel_type: String, // Will be parsed to ChannelType enum
     name: String,
     url: Option<String>,
     token: Option<String>,
@@ -230,8 +238,9 @@ async fn notification_create(
 
     // Parse channel type
     use svrctlrs_database::models::notification::ChannelType;
-    let channel_type = ChannelType::from_str(&input.channel_type)
-        .ok_or_else(|| AppError::ValidationError(format!("Invalid channel type: {}", input.channel_type)))?;
+    let channel_type = ChannelType::from_str(&input.channel_type).ok_or_else(|| {
+        AppError::ValidationError(format!("Invalid channel type: {}", input.channel_type))
+    })?;
 
     // Build config JSON based on channel type
     let config_json = if input.channel_type == "gotify" {

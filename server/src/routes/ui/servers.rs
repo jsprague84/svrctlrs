@@ -10,9 +10,7 @@ use axum::{
 use serde::Deserialize;
 use svrctlrs_database::{
     models::{CreateServer, Server, UpdateServer},
-    queries::{
-        credentials, servers as servers_queries, tags,
-    },
+    queries::{credentials, servers as servers_queries, tags},
 };
 
 use super::{get_user_from_session, AppError};
@@ -26,13 +24,13 @@ pub fn routes() -> Router<AppState> {
         .route("/servers/list", get(server_list))
         .route("/servers/test", post(server_test_connection))
         .route("/servers/{id}/edit", get(server_form_edit))
-        .route(
-            "/servers/{id}",
-            put(server_update).delete(server_delete),
-        )
+        .route("/servers/{id}", put(server_update).delete(server_delete))
         .route("/servers/{id}/test", post(server_test_by_id))
         .route("/servers/{id}/capabilities", get(server_capabilities))
-        .route("/servers/{id}/tags", post(server_add_tag).delete(server_remove_tag))
+        .route(
+            "/servers/{id}/tags",
+            post(server_add_tag).delete(server_remove_tag),
+        )
 }
 
 /// Servers page handler
@@ -46,7 +44,8 @@ async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, App
     let tags_list = tags::list_tags(db.pool()).await?;
 
     // Convert to display models
-    let servers_display: Vec<ServerDisplay> = servers.into_iter().map(|s| server_to_display(&s)).collect();
+    let servers_display: Vec<ServerDisplay> =
+        servers.into_iter().map(|s| server_to_display(&s)).collect();
     let credentials_display: Vec<CredentialDisplay> = credentials_list
         .into_iter()
         .map(|c| credential_to_display(&c))
@@ -76,9 +75,12 @@ async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, App
 async fn server_list(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let db = state.db().await;
     let servers = servers_queries::list_servers(db.pool()).await?;
-    let servers_display: Vec<ServerDisplay> = servers.into_iter().map(|s| server_to_display(&s)).collect();
+    let servers_display: Vec<ServerDisplay> =
+        servers.into_iter().map(|s| server_to_display(&s)).collect();
 
-    let template = ServerListTemplate { servers: servers_display };
+    let template = ServerListTemplate {
+        servers: servers_display,
+    };
     Ok(Html(template.render()?))
 }
 
@@ -123,7 +125,9 @@ async fn server_form_edit(
     let server_result = servers_queries::get_server(db.pool(), id).await;
     let credentials_list = credentials::list_credentials(db.pool()).await?;
     let tags_list = tags::list_tags(db.pool()).await?;
-    let server_tags = tags::get_server_tags(db.pool(), id).await.unwrap_or_default();
+    let server_tags = tags::get_server_tags(db.pool(), id)
+        .await
+        .unwrap_or_default();
 
     let credentials_display: Vec<CredentialDisplay> = credentials_list
         .into_iter()
@@ -170,8 +174,8 @@ struct CreateServerInput {
     credential_id: Option<String>, // Can be "none" or numeric ID
     description: Option<String>,
     is_local: Option<String>, // checkbox "on" or None
-    enabled: Option<String>,   // checkbox "on" or None
-    tags: Option<Vec<i64>>,    // Multi-select tag IDs
+    enabled: Option<String>,  // checkbox "on" or None
+    tags: Option<Vec<i64>>,   // Multi-select tag IDs
 }
 
 /// Create server handler
@@ -215,7 +219,11 @@ async fn server_create(
     }
 
     // Save to database
-    tracing::info!("Creating server: {} @ {:?}", create_server.name, create_server.hostname);
+    tracing::info!(
+        "Creating server: {} @ {:?}",
+        create_server.name,
+        create_server.hostname
+    );
     let db = state.db().await;
 
     match servers_queries::create_server(db.pool(), &create_server).await {
@@ -229,8 +237,11 @@ async fn server_create(
 
             // Success - return updated list with success message
             let servers = servers_queries::list_servers(db.pool()).await?;
-            let servers_display: Vec<ServerDisplay> = servers.into_iter().map(|s| server_to_display(&s)).collect();
-            let template = ServerListTemplate { servers: servers_display };
+            let servers_display: Vec<ServerDisplay> =
+                servers.into_iter().map(|s| server_to_display(&s)).collect();
+            let template = ServerListTemplate {
+                servers: servers_display,
+            };
             let list_html = template.render()?;
 
             Ok(Html(format!(
@@ -308,8 +319,11 @@ async fn server_update(
         Ok(_) => {
             // Success - return updated list
             let servers = servers_queries::list_servers(db.pool()).await?;
-            let servers_display: Vec<ServerDisplay> = servers.into_iter().map(|s| server_to_display(&s)).collect();
-            let template = ServerListTemplate { servers: servers_display };
+            let servers_display: Vec<ServerDisplay> =
+                servers.into_iter().map(|s| server_to_display(&s)).collect();
+            let template = ServerListTemplate {
+                servers: servers_display,
+            };
             let list_html = template.render()?;
 
             Ok(Html(format!(
@@ -367,7 +381,12 @@ async fn server_test_connection(
     let port = input.port.unwrap_or(22);
     let username = input.username.unwrap_or_else(|| "root".to_string());
 
-    tracing::info!("Testing SSH connection to {}@{}:{}", username, input.host, port);
+    tracing::info!(
+        "Testing SSH connection to {}@{}:{}",
+        username,
+        input.host,
+        port
+    );
 
     // TODO: Implement actual SSH connection test
     // For now, return a placeholder response
@@ -406,10 +425,7 @@ async fn server_capabilities(
     let template = ServerCapabilitiesTemplate {
         server_id: id,
         server: server_to_display(&server),
-        capabilities: capabilities
-            .into_iter()
-            .map(|c| c.capability)
-            .collect(),
+        capabilities: capabilities.into_iter().map(|c| c.capability).collect(),
     };
 
     Ok(Html(template.render()?))
@@ -464,25 +480,32 @@ fn server_to_display(server: &Server) -> ServerDisplay {
     ServerDisplay {
         id: server.id,
         name: server.name.clone(),
-        hostname: server.hostname.clone().unwrap_or_default(),  // Convert Option → String
-        host: server.hostname.clone().unwrap_or_default(),  // Alias for hostname
+        hostname: server.hostname.clone().unwrap_or_default(), // Convert Option → String
+        host: server.hostname.clone().unwrap_or_default(),     // Alias for hostname
         port: server.port,
-        username: server.username.clone().unwrap_or_default(),  // Convert Option → String
+        username: server.username.clone().unwrap_or_default(), // Convert Option → String
         credential_id: server.credential_id,
-        credential_name: String::new(),  // TODO: Fetch from join
-        description: server.description.clone().unwrap_or_default(),  // Convert Option → String
-        connection_type: if server.is_local { "local".to_string() } else { "ssh".to_string() },
-        connection_string: String::new(),  // TODO: Build from server fields
+        credential_name: String::new(), // TODO: Fetch from join
+        description: server.description.clone().unwrap_or_default(), // Convert Option → String
+        connection_type: if server.is_local {
+            "local".to_string()
+        } else {
+            "ssh".to_string()
+        },
+        connection_string: String::new(), // TODO: Build from server fields
         is_local: server.is_local,
         enabled: server.enabled,
-        os_type: server.os_type.clone().unwrap_or_default(),  // Convert Option → String
-        os_distro: server.os_distro.clone().unwrap_or_default(),  // Convert Option → String
-        os_version: String::new(),  // TODO: Extract from os_distro or metadata
-        package_manager: server.package_manager.clone().unwrap_or_default(),  // Convert Option → String
+        os_type: server.os_type.clone().unwrap_or_default(), // Convert Option → String
+        os_distro: server.os_distro.clone().unwrap_or_default(), // Convert Option → String
+        os_version: String::new(), // TODO: Extract from os_distro or metadata
+        package_manager: server.package_manager.clone().unwrap_or_default(), // Convert Option → String
         docker_available: server.docker_available,
         systemd_available: server.systemd_available,
-        last_seen_at: server.last_seen_at.map(|t| t.to_rfc3339()).unwrap_or_default(),  // Convert Option → String
-        tags: vec![], // Will be filled by join query if needed
+        last_seen_at: server
+            .last_seen_at
+            .map(|t| t.to_rfc3339())
+            .unwrap_or_default(), // Convert Option → String
+        tags: vec![],         // Will be filled by join query if needed
         capabilities: vec![], // TODO: Fetch from server_capabilities table
         created_at: server.created_at.to_rfc3339(),
     }
@@ -509,11 +532,11 @@ fn credential_to_display(cred: &svrctlrs_database::models::Credential) -> Creden
         name: cred.name.clone(),
         credential_type: cred.credential_type_str.clone(),
         credential_type_display: type_display.to_string(),
-        auth_type: cred.credential_type_str.clone(),  // Alias for templates
-        description: cred.description.clone().unwrap_or_default(),  // Convert Option → String
+        auth_type: cred.credential_type_str.clone(), // Alias for templates
+        description: cred.description.clone().unwrap_or_default(), // Convert Option → String
         value_preview,
-        username: cred.username.clone().unwrap_or_default(),  // Convert Option → String
-        server_count: 0,  // TODO: Query actual count from database
+        username: cred.username.clone().unwrap_or_default(), // Convert Option → String
+        server_count: 0, // TODO: Query actual count from database
         created_at: cred.created_at.to_rfc3339(),
         updated_at: cred.updated_at.to_rfc3339(),
     }

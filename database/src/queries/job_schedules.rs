@@ -69,7 +69,10 @@ pub async fn get_job_schedule(pool: &Pool<Sqlite>, id: i64) -> Result<JobSchedul
 
 /// Get all schedules for a job template
 #[instrument(skip(pool))]
-pub async fn get_schedules_by_template(pool: &Pool<Sqlite>, template_id: i64) -> Result<Vec<JobSchedule>> {
+pub async fn get_schedules_by_template(
+    pool: &Pool<Sqlite>,
+    template_id: i64,
+) -> Result<Vec<JobSchedule>> {
     sqlx::query_as::<_, JobSchedule>(
         r#"
         SELECT id, name, description, job_template_id, server_id, schedule, enabled,

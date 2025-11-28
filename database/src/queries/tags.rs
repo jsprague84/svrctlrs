@@ -222,11 +222,7 @@ pub async fn get_server_tags(pool: &Pool<Sqlite>, server_id: i64) -> Result<Vec<
 
 /// Replace all tags for a server (removes old tags and adds new ones)
 #[instrument(skip(pool, tag_ids))]
-pub async fn set_server_tags(
-    pool: &Pool<Sqlite>,
-    server_id: i64,
-    tag_ids: &[i64],
-) -> Result<()> {
+pub async fn set_server_tags(pool: &Pool<Sqlite>, server_id: i64, tag_ids: &[i64]) -> Result<()> {
     // Use a transaction to ensure atomicity
     let mut tx = pool
         .begin()
@@ -269,10 +265,11 @@ pub async fn set_server_tags(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::SqlitePool;
 
     async fn setup_test_db() -> Pool<Sqlite> {
         let pool = SqlitePool::connect(":memory:").await.unwrap();
-        sqlx::migrate!("../migrations").run(&pool).await.unwrap();
+        sqlx::migrate!().run(&pool).await.unwrap();
         pool
     }
 
@@ -307,7 +304,7 @@ mod tests {
 
         // List tags
         let tags = list_tags(&pool).await.unwrap();
-        assert!(tags.len() >= 1);
+        assert!(!tags.is_empty());
 
         // Delete tag
         delete_tag(&pool, id).await.unwrap();
@@ -347,17 +344,13 @@ mod tests {
         assert_eq!(tags.len(), 2);
 
         // Remove one tag
-        remove_server_tag(&pool, server_id, tag1_id)
-            .await
-            .unwrap();
+        remove_server_tag(&pool, server_id, tag1_id).await.unwrap();
 
         let tags = get_server_tags(&pool, server_id).await.unwrap();
         assert_eq!(tags.len(), 1);
 
         // Replace all tags
-        set_server_tags(&pool, server_id, &[tag1_id])
-            .await
-            .unwrap();
+        set_server_tags(&pool, server_id, &[tag1_id]).await.unwrap();
 
         let tags = get_server_tags(&pool, server_id).await.unwrap();
         assert_eq!(tags.len(), 1);

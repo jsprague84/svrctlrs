@@ -210,7 +210,10 @@ pub async fn delete_job_template(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
 
 /// Get all steps for a job template
 #[instrument(skip(pool))]
-pub async fn get_job_template_steps(pool: &Pool<Sqlite>, template_id: i64) -> Result<Vec<JobTemplateStep>> {
+pub async fn get_job_template_steps(
+    pool: &Pool<Sqlite>,
+    template_id: i64,
+) -> Result<Vec<JobTemplateStep>> {
     sqlx::query_as::<_, JobTemplateStep>(
         r#"
         SELECT id, job_template_id, step_order, name, command_template_id, variables,
@@ -247,7 +250,10 @@ pub async fn get_job_template_step(pool: &Pool<Sqlite>, id: i64) -> Result<JobTe
 
 /// Create a new job template step
 #[instrument(skip(pool, input))]
-pub async fn create_job_template_step(pool: &Pool<Sqlite>, input: &CreateJobTemplateStep) -> Result<i64> {
+pub async fn create_job_template_step(
+    pool: &Pool<Sqlite>,
+    input: &CreateJobTemplateStep,
+) -> Result<i64> {
     // Validate input
     input
         .validate()

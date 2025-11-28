@@ -57,7 +57,11 @@ pub async fn get_job_run(pool: &Pool<Sqlite>, id: i64) -> Result<JobRun> {
 
 /// Get job runs for a specific template
 #[instrument(skip(pool))]
-pub async fn get_job_runs_by_template(pool: &Pool<Sqlite>, template_id: i64, limit: i64) -> Result<Vec<JobRun>> {
+pub async fn get_job_runs_by_template(
+    pool: &Pool<Sqlite>,
+    template_id: i64,
+    limit: i64,
+) -> Result<Vec<JobRun>> {
     sqlx::query_as::<_, JobRun>(
         r#"
         SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
@@ -79,7 +83,11 @@ pub async fn get_job_runs_by_template(pool: &Pool<Sqlite>, template_id: i64, lim
 
 /// Get job runs for a specific schedule
 #[instrument(skip(pool))]
-pub async fn get_job_runs_by_schedule(pool: &Pool<Sqlite>, schedule_id: i64, limit: i64) -> Result<Vec<JobRun>> {
+pub async fn get_job_runs_by_schedule(
+    pool: &Pool<Sqlite>,
+    schedule_id: i64,
+    limit: i64,
+) -> Result<Vec<JobRun>> {
     sqlx::query_as::<_, JobRun>(
         r#"
         SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
@@ -172,7 +180,9 @@ pub async fn finish_job_run(
 
     // Calculate duration from started_at
     let job_run = get_job_run(pool, id).await?;
-    let duration_ms = now.signed_duration_since(job_run.started_at).num_milliseconds();
+    let duration_ms = now
+        .signed_duration_since(job_run.started_at)
+        .num_milliseconds();
 
     sqlx::query(
         r#"
@@ -233,7 +243,10 @@ pub async fn update_job_run_notification(
 
 /// Get all server results for a job run
 #[instrument(skip(pool))]
-pub async fn get_server_job_results(pool: &Pool<Sqlite>, run_id: i64) -> Result<Vec<ServerJobResult>> {
+pub async fn get_server_job_results(
+    pool: &Pool<Sqlite>,
+    run_id: i64,
+) -> Result<Vec<ServerJobResult>> {
     sqlx::query_as::<_, ServerJobResult>(
         r#"
         SELECT id, job_run_id, server_id, status, started_at, finished_at, duration_ms,
@@ -302,7 +315,9 @@ pub async fn update_server_job_result(
     .context("Failed to get server job result for update")
     .map_err(|e| Error::DatabaseError(e.to_string()))?;
 
-    let duration_ms = now.signed_duration_since(result.started_at).num_milliseconds();
+    let duration_ms = now
+        .signed_duration_since(result.started_at)
+        .num_milliseconds();
 
     sqlx::query(
         r#"
@@ -332,7 +347,10 @@ pub async fn update_server_job_result(
 
 /// Get all step execution results for a job run
 #[instrument(skip(pool))]
-pub async fn get_step_execution_results(pool: &Pool<Sqlite>, job_run_id: i64) -> Result<Vec<StepExecutionResult>> {
+pub async fn get_step_execution_results(
+    pool: &Pool<Sqlite>,
+    job_run_id: i64,
+) -> Result<Vec<StepExecutionResult>> {
     sqlx::query_as::<_, StepExecutionResult>(
         r#"
         SELECT id, job_run_id, step_order, step_name, command_template_id, status, started_at,
@@ -407,7 +425,9 @@ pub async fn update_step_execution_result(
     .context("Failed to get step execution result for update")
     .map_err(|e| Error::DatabaseError(e.to_string()))?;
 
-    let duration_ms = now.signed_duration_since(result.started_at).num_milliseconds();
+    let duration_ms = now
+        .signed_duration_since(result.started_at)
+        .num_milliseconds();
 
     sqlx::query(
         r#"

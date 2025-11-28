@@ -79,7 +79,10 @@ impl Scheduler {
     /// This spawns a background task that polls for due schedules and triggers job executions.
     #[instrument(skip(self))]
     pub async fn start(&mut self) -> Result<()> {
-        info!("Starting scheduler with poll interval {:?}", self.poll_interval);
+        info!(
+            "Starting scheduler with poll interval {:?}",
+            self.poll_interval
+        );
 
         // Create shutdown channel
         let (shutdown_tx, mut shutdown_rx) = broadcast::channel(1);
@@ -146,8 +149,7 @@ impl Scheduler {
                 if start.elapsed() > timeout {
                     warn!(
                         running_count,
-                        "Shutdown timeout reached with {} jobs still running",
-                        running_count
+                        "Shutdown timeout reached with {} jobs still running", running_count
                     );
                     break;
                 }
@@ -194,14 +196,9 @@ impl Scheduler {
             };
 
             // Trigger job execution
-            if let Err(e) = Self::trigger_job_execution(
-                db_pool,
-                executor,
-                running_jobs,
-                &schedule,
-                &template,
-            )
-            .await
+            if let Err(e) =
+                Self::trigger_job_execution(db_pool, executor, running_jobs, &schedule, &template)
+                    .await
             {
                 error!(
                     schedule_id = schedule.id,
@@ -283,11 +280,7 @@ impl Scheduler {
         )
         .await?;
 
-        info!(
-            schedule_id = schedule.id,
-            job_run_id,
-            "Created job run"
-        );
+        info!(schedule_id = schedule.id, job_run_id, "Created job run");
 
         // Add to running jobs set
         {
@@ -319,12 +312,8 @@ impl Scheduler {
 
             // Update schedule statistics based on result
             let success = result.is_ok();
-            if let Err(e) = Self::update_schedule_statistics(
-                &db_pool_clone,
-                schedule_id,
-                success,
-            )
-            .await
+            if let Err(e) =
+                Self::update_schedule_statistics(&db_pool_clone, schedule_id, success).await
             {
                 error!(
                     schedule_id,
@@ -335,7 +324,10 @@ impl Scheduler {
 
             match result {
                 Ok(_) => {
-                    info!(schedule_id, job_run_id, "Job execution completed successfully");
+                    info!(
+                        schedule_id,
+                        job_run_id, "Job execution completed successfully"
+                    );
                 }
                 Err(e) => {
                     error!(schedule_id, job_run_id, error = %e, "Job execution failed");

@@ -3,6 +3,8 @@
 //! Monitors system resources (CPU, memory, disk) using RemoteExecutor.
 //! Works uniformly on local and remote servers.
 
+#![allow(dead_code)]
+
 use anyhow::{Context, Result};
 use serde_json::json;
 use std::collections::HashMap;

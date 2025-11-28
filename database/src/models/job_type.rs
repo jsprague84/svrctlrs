@@ -131,7 +131,10 @@ impl CommandTemplate {
     }
 
     /// Substitute variables in the command
-    pub fn substitute_variables(&self, variables: &std::collections::HashMap<String, String>) -> String {
+    pub fn substitute_variables(
+        &self,
+        variables: &std::collections::HashMap<String, String>,
+    ) -> String {
         let mut command = self.command.clone();
         for (key, value) in variables {
             command = command.replace(&format!("{{{{{}}}}}", key), value);

@@ -8,8 +8,8 @@ pub mod job_templates;
 pub mod job_types;
 pub mod notifications;
 pub mod servers;
-pub mod tags;
 pub mod settings;
+pub mod tags;
 
 // Re-export commonly used functions for convenience
 pub use credentials::*;
@@ -19,5 +19,5 @@ pub use job_templates::*;
 pub use job_types::*;
 pub use notifications::*;
 pub use servers::*;
-pub use tags::*;
 pub use settings::*;
+pub use tags::*;

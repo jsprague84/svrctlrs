@@ -259,6 +259,7 @@ pub struct JobExecutionContext {
 pub struct JobExecutor {
     db_pool: Pool<Sqlite>,
     ssh_key_path: Option<String>,
+    #[allow(dead_code)]
     max_concurrent_jobs: usize,
     semaphore: Arc<Semaphore>,
 }
@@ -309,12 +310,10 @@ impl JobExecutor {
             .map_err(|e| Error::Other(format!("Failed to acquire semaphore: {}", e)))?;
 
         // Load job run from database
-        let job_run = self.get_job_run(job_run_id)
-            .await
-            .map_err(|e| {
-                error!(job_run_id, error = %e, "Failed to load job run");
-                e
-            })?;
+        let job_run = self.get_job_run(job_run_id).await.map_err(|e| {
+            error!(job_run_id, error = %e, "Failed to load job run");
+            e
+        })?;
 
         // Load job template
         let job_template = self.get_job_template(job_run.job_template_id).await?;
@@ -388,16 +387,12 @@ impl JobExecutor {
             );
             error!(job_run_id, server = %server.name, "{}", error_msg);
 
-            self.finish_job_run(
-                job_run_id,
-                "failure",
-                None,
-                None,
-                Some(error_msg),
-            )
-            .await?;
+            self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg))
+                .await?;
 
-            return Err(Error::Other("Server missing required capabilities".to_string()));
+            return Err(Error::Other(
+                "Server missing required capabilities".to_string(),
+            ));
         }
 
         // Check OS filter
@@ -408,14 +403,8 @@ impl JobExecutor {
             );
             error!(job_run_id, server = %server.name, "{}", error_msg);
 
-            self.finish_job_run(
-                job_run_id,
-                "failure",
-                None,
-                None,
-                Some(error_msg),
-            )
-            .await?;
+            self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg))
+                .await?;
 
             return Err(Error::Other("OS distro does not match filter".to_string()));
         }
@@ -435,9 +424,7 @@ impl JobExecutor {
 
         // Execute the command
         let timeout_secs = command_template.timeout_seconds as u64;
-        let result = self
-            .execute_command(server, &command, timeout_secs)
-            .await;
+        let result = self.execute_command(server, &command, timeout_secs).await;
 
         // Record results
         match result {
@@ -449,14 +436,8 @@ impl JobExecutor {
                     "Command completed successfully"
                 );
 
-                self.finish_job_run(
-                    job_run_id,
-                    "success",
-                    Some(exit_code),
-                    Some(output),
-                    None,
-                )
-                .await?;
+                self.finish_job_run(job_run_id, "success", Some(exit_code), Some(output), None)
+                    .await?;
 
                 Ok(())
             }
@@ -469,14 +450,8 @@ impl JobExecutor {
                     "Command execution failed"
                 );
 
-                self.finish_job_run(
-                    job_run_id,
-                    "failure",
-                    None,
-                    None,
-                    Some(error_msg),
-                )
-                .await?;
+                self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg))
+                    .await?;
 
                 Err(e)
             }
@@ -505,16 +480,12 @@ impl JobExecutor {
             let error_msg = "Composite job has no steps defined".to_string();
             error!(job_run_id, "{}", error_msg);
 
-            self.finish_job_run(
-                job_run_id,
-                "failure",
-                None,
-                None,
-                Some(error_msg),
-            )
-            .await?;
+            self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg))
+                .await?;
 
-            return Err(Error::Other("No steps defined for composite job".to_string()));
+            return Err(Error::Other(
+                "No steps defined for composite job".to_string(),
+            ));
         }
 
         info!(job_run_id, step_count = steps.len(), "Loaded job steps");
@@ -532,14 +503,15 @@ impl JobExecutor {
             );
 
             // Create step execution result record
-            let step_result_id = self.create_step_execution_result(
-                job_run_id,
-                step.step_order,
-                &step.name,
-                step.command_template_id,
-                None,
-            )
-            .await?;
+            let step_result_id = self
+                .create_step_execution_result(
+                    job_run_id,
+                    step.step_order,
+                    &step.name,
+                    step.command_template_id,
+                    None,
+                )
+                .await?;
 
             // Execute the step
             let step_result = self
@@ -607,7 +579,11 @@ impl JobExecutor {
         }
 
         // Record overall job result
-        let final_status = if overall_success { "success" } else { "failure" };
+        let final_status = if overall_success {
+            "success"
+        } else {
+            "failure"
+        };
         let combined_output = step_outputs.join("\n---\n");
 
         self.finish_job_run(
@@ -726,7 +702,9 @@ impl JobExecutor {
             executor.execute_command("sh", &["-c", command]),
         )
         .await
-        .map_err(|_| Error::RemoteExecutionError(format!("Command timed out after {}s", timeout_secs)))??;
+        .map_err(|_| {
+            Error::RemoteExecutionError(format!("Command timed out after {}s", timeout_secs))
+        })??;
 
         // We consider the command successful if it doesn't error
         // The actual exit code is not available from RemoteExecutor::execute_command
@@ -772,7 +750,10 @@ impl JobExecutor {
         for req in required {
             if !server.has_capability(req) {
                 // Also check capabilities table
-                if !capabilities.iter().any(|c| c.capability == *req && c.available) {
+                if !capabilities
+                    .iter()
+                    .any(|c| c.capability == *req && c.available)
+                {
                     debug!(
                         server = %server.name,
                         capability = %req,
@@ -906,7 +887,9 @@ impl JobExecutor {
 
         // Calculate duration from started_at
         let job_run = self.get_job_run(id).await?;
-        let duration_ms = now.signed_duration_since(job_run.started_at).num_milliseconds();
+        let duration_ms = now
+            .signed_duration_since(job_run.started_at)
+            .num_milliseconds();
 
         sqlx::query(
             r#"
@@ -958,7 +941,9 @@ impl JobExecutor {
         .bind(metadata)
         .execute(&self.db_pool)
         .await
-        .map_err(|e| Error::DatabaseError(format!("Failed to create step execution result: {}", e)))?;
+        .map_err(|e| {
+            Error::DatabaseError(format!("Failed to create step execution result: {}", e))
+        })?;
 
         Ok(result.last_insert_rowid())
     }
@@ -992,7 +977,9 @@ impl JobExecutor {
         .await
         .map_err(|e| Error::DatabaseError(format!("Failed to get step start time: {}", e)))?;
 
-        let duration_ms = now.signed_duration_since(step.started_at).num_milliseconds();
+        let duration_ms = now
+            .signed_duration_since(step.started_at)
+            .num_milliseconds();
 
         sqlx::query(
             r#"
@@ -1010,7 +997,9 @@ impl JobExecutor {
         .bind(id)
         .execute(&self.db_pool)
         .await
-        .map_err(|e| Error::DatabaseError(format!("Failed to update step execution result: {}", e)))?;
+        .map_err(|e| {
+            Error::DatabaseError(format!("Failed to update step execution result: {}", e))
+        })?;
 
         Ok(())
     }
@@ -1022,6 +1011,7 @@ mod tests {
 
     #[test]
     fn test_substitute_variables() {
+        #[allow(invalid_value)]
         let executor = JobExecutor::new(
             // We can't easily create a real pool here, but we won't use it in this test
             unsafe { std::mem::zeroed() },
@@ -1040,6 +1030,7 @@ mod tests {
 
     #[test]
     fn test_substitute_variables_partial() {
+        #[allow(invalid_value)]
         let executor = JobExecutor::new(
             unsafe { std::mem::zeroed() },
             None,

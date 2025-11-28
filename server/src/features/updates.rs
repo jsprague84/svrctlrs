@@ -3,6 +3,8 @@
 //! Provides OS update detection, execution, and cleanup operations using RemoteExecutor.
 //! Works uniformly on local and remote servers.
 
+#![allow(dead_code)]
+
 use anyhow::{Context, Result};
 use serde_json::json;
 use std::collections::HashMap;

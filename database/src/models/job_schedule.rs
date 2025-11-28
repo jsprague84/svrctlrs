@@ -10,8 +10,8 @@ pub enum JobRunStatus {
     Pending,
     Running,
     Success,
-    Failed,        // Alias for Failure
-    Failure,       // Original name
+    Failed,  // Alias for Failure
+    Failure, // Original name
     PartialSuccess,
     Timeout,
     Skipped,
@@ -19,6 +19,7 @@ pub enum JobRunStatus {
 
 impl JobRunStatus {
     /// Parse status from string
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(Self::Pending),
@@ -264,10 +265,22 @@ mod tests {
 
     #[test]
     fn test_job_run_status() {
-        assert_eq!(JobRunStatus::from_str("success"), Some(JobRunStatus::Success));
-        assert_eq!(JobRunStatus::from_str("failure"), Some(JobRunStatus::Failure));
-        assert_eq!(JobRunStatus::from_str("timeout"), Some(JobRunStatus::Timeout));
-        assert_eq!(JobRunStatus::from_str("skipped"), Some(JobRunStatus::Skipped));
+        assert_eq!(
+            JobRunStatus::from_str("success"),
+            Some(JobRunStatus::Success)
+        );
+        assert_eq!(
+            JobRunStatus::from_str("failure"),
+            Some(JobRunStatus::Failure)
+        );
+        assert_eq!(
+            JobRunStatus::from_str("timeout"),
+            Some(JobRunStatus::Timeout)
+        );
+        assert_eq!(
+            JobRunStatus::from_str("skipped"),
+            Some(JobRunStatus::Skipped)
+        );
         assert_eq!(JobRunStatus::from_str("invalid"), None);
 
         assert_eq!(JobRunStatus::Success.as_str(), "success");

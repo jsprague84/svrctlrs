@@ -5,7 +5,7 @@ use sqlx::{Pool, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::instrument;
 
-use crate::models::{Credential, CreateCredential, UpdateCredential};
+use crate::models::{CreateCredential, Credential, UpdateCredential};
 
 /// List all credentials
 #[instrument(skip(pool))]
@@ -177,10 +177,11 @@ pub async fn credential_in_use(pool: &Pool<Sqlite>, id: i64) -> Result<bool> {
 mod tests {
     use super::*;
     use crate::models::CredentialType;
+    use sqlx::SqlitePool;
 
     async fn setup_test_db() -> Pool<Sqlite> {
         let pool = SqlitePool::connect(":memory:").await.unwrap();
-        sqlx::migrate!("../migrations").run(&pool).await.unwrap();
+        sqlx::migrate!().run(&pool).await.unwrap();
         pool
     }
 
@@ -214,10 +215,7 @@ mod tests {
         update_credential(&pool, id, &update).await.unwrap();
 
         let cred = get_credential(&pool, id).await.unwrap();
-        assert_eq!(
-            cred.description,
-            Some("Updated description".to_string())
-        );
+        assert_eq!(cred.description, Some("Updated description".to_string()));
 
         // Check not in use
         assert!(!credential_in_use(&pool, id).await.unwrap());

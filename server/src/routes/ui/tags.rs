@@ -57,6 +57,7 @@ pub struct TagDisplay {
     pub color: String,
     pub description: Option<String>,
     pub server_count: i64,
+    #[allow(dead_code)]
     pub created_at: String,
 }
 

@@ -1,5 +1,7 @@
 //! Docker monitoring plugin
 
+#![allow(dead_code)]
+
 mod analysis;
 mod cleanup;
 mod health;

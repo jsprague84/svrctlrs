@@ -1,18 +1,15 @@
 //! Notification service for handling notification policies, message templating, and multi-channel delivery
 
-use svrctlrs_core::{
-    Error, Result,
-    GotifyBackend, NotificationMessage, NtfyBackend,
-};
 use crate::models::{
-    ChannelType, JobRun, JobTemplate, NotificationChannel, NotificationPolicy,
-    Server, ServerJobResult,
+    ChannelType, JobRun, JobTemplate, NotificationChannel, NotificationPolicy, Server,
+    ServerJobResult,
 };
 use chrono::Utc;
 use serde_json::Value as JsonValue;
 use sqlx::{Pool, Sqlite};
 use std::sync::Arc;
-use tracing::{debug, error, info, warn, instrument};
+use svrctlrs_core::{Error, GotifyBackend, NotificationMessage, NtfyBackend, Result};
+use tracing::{debug, error, info, instrument, warn};
 
 /// Notification service for job execution notifications
 pub struct NotificationService {
@@ -84,7 +81,14 @@ impl NotificationService {
 
         // Evaluate each policy
         for policy in policies {
-            if self.should_notify(&policy, &job_run, &job_template, &server, &server_tags, &job_type_name) {
+            if self.should_notify(
+                &policy,
+                &job_run,
+                &job_template,
+                &server,
+                &server_tags,
+                &job_type_name,
+            ) {
                 info!(
                     job_run_id,
                     policy_id = policy.id,
@@ -102,17 +106,23 @@ impl NotificationService {
                 };
 
                 // Build template context
-                let context = self.build_template_context(&job_run, &job_template, &server, &job_type_name).await?;
+                let context = self
+                    .build_template_context(&job_run, &job_template, &server, &job_type_name)
+                    .await?;
 
                 // Render title and body
                 let title = self.render_template(
-                    policy.title_template.as_deref()
+                    policy
+                        .title_template
+                        .as_deref()
                         .unwrap_or("[{{status}}] {{job_name}} on {{server_name}}"),
                     &context,
                 )?;
 
                 let body = self.render_template(
-                    policy.body_template.as_deref()
+                    policy
+                        .body_template
+                        .as_deref()
                         .unwrap_or(DEFAULT_BODY_TEMPLATE),
                     &context,
                 )?;
@@ -123,20 +133,20 @@ impl NotificationService {
                 for (channel, priority_override) in channels {
                     let priority = priority_override.unwrap_or(channel.default_priority);
 
-                    match self.send_to_channel(&channel, &title, &body, priority).await {
+                    match self
+                        .send_to_channel(&channel, &title, &body, priority)
+                        .await
+                    {
                         Ok(_) => {
                             notifications_sent += 1;
                             // Log successful notification
-                            if let Err(e) = self.log_notification(
-                                job_run_id,
-                                channel.id,
-                                policy.id,
-                                &title,
-                                &body,
-                                severity,
-                                true,
-                                None,
-                            ).await {
+                            if let Err(e) = self
+                                .log_notification(
+                                    job_run_id, channel.id, policy.id, &title, &body, severity,
+                                    true, None,
+                                )
+                                .await
+                            {
                                 warn!(channel_id = channel.id, error = %e, "Failed to log successful notification");
                             }
                         }
@@ -150,16 +160,19 @@ impl NotificationService {
                                 "Failed to send notification"
                             );
                             // Log failed notification
-                            if let Err(log_err) = self.log_notification(
-                                job_run_id,
-                                channel.id,
-                                policy.id,
-                                &title,
-                                &body,
-                                severity,
-                                false,
-                                Some(&error_msg),
-                            ).await {
+                            if let Err(log_err) = self
+                                .log_notification(
+                                    job_run_id,
+                                    channel.id,
+                                    policy.id,
+                                    &title,
+                                    &body,
+                                    severity,
+                                    false,
+                                    Some(&error_msg),
+                                )
+                                .await
+                            {
                                 warn!(channel_id = channel.id, error = %log_err, "Failed to log failed notification");
                             }
                         }
@@ -169,10 +182,18 @@ impl NotificationService {
         }
 
         // Update job run notification status
-        self.update_job_run_notification_status(job_run_id, notifications_sent > 0, errors.first().map(|s| s.as_str())).await?;
+        self.update_job_run_notification_status(
+            job_run_id,
+            notifications_sent > 0,
+            errors.first().map(|s| s.as_str()),
+        )
+        .await?;
 
         if notifications_sent > 0 {
-            info!(job_run_id, notifications_sent, "Notifications sent successfully");
+            info!(
+                job_run_id,
+                notifications_sent, "Notifications sent successfully"
+            );
         } else {
             debug!(job_run_id, "No notifications sent (no matching policies)");
         }
@@ -185,7 +206,7 @@ impl NotificationService {
         &self,
         policy: &NotificationPolicy,
         job_run: &JobRun,
-        job_template: &JobTemplate,
+        _job_template: &JobTemplate,
         server: &Server,
         server_tags: &[String],
         job_type_name: &str,
@@ -292,18 +313,36 @@ impl NotificationService {
         };
 
         // Load server results if any (for multi-server jobs)
-        let server_results = self.load_server_results(job_run.id).await.unwrap_or_default();
-        let total_servers = if server_results.is_empty() { 1 } else { server_results.len() as i64 };
-        let success_count = if server_results.is_empty() {
-            if job_run.status_str == "success" { 1 } else { 0 }
+        let server_results = self
+            .load_server_results(job_run.id)
+            .await
+            .unwrap_or_default();
+        let total_servers = if server_results.is_empty() {
+            1
         } else {
-            server_results.iter().filter(|r| r.status_str == "success").count() as i64
+            server_results.len() as i64
+        };
+        let success_count = if server_results.is_empty() {
+            if job_run.status_str == "success" {
+                1
+            } else {
+                0
+            }
+        } else {
+            server_results
+                .iter()
+                .filter(|r| r.status_str == "success")
+                .count() as i64
         };
         let failure_count = total_servers - success_count;
 
         // Format timestamps
-        let started_at = job_run.started_at.format("%Y-%m-%d %H:%M:%S UTC").to_string();
-        let finished_at = job_run.finished_at
+        let started_at = job_run
+            .started_at
+            .format("%Y-%m-%d %H:%M:%S UTC")
+            .to_string();
+        let finished_at = job_run
+            .finished_at
             .map(|t| t.format("%Y-%m-%d %H:%M:%S UTC").to_string())
             .unwrap_or_else(|| "In progress".to_string());
 
@@ -317,10 +356,14 @@ impl NotificationService {
                 server_name: server.name.clone(),
                 status: job_run.status_str.clone(),
                 exit_code: job_run.exit_code.unwrap_or(-1),
-                stdout_snippet: job_run.output.as_deref()
+                stdout_snippet: job_run
+                    .output
+                    .as_deref()
                     .map(|s| truncate_string(s, 200))
                     .unwrap_or_default(),
-                stderr_snippet: job_run.error.as_deref()
+                stderr_snippet: job_run
+                    .error
+                    .as_deref()
                     .map(|s| truncate_string(s, 200))
                     .unwrap_or_default(),
             }]
@@ -328,7 +371,9 @@ impl NotificationService {
             // Multiple server results
             let mut contexts = Vec::new();
             for result in server_results {
-                let result_server = self.load_server(result.server_id).await
+                let result_server = self
+                    .load_server(result.server_id)
+                    .await
                     .unwrap_or_else(|_| Server {
                         id: result.server_id,
                         name: format!("Server {}", result.server_id),
@@ -355,10 +400,14 @@ impl NotificationService {
                     server_name: result_server.name,
                     status: result.status_str.clone(),
                     exit_code: result.exit_code.unwrap_or(-1),
-                    stdout_snippet: result.output.as_deref()
+                    stdout_snippet: result
+                        .output
+                        .as_deref()
                         .map(|s| truncate_string(s, 200))
                         .unwrap_or_default(),
-                    stderr_snippet: result.error.as_deref()
+                    stderr_snippet: result
+                        .error
+                        .as_deref()
                         .map(|s| truncate_string(s, 200))
                         .unwrap_or_default(),
                 });
@@ -437,7 +486,11 @@ impl NotificationService {
     }
 
     /// Render {{#each server_results}} loops
-    fn render_each_loop(&self, template: &str, server_results: &[ServerResultContext]) -> Result<String> {
+    fn render_each_loop(
+        &self,
+        template: &str,
+        server_results: &[ServerResultContext],
+    ) -> Result<String> {
         let start_marker = "{{#each server_results}}";
         let end_marker = "{{/each}}";
 
@@ -452,9 +505,12 @@ impl NotificationService {
                     let mut iteration = loop_template.to_string();
                     iteration = iteration.replace("{{server_name}}", &server_result.server_name);
                     iteration = iteration.replace("{{status}}", &server_result.status);
-                    iteration = iteration.replace("{{exit_code}}", &server_result.exit_code.to_string());
-                    iteration = iteration.replace("{{stdout_snippet}}", &server_result.stdout_snippet);
-                    iteration = iteration.replace("{{stderr_snippet}}", &server_result.stderr_snippet);
+                    iteration =
+                        iteration.replace("{{exit_code}}", &server_result.exit_code.to_string());
+                    iteration =
+                        iteration.replace("{{stdout_snippet}}", &server_result.stdout_snippet);
+                    iteration =
+                        iteration.replace("{{stderr_snippet}}", &server_result.stderr_snippet);
                     loop_output.push_str(&iteration);
                 }
 
@@ -479,8 +535,12 @@ impl NotificationService {
             return Ok(());
         }
 
-        let channel_type = channel.channel_type()
-            .ok_or_else(|| Error::NotificationError(format!("Invalid channel type: {}", channel.channel_type_str)))?;
+        let channel_type = channel.channel_type().ok_or_else(|| {
+            Error::NotificationError(format!(
+                "Invalid channel type: {}",
+                channel.channel_type_str
+            ))
+        })?;
 
         let message = NotificationMessage {
             title: title.to_string(),
@@ -491,24 +551,28 @@ impl NotificationService {
 
         match channel_type {
             ChannelType::Gotify => {
-                let backend = self.gotify_backend.as_ref()
-                    .ok_or_else(|| Error::NotificationError("Gotify backend not configured".to_string()))?;
+                let backend = self.gotify_backend.as_ref().ok_or_else(|| {
+                    Error::NotificationError("Gotify backend not configured".to_string())
+                })?;
 
                 // Extract service name from config if available, otherwise use "default"
                 let config = channel.get_config();
-                let service = config.get("service")
+                let service = config
+                    .get("service")
                     .and_then(|v| v.as_str())
                     .unwrap_or("default");
 
                 backend.send_for_service(service, &message).await
             }
             ChannelType::Ntfy => {
-                let backend = self.ntfy_backend.as_ref()
-                    .ok_or_else(|| Error::NotificationError("Ntfy backend not configured".to_string()))?;
+                let backend = self.ntfy_backend.as_ref().ok_or_else(|| {
+                    Error::NotificationError("Ntfy backend not configured".to_string())
+                })?;
 
                 // Extract service name from config if available, otherwise use "default"
                 let config = channel.get_config();
-                let service = config.get("service")
+                let service = config
+                    .get("service")
                     .and_then(|v| v.as_str())
                     .unwrap_or("default");
 
@@ -516,28 +580,49 @@ impl NotificationService {
             }
             ChannelType::Email => {
                 // TODO: Implement email backend
-                warn!(channel_id = channel.id, "Email notifications not yet implemented");
-                Err(Error::NotificationError("Email notifications not yet implemented".to_string()))
+                warn!(
+                    channel_id = channel.id,
+                    "Email notifications not yet implemented"
+                );
+                Err(Error::NotificationError(
+                    "Email notifications not yet implemented".to_string(),
+                ))
             }
             ChannelType::Slack => {
                 // TODO: Implement Slack backend
-                warn!(channel_id = channel.id, "Slack notifications not yet implemented");
-                Err(Error::NotificationError("Slack notifications not yet implemented".to_string()))
+                warn!(
+                    channel_id = channel.id,
+                    "Slack notifications not yet implemented"
+                );
+                Err(Error::NotificationError(
+                    "Slack notifications not yet implemented".to_string(),
+                ))
             }
             ChannelType::Discord => {
                 // TODO: Implement Discord backend
-                warn!(channel_id = channel.id, "Discord notifications not yet implemented");
-                Err(Error::NotificationError("Discord notifications not yet implemented".to_string()))
+                warn!(
+                    channel_id = channel.id,
+                    "Discord notifications not yet implemented"
+                );
+                Err(Error::NotificationError(
+                    "Discord notifications not yet implemented".to_string(),
+                ))
             }
             ChannelType::Webhook => {
                 // TODO: Implement webhook backend
-                warn!(channel_id = channel.id, "Webhook notifications not yet implemented");
-                Err(Error::NotificationError("Webhook notifications not yet implemented".to_string()))
+                warn!(
+                    channel_id = channel.id,
+                    "Webhook notifications not yet implemented"
+                );
+                Err(Error::NotificationError(
+                    "Webhook notifications not yet implemented".to_string(),
+                ))
             }
         }
     }
 
     /// Log notification to database
+    #[allow(clippy::too_many_arguments)]
     #[instrument(skip(self, title, body))]
     async fn log_notification(
         &self,
@@ -603,7 +688,12 @@ impl NotificationService {
         .bind(job_run_id)
         .execute(&self.db_pool)
         .await
-        .map_err(|e| Error::DatabaseError(format!("Failed to update job run notification status: {}", e)))?;
+        .map_err(|e| {
+            Error::DatabaseError(format!(
+                "Failed to update job run notification status: {}",
+                e
+            ))
+        })?;
 
         Ok(())
     }
@@ -633,7 +723,12 @@ impl NotificationService {
         .bind(job_template_id)
         .fetch_one(&self.db_pool)
         .await
-        .map_err(|e| Error::DatabaseError(format!("Failed to load job template {}: {}", job_template_id, e)))
+        .map_err(|e| {
+            Error::DatabaseError(format!(
+                "Failed to load job template {}: {}",
+                job_template_id, e
+            ))
+        })
     }
 
     async fn load_server(&self, server_id: i64) -> Result<Server> {
@@ -674,7 +769,9 @@ impl NotificationService {
         .bind(job_type_id)
         .fetch_one(&self.db_pool)
         .await
-        .map_err(|e| Error::DatabaseError(format!("Failed to load job type {}: {}", job_type_id, e)))?;
+        .map_err(|e| {
+            Error::DatabaseError(format!("Failed to load job type {}: {}", job_type_id, e))
+        })?;
 
         Ok(result.0)
     }
@@ -690,7 +787,10 @@ impl NotificationService {
         .map_err(|e| Error::DatabaseError(format!("Failed to load notification policies: {}", e)))
     }
 
-    async fn load_policy_channels(&self, policy_id: i64) -> Result<Vec<(NotificationChannel, Option<i32>)>> {
+    async fn load_policy_channels(
+        &self,
+        policy_id: i64,
+    ) -> Result<Vec<(NotificationChannel, Option<i32>)>> {
         let rows: Vec<(i64, Option<i32>)> = sqlx::query_as(
             r#"
             SELECT channel_id, priority_override
@@ -713,7 +813,9 @@ impl NotificationService {
             .bind(channel_id)
             .fetch_one(&self.db_pool)
             .await
-            .map_err(|e| Error::DatabaseError(format!("Failed to load channel {}: {}", channel_id, e)))?;
+            .map_err(|e| {
+                Error::DatabaseError(format!("Failed to load channel {}: {}", channel_id, e))
+            })?;
 
             channels.push((channel, priority_override));
         }
@@ -801,7 +903,10 @@ mod tests {
     #[test]
     fn test_truncate_string() {
         assert_eq!(truncate_string("short", 100), "short");
-        assert_eq!(truncate_string("a".repeat(300).as_str(), 50), format!("{}...", "a".repeat(47)));
+        assert_eq!(
+            truncate_string("a".repeat(300).as_str(), 50),
+            format!("{}...", "a".repeat(47))
+        );
     }
 
     #[test]
@@ -829,7 +934,10 @@ mod tests {
                 let mut result = template.to_string();
                 result = result.replace("{{status}}", &context.status);
                 result = result.replace("{{job_name}}", &context.job_name);
-                result = result.replace("{{duration_seconds}}", &context.duration_seconds.to_string());
+                result = result.replace(
+                    "{{duration_seconds}}",
+                    &context.duration_seconds.to_string(),
+                );
                 Ok(result)
             }
         }

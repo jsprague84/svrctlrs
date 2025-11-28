@@ -16,7 +16,7 @@ use crate::config::Config;
 pub struct AppState {
     pub config: Arc<Config>,
     pub database: Arc<RwLock<Database>>,
-    pub pool: SqlxPool<SqlxSqlite>,  // Direct pool access for convenience
+    pub pool: SqlxPool<SqlxSqlite>, // Direct pool access for convenience
     pub scheduler: Arc<RwLock<Option<Scheduler>>>,
     #[allow(dead_code)]
     pub executor: Arc<RemoteExecutor>,
@@ -87,6 +87,7 @@ impl AppState {
 
     /// Get notification manager for plugin context
     /// Loads notification backends from database
+    #[allow(dead_code)]
     pub async fn notification_manager(&self) -> NotificationManager {
         use svrctlrs_core::{GotifyBackend, NtfyBackend};
         use svrctlrs_database::queries;

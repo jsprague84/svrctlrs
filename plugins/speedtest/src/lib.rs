@@ -11,6 +11,8 @@
 //! - `SPEEDTEST_SERVER_ID` - Specific server ID to test against
 //! - `SPEEDTEST_SCHEDULE` - Cron schedule (default: "0 */4 * * *" - every 4 hours)
 
+#![allow(dead_code)]
+
 use async_trait::async_trait;
 use serde::Deserialize;
 use svrctlrs_core::{

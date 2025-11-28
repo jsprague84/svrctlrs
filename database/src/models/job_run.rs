@@ -16,6 +16,7 @@ pub enum JobExecutionStatus {
 
 impl JobExecutionStatus {
     /// Parse status from string
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "running" => Some(Self::Running),
@@ -392,10 +393,10 @@ mod tests {
         };
 
         let duration = job_run.calculate_duration_ms().unwrap();
-        assert!(duration >= 30000 && duration < 31000); // ~30 seconds in ms
+        assert!((30000..31000).contains(&duration)); // ~30 seconds in ms
 
         let duration_sec = job_run.duration_seconds().unwrap();
-        assert!(duration_sec >= 30.0 && duration_sec < 31.0);
+        assert!((30.0..31.0).contains(&duration_sec));
     }
 
     #[test]
@@ -457,7 +458,10 @@ mod tests {
         };
 
         // One step still running, so overall is running
-        assert_eq!(job_with_steps.aggregate_status(), JobExecutionStatus::Running);
+        assert_eq!(
+            job_with_steps.aggregate_status(),
+            JobExecutionStatus::Running
+        );
 
         // Progress should be 50% (1 of 2 steps complete)
         assert_eq!(job_with_steps.progress_percentage(), 50);

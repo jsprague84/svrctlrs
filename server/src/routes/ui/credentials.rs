@@ -9,7 +9,7 @@ use axum::{
 };
 use serde::Deserialize;
 use svrctlrs_database::{
-    models::credential::{Credential, CredentialType, CreateCredential, UpdateCredential},
+    models::credential::{CreateCredential, Credential, CredentialType, UpdateCredential},
     queries,
 };
 
@@ -19,7 +19,10 @@ use crate::{state::AppState, templates::User};
 /// Create credentials router
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/credentials", get(credentials_page).post(credential_create))
+        .route(
+            "/credentials",
+            get(credentials_page).post(credential_create),
+        )
         .route("/credentials/new", get(credential_form_new))
         .route("/credentials/{id}/edit", get(credential_form_edit))
         .route(
@@ -58,14 +61,18 @@ pub struct CredentialFormTemplate {
 pub struct CredentialDisplay {
     pub id: i64,
     pub name: String,
+    #[allow(dead_code)]
     pub credential_type: String,
     pub credential_type_display: String,
-    pub auth_type: String,  // Alias for credential_type (for template compatibility)
-    pub description: String,  // Empty string if None (display-ready)
+    pub auth_type: String, // Alias for credential_type (for template compatibility)
+    pub description: String, // Empty string if None (display-ready)
+    #[allow(dead_code)]
     pub value_preview: String, // Masked or path only
     pub username: String,  // Empty string if None (display-ready)
     pub server_count: i64,
+    #[allow(dead_code)]
     pub created_at: String,
+    #[allow(dead_code)]
     pub updated_at: String,
 }
 
@@ -87,7 +94,11 @@ impl From<Credential> for CredentialDisplay {
             "api_token" | "password" => {
                 // Mask sensitive values
                 if cred.value.len() > 8 {
-                    format!("{}...{}", &cred.value[..4], &cred.value[cred.value.len() - 4..])
+                    format!(
+                        "{}...{}",
+                        &cred.value[..4],
+                        &cred.value[cred.value.len() - 4..]
+                    )
                 } else {
                     "****".to_string()
                 }
@@ -100,11 +111,11 @@ impl From<Credential> for CredentialDisplay {
             name: cred.name,
             credential_type: cred.credential_type_str.clone(),
             credential_type_display: credential_type_display.to_string(),
-            auth_type: cred.credential_type_str,  // Alias for templates
-            description: cred.description.unwrap_or_default(),  // Convert Option → String
+            auth_type: cred.credential_type_str, // Alias for templates
+            description: cred.description.unwrap_or_default(), // Convert Option → String
             value_preview,
-            username: cred.username.unwrap_or_default(),  // Convert Option → String
-            server_count: 0,  // TODO: Query actual count from database
+            username: cred.username.unwrap_or_default(), // Convert Option → String
+            server_count: 0,                             // TODO: Query actual count from database
             created_at: cred.created_at.format("%Y-%m-%d %H:%M").to_string(),
             updated_at: cred.updated_at.format("%Y-%m-%d %H:%M").to_string(),
         }
@@ -174,10 +185,7 @@ async fn credential_form_edit(
         Ok(c) => (Some(CredentialDisplay::from(c)), None),
         Err(e) => {
             tracing::warn!("Failed to load credential {}: {}", id, e);
-            (
-                None,
-                Some(format!("Credential with ID {} not found", id)),
-            )
+            (None, Some(format!("Credential with ID {} not found", id)))
         }
     };
 
@@ -213,14 +221,21 @@ async fn credential_create(
         None => {
             let template = CredentialFormTemplate {
                 credential: None,
-                error: Some(format!("Invalid credential type: {}", input.credential_type)),
+                error: Some(format!(
+                    "Invalid credential type: {}",
+                    input.credential_type
+                )),
             };
             return Ok(Html(template.render()?));
         }
     };
 
     // Create credential
-    tracing::info!("Creating credential: {} (type: {})", input.name, input.credential_type);
+    tracing::info!(
+        "Creating credential: {} (type: {})",
+        input.name,
+        input.credential_type
+    );
     let db = state.db().await;
 
     let create_credential = CreateCredential {
@@ -396,6 +411,7 @@ async fn credential_delete(
 
 /// Test SSH connection input
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct TestConnectionInput {
     host: String,
     port: Option<i32>,
