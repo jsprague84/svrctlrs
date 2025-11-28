@@ -89,26 +89,26 @@ pub struct ServerCapabilitiesTemplate {
 pub struct ServerDisplay {
     pub id: i64,
     pub name: String,
-    pub hostname: Option<String>,
-    pub host: Option<String>,  // Alias for hostname (for template compatibility)
+    pub hostname: String,  // Empty string if None (display-ready)
+    pub host: String,  // Alias for hostname (display-ready)
     pub port: i32,
-    pub username: Option<String>,
-    pub description: Option<String>,
+    pub username: String,  // Empty string if None (display-ready)
+    pub description: String,  // Empty string if None (display-ready)
     pub credential_id: Option<i64>,
-    pub credential_name: Option<String>,
+    pub credential_name: String,  // Empty string if None (display-ready)
     pub connection_type: String,
-    pub connection_string: Option<String>,
+    pub connection_string: String,  // Empty string if None (display-ready)
     pub is_local: bool,
     pub tags: Vec<String>,
     pub capabilities: Vec<String>,
-    pub os_type: Option<String>,
-    pub os_distro: Option<String>,
-    pub os_version: Option<String>,
-    pub package_manager: Option<String>,
+    pub os_type: String,  // Empty string if None (display-ready)
+    pub os_distro: String,  // Empty string if None (display-ready)
+    pub os_version: String,  // Empty string if None (display-ready)
+    pub package_manager: String,  // Empty string if None (display-ready)
     pub docker_available: bool,
     pub systemd_available: bool,
     pub enabled: bool,
-    pub last_seen_at: Option<String>,
+    pub last_seen_at: String,  // Empty string if None (display-ready)
     pub created_at: String,
 }
 
@@ -165,9 +165,9 @@ pub struct CredentialDisplay {
     pub credential_type: String,
     pub credential_type_display: String,
     pub auth_type: String,  // Alias for credential_type (for template compatibility)
-    pub description: Option<String>,
+    pub description: String,  // Empty string if None (display-ready)
     pub value_preview: String,
-    pub username: Option<String>,
+    pub username: String,  // Empty string if None (display-ready)
     pub server_count: i64,
     pub created_at: String,
     pub updated_at: String,
@@ -453,11 +453,11 @@ pub struct JobRunDisplay {
     pub server_name: String,
     pub status: String,
     pub started_at: String,
-    pub finished_at: Option<String>,
-    pub duration_seconds: Option<f64>,
-    pub exit_code: Option<i32>,
-    pub output: Option<String>,
-    pub error: Option<String>,
+    pub finished_at: String,  // Empty string if None (display-ready)
+    pub duration_seconds: String,  // Formatted duration or empty (display-ready)
+    pub exit_code: String,  // Formatted exit code or empty (display-ready)
+    pub output: String,  // Empty string if None (display-ready)
+    pub error: String,  // Empty string if None (display-ready)
     pub retry_attempt: i32,
     pub notification_sent: bool,
 }
@@ -528,8 +528,8 @@ pub struct NotificationChannelDisplay {
     pub name: String,
     pub channel_type: String,
     pub channel_type_display: String,
-    pub endpoint: Option<String>,
-    pub description: Option<String>,
+    pub endpoint: String,  // Empty string if None (display-ready)
+    pub description: String,  // Empty string if None (display-ready)
     pub config_preview: String,
     pub enabled: bool,
     pub created_at: String,

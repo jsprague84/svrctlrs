@@ -21,11 +21,10 @@
             {% endmatch %}
             <strong>Channel:</strong> {{ policy.channel_name }}<br>
             <strong>Scope:</strong>
-            {% match policy.scope_type %}
-            {% when svrctlrs_database::models::PolicyScopeType::AllJobs %}All Jobs
-            {% when svrctlrs_database::models::PolicyScopeType::SpecificJobTemplates %}Specific Job Templates ({{ policy.job_template_count }})
-            {% when svrctlrs_database::models::PolicyScopeType::JobType %}Job Type: {{ policy.job_type_name }}
-            {% endmatch %}<br>
+            {% if policy.scope_type == "all_jobs" %}All Jobs
+            {% else if policy.scope_type == "specific_job_templates" %}Specific Job Templates ({{ policy.job_template_count }})
+            {% else if policy.scope_type == "job_type" %}Job Type: {{ policy.job_type_name }}
+            {% endif %}<br>
             <strong>Notify On:</strong>
             {% if policy.notify_on_success %}Success{% endif %}
             {% if policy.notify_on_failure %}{% if policy.notify_on_success %}, {% endif %}Failure{% endif %}

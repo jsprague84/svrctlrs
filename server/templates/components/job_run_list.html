@@ -37,11 +37,10 @@
         </div>
 
         <div class="text-secondary" style="font-size: 0.875rem;">
-            <strong>Trigger:</strong> {% match run.trigger_type %}
-                {% when svrctlrs_database::models::TriggerType::Schedule %}Scheduled
-                {% when svrctlrs_database::models::TriggerType::Manual %}Manual
-                {% when svrctlrs_database::models::TriggerType::Webhook %}Webhook
-                {% endmatch %}<br>
+            <strong>Trigger:</strong> {% if run.trigger_type == "schedule" %}Scheduled
+                {% else if run.trigger_type == "manual" %}Manual
+                {% else if run.trigger_type == "webhook" %}Webhook
+                {% endif %}<br>
             <strong>Servers:</strong> {{ run.success_count }} succeeded, {{ run.failed_count }} failed of {{ run.total_servers }}<br>
             {% match run.completed_at %}
             {% when Some with (ca) %}

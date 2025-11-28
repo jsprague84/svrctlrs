@@ -468,24 +468,24 @@ fn server_to_display(server: &Server) -> ServerDisplay {
     ServerDisplay {
         id: server.id,
         name: server.name.clone(),
-        hostname: server.hostname.clone(),
-        host: server.hostname.clone(),  // Alias for hostname
+        hostname: server.hostname.clone().unwrap_or_default(),  // Convert Option → String
+        host: server.hostname.clone().unwrap_or_default(),  // Alias for hostname
         port: server.port,
-        username: server.username.clone(),
+        username: server.username.clone().unwrap_or_default(),  // Convert Option → String
         credential_id: server.credential_id,
-        credential_name: None,  // TODO: Fetch from join
-        description: server.description.clone(),
+        credential_name: String::new(),  // TODO: Fetch from join
+        description: server.description.clone().unwrap_or_default(),  // Convert Option → String
         connection_type: if server.is_local { "local".to_string() } else { "ssh".to_string() },
-        connection_string: None,  // TODO: Build from server fields
+        connection_string: String::new(),  // TODO: Build from server fields
         is_local: server.is_local,
         enabled: server.enabled,
-        os_type: server.os_type.clone(),
-        os_distro: server.os_distro.clone(),
-        os_version: None,  // TODO: Extract from os_distro or metadata
-        package_manager: server.package_manager.clone(),
+        os_type: server.os_type.clone().unwrap_or_default(),  // Convert Option → String
+        os_distro: server.os_distro.clone().unwrap_or_default(),  // Convert Option → String
+        os_version: String::new(),  // TODO: Extract from os_distro or metadata
+        package_manager: server.package_manager.clone().unwrap_or_default(),  // Convert Option → String
         docker_available: server.docker_available,
         systemd_available: server.systemd_available,
-        last_seen_at: server.last_seen_at.map(|t| t.to_rfc3339()),
+        last_seen_at: server.last_seen_at.map(|t| t.to_rfc3339()).unwrap_or_default(),  // Convert Option → String
         tags: vec![], // Will be filled by join query if needed
         capabilities: vec![], // TODO: Fetch from server_capabilities table
         created_at: server.created_at.to_rfc3339(),
@@ -513,9 +513,11 @@ fn credential_to_display(cred: &svrctlrs_database::models::Credential) -> Creden
         name: cred.name.clone(),
         credential_type: cred.credential_type_str.clone(),
         credential_type_display: type_display.to_string(),
-        description: cred.description.clone(),
+        auth_type: cred.credential_type_str.clone(),  // Alias for templates
+        description: cred.description.clone().unwrap_or_default(),  // Convert Option → String
         value_preview,
-        username: cred.username.clone(),
+        username: cred.username.clone().unwrap_or_default(),  // Convert Option → String
+        server_count: 0,  // TODO: Query actual count from database
         created_at: cred.created_at.to_rfc3339(),
         updated_at: cred.updated_at.to_rfc3339(),
     }

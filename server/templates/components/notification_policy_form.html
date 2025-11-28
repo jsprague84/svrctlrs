@@ -1,4 +1,4 @@
-<div class="card" x-data="{ scopeType: '{% match policy %}{% when Some with (p) %}{% match p.scope_type %}{% when svrctlrs_database::models::PolicyScopeType::AllJobs %}all_jobs{% when svrctlrs_database::models::PolicyScopeType::SpecificJobTemplates %}specific_job_templates{% when svrctlrs_database::models::PolicyScopeType::JobType %}job_type{% endmatch %}{% when None %}all_jobs{% endmatch %}' }">
+<div class="card" x-data="{ scopeType: '{% match policy %}{% when Some with (p) %}{{ p.scope_type }}{% when None %}all_jobs{% endmatch %}' }">
     <h2>{% match policy %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Notification Policy</h2>
 
     {% match error %}

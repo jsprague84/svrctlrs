@@ -60,9 +60,11 @@ pub struct CredentialDisplay {
     pub name: String,
     pub credential_type: String,
     pub credential_type_display: String,
-    pub description: Option<String>,
+    pub auth_type: String,  // Alias for credential_type (for template compatibility)
+    pub description: String,  // Empty string if None (display-ready)
     pub value_preview: String, // Masked or path only
-    pub username: Option<String>,
+    pub username: String,  // Empty string if None (display-ready)
+    pub server_count: i64,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -96,11 +98,13 @@ impl From<Credential> for CredentialDisplay {
         Self {
             id: cred.id,
             name: cred.name,
-            credential_type: cred.credential_type_str,
+            credential_type: cred.credential_type_str.clone(),
             credential_type_display: credential_type_display.to_string(),
-            description: cred.description,
+            auth_type: cred.credential_type_str,  // Alias for templates
+            description: cred.description.unwrap_or_default(),  // Convert Option → String
             value_preview,
-            username: cred.username,
+            username: cred.username.unwrap_or_default(),  // Convert Option → String
+            server_count: 0,  // TODO: Query actual count from database
             created_at: cred.created_at.format("%Y-%m-%d %H:%M").to_string(),
             updated_at: cred.updated_at.format("%Y-%m-%d %H:%M").to_string(),
         }
