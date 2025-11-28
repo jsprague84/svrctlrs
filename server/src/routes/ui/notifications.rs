@@ -807,18 +807,16 @@ pub async fn add_policy_channel(
     // Verify policy exists
     queries::get_notification_policy(&state.pool, policy_id)
         .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?
-        .ok_or_else(|| {
-            warn!(policy_id, "Notification policy not found");
+        .map_err(|e| {
+            warn!(policy_id, error = %e, "Notification policy not found");
             AppError::NotFound(format!("Notification policy {} not found", policy_id))
         })?;
 
     // Verify channel exists
     queries::get_notification_channel(&state.pool, input.channel_id)
         .await
-        .map_err(|e| AppError::DatabaseError(e.to_string()))?
-        .ok_or_else(|| {
-            warn!(channel_id = input.channel_id, "Notification channel not found");
+        .map_err(|e| {
+            warn!(channel_id = input.channel_id, error = %e, "Notification channel not found");
             AppError::NotFound(format!(
                 "Notification channel {} not found",
                 input.channel_id

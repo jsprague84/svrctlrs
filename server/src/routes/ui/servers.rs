@@ -469,22 +469,26 @@ fn server_to_display(server: &Server) -> ServerDisplay {
         id: server.id,
         name: server.name.clone(),
         hostname: server.hostname.clone(),
+        host: server.hostname.clone(),  // Alias for hostname
         port: server.port,
         username: server.username.clone(),
         credential_id: server.credential_id,
+        credential_name: None,  // TODO: Fetch from join
         description: server.description.clone(),
+        connection_type: if server.is_local { "local".to_string() } else { "ssh".to_string() },
+        connection_string: None,  // TODO: Build from server fields
         is_local: server.is_local,
         enabled: server.enabled,
         os_type: server.os_type.clone(),
         os_distro: server.os_distro.clone(),
+        os_version: None,  // TODO: Extract from os_distro or metadata
         package_manager: server.package_manager.clone(),
         docker_available: server.docker_available,
         systemd_available: server.systemd_available,
         last_seen_at: server.last_seen_at.map(|t| t.to_rfc3339()),
-        last_error: server.last_error.clone(),
         tags: vec![], // Will be filled by join query if needed
+        capabilities: vec![], // TODO: Fetch from server_capabilities table
         created_at: server.created_at.to_rfc3339(),
-        updated_at: server.updated_at.to_rfc3339(),
     }
 }
 

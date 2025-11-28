@@ -201,11 +201,7 @@ pub async fn create_job_template(
     let job_type = job_types::get_job_type(&state.pool, input.job_type_id)
         .await
         .map_err(|e| {
-            error!(error = %e, "Failed to verify job type");
-            AppError::DatabaseError(e.to_string())
-        })?
-        .ok_or_else(|| {
-            warn!(job_type_id = input.job_type_id, "Job type not found");
+            warn!(job_type_id = input.job_type_id, error = %e, "Job type not found");
             AppError::NotFound(format!("Job type {} not found", input.job_type_id))
         })?;
 
@@ -283,11 +279,7 @@ pub async fn update_job_template(
     job_types::get_job_type(&state.pool, input.job_type_id)
         .await
         .map_err(|e| {
-            error!(error = %e, "Failed to verify job type");
-            AppError::DatabaseError(e.to_string())
-        })?
-        .ok_or_else(|| {
-            warn!(job_type_id = input.job_type_id, "Job type not found");
+            warn!(job_type_id = input.job_type_id, error = %e, "Job type not found");
             AppError::NotFound(format!("Job type {} not found", input.job_type_id))
         })?;
 

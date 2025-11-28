@@ -33,6 +33,9 @@ pub async fn list_job_runs(pool: &Pool<Sqlite>, limit: i64, offset: i64) -> Resu
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
+/// Alias for list_job_runs for backwards compatibility
+pub use list_job_runs as list_job_runs_paginated;
+
 /// Get job run by ID with server results
 #[instrument(skip(pool))]
 pub async fn get_job_run(pool: &Pool<Sqlite>, id: i64) -> Result<JobRun> {

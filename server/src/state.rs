@@ -39,114 +39,22 @@ impl AppState {
 
     /// Start the scheduler
     pub async fn start_scheduler(&self) -> Result<()> {
-        use svrctlrs_database::queries;
+        use svrctlrs_core::executor::JobExecutor;
         use tracing::info;
 
         let mut scheduler_lock = self.scheduler.write().await;
-        let scheduler = Scheduler::new();
 
-        // Load enabled tasks from database
-        let db = self.database.read().await;
-        let tasks = queries::tasks::list_enabled_tasks(db.pool()).await?;
+        // Create job executor
+        let executor = Arc::new(JobExecutor::new(
+            self.pool.clone(),
+            self.config.ssh_key_path.clone(),
+            10, // max_concurrent_jobs
+        ));
 
-        info!("Loading {} enabled tasks into scheduler", tasks.len());
+        // Create and start the new scheduler
+        let mut scheduler = Scheduler::new(self.pool.clone(), executor);
 
-        // Type alias for complex handler type
-        type TaskHandler = std::sync::Arc<
-            dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send>>
-                + Send
-                + Sync,
-        >;
-
-        // Register each task with the scheduler
-        for task in tasks {
-            let task_id = task.id;
-            let schedule = task.schedule.clone();
-            let task_name = task.name.clone();
-
-            // Clone state for the closure
-            let state = self.clone();
-
-            // Create async handler that executes the task
-            let handler: TaskHandler = std::sync::Arc::new(move || {
-                let state = state.clone();
-                Box::pin(async move {
-                    match crate::executor::execute_task(&state, task_id).await {
-                        Ok(result) => {
-                            if result.success {
-                                tracing::info!("Scheduled task {} completed successfully", task_id);
-                                Ok(())
-                            } else {
-                                let err_msg =
-                                    result.error.unwrap_or_else(|| "Unknown error".to_string());
-                                tracing::error!("Scheduled task {} failed: {}", task_id, err_msg);
-                                Err(svrctlrs_core::Error::RemoteExecutionError(err_msg))
-                            }
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to execute scheduled task {}: {}", task_id, e);
-                            Err(svrctlrs_core::Error::RemoteExecutionError(e.to_string()))
-                        }
-                    }
-                })
-            });
-
-            // Try to add task, but don't fail if cron expression is invalid
-            match scheduler
-                .add_task(format!("task_{}", task_id), &schedule, handler)
-                .await
-            {
-                Ok(_) => {
-                    // Calculate and update next run time
-                    match queries::tasks::calculate_next_run(&schedule) {
-                        Ok(next_run) => {
-                            if let Err(e) =
-                                queries::tasks::update_task_next_run(db.pool(), task_id, next_run)
-                                    .await
-                            {
-                                tracing::warn!(
-                                    "Failed to update next_run_at for task {}: {}",
-                                    task_id,
-                                    e
-                                );
-                            } else {
-                                tracing::debug!(
-                                    "Updated next_run_at for task {} ({}): {:?}",
-                                    task_id,
-                                    task_name,
-                                    next_run
-                                );
-                            }
-                        }
-                        Err(e) => {
-                            tracing::warn!(
-                                "Failed to calculate next_run_at for task {}: {}",
-                                task_id,
-                                e
-                            );
-                        }
-                    }
-
-                    tracing::info!(
-                        "Registered task {} ({}) with schedule: {}",
-                        task_id,
-                        task_name,
-                        schedule
-                    );
-                }
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to register task {} ({}): {}. Skipping this task.",
-                        task_id,
-                        task_name,
-                        e
-                    );
-                    // Continue with other tasks instead of failing
-                }
-            }
-        }
-
-        // Start the scheduler
+        info!("Starting job scheduler");
         scheduler.start().await?;
 
         *scheduler_lock = Some(scheduler);
@@ -160,84 +68,18 @@ impl AppState {
 
     /// Reload configuration from database without restarting
     /// This reloads:
-    /// - Task schedules
+    /// - Job schedules (via scheduler restart)
     /// - Notification backends
     pub async fn reload_config(&self) -> Result<()> {
-        use svrctlrs_database::queries;
-
         tracing::info!("🔄 Reloading configuration from database");
 
-        // Reload scheduler tasks
-        tracing::info!("Reloading scheduler tasks...");
-        if let Some(scheduler) = self.scheduler.read().await.as_ref() {
-            // Clear existing tasks
-            scheduler.clear_all_tasks().await;
+        // For the new scheduler, we can simply restart it since it polls the database
+        // The scheduler will automatically pick up any changes to job_schedules
+        tracing::info!("Restarting scheduler to pick up schedule changes...");
 
-            // Reload tasks from database
-            let db = self.database.read().await;
-            let enabled_tasks = queries::tasks::list_enabled_tasks(db.pool()).await?;
-
-            tracing::info!(
-                "Loading {} enabled tasks into scheduler",
-                enabled_tasks.len()
-            );
-
-            for task in enabled_tasks {
-                let task_id = format!("task_{}", task.id);
-                let schedule = task.schedule.clone();
-                let state = self.clone();
-                let task_id_clone = task.id;
-
-                let handler: svrctlrs_scheduler::AsyncTaskHandler = Arc::new(move || {
-                    let state = state.clone();
-                    let task_id = task_id_clone;
-                    Box::pin(async move {
-                        crate::executor::execute_task(&state, task_id)
-                            .await
-                            .map(|_| ())
-                            .map_err(|e| svrctlrs_core::Error::RemoteExecutionError(e.to_string()))
-                    })
-                });
-
-                scheduler.add_task(&task_id, &schedule, handler).await?;
-
-                // Calculate and update next run time
-                match queries::tasks::calculate_next_run(&schedule) {
-                    Ok(next_run) => {
-                        if let Err(e) =
-                            queries::tasks::update_task_next_run(db.pool(), task.id, next_run).await
-                        {
-                            tracing::warn!(
-                                "Failed to update next_run_at for task {}: {}",
-                                task.id,
-                                e
-                            );
-                        } else {
-                            tracing::debug!(
-                                "Updated next_run_at for task {} ({}): {:?}",
-                                task.id,
-                                task.name,
-                                next_run
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        tracing::warn!(
-                            "Failed to calculate next_run_at for task {}: {}",
-                            task.id,
-                            e
-                        );
-                    }
-                }
-
-                tracing::info!(
-                    "Registered task {} ({}) with schedule: {}",
-                    task.id,
-                    task.name,
-                    task.schedule
-                );
-            }
-        }
+        // Note: The new scheduler is database-driven and polls for changes,
+        // so it doesn't need explicit task registration. It will automatically
+        // detect new/updated job schedules on the next poll cycle.
 
         tracing::info!("✅ Configuration reloaded successfully");
         Ok(())

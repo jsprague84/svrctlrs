@@ -34,6 +34,9 @@ pub struct DashboardStats {
     pub total_servers: usize,
     pub total_schedules: usize,
     pub active_jobs: usize,
+    pub active_tasks: usize,
+    pub enabled_plugins: usize,
+    pub total_tasks: usize,
     pub recent_runs: Vec<RecentJobRun>,
 }
 
@@ -56,6 +59,8 @@ pub struct RecentJobRun {
 pub struct ServersTemplate {
     pub user: Option<User>,
     pub servers: Vec<ServerDisplay>,
+    pub credentials: Vec<CredentialDisplay>,
+    pub tags: Vec<TagDisplay>,
 }
 
 #[derive(Template, WebTemplate)]
@@ -84,16 +89,24 @@ pub struct ServerCapabilitiesTemplate {
 pub struct ServerDisplay {
     pub id: i64,
     pub name: String,
-    pub hostname: String,
+    pub hostname: Option<String>,
+    pub host: Option<String>,  // Alias for hostname (for template compatibility)
+    pub port: i32,
+    pub username: Option<String>,
     pub description: Option<String>,
     pub credential_id: Option<i64>,
     pub credential_name: Option<String>,
     pub connection_type: String,
     pub connection_string: Option<String>,
+    pub is_local: bool,
     pub tags: Vec<String>,
     pub capabilities: Vec<String>,
+    pub os_type: Option<String>,
     pub os_distro: Option<String>,
     pub os_version: Option<String>,
+    pub package_manager: Option<String>,
+    pub docker_available: bool,
+    pub systemd_available: bool,
     pub enabled: bool,
     pub last_seen_at: Option<String>,
     pub created_at: String,
@@ -272,6 +285,7 @@ pub struct CommandTemplateDisplay {
 pub struct JobTemplatesTemplate {
     pub user: Option<User>,
     pub job_templates: Vec<JobTemplateDisplay>,
+    pub job_types: Vec<JobTypeDisplay>,
 }
 
 #[derive(Template, WebTemplate)]
@@ -347,6 +361,8 @@ pub struct JobTemplateStepDisplay {
 pub struct JobSchedulesTemplate {
     pub user: Option<User>,
     pub schedules: Vec<JobScheduleDisplay>,
+    pub job_templates: Vec<JobTemplateDisplay>,
+    pub servers: Vec<ServerDisplay>,
 }
 
 #[derive(Template, WebTemplate)]
@@ -358,7 +374,7 @@ pub struct JobScheduleListTemplate {
 #[derive(Template, WebTemplate)]
 #[template(path = "components/job_schedule_form.html")]
 pub struct JobScheduleFormTemplate {
-    pub schedule: Option<JobScheduleDisplay>,
+    pub job_schedule: Option<JobScheduleDisplay>,
     pub job_templates: Vec<JobTemplateDisplay>,
     pub servers: Vec<ServerDisplay>,
     pub error: Option<String>,
@@ -392,21 +408,28 @@ pub struct JobScheduleDisplay {
 #[template(path = "pages/job_runs.html")]
 pub struct JobRunsTemplate {
     pub user: Option<User>,
-    pub runs: Vec<JobRunDisplay>,
+    pub job_runs: Vec<JobRunDisplay>,
+    pub current_page: usize,
+    pub total_pages: usize,
+    pub per_page: usize,
 }
 
 #[derive(Template, WebTemplate)]
 #[template(path = "components/job_run_list.html")]
 pub struct JobRunListTemplate {
-    pub runs: Vec<JobRunDisplay>,
+    pub job_runs: Vec<JobRunDisplay>,
+    pub current_page: usize,
+    pub total_pages: usize,
+    pub per_page: usize,
 }
 
 #[derive(Template, WebTemplate)]
 #[template(path = "components/job_run_detail.html")]
 pub struct JobRunDetailTemplate {
-    pub run: JobRunDisplay,
-    pub steps: Vec<StepResultDisplay>,
+    pub user: Option<User>,
+    pub job_run: JobRunDisplay,
     pub server_results: Vec<ServerJobResultDisplay>,
+    pub servers: Vec<ServerDisplay>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -462,6 +485,7 @@ pub struct ServerJobResultDisplay {
 pub struct ServerJobResultsTemplate {
     pub job_run_id: i64,
     pub server_results: Vec<ServerJobResultDisplay>,
+    pub servers: Vec<ServerDisplay>,
 }
 
 // ============================================================================
@@ -509,12 +533,14 @@ pub struct NotificationChannelDisplay {
 pub struct NotificationPoliciesTemplate {
     pub user: Option<User>,
     pub policies: Vec<NotificationPolicyDisplay>,
+    pub channels: Vec<NotificationChannelDisplay>,
 }
 
 #[derive(Template, WebTemplate)]
 #[template(path = "components/notification_policy_list.html")]
 pub struct NotificationPolicyListTemplate {
     pub policies: Vec<NotificationPolicyDisplay>,
+    pub channels: Vec<NotificationChannelDisplay>,
 }
 
 #[derive(Template, WebTemplate)]
