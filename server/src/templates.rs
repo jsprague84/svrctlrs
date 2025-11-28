@@ -17,6 +17,12 @@ pub mod filters {
     pub fn json<T: Serialize>(value: T) -> ::askama::Result<String> {
         serde_json::to_string(&value).map_err(|e| askama::Error::Custom(Box::new(e)))
     }
+
+    /// Length filter for getting the length of a slice/vector
+    /// Usage: {{ my_vec|length }}
+    pub fn length<T>(value: &[T]) -> ::askama::Result<usize> {
+        Ok(value.len())
+    }
 }
 
 // ============================================================================
@@ -457,6 +463,9 @@ pub struct JobTemplateDisplay {
     pub notify_on_success: bool,
     pub notify_on_failure: bool,
     pub notification_policy_id: Option<i64>,
+    // Display-only computed fields (not in DB)
+    pub step_count: i64,
+    pub schedule_count: i64,
     pub metadata_json: String,
     pub created_at: String,
     pub updated_at: String,
@@ -508,6 +517,8 @@ impl From<svrctlrs_database::models::JobTemplate> for JobTemplateDisplay {
             notify_on_success: jt.notify_on_success,
             notify_on_failure: jt.notify_on_failure,
             notification_policy_id: jt.notification_policy_id,
+            step_count: 0,     // TODO: Count from job_template_steps table
+            schedule_count: 0, // TODO: Count from job_schedules table
             metadata_json,
             created_at,
             updated_at,
@@ -843,6 +854,27 @@ impl From<svrctlrs_database::models::JobRun> for JobRunDisplay {
             notification_error: jr.notification_error,
             metadata_json,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ServerJobResultDisplay {
+    pub id: i64,
+    pub job_run_id: i64,
+    pub server_id: i64,
+    pub server_name: String,
+    pub status: String,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub duration_ms: Option<i64>,
+    pub exit_code: Option<i32>,
+    pub output: Option<String>,
+    pub error: Option<String>,
+}
+
+impl ServerJobResultDisplay {
+    pub fn duration_seconds(&self) -> f64 {
+        self.duration_ms.map(|ms| ms as f64 / 1000.0).unwrap_or(0.0)
     }
 }
 
