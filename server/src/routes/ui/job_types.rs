@@ -16,8 +16,8 @@ use crate::{
     routes::ui::AppError,
     state::AppState,
     templates::{
-        CommandTemplateListTemplate, JobTypeFormTemplate, JobTypeListTemplate, JobTypesTemplate,
-        JobTypeViewTemplate,
+        CommandTemplateListTemplate, JobTypeFormTemplate, JobTypeListTemplate, JobTypeViewTemplate,
+        JobTypesTemplate,
     },
 };
 
@@ -30,7 +30,9 @@ pub fn routes() -> Router<AppState> {
         .route("/job-types/{id}/edit", get(edit_job_type_form))
         .route(
             "/job-types/{id}",
-            get(view_job_type).put(update_job_type).delete(delete_job_type),
+            get(view_job_type)
+                .put(update_job_type)
+                .delete(delete_job_type),
         )
         .route(
             "/job-types/{job_type_id}/command-templates",
