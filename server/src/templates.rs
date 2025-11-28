@@ -168,6 +168,7 @@ pub struct CredentialDisplay {
     pub description: Option<String>,
     pub value_preview: String,
     pub username: Option<String>,
+    pub server_count: i64,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -240,6 +241,8 @@ pub struct JobTypeDisplay {
     pub color: Option<String>,
     pub execution_type: String,  // "local", "remote", "composite"
     pub required_capabilities: Vec<String>,
+    pub command_template_count: i64,
+    pub job_template_count: i64,
     pub enabled: bool,
     pub created_at: String,
 }
@@ -321,6 +324,9 @@ pub struct JobTemplateDisplay {
     pub retry_count: i32,
     pub notify_on_success: bool,
     pub notify_on_failure: bool,
+    pub server_count: i64,
+    pub step_count: i64,
+    pub schedule_count: i64,
     pub created_at: String,
 }
 

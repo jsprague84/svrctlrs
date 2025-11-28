@@ -9,12 +9,11 @@
         <div class="card-header">
             <h3 class="card-title">{{ jt.name }}</h3>
             <span class="badge badge-info">
-                {% match jt.execution_type %}
-                {% when svrctlrs_database::models::ExecutionType::Shell %}Shell
-                {% when svrctlrs_database::models::ExecutionType::Docker %}Docker
-                {% when svrctlrs_database::models::ExecutionType::Systemd %}systemd
-                {% when svrctlrs_database::models::ExecutionType::Composite %}Composite
-                {% endmatch %}
+                {% if jt.execution_type == "shell" %}Shell
+                {% else if jt.execution_type == "docker" %}Docker
+                {% else if jt.execution_type == "systemd" %}systemd
+                {% else if jt.execution_type == "composite" %}Composite
+                {% endif %}
             </span>
         </div>
 

@@ -1,4 +1,4 @@
-<div class="card" x-data="{ channelType: '{% match channel %}{% when Some with (c) %}{% match c.channel_type %}{% when svrctlrs_database::models::NotificationChannelType::Gotify %}gotify{% when svrctlrs_database::models::NotificationChannelType::Ntfy %}ntfy{% endmatch %}{% when None %}gotify{% endmatch %}' }">
+<div class="card" x-data="{ channelType: '{% match channel %}{% when Some with (c) %}{{ c.channel_type }}{% when None %}gotify{% endmatch %}' }">
     <h2>{% match channel %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Notification Channel</h2>
 
     {% match error %}

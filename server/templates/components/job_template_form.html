@@ -1,4 +1,4 @@
-<div class="card" x-data="{ targetType: '{% match job_template %}{% when Some with (jt) %}{% match jt.target_type %}{% when svrctlrs_database::models::TargetType::AllServers %}all_servers{% when svrctlrs_database::models::TargetType::Tagged %}tagged{% when svrctlrs_database::models::TargetType::Specific %}specific{% endmatch %}{% when None %}all_servers{% endmatch %}' }">
+<div class="card" x-data="{ targetType: '{% match job_template %}{% when Some with (jt) %}{{ jt.target_type }}{% when None %}all_servers{% endmatch %}' }">
     <h2>{% match job_template %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Job Template</h2>
 
     {% match error %}

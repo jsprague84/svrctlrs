@@ -19,14 +19,13 @@
 
         <div class="text-secondary mb-2">
             <strong>Target:</strong>
-            {% match jt.target_type %}
-            {% when svrctlrs_database::models::TargetType::AllServers %}
+            {% if jt.target_type == "all_servers" %}
                 All Servers ({{ jt.server_count }})
-            {% when svrctlrs_database::models::TargetType::Tagged %}
+            {% else if jt.target_type == "tagged" %}
                 Tagged: {% for tag in jt.target_tags %}<span class="badge" style="background-color: {{ tag.color }}; color: #fff; font-size: 0.75rem;">{{ tag.name }}</span> {% endfor %}
-            {% when svrctlrs_database::models::TargetType::Specific %}
+            {% else if jt.target_type == "specific" %}
                 Specific: {{ jt.server_count }} server(s)
-            {% endmatch %}
+            {% endif %}
         </div>
 
         {% if jt.is_composite %}

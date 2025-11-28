@@ -6,6 +6,7 @@ use axum::{
 };
 use chrono::Utc;
 use serde::Deserialize;
+use std::str::FromStr;
 use svrctlrs_database::{
     models::{JobSchedule, JobRun},
     queries::{
@@ -555,10 +556,10 @@ pub async fn toggle_job_schedule(
         schedule.description.as_deref(),
         schedule.job_template_id,
         schedule.server_id,
-        &schedule.cron_expression,
+        &schedule.schedule,
         new_enabled,
-        schedule.max_retries,
-        schedule.retry_delay_seconds,
+        schedule.retry_count,
+        None,  // retry_delay_seconds not in model
     )
     .await
     .map_err(|e| {

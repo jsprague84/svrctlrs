@@ -8,14 +8,8 @@
     <div class="card" id="channel-{{ channel.id }}">
         <div class="card-header">
             <h3 class="card-title">{{ channel.name }}</h3>
-            <span class="badge {% match channel.channel_type %}
-                {% when svrctlrs_database::models::NotificationChannelType::Gotify %}badge-info
-                {% when svrctlrs_database::models::NotificationChannelType::Ntfy %}badge-warning
-                {% endmatch %}">
-                {% match channel.channel_type %}
-                {% when svrctlrs_database::models::NotificationChannelType::Gotify %}Gotify
-                {% when svrctlrs_database::models::NotificationChannelType::Ntfy %}ntfy.sh
-                {% endmatch %}
+            <span class="badge {% if channel.channel_type == "gotify" %}badge-info{% else if channel.channel_type == "ntfy" %}badge-warning{% endif %}">
+                {% if channel.channel_type == "gotify" %}Gotify{% else if channel.channel_type == "ntfy" %}ntfy.sh{% endif %}
             </span>
         </div>
 

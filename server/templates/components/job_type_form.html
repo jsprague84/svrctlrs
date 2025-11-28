@@ -28,10 +28,10 @@
             <select id="execution_type"
                     name="execution_type"
                     required>
-                <option value="shell" {% match jt.execution_type %}{% when svrctlrs_database::models::ExecutionType::Shell %}selected{% when _ %}{% endmatch %}>Shell Command</option>
-                <option value="docker" {% match jt.execution_type %}{% when svrctlrs_database::models::ExecutionType::Docker %}selected{% when _ %}{% endmatch %}>Docker Operation</option>
-                <option value="systemd" {% match jt.execution_type %}{% when svrctlrs_database::models::ExecutionType::Systemd %}selected{% when _ %}{% endmatch %}>systemd Service</option>
-                <option value="composite" {% match jt.execution_type %}{% when svrctlrs_database::models::ExecutionType::Composite %}selected{% when _ %}{% endmatch %}>Composite (Multiple Steps)</option>
+                <option value="shell" {% if jt.execution_type == "shell" %}selected{% endif %}>Shell Command</option>
+                <option value="docker" {% if jt.execution_type == "docker" %}selected{% endif %}>Docker Operation</option>
+                <option value="systemd" {% if jt.execution_type == "systemd" %}selected{% endif %}>systemd Service</option>
+                <option value="composite" {% if jt.execution_type == "composite" %}selected{% endif %}>Composite (Multiple Steps)</option>
             </select>
         </div>
 
