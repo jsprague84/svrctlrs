@@ -164,6 +164,7 @@ pub struct CredentialDisplay {
     pub name: String,
     pub credential_type: String,
     pub credential_type_display: String,
+    pub auth_type: String,  // Alias for credential_type (for template compatibility)
     pub description: Option<String>,
     pub value_preview: String,
     pub username: Option<String>,
@@ -237,7 +238,8 @@ pub struct JobTypeDisplay {
     pub description: Option<String>,
     pub icon: Option<String>,
     pub color: Option<String>,
-    pub requires_capabilities: Vec<String>,
+    pub execution_type: String,  // "local", "remote", "composite"
+    pub required_capabilities: Vec<String>,
     pub enabled: bool,
     pub created_at: String,
 }
@@ -313,6 +315,8 @@ pub struct JobTemplateDisplay {
     pub job_type_name: String,
     pub is_composite: bool,
     pub command_template_id: Option<i64>,
+    pub target_type: String,  // "all", "servers", "tags"
+    pub target_tags: Vec<String>,
     pub timeout_seconds: i32,
     pub retry_count: i32,
     pub notify_on_success: bool,
@@ -518,6 +522,7 @@ pub struct NotificationChannelDisplay {
     pub name: String,
     pub channel_type: String,
     pub channel_type_display: String,
+    pub endpoint: Option<String>,
     pub description: Option<String>,
     pub config_preview: String,
     pub enabled: bool,
@@ -556,10 +561,12 @@ pub struct NotificationPolicyDisplay {
     pub id: i64,
     pub name: String,
     pub description: Option<String>,
+    pub scope_type: String,  // "global", "job_type", "job_template", "job_schedule"
     pub channel_id: i64,
     pub channel_name: String,
     pub notify_on_success: bool,
     pub notify_on_failure: bool,
+    pub notify_on_partial: bool,
     pub notify_on_timeout: bool,
     pub enabled: bool,
     pub created_at: String,
