@@ -32,9 +32,9 @@ pub fn routes() -> Router<AppState> {
 
 /// Helper to convert DB notification backend to UI model
 fn db_notification_to_ui(
-    db: svrctlrs_database::models::notification::NotificationBackend,
-) -> NotificationBackend {
-    NotificationBackend {
+    db: svrctlrs_database::models::notification::NotificationChannel,
+) -> NotificationChannel {
+    NotificationChannel {
         id: db.id,
         backend_type: db.backend_type,
         name: db.name,
@@ -237,14 +237,14 @@ async fn notification_create(
     );
     let db = state.db().await;
 
-    let create_backend = svrctlrs_database::models::notification::CreateNotificationBackend {
+    let create_backend = svrctlrs_database::models::notification::CreateNotificationChannel {
         backend_type: input.backend_type.clone(),
         name: input.name.clone(),
         config: config_json,
         priority: input.priority.unwrap_or(5),
     };
 
-    match queries::notifications::create_notification_backend(db.pool(), &create_backend).await {
+    match queries::notifications::create_notification_channel(db.pool(), &create_backend).await {
         Ok(_) => {
             // Success - return updated list with success message
             let db_notifications =
@@ -342,14 +342,14 @@ async fn notification_update(
     };
 
     // Update in database
-    let update_backend = svrctlrs_database::models::notification::UpdateNotificationBackend {
+    let update_backend = svrctlrs_database::models::notification::UpdateNotificationChannel {
         name: input.name,
         enabled: input.enabled.map(|s| s == "on"),
         config: Some(config_json),
         priority: input.priority,
     };
 
-    match queries::notifications::update_notification_backend(db.pool(), id, &update_backend).await
+    match queries::notifications::update_notification_channel(db.pool(), id, &update_backend).await
     {
         Ok(_) => {
             // Success - return updated list with success message
@@ -393,7 +393,7 @@ async fn notification_delete(
         .unwrap_or_else(|_| format!("Backend {}", id));
 
     tracing::info!("Deleting notification backend {}", id);
-    queries::notifications::delete_notification_backend(db.pool(), id).await?;
+    queries::notifications::delete_notification_channel(db.pool(), id).await?;
 
     // Return success message
     Ok(Html(format!(
