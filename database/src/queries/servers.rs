@@ -5,7 +5,7 @@ use sqlx::{Pool, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::instrument;
 
-use crate::models::{CreateServer, Server, ServerCapability, ServerWithTags, UpdateServer};
+use crate::models::{CreateServer, Server, ServerCapability, UpdateServer};
 
 /// List all servers
 #[instrument(skip(pool))]

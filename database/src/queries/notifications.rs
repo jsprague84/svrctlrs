@@ -1,14 +1,13 @@
 //! Notification channel, policy, and log database queries
 
 use anyhow::Context;
-use chrono::{DateTime, Utc};
 use sqlx::{Pool, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::instrument;
 
 use crate::models::{
     CreateNotificationChannel, CreateNotificationPolicy, NotificationChannel, NotificationLog,
-    NotificationPolicy, NotificationPolicyChannel, UpdateNotificationChannel,
+    NotificationPolicy, UpdateNotificationChannel,
     UpdateNotificationPolicy,
 };
 

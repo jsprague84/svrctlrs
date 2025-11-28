@@ -205,8 +205,8 @@ async fn server_create(
     // Validate
     if let Err(e) = create_server.validate() {
         let db = state.db().await;
-        let credentials_list = credentials::list_credentials(db.pool()).await?;
-        let tags_list = tags::list_tags(db.pool()).await?;
+        let _credentials_list = credentials::list_credentials(db.pool()).await?;
+        let _tags_list = tags::list_tags(db.pool()).await?;
 
         return Ok(Html(format!(
             r#"<div class="alert alert-error">Validation error: {}</div>"#,

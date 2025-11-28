@@ -6,7 +6,7 @@ use sqlx::{Pool, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::instrument;
 
-use crate::models::{CreateJobSchedule, JobSchedule, JobScheduleWithDetails, UpdateJobSchedule};
+use crate::models::{CreateJobSchedule, JobSchedule, UpdateJobSchedule};
 
 /// List all job schedules
 #[instrument(skip(pool))]
