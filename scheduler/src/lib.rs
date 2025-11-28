@@ -456,7 +456,7 @@ impl Scheduler {
     ///
     /// # Arguments
     ///
-    /// * `cron_expr` - Cron expression (5 or 6 fields)
+    /// * `cron_expr` - Cron expression (6 fields: sec min hour day month day_of_week)
     /// * `timezone` - Timezone string (e.g., "UTC", "America/New_York")
     /// * `after` - Calculate next run after this time
     fn calculate_next_run(
@@ -516,7 +516,7 @@ mod tests {
     #[test]
     fn test_calculate_next_run() {
         // Test daily at midnight UTC
-        let cron_expr = "0 0 * * *"; // 5-field cron
+        let cron_expr = "0 0 0 * * *"; // 6-field cron (seconds, minutes, hours, day, month, day_of_week)
         let now = Utc::now();
         let next = Scheduler::calculate_next_run(cron_expr, "UTC", now).unwrap();
 
@@ -540,7 +540,7 @@ mod tests {
     #[test]
     fn test_calculate_next_run_with_timezone() {
         // Test daily at midnight Eastern time
-        let cron_expr = "0 0 * * *";
+        let cron_expr = "0 0 0 * * *"; // 6-field cron
         let now = Utc::now();
         let next = Scheduler::calculate_next_run(cron_expr, "America/New_York", now).unwrap();
 
