@@ -132,8 +132,125 @@ h3 {
    LAYOUT - Increased Density
    ============================================================================ */
 
+/* App container */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* Fixed header */
+.header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    padding: 0 24px;
+    gap: 24px;
+    z-index: 100;
+}
+
+.header-title {
+    display: block;
+    font-size: 1.125rem;  /* Down from 1.25rem for density */
+    font-weight: 600;
+    color: var(--text-primary);
+    text-decoration: none;
+}
+
+.header-spacer {
+    flex: 1;
+}
+
+/* Main layout container */
+.main-layout {
+    display: flex;
+    margin-top: 60px;
+    min-height: calc(100vh - 60px);
+}
+
+/* Fixed sidebar */
+.sidebar {
+    position: fixed;
+    left: 0;
+    top: 60px;
+    width: 240px;
+    height: calc(100vh - 60px);
+    background-color: var(--bg-secondary);
+    border-right: 1px solid var(--border-color);
+    padding: var(--spacing-lg) 0;  /* 16px, down from 24px */
+    overflow-y: auto;
+    transition: transform 0.3s ease;
+    z-index: 90;
+}
+
+/* Sidebar backdrop for mobile */
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    top: 60px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 85;
+}
+
+/* Main content area */
 .main-content {
+    margin-left: 240px;
+    flex: 1;
     padding: var(--spacing-xl);  /* 24px, down from 32px */
+    background-color: var(--bg-primary);
+}
+
+/* Mobile menu button */
+.mobile-menu-btn {
+    display: none;
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-primary);
+    padding: var(--spacing-sm);
+    transition: opacity 0.15s ease;
+}
+
+.mobile-menu-btn:hover {
+    opacity: 0.75;
+}
+
+.mobile-menu-btn:active {
+    opacity: 0.6;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+    .mobile-menu-btn {
+        display: block;
+    }
+
+    .sidebar {
+        transform: translateX(-100%);
+    }
+
+    .sidebar.open {
+        transform: translateX(0);
+        border-right: 1px solid var(--border-color);
+    }
+
+    .sidebar-backdrop {
+        display: block;
+    }
+
+    .main-content {
+        margin-left: 0;
+    }
 }
 
 @media (max-width: 768px) {
@@ -637,6 +754,15 @@ select:focus {
 .gap-3 { gap: var(--spacing-md); }
 .gap-4 { gap: var(--spacing-lg); }
 .gap-5 { gap: var(--spacing-xl); }
+
+/* Text utilities */
+.text-secondary {
+    color: var(--text-secondary);
+}
+
+.text-muted {
+    color: var(--text-muted);
+}
 
 /* ============================================================================
    BREADCRUMBS
