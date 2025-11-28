@@ -66,6 +66,14 @@ impl Scheduler {
         self
     }
 
+    /// Get the number of currently running tasks
+    ///
+    /// Returns the count of jobs currently being executed by the scheduler.
+    pub async fn task_count(&self) -> usize {
+        let jobs = self.running_jobs.lock().await;
+        jobs.len()
+    }
+
     /// Start the scheduler
     ///
     /// This spawns a background task that polls for due schedules and triggers job executions.

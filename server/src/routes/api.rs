@@ -47,8 +47,11 @@ async fn health_check() -> impl IntoResponse {
 async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
     let scheduler = state.scheduler.read().await;
     let scheduler_running = scheduler.is_some();
-    // TODO: Implement task_count() method on Scheduler
-    let task_count = 0;
+    let task_count = if let Some(ref sched) = *scheduler {
+        sched.task_count().await
+    } else {
+        0
+    };
 
     // Built-in features: ssh, docker, updates, health
     let features_available = 4;
@@ -81,8 +84,11 @@ async fn reload_config(
     })?;
 
     let scheduler = state.scheduler.read().await;
-    // TODO: Implement task_count() method on Scheduler
-    let task_count = 0;
+    let task_count = if let Some(ref sched) = *scheduler {
+        sched.task_count().await
+    } else {
+        0
+    };
 
     info!("Configuration reloaded successfully");
 
