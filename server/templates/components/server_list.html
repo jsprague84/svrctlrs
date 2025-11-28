@@ -14,17 +14,13 @@
         </div>
         
         <p class="text-secondary">
-            <strong>Host:</strong> {{ server.host }}{% match server.port %}{% when Some with (p) %}:{{ p }}{% when None %}{% endmatch %}<br>
-            {% match server.username %}
-            {% when Some with (u) %}
-            <strong>User:</strong> {{ u }}<br>
-            {% when None %}
-            {% endmatch %}
-            {% match server.description %}
-            {% when Some with (d) %}
-            <strong>Description:</strong> {{ d }}<br>
-            {% when None %}
-            {% endmatch %}
+            <strong>Host:</strong> {{ server.host }}{% if server.port != 0 %}:{{ server.port }}{% endif %}<br>
+            {% if !server.username.is_empty() %}
+            <strong>User:</strong> {{ server.username }}<br>
+            {% endif %}
+            {% if !server.description.is_empty() %}
+            <strong>Description:</strong> {{ server.description }}<br>
+            {% endif %}
         </p>
         
         <div class="flex gap-2 mt-2">

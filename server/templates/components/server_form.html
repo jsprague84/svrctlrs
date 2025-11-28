@@ -35,10 +35,10 @@
         <div class="grid grid-2">
             <div class="form-group">
                 <label for="port">SSH Port</label>
-                <input type="number" 
-                       id="port" 
-                       name="port" 
-                       value="{% match s.port %}{% when Some with (p) %}{{ p }}{% when None %}22{% endmatch %}" 
+                <input type="number"
+                       id="port"
+                       name="port"
+                       value="{% if s.port != 0 %}{{ s.port }}{% else %}22{% endif %}"
                        placeholder="22"
                        min="1"
                        max="65535">
@@ -46,10 +46,10 @@
             
             <div class="form-group">
                 <label for="username">SSH Username</label>
-                <input type="text" 
-                       id="username" 
-                       name="username" 
-                       value="{% match s.username %}{% when Some with (u) %}{{ u }}{% when None %}{% endmatch %}" 
+                <input type="text"
+                       id="username"
+                       name="username"
+                       value="{{ s.username }}"
                        placeholder="ubuntu">
             </div>
         </div>
@@ -59,7 +59,7 @@
             <textarea id="description" 
                       name="description" 
                       rows="3" 
-                      placeholder="Brief description of this server">{% match s.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
+                      placeholder="Brief description of this server">{{ s.description }}</textarea>
         </div>
         
         <!-- Test connection result -->

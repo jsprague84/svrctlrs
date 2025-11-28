@@ -30,16 +30,48 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-/// Helper to convert DB notification backend to UI model
+/// Helper to convert DB notification channel to UI model
 fn db_notification_to_ui(
     db: svrctlrs_database::models::notification::NotificationChannel,
-) -> NotificationChannel {
-    NotificationChannel {
+) -> NotificationChannelDisplay {
+    use svrctlrs_database::models::notification::ChannelType;
+
+    // Get human-readable channel type
+    let channel_type_display = match ChannelType::from_str(&db.channel_type_str) {
+        Some(ChannelType::Gotify) => "Gotify",
+        Some(ChannelType::Ntfy) => "ntfy.sh",
+        Some(ChannelType::Email) => "Email",
+        Some(ChannelType::Slack) => "Slack",
+        Some(ChannelType::Discord) => "Discord",
+        Some(ChannelType::Webhook) => "Webhook",
+        None => "Unknown",
+    }.to_string();
+
+    // Parse config to extract endpoint
+    let config = db.get_config();
+    let endpoint = config.get("url")
+        .and_then(|v| v.as_str())
+        .or_else(|| config.get("topic").and_then(|v| v.as_str()))
+        .unwrap_or("")
+        .to_string();
+
+    // Create config preview
+    let config_preview = match ChannelType::from_str(&db.channel_type_str) {
+        Some(ChannelType::Gotify) => format!("URL: {}", endpoint),
+        Some(ChannelType::Ntfy) => format!("Topic: {}", config.get("topic").and_then(|v| v.as_str()).unwrap_or("N/A")),
+        _ => endpoint.clone(),
+    };
+
+    NotificationChannelDisplay {
         id: db.id,
-        backend_type: db.backend_type,
         name: db.name,
+        channel_type: db.channel_type_str,
+        channel_type_display,
+        endpoint,
+        description: db.description.unwrap_or_default(),
+        config_preview,
         enabled: db.enabled,
-        priority: db.priority,
+        created_at: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(), // TODO: Get from DB
     }
 }
 
@@ -158,14 +190,14 @@ async fn notification_form_edit(
 /// Create notification backend input
 #[derive(Debug, Deserialize)]
 struct CreateNotificationInput {
-    backend_type: String,
+    channel_type: String,  // Will be parsed to ChannelType enum
     name: String,
     url: Option<String>,
     token: Option<String>,
     topic: Option<String>,
     username: Option<String>,
     password: Option<String>,
-    priority: Option<i32>,
+    default_priority: Option<i32>,
 }
 
 /// Create notification backend handler
@@ -176,14 +208,14 @@ async fn notification_create(
     tracing::info!(
         "notification_create called with: name={}, type={}, url={:?}, token={:?}, topic={:?}",
         input.name,
-        input.backend_type,
+        input.channel_type,
         input.url,
         input.token,
         input.topic
     );
 
     // Validate
-    if input.name.is_empty() || input.backend_type.is_empty() {
+    if input.name.is_empty() || input.channel_type.is_empty() {
         let template = NotificationFormTemplate {
             notification: None,
             config_url: String::new(),
@@ -191,13 +223,18 @@ async fn notification_create(
             config_topic: String::new(),
             config_username: String::new(),
             config_password: String::new(),
-            error: Some("Name and backend type are required".to_string()),
+            error: Some("Name and channel type are required".to_string()),
         };
         return Ok(Html(template.render()?));
     }
 
-    // Build config JSON based on backend type
-    let config_json = if input.backend_type == "gotify" {
+    // Parse channel type
+    use svrctlrs_database::models::notification::ChannelType;
+    let channel_type = ChannelType::from_str(&input.channel_type)
+        .ok_or_else(|| AppError::ValidationError(format!("Invalid channel type: {}", input.channel_type)))?;
+
+    // Build config JSON based on channel type
+    let config_json = if input.channel_type == "gotify" {
         serde_json::json!({
             "url": input.url.unwrap_or_default(),
             "token": input.token.unwrap_or_default(),
@@ -231,17 +268,20 @@ async fn notification_create(
 
     // Save to database
     tracing::info!(
-        "Creating notification backend: {} ({})",
+        "Creating notification channel: {} ({})",
         input.name,
-        input.backend_type
+        input.channel_type
     );
     let db = state.db().await;
 
     let create_backend = svrctlrs_database::models::notification::CreateNotificationChannel {
-        backend_type: input.backend_type.clone(),
+        channel_type,
         name: input.name.clone(),
+        description: None,
         config: config_json,
-        priority: input.priority.unwrap_or(5),
+        enabled: true,
+        default_priority: input.default_priority.unwrap_or(5),
+        metadata: None,
     };
 
     match queries::notifications::create_notification_channel(db.pool(), &create_backend).await {
@@ -257,8 +297,8 @@ async fn notification_create(
             let list_html = template.render()?;
 
             Ok(Html(format!(
-                r#"<div class="alert alert-success">✓ Notification backend '{}' ({}) created successfully!</div>{}"#,
-                input.name, input.backend_type, list_html
+                r#"<div class="alert alert-success">✓ Notification channel '{}' ({}) created successfully!</div>{}"#,
+                input.name, input.channel_type, list_html
             )))
         }
         Err(e) => {
@@ -266,7 +306,7 @@ async fn notification_create(
             let error_msg = e.to_string();
             if error_msg.contains("UNIQUE constraint") {
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ A notification backend with the name '{}' already exists. Please use a different name.</div>"#,
+                    r#"<div class="alert alert-error">✗ A notification channel with the name '{}' already exists. Please use a different name.</div>"#,
                     input.name
                 )))
             } else {
@@ -286,7 +326,7 @@ struct UpdateNotificationInput {
     topic: Option<String>,
     username: Option<String>,
     password: Option<String>,
-    priority: Option<i32>,
+    default_priority: Option<i32>,
 }
 
 /// Update notification backend handler
@@ -295,14 +335,14 @@ async fn notification_update(
     Path(id): Path<i64>,
     Form(input): Form<UpdateNotificationInput>,
 ) -> Result<Html<String>, AppError> {
-    tracing::info!("Updating notification backend {}: {:?}", id, input);
+    tracing::info!("Updating notification channel {}: {:?}", id, input);
 
-    // Get existing backend to determine type
+    // Get existing channel to determine type
     let db = state.db().await;
     let existing = queries::notifications::get_notification_channel(db.pool(), id).await?;
 
-    // Build config JSON based on backend type
-    let config_json = if existing.backend_type == "gotify" {
+    // Build config JSON based on channel type
+    let config_json = if existing.channel_type_str == "gotify" {
         serde_json::json!({
             "url": input.url.unwrap_or_default(),
             "token": input.token.unwrap_or_default(),
@@ -344,9 +384,11 @@ async fn notification_update(
     // Update in database
     let update_backend = svrctlrs_database::models::notification::UpdateNotificationChannel {
         name: input.name,
+        description: None,
         enabled: input.enabled.map(|s| s == "on"),
         config: Some(config_json),
-        priority: input.priority,
+        default_priority: input.default_priority,
+        metadata: None,
     };
 
     match queries::notifications::update_notification_channel(db.pool(), id, &update_backend).await
@@ -363,7 +405,7 @@ async fn notification_update(
             let list_html = template.render()?;
 
             Ok(Html(format!(
-                r#"<div class="alert alert-success">✓ Notification backend '{}' updated successfully!</div>{}"#,
+                r#"<div class="alert alert-success">✓ Notification channel '{}' updated successfully!</div>{}"#,
                 backend_name, list_html
             )))
         }
@@ -371,7 +413,7 @@ async fn notification_update(
             let error_msg = e.to_string();
             if error_msg.contains("UNIQUE constraint") {
                 Ok(Html(
-                    r#"<div class="alert alert-error">✗ A notification backend with that name already exists. Please use a different name.</div>"#.to_string()
+                    r#"<div class="alert alert-error">✗ A notification channel with that name already exists. Please use a different name.</div>"#.to_string()
                 ))
             } else {
                 Err(e.into())
@@ -380,24 +422,24 @@ async fn notification_update(
     }
 }
 
-/// Delete notification backend handler
+/// Delete notification channel handler
 async fn notification_delete(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
-    // Get backend name before deleting
+    // Get channel name before deleting
     let db = state.db().await;
-    let backend_name = queries::notifications::get_notification_channel(db.pool(), id)
+    let channel_name = queries::notifications::get_notification_channel(db.pool(), id)
         .await
         .map(|b| b.name)
-        .unwrap_or_else(|_| format!("Backend {}", id));
+        .unwrap_or_else(|_| format!("Channel {}", id));
 
-    tracing::info!("Deleting notification backend {}", id);
+    tracing::info!("Deleting notification channel {}", id);
     queries::notifications::delete_notification_channel(db.pool(), id).await?;
 
     // Return success message
     Ok(Html(format!(
-        r#"<div class="alert alert-success">✓ Notification backend '{}' deleted successfully!</div>"#,
-        backend_name
+        r#"<div class="alert alert-success">✓ Notification channel '{}' deleted successfully!</div>"#,
+        channel_name
     )))
 }

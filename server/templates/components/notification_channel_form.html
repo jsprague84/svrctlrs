@@ -69,7 +69,7 @@
             <input type="text"
                    id="topic"
                    name="topic"
-                   value="{% match c.config %}{% when Some with (cfg) %}{{ cfg.topic }}{% when None %}{% endmatch %}"
+                   value=""
                    placeholder="my-server-alerts"
                    :required="channelType === 'ntfy'">
         </div>
@@ -88,7 +88,7 @@
             <textarea id="description"
                       name="description"
                       rows="2"
-                      placeholder="Brief description of this channel">{% match c.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
+                      placeholder="Brief description of this channel">{{ c.description }}</textarea>
         </div>
 
         <div class="flex gap-2">

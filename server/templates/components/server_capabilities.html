@@ -9,20 +9,14 @@
     <div class="flex gap-2 flex-wrap mt-2">
         {% for cap in capabilities %}
         <div class="badge badge-success">
-            <i data-lucide="{% match cap %}
-                {% when svrctlrs_database::models::ServerCapability::Docker %}package
-                {% when svrctlrs_database::models::ServerCapability::Systemd %}activity
-                {% when svrctlrs_database::models::ServerCapability::AptGet %}download
-                {% when svrctlrs_database::models::ServerCapability::Dnf %}download
-                {% when svrctlrs_database::models::ServerCapability::Yum %}download
-                {% endmatch %}" style="width: 14px; height: 14px;"></i>
-            {% match cap %}
-            {% when svrctlrs_database::models::ServerCapability::Docker %}Docker
-            {% when svrctlrs_database::models::ServerCapability::Systemd %}systemd
-            {% when svrctlrs_database::models::ServerCapability::AptGet %}apt-get
-            {% when svrctlrs_database::models::ServerCapability::Dnf %}dnf
-            {% when svrctlrs_database::models::ServerCapability::Yum %}yum
-            {% endmatch %}
+            <i data-lucide="{% if cap == "docker" %}package{% else if cap == "systemd" %}activity{% else %}download{% endif %}" style="width: 14px; height: 14px;"></i>
+            {% if cap == "docker" %}Docker
+            {% else if cap == "systemd" %}systemd
+            {% else if cap == "apt_get" %}apt-get
+            {% else if cap == "dnf" %}dnf
+            {% else if cap == "yum" %}yum
+            {% else %}{{ cap }}
+            {% endif %}
         </div>
         {% endfor %}
     </div>

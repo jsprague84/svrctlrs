@@ -69,7 +69,7 @@ async fn create_server(
     State(state): State<AppState>,
     Json(server): Json<CreateServer>,
 ) -> Result<impl IntoResponse, (StatusCode, String)> {
-    info!(name = %server.name, host = %server.host, "Creating server");
+    info!(name = %server.name, hostname = %server.hostname.as_deref().unwrap_or(""), "Creating server");
 
     let db = state.database.read().await;
     let pool = db.pool();
@@ -195,13 +195,13 @@ async fn test_server_connection(
     // TODO: Implement actual SSH connection test
     // For now, just return a mock response
 
-    info!(id = id, host = ?server.host, "Connection test completed");
+    info!(id = id, hostname = ?server.hostname, "Connection test completed");
 
     Ok(Json(json!({
         "success": true,
         "message": "Connection test not yet implemented",
         "server_id": id,
-        "host": server.host,
+        "hostname": server.hostname,
         "port": server.port
     })))
 }

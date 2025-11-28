@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 use svrctlrs_core::{NotificationManager, RemoteExecutor, Result};
-use svrctlrs_database::{Database, sqlx, SqlxPool, SqlxSqlite};
+use svrctlrs_database::{Database, SqlxPool, SqlxSqlite};
 use svrctlrs_scheduler::Scheduler;
 use tokio::sync::RwLock;
 
@@ -95,8 +95,8 @@ impl AppState {
         let client = reqwest::Client::new();
         let db = self.database.read().await;
 
-        // Load enabled notification backends from database
-        let backends = match queries::notifications::list_notification_backends(db.pool()).await {
+        // Load enabled notification channels from database
+        let backends = match queries::notifications::list_notification_channels(db.pool()).await {
             Ok(backends) => backends
                 .into_iter()
                 .filter(|b| b.enabled)
@@ -109,7 +109,7 @@ impl AppState {
 
         // Initialize Gotify backends
         let mut gotify_backend: Option<GotifyBackend> = None;
-        for backend in backends.iter().filter(|b| b.backend_type == "gotify") {
+        for backend in backends.iter().filter(|b| b.channel_type_str == "gotify") {
             let config = backend.get_config();
             if let (Some(url), Some(token)) = (
                 config.get("url").and_then(|v| v.as_str()),
@@ -137,7 +137,7 @@ impl AppState {
 
         // Initialize ntfy backends
         let mut ntfy_backend: Option<NtfyBackend> = None;
-        for backend in backends.iter().filter(|b| b.backend_type == "ntfy") {
+        for backend in backends.iter().filter(|b| b.channel_type_str == "ntfy") {
             let config = backend.get_config();
 
             // Debug: log the config to see what we have

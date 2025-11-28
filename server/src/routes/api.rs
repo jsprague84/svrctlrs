@@ -47,11 +47,8 @@ async fn health_check() -> impl IntoResponse {
 async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
     let scheduler = state.scheduler.read().await;
     let scheduler_running = scheduler.is_some();
-    let task_count = if let Some(ref sched) = *scheduler {
-        sched.task_count().await
-    } else {
-        0
-    };
+    // TODO: Implement task_count() method on Scheduler
+    let task_count = 0;
 
     // Built-in features: ssh, docker, updates, health
     let features_available = 4;
@@ -84,11 +81,8 @@ async fn reload_config(
     })?;
 
     let scheduler = state.scheduler.read().await;
-    let task_count = if let Some(ref sched) = *scheduler {
-        sched.task_count().await
-    } else {
-        0
-    };
+    // TODO: Implement task_count() method on Scheduler
+    let task_count = 0;
 
     info!("Configuration reloaded successfully");
 
@@ -184,9 +178,9 @@ async fn test_notification(
 
     info!("Testing notification backend {}", id);
 
-    // Load notification backend from database
+    // Load notification channel from database
     let db = state.db().await;
-    let backend = queries::notifications::get_notification_backend(db.pool(), id)
+    let backend = queries::notifications::get_notification_channel(db.pool(), id)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to load notification backend");
@@ -214,7 +208,7 @@ async fn test_notification(
         title: format!("🧪 Test from {}", backend.name),
         body: format!(
             "This is a test notification from SvrCtlRS.\n\nBackend: {}\nType: {}\n\nIf you received this, your notification backend is configured correctly! ✅",
-            backend.name, backend.backend_type
+            backend.name, backend.channel_type_str
         ),
         priority: 3,
         actions: vec![],
@@ -224,7 +218,7 @@ async fn test_notification(
     let client = reqwest::Client::new();
 
     // Create appropriate backend and send test
-    let result = match backend.backend_type.as_str() {
+    let result = match backend.channel_type_str.as_str() {
         "gotify" => {
             let config = backend.get_config();
             let url = config["url"].as_str().unwrap_or_default();
@@ -296,7 +290,7 @@ async fn test_notification(
                 StatusCode::BAD_REQUEST,
                 Html(format!(
                     r#"<div class="alert alert-error">❌ Unknown backend type: {}</div>"#,
-                    backend.backend_type
+                    backend.channel_type_str
                 )),
             ))
         }

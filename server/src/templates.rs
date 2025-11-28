@@ -3,10 +3,6 @@
 use askama::Template;
 use askama_web::WebTemplate;
 use serde::{Deserialize, Serialize};
-use svrctlrs_database::models::{
-    Credential, CredentialType, JobTemplate, JobTemplateStep, JobType, CommandTemplate,
-    JobSchedule, JobRun, ServerJobResult, StepExecutionResult, Server, Tag,
-};
 
 // ============================================================================
 // User & Auth
@@ -210,9 +206,10 @@ pub struct TagDisplay {
 }
 
 // ============================================================================
-// Job Types
+// Job Types (COMMENTED OUT - Re-enable when job_types route is implemented)
 // ============================================================================
 
+/*
 #[derive(Template, WebTemplate)]
 #[template(path = "pages/job_types.html")]
 pub struct JobTypesTemplate {
@@ -499,6 +496,7 @@ pub struct ServerJobResultsTemplate {
     pub server_results: Vec<ServerJobResultDisplay>,
     pub servers: Vec<ServerDisplay>,
 }
+*/
 
 // ============================================================================
 // Notification Channels
@@ -537,6 +535,7 @@ pub struct NotificationChannelDisplay {
     pub created_at: String,
 }
 
+/*
 // ============================================================================
 // Notification Policies
 // ============================================================================
@@ -717,6 +716,7 @@ pub struct PluginConfigInput {
     pub health_mem_warn_pct: Option<String>,
     pub health_disk_warn_pct: Option<String>,
 }
+*/
 
 // ============================================================================
 // Settings
@@ -729,26 +729,27 @@ pub struct SettingsTemplate {
 }
 
 // ============================================================================
-// Notifications (Legacy Backend Configuration)
+// Notifications (Legacy Backend Configuration - COMMENTED OUT)
 // ============================================================================
 
+// Legacy notification templates (using old naming)
 #[derive(Template, WebTemplate)]
 #[template(path = "pages/notifications.html")]
 pub struct NotificationsTemplate {
     pub user: Option<User>,
-    pub notifications: Vec<NotificationBackend>,
+    pub notifications: Vec<NotificationChannelDisplay>,
 }
 
 #[derive(Template, WebTemplate)]
 #[template(path = "components/notification_list.html")]
 pub struct NotificationListTemplate {
-    pub notifications: Vec<NotificationBackend>,
+    pub notifications: Vec<NotificationChannelDisplay>,
 }
 
 #[derive(Template, WebTemplate)]
 #[template(path = "components/notification_form.html")]
 pub struct NotificationFormTemplate {
-    pub notification: Option<NotificationBackend>,
+    pub notification: Option<NotificationChannelDisplay>,
     pub config_url: String,
     pub config_token: String,
     pub config_topic: String,
@@ -757,6 +758,7 @@ pub struct NotificationFormTemplate {
     pub error: Option<String>,
 }
 
+/*
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NotificationBackend {
     pub id: i64,
@@ -792,6 +794,7 @@ pub struct UpdateNotificationInput {
     pub priority: Option<i32>,
     pub enabled: Option<String>,
 }
+*/
 
 // ============================================================================
 // Auth

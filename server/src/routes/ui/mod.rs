@@ -1,6 +1,6 @@
 //! UI routes module - HTMX frontend
 
-use axum::{response::IntoResponse, routing::get, Router};
+use axum::{response::IntoResponse, Router};
 use tower_http::services::ServeDir;
 
 use crate::state::AppState;

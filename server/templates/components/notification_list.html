@@ -14,8 +14,8 @@
         </div>
         
         <p class="text-secondary">
-            <strong>Type:</strong> {{ notification.backend_type }}<br>
-            <strong>Priority:</strong> {{ notification.priority }}
+            <strong>Type:</strong> {{ notification.channel_type_display }}<br>
+            <strong>Endpoint:</strong> {{ notification.endpoint }}
         </p>
         
         <div id="test-result-{{ notification.id }}" class="mb-2"></div>
@@ -25,7 +25,7 @@
               hx-target="#test-result-{{ notification.id }}"
               hx-swap="innerHTML"
               class="flex gap-2 mb-2 align-items-end">
-            {% if notification.backend_type == "ntfy" %}
+            {% if notification.channel_type == "ntfy" %}
             <div class="form-group mb-0" style="flex: 1;">
                 <label for="test-topic-{{ notification.id }}" class="text-sm">Test Topic:</label>
                 <input type="text"

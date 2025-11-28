@@ -14,15 +14,10 @@
         </div>
 
         <p class="text-secondary">
-            {% match channel.description %}
-            {% when Some with (d) %}
-            {{ d }}<br>
-            {% when None %}
-            {% endmatch %}
-            <strong>Endpoint:</strong> {{ channel.endpoint }}<br>
-            {% if channel.policy_count > 0 %}
-            <strong>Used by:</strong> {{ channel.policy_count }} policy(ies)
+            {% if !channel.description.is_empty() %}
+            {{ channel.description }}<br>
             {% endif %}
+            <strong>Endpoint:</strong> {{ channel.endpoint }}
         </p>
 
         <div class="flex gap-2 mt-2">
@@ -38,7 +33,6 @@
                 <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
             </button>
 
-            {% if channel.policy_count == 0 %}
             <button hx-delete="/notification-channels/{{ channel.id }}"
                     hx-target="#channel-{{ channel.id }}"
                     hx-swap="outerHTML"
@@ -46,13 +40,6 @@
                     class="btn btn-sm btn-danger">
                 <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
             </button>
-            {% else %}
-            <button disabled
-                    class="btn btn-sm btn-secondary"
-                    title="Cannot delete - in use by {{ channel.policy_count }} policy(ies)">
-                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Delete
-            </button>
-            {% endif %}
         </div>
     </div>
     {% endfor %}

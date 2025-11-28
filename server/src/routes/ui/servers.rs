@@ -11,7 +11,7 @@ use serde::Deserialize;
 use svrctlrs_database::{
     models::{CreateServer, Server, UpdateServer},
     queries::{
-        credentials, servers_new as servers_queries, tags,
+        credentials, servers as servers_queries, tags,
     },
 };
 
@@ -123,7 +123,7 @@ async fn server_form_edit(
     let server_result = servers_queries::get_server(db.pool(), id).await;
     let credentials_list = credentials::list_credentials(db.pool()).await?;
     let tags_list = tags::list_tags(db.pool()).await?;
-    let server_tags = tags::get_tags_for_server(db.pool(), id).await.unwrap_or_default();
+    let server_tags = tags::get_server_tags(db.pool(), id).await.unwrap_or_default();
 
     let credentials_display: Vec<CredentialDisplay> = credentials_list
         .into_iter()
@@ -275,8 +275,8 @@ async fn server_update(
 
     // Parse credential ID
     let credential_id = match input.credential_id.as_deref() {
-        Some("none") | Some("") => Some(None),
-        Some(id_str) => id_str.parse::<i64>().ok().map(Some),
+        Some("none") | Some("") => None,
+        Some(id_str) => id_str.parse::<i64>().ok(),
         None => None,
     };
 

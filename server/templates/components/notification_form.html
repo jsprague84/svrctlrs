@@ -23,15 +23,15 @@
         </div>
         
         <div class="form-group">
-            <label for="backend_type">Type *</label>
-            <select id="backend_type" name="backend_type" disabled>
-                <option value="gotify" {% if n.backend_type == "gotify" %}selected{% endif %}>Gotify</option>
-                <option value="ntfy" {% if n.backend_type == "ntfy" %}selected{% endif %}>ntfy.sh</option>
+            <label for="channel_type">Type *</label>
+            <select id="channel_type" name="channel_type" disabled>
+                <option value="gotify" {% if n.channel_type == "gotify" %}selected{% endif %}>Gotify</option>
+                <option value="ntfy" {% if n.channel_type == "ntfy" %}selected{% endif %}>ntfy.sh</option>
             </select>
-            <input type="hidden" name="backend_type" value="{{ n.backend_type }}">
+            <input type="hidden" name="channel_type" value="{{ n.channel_type }}">
         </div>
-        
-        {% if n.backend_type == "gotify" %}
+
+        {% if n.channel_type == "gotify" %}
             <div class="form-group">
                 <label for="url">Gotify Server URL *</label>
                 <input type="url" 
@@ -105,17 +105,19 @@
                        placeholder="For Basic Auth">
             </div>
         {% endif %}
-        
+
+        <!-- Priority field commented out - not in NotificationChannelDisplay
         <div class="form-group">
-            <label for="priority">Priority (1-10)</label>
-            <input type="number" 
-                   id="priority" 
-                   name="priority" 
-                   value="{{ n.priority }}" 
-                   min="1" 
+            <label for="default_priority">Priority (1-10)</label>
+            <input type="number"
+                   id="default_priority"
+                   name="default_priority"
+                   value="5"
+                   min="1"
                    max="10">
         </div>
-        
+        -->
+
         <div class="form-group">
             <label>
                 <input type="checkbox" name="enabled" {% if n.enabled %}checked{% endif %}>
@@ -228,17 +230,18 @@
                        placeholder="For Basic Auth"
                        disabled>
             </div>
-        </div>        
+        </div>
+
         <div class="form-group">
-            <label for="priority">Priority (1-10)</label>
-            <input type="number" 
-                   id="priority" 
-                   name="priority" 
-                   value="5" 
-                   min="1" 
+            <label for="default_priority">Priority (1-10)</label>
+            <input type="number"
+                   id="default_priority"
+                   name="default_priority"
+                   value="5"
+                   min="1"
                    max="10">
         </div>
-        
+
         <div class="form-group">
             <label>
                 <input type="checkbox" name="enabled" checked>

@@ -4,7 +4,7 @@ use askama::Template;
 use axum::{
     extract::{Path, State},
     response::{Html, IntoResponse},
-    routing::{get, post, put},
+    routing::{get, put},
     Form, Router,
 };
 use serde::Deserialize;

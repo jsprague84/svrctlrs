@@ -26,9 +26,12 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
 
     let stats = DashboardStats {
         total_servers,
+        total_schedules: 0, // TODO: Count job schedules
+        active_jobs: 0, // TODO: Count running jobs
         active_tasks: 0, // TODO: Track active tasks
         enabled_plugins,
         total_tasks: 0, // TODO: Track total tasks
+        recent_runs: vec![], // TODO: Query recent job runs
     };
 
     let template = DashboardTemplate { user, stats };
