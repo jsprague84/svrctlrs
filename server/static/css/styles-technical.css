@@ -695,3 +695,24 @@ pre code {
         display: none;
     }
 }
+
+/* ============================================================================
+   HTMX Indicators
+   ============================================================================ */
+
+.htmx-indicator {
+    display: none;
+}
+
+.htmx-request .htmx-indicator,
+.htmx-request.htmx-indicator {
+    display: inline-block;
+}
+
+.htmx-not-indicator {
+    display: inline-block;
+}
+
+.htmx-request .htmx-not-indicator {
+    display: none;
+}
