@@ -7,6 +7,20 @@ use askama_web::WebTemplate;
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
+// Askama Filters
+// ============================================================================
+
+pub mod filters {
+    use serde::Serialize;
+
+    /// JSON filter for Askama templates
+    /// Usage: {{ value|json|safe }}
+    pub fn json<T: Serialize>(value: T) -> ::askama::Result<String> {
+        serde_json::to_string(&value).map_err(|e| askama::Error::Custom(Box::new(e)))
+    }
+}
+
+// ============================================================================
 // User & Auth
 // ============================================================================
 
