@@ -412,8 +412,9 @@ impl From<svrctlrs_database::models::CommandTemplate> for CommandTemplateDisplay
 }
 
 /*
+
 // ============================================================================
-// Job Templates (COMMENTED OUT - Field mismatches with new schema)
+// Job Templates
 // ============================================================================
 
 #[derive(Template)]
@@ -439,7 +440,7 @@ pub struct JobTemplateFormTemplate {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct JobTemplateDisplay {
     pub id: i64,
     pub name: String,
@@ -449,16 +450,69 @@ pub struct JobTemplateDisplay {
     pub job_type_name: String,
     pub is_composite: bool,
     pub command_template_id: Option<i64>,
-    pub target_type: String,  // "all", "servers", "tags"
-    pub target_tags: Vec<String>,
+    pub variables_json: String,
     pub timeout_seconds: i32,
     pub retry_count: i32,
+    pub retry_delay_seconds: i32,
     pub notify_on_success: bool,
     pub notify_on_failure: bool,
-    pub server_count: i64,
-    pub step_count: i64,
-    pub schedule_count: i64,
+    pub notification_policy_id: Option<i64>,
+    pub metadata_json: String,
     pub created_at: String,
+    pub updated_at: String,
+}
+
+impl JobTemplateDisplay {
+    pub fn get_variables(&self) -> String {
+        self.variables_json.clone()
+    }
+
+    pub fn get_metadata(&self) -> String {
+        self.metadata_json.clone()
+    }
+}
+
+/// Convert database JobTemplate to display model
+impl From<svrctlrs_database::models::JobTemplate> for JobTemplateDisplay {
+    fn from(jt: svrctlrs_database::models::JobTemplate) -> Self {
+        use chrono::Local;
+
+        let variables_json = serde_json::to_string(&jt.get_variables())
+            .unwrap_or_else(|_| "{}".to_string());
+        let metadata_json =
+            serde_json::to_string(&jt.get_metadata()).unwrap_or_else(|_| "{}".to_string());
+        let created_at = jt
+            .created_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        let updated_at = jt
+            .updated_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+
+        Self {
+            id: jt.id,
+            name: jt.name,
+            display_name: jt.display_name,
+            description: jt.description,
+            job_type_id: jt.job_type_id,
+            job_type_name: String::new(), // TODO: Join from job_type table
+            is_composite: jt.is_composite,
+            command_template_id: jt.command_template_id,
+            variables_json,
+            timeout_seconds: jt.timeout_seconds,
+            retry_count: jt.retry_count,
+            retry_delay_seconds: jt.retry_delay_seconds,
+            notify_on_success: jt.notify_on_success,
+            notify_on_failure: jt.notify_on_failure,
+            notification_policy_id: jt.notification_policy_id,
+            metadata_json,
+            created_at,
+            updated_at,
+        }
+    }
 }
 
 // ============================================================================
@@ -488,7 +542,7 @@ pub struct JobTemplateStepListTemplate {
     pub steps: Vec<JobTemplateStepDisplay>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct JobTemplateStepDisplay {
     pub id: i64,
     pub job_template_id: i64,
@@ -496,14 +550,51 @@ pub struct JobTemplateStepDisplay {
     pub name: String,
     pub command_template_id: i64,
     pub command_template_name: String,
+    pub variables_json: String,
     pub continue_on_failure: bool,
     pub timeout_seconds: Option<i32>,
+    pub metadata_json: String,
 }
-*/
 
+impl JobTemplateStepDisplay {
+    pub fn get_variables(&self) -> String {
+        self.variables_json.clone()
+    }
+
+    pub fn get_metadata(&self) -> String {
+        self.metadata_json.clone()
+    }
+}
+
+/// Convert database JobTemplateStep to display model
+impl From<svrctlrs_database::models::JobTemplateStep> for JobTemplateStepDisplay {
+    fn from(step: svrctlrs_database::models::JobTemplateStep) -> Self {
+        let variables_json = serde_json::to_string(&step.get_variables())
+            .unwrap_or_else(|_| "{}".to_string());
+        let metadata_json = serde_json::to_string(&step.get_metadata())
+            .unwrap_or_else(|_| "{}".to_string());
+
+        Self {
+            id: step.id,
+            job_template_id: step.job_template_id,
+            step_order: step.step_order,
+            name: step.name,
+            command_template_id: step.command_template_id,
+            command_template_name: String::new(), // TODO: Join from command_template table
+            variables_json,
+            continue_on_failure: step.continue_on_failure,
+            timeout_seconds: step.timeout_seconds,
+            metadata_json,
+        }
+    }
+}
+
+*/
 /*
+
+
 // ============================================================================
-// Job Schedules (COMMENTED OUT - Field mismatches with new schema)
+// Job Schedules
 // ============================================================================
 
 #[derive(Template)]
@@ -536,14 +627,14 @@ pub struct GroupedSchedulesTemplate {
     pub grouped_schedules: Vec<ServerScheduleGroup>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ServerScheduleGroup {
     pub server_id: i64,
     pub server_name: String,
     pub schedules: Vec<JobScheduleDisplay>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct JobScheduleDisplay {
     pub id: i64,
     pub name: String,
@@ -554,19 +645,86 @@ pub struct JobScheduleDisplay {
     pub server_name: String,
     pub schedule: String,
     pub enabled: bool,
+    pub timeout_seconds: Option<i32>,
+    pub retry_count: Option<i32>,
+    pub notify_on_success: Option<bool>,
+    pub notify_on_failure: Option<bool>,
+    pub notification_policy_id: Option<i64>,
     pub last_run_at: Option<String>,
     pub last_run_status: Option<String>,
     pub next_run_at: Option<String>,
     pub success_count: i64,
     pub failure_count: i64,
-    pub success_rate: f64,
+    pub metadata_json: String,
     pub created_at: String,
 }
-*/
 
+impl JobScheduleDisplay {
+    pub fn get_metadata(&self) -> String {
+        self.metadata_json.clone()
+    }
+
+    pub fn success_rate(&self) -> f64 {
+        let total = self.success_count + self.failure_count;
+        if total == 0 {
+            0.0
+        } else {
+            (self.success_count as f64 / total as f64) * 100.0
+        }
+    }
+}
+
+/// Convert database JobSchedule to display model
+impl From<svrctlrs_database::models::JobSchedule> for JobScheduleDisplay {
+    fn from(js: svrctlrs_database::models::JobSchedule) -> Self {
+        use chrono::Local;
+
+        let metadata_json =
+            serde_json::to_string(&js.get_metadata()).unwrap_or_else(|_| "{}".to_string());
+        let created_at = js
+            .created_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        let last_run_at = js
+            .last_run_at
+            .map(|dt| dt.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S").to_string());
+        let next_run_at = js
+            .next_run_at
+            .map(|dt| dt.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S").to_string());
+
+        Self {
+            id: js.id,
+            name: js.name,
+            description: js.description,
+            job_template_id: js.job_template_id,
+            job_template_name: String::new(), // TODO: Join from job_template table
+            server_id: js.server_id,
+            server_name: String::new(), // TODO: Join from servers table
+            schedule: js.schedule,
+            enabled: js.enabled,
+            timeout_seconds: js.timeout_seconds,
+            retry_count: js.retry_count,
+            notify_on_success: js.notify_on_success,
+            notify_on_failure: js.notify_on_failure,
+            notification_policy_id: js.notification_policy_id,
+            last_run_at,
+            last_run_status: js.last_run_status_str,
+            next_run_at,
+            success_count: js.success_count,
+            failure_count: js.failure_count,
+            metadata_json,
+            created_at,
+        }
+    }
+}
+*/
 /*
+
+
+
 // ============================================================================
-// Job Runs (COMMENTED OUT - Field mismatches with new schema)
+// Job Runs
 // ============================================================================
 
 #[derive(Template)]
@@ -597,7 +755,7 @@ pub struct JobRunDetailTemplate {
     pub servers: Vec<ServerDisplay>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct JobRunDisplay {
     pub id: i64,
     pub job_schedule_id: i64,
@@ -608,41 +766,84 @@ pub struct JobRunDisplay {
     pub server_name: String,
     pub status: String,
     pub started_at: String,
-    pub finished_at: String,  // Empty string if None (display-ready)
-    pub duration_seconds: String,  // Formatted duration or empty (display-ready)
-    pub exit_code: String,  // Formatted exit code or empty (display-ready)
-    pub output: String,  // Empty string if None (display-ready)
-    pub error: String,  // Empty string if None (display-ready)
+    pub finished_at: Option<String>,
+    pub duration_ms: Option<i64>,
+    pub exit_code: Option<i32>,
+    pub output: Option<String>,
+    pub error: Option<String>,
     pub retry_attempt: i32,
+    pub is_retry: bool,
     pub notification_sent: bool,
+    pub notification_error: Option<String>,
+    pub metadata_json: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StepResultDisplay {
-    pub id: i64,
-    pub step_order: i32,
-    pub step_name: String,
-    pub status: String,
-    pub started_at: String,
-    pub finished_at: Option<String>,
-    pub duration_seconds: Option<f64>,
-    pub exit_code: Option<i32>,
-    pub output: Option<String>,
-    pub error: Option<String>,
+impl JobRunDisplay {
+    pub fn get_metadata(&self) -> String {
+        self.metadata_json.clone()
+    }
+
+    pub fn duration_seconds(&self) -> f64 {
+        self.duration_ms.map(|ms| ms as f64 / 1000.0).unwrap_or(0.0)
+    }
+
+    pub fn formatted_duration(&self) -> String {
+        match self.duration_ms {
+            Some(ms) => {
+                let secs = ms / 1000;
+                let mins = secs / 60;
+                let hours = mins / 60;
+                if hours > 0 {
+                    format!("{}h {}m {}s", hours, mins % 60, secs % 60)
+                } else if mins > 0 {
+                    format!("{}m {}s", mins, secs % 60)
+                } else {
+                    format!("{}s", secs)
+                }
+            }
+            None => "".to_string(),
+        }
+    }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ServerJobResultDisplay {
-    pub id: i64,
-    pub server_id: i64,
-    pub server_name: String,
-    pub status: String,
-    pub started_at: String,
-    pub finished_at: Option<String>,
-    pub duration_seconds: Option<f64>,
-    pub exit_code: Option<i32>,
-    pub output: Option<String>,
-    pub error: Option<String>,
+/// Convert database JobRun to display model
+impl From<svrctlrs_database::models::JobRun> for JobRunDisplay {
+    fn from(jr: svrctlrs_database::models::JobRun) -> Self {
+        use chrono::Local;
+
+        let metadata_json =
+            serde_json::to_string(&jr.get_metadata()).unwrap_or_else(|_| "{}".to_string());
+        let started_at = jr
+            .started_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        let finished_at = jr
+            .finished_at
+            .map(|dt| dt.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S").to_string());
+
+        Self {
+            id: jr.id,
+            job_schedule_id: jr.job_schedule_id,
+            job_schedule_name: String::new(), // TODO: Join from job_schedule table
+            job_template_id: jr.job_template_id,
+            job_template_name: String::new(), // TODO: Join from job_template table
+            server_id: jr.server_id,
+            server_name: String::new(), // TODO: Join from servers table
+            status: jr.status_str,
+            started_at,
+            finished_at,
+            duration_ms: jr.duration_ms,
+            exit_code: jr.exit_code,
+            output: jr.output,
+            error: jr.error,
+            retry_attempt: jr.retry_attempt,
+            is_retry: jr.is_retry,
+            notification_sent: jr.notification_sent,
+            notification_error: jr.notification_error,
+            metadata_json,
+        }
+    }
 }
 
 #[derive(Template)]
