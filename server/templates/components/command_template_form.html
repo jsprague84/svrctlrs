@@ -1,4 +1,4 @@
-<div class="card" x-data="{ args: {% match command_template %}{% when Some with (ct) %}{{ ct.default_args | json }}{% when None %}[]{% endmatch %} }">
+<div class="card" x-data="commandTemplateForm()">
     <h3>{% match command_template %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Command Template</h3>
 
     {% match error %}
@@ -11,62 +11,186 @@
     {% when Some with (ct) %}
     <form hx-put="/job-types/{{ job_type_id }}/command-templates/{{ ct.id }}"
           hx-target="#command-template-list"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          @submit="serializeAllFields()">
 
+        <!-- Internal Name (read-only for editing) -->
         <div class="form-group">
-            <label for="name">Template Name *</label>
+            <label for="name">Internal Name</label>
             <input type="text"
                    id="name"
-                   name="name"
                    value="{{ ct.name }}"
-                   placeholder="Default Update Command"
+                   readonly
+                   disabled
+                   class="bg-base-300">
+            <small class="text-secondary">Internal identifier (cannot be changed)</small>
+        </div>
+
+        <!-- Display Name -->
+        <div class="form-group">
+            <label for="display_name">Display Name *</label>
+            <input type="text"
+                   id="display_name"
+                   name="display_name"
+                   value="{{ ct.display_name }}"
+                   placeholder="Update Packages"
                    required>
         </div>
 
+        <!-- Description -->
         <div class="form-group">
-            <label for="command_template">Command Template *</label>
-            <textarea id="command_template"
-                      name="command_template"
-                      rows="4"
-                      placeholder="apt-get update && apt-get upgrade -y"
-                      required>{{ ct.command_template }}</textarea>
-            <small class="text-secondary">Use variables like {package_name} for parameterization</small>
-        </div>
-
-        <div class="form-group">
-            <label for="description">Description (optional)</label>
+            <label for="description">Description</label>
             <textarea id="description"
                       name="description"
                       rows="2"
                       placeholder="What this command does">{% match ct.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
         </div>
 
+        <!-- Command with Variables -->
         <div class="form-group">
-            <label>Default Arguments (optional)</label>
-            <template x-for="(arg, index) in args" :key="index">
-                <div class="flex gap-2 mb-2">
-                    <input type="text"
-                           :name="'arg_key_' + index"
-                           x-model="arg.key"
-                           placeholder="Key"
-                           class="flex-1">
-                    <input type="text"
-                           :name="'arg_value_' + index"
-                           x-model="arg.value"
-                           placeholder="Value"
-                           class="flex-1">
-                    <button type="button"
-                            @click="args.splice(index, 1)"
-                            class="btn btn-sm btn-danger">
-                        <i data-lucide="x" style="width: 12px; height: 12px;"></i>
-                    </button>
+            <label for="command">Command Template *</label>
+            <textarea id="command"
+                      name="command"
+                      rows="4"
+                      class="font-mono"
+                      placeholder="docker ps --filter 'status={{status}}'"
+                      required>{{ ct.command }}</textarea>
+            <small class="text-secondary">Use {{"{{"}}variable{{"}}"}} syntax for substitution</small>
+        </div>
+
+        <!-- Required Capabilities -->
+        <div class="form-group">
+            <label>Required Capabilities</label>
+            <input type="hidden" name="required_capabilities" x-model="capabilitiesJson">
+            <div class="flex flex-wrap gap-2 mb-2">
+                <template x-for="(cap, index) in capabilities" :key="index">
+                    <span class="badge badge-primary">
+                        <span x-text="cap"></span>
+                        <button type="button" @click="removeCapability(index)" class="ml-1 text-error">✕</button>
+                    </span>
+                </template>
+            </div>
+            <div class="flex gap-2">
+                <input type="text"
+                       x-model="newCapability"
+                       @keydown.enter.prevent="addCapability()"
+                       placeholder="docker, systemd, etc.">
+                <button type="button" @click="addCapability()" class="btn btn-sm btn-secondary">Add</button>
+            </div>
+        </div>
+
+        <!-- OS Filter -->
+        <div class="form-group">
+            <label for="os_filter">OS Filter (JSON)</label>
+            <input type="hidden" name="os_filter" x-model="osFilterJson">
+            <textarea id="os_filter"
+                      x-model="osFilterText"
+                      rows="2"
+                      class="font-mono text-sm"
+                      placeholder='{"distro": ["ubuntu", "debian"]}'></textarea>
+            <small class="text-secondary">Target specific operating systems</small>
+        </div>
+
+        <!-- Execution Settings -->
+        <div class="card bg-base-200">
+            <h4>Execution Settings</h4>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label for="timeout_seconds">Timeout (seconds)</label>
+                    <input type="number"
+                           id="timeout_seconds"
+                           name="timeout_seconds"
+                           value="{{ ct.timeout_seconds }}"
+                           min="1"
+                           placeholder="300">
                 </div>
-            </template>
-            <button type="button"
-                    @click="args.push({ key: '', value: '' })"
-                    class="btn btn-sm btn-secondary">
-                <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Add Argument
-            </button>
+
+                <div class="form-group">
+                    <label for="working_directory">Working Directory</label>
+                    <input type="text"
+                           id="working_directory"
+                           name="working_directory"
+                           value="{% match ct.working_directory %}{% when Some with (wd) %}{{ wd }}{% when None %}{% endmatch %}"
+                           placeholder="/var/www">
+                </div>
+            </div>
+
+            <!-- Environment Variables -->
+            <div class="form-group">
+                <label>Environment Variables</label>
+                <input type="hidden" name="environment" x-model="environmentJson">
+                <textarea x-model="environmentText"
+                          rows="3"
+                          class="font-mono text-sm"
+                          placeholder='{"PATH": "/usr/local/bin:/usr/bin"}'></textarea>
+                <small class="text-secondary">JSON object of environment variables</small>
+            </div>
+        </div>
+
+        <!-- Output Handling -->
+        <div class="card bg-base-200">
+            <h4>Output Handling</h4>
+
+            <div class="form-group">
+                <label for="output_format">Output Format</label>
+                <select id="output_format" name="output_format">
+                    <option value="">Auto-detect</option>
+                    <option value="json" {% match ct.output_format %}{% when Some with (f) %}{% if f == "json" %}selected{% endif %}{% when None %}{% endmatch %}>JSON</option>
+                    <option value="text" {% match ct.output_format %}{% when Some with (f) %}{% if f == "text" %}selected{% endif %}{% when None %}{% endmatch %}>Text</option>
+                    <option value="table" {% match ct.output_format %}{% when Some with (f) %}{% if f == "table" %}selected{% endif %}{% when None %}{% endmatch %}>Table</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="flex gap-2 align-center" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="parse_output"
+                           {% if ct.parse_output %}checked{% endif %}>
+                    <span>Parse Output</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>Output Parser (JSON)</label>
+                <input type="hidden" name="output_parser" x-model="parserJson">
+                <textarea x-model="parserText"
+                          rows="3"
+                          class="font-mono text-sm"
+                          placeholder='{"type": "regex", "pattern": "\\d+"}'></textarea>
+                <small class="text-secondary">Parser configuration if parse_output is enabled</small>
+            </div>
+        </div>
+
+        <!-- Notification Settings -->
+        <div class="card bg-base-200">
+            <h4>Notification Settings</h4>
+
+            <div class="form-group">
+                <label class="flex gap-2 align-center mb-2" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="notify_on_success"
+                           {% if ct.notify_on_success %}checked{% endif %}>
+                    <span>Notify on Success</span>
+                </label>
+                <label class="flex gap-2 align-center" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="notify_on_failure"
+                           {% if ct.notify_on_failure %}checked{% endif %}>
+                    <span>Notify on Failure</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="form-group">
+            <label>Metadata (JSON)</label>
+            <input type="hidden" name="metadata" x-model="metadataJson">
+            <textarea x-model="metadataText"
+                      rows="3"
+                      class="font-mono text-sm"
+                      placeholder='{"priority": "high", "category": "maintenance"}'></textarea>
+            <small class="text-secondary">Additional configuration as JSON</small>
         </div>
 
         <div class="flex gap-2">
@@ -83,66 +207,183 @@
     {% when None %}
     <form hx-post="/job-types/{{ job_type_id }}/command-templates"
           hx-target="#command-template-list"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          @submit="serializeAllFields()">
 
+        <!-- Internal Name -->
         <div class="form-group">
-            <label for="name">Template Name *</label>
+            <label for="name">Internal Name *</label>
             <input type="text"
                    id="name"
                    name="name"
-                   placeholder="Default Update Command"
+                   placeholder="list_containers"
+                   pattern="[a-z0-9_]+"
+                   required>
+            <small class="text-secondary">Lowercase, numbers, underscores only</small>
+        </div>
+
+        <!-- Display Name -->
+        <div class="form-group">
+            <label for="display_name">Display Name *</label>
+            <input type="text"
+                   id="display_name"
+                   name="display_name"
+                   placeholder="List Containers"
                    required>
         </div>
 
+        <!-- Description -->
         <div class="form-group">
-            <label for="command_template">Command Template *</label>
-            <textarea id="command_template"
-                      name="command_template"
-                      rows="4"
-                      placeholder="apt-get update && apt-get upgrade -y"
-                      required></textarea>
-            <small class="text-secondary">Use variables like {package_name} for parameterization</small>
-        </div>
-
-        <div class="form-group">
-            <label for="description">Description (optional)</label>
+            <label for="description">Description</label>
             <textarea id="description"
                       name="description"
                       rows="2"
-                      placeholder="What this command does"></textarea>
+                      placeholder="Lists all Docker containers"></textarea>
         </div>
 
+        <!-- Command with Variables -->
         <div class="form-group">
-            <label>Default Arguments (optional)</label>
-            <template x-for="(arg, index) in args" :key="index">
-                <div class="flex gap-2 mb-2">
-                    <input type="text"
-                           :name="'arg_key_' + index"
-                           x-model="arg.key"
-                           placeholder="Key"
-                           class="flex-1">
-                    <input type="text"
-                           :name="'arg_value_' + index"
-                           x-model="arg.value"
-                           placeholder="Value"
-                           class="flex-1">
-                    <button type="button"
-                            @click="args.splice(index, 1)"
-                            class="btn btn-sm btn-danger">
-                        <i data-lucide="x" style="width: 12px; height: 12px;"></i>
-                    </button>
+            <label for="command">Command Template *</label>
+            <textarea id="command"
+                      name="command"
+                      rows="4"
+                      class="font-mono"
+                      placeholder="docker ps --filter 'status={{status}}'"
+                      required></textarea>
+            <small class="text-secondary">Use {{"{{"}}variable{{"}}"}} syntax for substitution</small>
+        </div>
+
+        <!-- Required Capabilities -->
+        <div class="form-group">
+            <label>Required Capabilities</label>
+            <input type="hidden" name="required_capabilities" x-model="capabilitiesJson">
+            <div class="flex flex-wrap gap-2 mb-2">
+                <template x-for="(cap, index) in capabilities" :key="index">
+                    <span class="badge badge-primary">
+                        <span x-text="cap"></span>
+                        <button type="button" @click="removeCapability(index)" class="ml-1 text-error">✕</button>
+                    </span>
+                </template>
+            </div>
+            <div class="flex gap-2">
+                <input type="text"
+                       x-model="newCapability"
+                       @keydown.enter.prevent="addCapability()"
+                       placeholder="docker, systemd, etc.">
+                <button type="button" @click="addCapability()" class="btn btn-sm btn-secondary">Add</button>
+            </div>
+        </div>
+
+        <!-- OS Filter -->
+        <div class="form-group">
+            <label for="os_filter">OS Filter (JSON)</label>
+            <input type="hidden" name="os_filter" x-model="osFilterJson">
+            <textarea id="os_filter"
+                      x-model="osFilterText"
+                      rows="2"
+                      class="font-mono text-sm"
+                      placeholder='{"distro": ["ubuntu", "debian"]}'></textarea>
+            <small class="text-secondary">Target specific operating systems</small>
+        </div>
+
+        <!-- Execution Settings -->
+        <div class="card bg-base-200">
+            <h4>Execution Settings</h4>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="form-group">
+                    <label for="timeout_seconds">Timeout (seconds)</label>
+                    <input type="number"
+                           id="timeout_seconds"
+                           name="timeout_seconds"
+                           value="300"
+                           min="1"
+                           placeholder="300">
                 </div>
-            </template>
-            <button type="button"
-                    @click="args.push({ key: '', value: '' })"
-                    class="btn btn-sm btn-secondary">
-                <i data-lucide="plus" style="width: 12px; height: 12px;"></i> Add Argument
-            </button>
+
+                <div class="form-group">
+                    <label for="working_directory">Working Directory</label>
+                    <input type="text"
+                           id="working_directory"
+                           name="working_directory"
+                           placeholder="/var/www">
+                </div>
+            </div>
+
+            <!-- Environment Variables -->
+            <div class="form-group">
+                <label>Environment Variables</label>
+                <input type="hidden" name="environment" x-model="environmentJson">
+                <textarea x-model="environmentText"
+                          rows="3"
+                          class="font-mono text-sm"
+                          placeholder='{"PATH": "/usr/local/bin:/usr/bin"}'></textarea>
+                <small class="text-secondary">JSON object of environment variables</small>
+            </div>
+        </div>
+
+        <!-- Output Handling -->
+        <div class="card bg-base-200">
+            <h4>Output Handling</h4>
+
+            <div class="form-group">
+                <label for="output_format">Output Format</label>
+                <select id="output_format" name="output_format">
+                    <option value="">Auto-detect</option>
+                    <option value="json">JSON</option>
+                    <option value="text">Text</option>
+                    <option value="table">Table</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="flex gap-2 align-center" style="cursor: pointer;">
+                    <input type="checkbox" name="parse_output">
+                    <span>Parse Output</span>
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label>Output Parser (JSON)</label>
+                <input type="hidden" name="output_parser" x-model="parserJson">
+                <textarea x-model="parserText"
+                          rows="3"
+                          class="font-mono text-sm"
+                          placeholder='{"type": "regex", "pattern": "\\d+"}'></textarea>
+                <small class="text-secondary">Parser configuration if parse_output is enabled</small>
+            </div>
+        </div>
+
+        <!-- Notification Settings -->
+        <div class="card bg-base-200">
+            <h4>Notification Settings</h4>
+
+            <div class="form-group">
+                <label class="flex gap-2 align-center mb-2" style="cursor: pointer;">
+                    <input type="checkbox" name="notify_on_success">
+                    <span>Notify on Success</span>
+                </label>
+                <label class="flex gap-2 align-center" style="cursor: pointer;">
+                    <input type="checkbox" name="notify_on_failure" checked>
+                    <span>Notify on Failure</span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="form-group">
+            <label>Metadata (JSON)</label>
+            <input type="hidden" name="metadata" x-model="metadataJson">
+            <textarea x-model="metadataText"
+                      rows="3"
+                      class="font-mono text-sm"
+                      placeholder='{"priority": "high", "category": "maintenance"}'></textarea>
+            <small class="text-secondary">Additional configuration as JSON</small>
         </div>
 
         <div class="flex gap-2">
             <button type="submit" class="btn btn-primary">
-                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
+                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Create
             </button>
             <button type="button"
                     onclick="document.getElementById('command-template-form-container').innerHTML = ''"
@@ -153,3 +394,63 @@
     </form>
     {% endmatch %}
 </div>
+
+<script>
+function commandTemplateForm() {
+    return {
+        capabilities: {% match command_template %}{% when Some with (ct) %}{{ ct.get_required_capabilities()|json|safe }}{% when None %}[]{% endmatch %},
+        newCapability: '',
+        capabilitiesJson: '',
+        osFilterText: {% match command_template %}{% when Some with (ct) %}'{{ ct.get_os_filter()|json|safe }}'{% when None %}'{}'{% endmatch %},
+        osFilterJson: '',
+        environmentText: {% match command_template %}{% when Some with (ct) %}'{{ ct.get_environment()|json|safe }}'{% when None %}'{}'{% endmatch %},
+        environmentJson: '',
+        parserText: {% match command_template %}{% when Some with (ct) %}'{{ ct.get_output_parser()|json|safe }}'{% when None %}'{}'{% endmatch %},
+        parserJson: '',
+        metadataText: {% match command_template %}{% when Some with (ct) %}'{{ ct.get_metadata()|json|safe }}'{% when None %}'{}'{% endmatch %},
+        metadataJson: '',
+
+        init() {
+            this.serializeAllFields();
+        },
+
+        addCapability() {
+            if (this.newCapability && !this.capabilities.includes(this.newCapability.trim())) {
+                this.capabilities.push(this.newCapability.trim());
+                this.newCapability = '';
+                this.updateCapabilitiesJson();
+            }
+        },
+
+        removeCapability(index) {
+            this.capabilities.splice(index, 1);
+            this.updateCapabilitiesJson();
+        },
+
+        updateCapabilitiesJson() {
+            this.capabilitiesJson = this.capabilities.length > 0 ? JSON.stringify(this.capabilities) : '';
+        },
+
+        serializeJsonField(text, outputVar) {
+            try {
+                if (text.trim()) {
+                    JSON.parse(text);
+                    this[outputVar] = text.trim();
+                } else {
+                    this[outputVar] = '';
+                }
+            } catch (e) {
+                console.warn(`Invalid ${outputVar} JSON:`, e);
+            }
+        },
+
+        serializeAllFields() {
+            this.updateCapabilitiesJson();
+            this.serializeJsonField(this.osFilterText, 'osFilterJson');
+            this.serializeJsonField(this.environmentText, 'environmentJson');
+            this.serializeJsonField(this.parserText, 'parserJson');
+            this.serializeJsonField(this.metadataText, 'metadataJson');
+        }
+    };
+}
+</script>
