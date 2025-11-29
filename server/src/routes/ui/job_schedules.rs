@@ -34,6 +34,7 @@ pub fn routes() -> Router<AppState> {
         .route("/tasks", get(job_schedules_page))
         // List endpoint
         .route("/job-schedules/list", get(get_job_schedules_list))
+        .route("/schedules/list", get(get_job_schedules_list))
         .route("/schedules/grouped", get(get_grouped_schedules))
         // Form endpoints
         .route("/job-schedules/new", get(new_job_schedule_form))
