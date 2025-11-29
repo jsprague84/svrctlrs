@@ -3,11 +3,17 @@
     <p class="text-secondary">No schedules configured yet. Click "Add Schedule" to get started.</p>
 </div>
 {% else %}
-<!-- Group by job template -->
+<!-- Group by server -->
 {% for group in schedule_groups %}
 <div class="card mb-3">
     <div class="card-header">
-        <h3 class="card-title">{{ group.job_template_name }}</h3>
+        <h3 class="card-title">
+            <i data-lucide="server" style="width: 20px; height: 20px;"></i>
+            {% match group.server_name %}
+            {% when Some with (name) %}{{ name }}
+            {% when None %}Local
+            {% endmatch %}
+        </h3>
         <span class="badge badge-info">{{ group.schedules | length }} schedule(s)</span>
     </div>
 
@@ -22,25 +28,17 @@
             </div>
 
             <p class="text-secondary" style="font-size: 0.875rem;">
+                <strong>Job:</strong> {{ schedule.job_template_name }}<br>
                 <strong>Schedule:</strong> <code style="background: var(--card-bg); padding: 0.25rem 0.5rem; border-radius: 3px;">{{ schedule.cron_expression }}</code><br>
                 <strong>Next Run:</strong> {% match schedule.next_run %}{% when Some with (nr) %}{{ nr }}{% when None %}Not scheduled{% endmatch %}<br>
                 {% match schedule.last_run %}
                 {% when Some with (lr) %}
-                <strong>Last Run:</strong> {{ lr.timestamp }} -
-                <span class="{% match lr.status %}
-                    {% when svrctlrs_database::models::JobRunStatus::Success %}text-success
-                    {% when svrctlrs_database::models::JobRunStatus::Failed %}text-error
-                    {% when svrctlrs_database::models::JobRunStatus::PartialSuccess %}text-warning
-                    {% when _ %}text-secondary
-                    {% endmatch %}">
-                    {% match lr.status %}
-                    {% when svrctlrs_database::models::JobRunStatus::Success %}Success
-                    {% when svrctlrs_database::models::JobRunStatus::Failed %}Failed
-                    {% when svrctlrs_database::models::JobRunStatus::PartialSuccess %}Partial
-                    {% when svrctlrs_database::models::JobRunStatus::Running %}Running
-                    {% when svrctlrs_database::models::JobRunStatus::Pending %}Pending
-                    {% endmatch %}
-                </span>
+                <strong>Last Run:</strong> {{ lr }}
+                {% match schedule.last_run_status %}
+                {% when Some with (status) %}
+                - <span class="{% if status == "success" %}text-success{% elif status == "failed" %}text-error{% else %}text-secondary{% endif %}">{{ status }}</span>
+                {% when None %}
+                {% endmatch %}
                 {% when None %}
                 {% endmatch %}
             </p>

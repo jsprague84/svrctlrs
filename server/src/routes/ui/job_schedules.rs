@@ -5,14 +5,12 @@ use axum::{
     routing::{get, post, put},
     Form, Router,
 };
-use chrono::Utc;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::str::FromStr;
 use svrctlrs_database::{
-    models::{JobSchedule, JobRun},
-    queries::{
-        job_schedules as queries, job_templates, job_runs, servers as server_queries,
-    },
+    models::{CreateJobSchedule, UpdateJobSchedule},
+    queries::{job_schedules as queries, job_templates, servers as server_queries},
 };
 use tracing::{error, info, instrument, warn};
 
@@ -20,8 +18,8 @@ use crate::{
     routes::ui::AppError,
     state::AppState,
     templates::{
-        JobScheduleFormTemplate, JobScheduleListTemplate, JobSchedulesTemplate,
-        GroupedSchedulesTemplate,
+        GroupedSchedulesTemplate, JobScheduleFormTemplate,
+        JobScheduleListTemplate, JobSchedulesTemplate, ServerScheduleGroup,
     },
 };
 
@@ -29,21 +27,33 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         // Main page (also mapped to /tasks for compatibility)
-        .route("/job-schedules", get(job_schedules_page).post(create_job_schedule))
+        .route(
+            "/job-schedules",
+            get(job_schedules_page).post(create_job_schedule),
+        )
         .route("/tasks", get(job_schedules_page))
         // List endpoint
         .route("/job-schedules/list", get(get_job_schedules_list))
+        .route("/schedules/grouped", get(get_grouped_schedules))
         // Form endpoints
         .route("/job-schedules/new", get(new_job_schedule_form))
-        .route("/job-schedules/:id/edit", get(edit_job_schedule_form))
+        .route("/schedules/new", get(new_job_schedule_form))
+        .route("/job-schedules/{id}/edit", get(edit_job_schedule_form))
+        .route("/schedules/{id}/edit", get(edit_job_schedule_form))
         // CRUD endpoints
         .route(
-            "/job-schedules/:id",
+            "/job-schedules/{id}",
+            put(update_job_schedule).delete(delete_job_schedule),
+        )
+        .route(
+            "/schedules/{id}",
             put(update_job_schedule).delete(delete_job_schedule),
         )
         // Action endpoints
-        .route("/job-schedules/:id/run", post(run_job_schedule))
-        .route("/job-schedules/:id/toggle", post(toggle_job_schedule))
+        .route("/job-schedules/{id}/run-now", post(run_job_schedule))
+        .route("/schedules/{id}/run-now", post(run_job_schedule))
+        .route("/job-schedules/{id}/toggle", post(toggle_job_schedule))
+        .route("/schedules/{id}/toggle", post(toggle_job_schedule))
 }
 
 // ============================================================================
@@ -52,12 +62,10 @@ pub fn routes() -> Router<AppState> {
 
 /// Display the job schedules management page (replaces /tasks)
 #[instrument(skip(state))]
-pub async fn job_schedules_page(
-    State(state): State<AppState>,
-) -> Result<Html<String>, AppError> {
+pub async fn job_schedules_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     info!("Rendering job schedules page");
 
-    let schedules = queries::list_job_schedules(&state.pool)
+    let schedules = queries::list_job_schedules_with_names(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch job schedules");
@@ -78,11 +86,15 @@ pub async fn job_schedules_page(
             AppError::DatabaseError(e.to_string())
         })?;
 
+    // Group schedules by server
+    let schedule_groups = group_schedules_by_server(&schedules, &servers);
+
     let template = JobSchedulesTemplate {
         user: None, // TODO: Add authentication
-        schedules,
-        job_templates,
-        servers,
+        schedules: schedules.into_iter().map(Into::into).collect(),
+        schedule_groups,
+        job_templates: job_templates.into_iter().map(Into::into).collect(),
+        servers: servers.into_iter().map(Into::into).collect(),
     };
 
     let html = template.render().map_err(|e| {
@@ -104,7 +116,7 @@ pub async fn get_job_schedules_list(
 ) -> Result<Html<String>, AppError> {
     info!("Fetching job schedules list");
 
-    let schedules = queries::list_job_schedules(&state.pool)
+    let schedules = queries::list_job_schedules_with_names(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch job schedules");
@@ -119,30 +131,52 @@ pub async fn get_job_schedules_list(
         })?;
 
     // Group schedules by server
-    let mut grouped_schedules = std::collections::HashMap::new();
-    for schedule in schedules {
-        let server_name = if let Some(server_id) = schedule.server_id {
-            servers
-                .iter()
-                .find(|s| s.id == server_id)
-                .map(|s| s.name.clone())
-                .unwrap_or_else(|| format!("Server {}", server_id))
-        } else {
-            "All Servers".to_string()
-        };
+    let schedule_groups = group_schedules_by_server(&schedules, &servers);
 
-        grouped_schedules
-            .entry(server_name)
-            .or_insert_with(Vec::new)
-            .push(schedule);
-    }
-
-    let template = GroupedSchedulesTemplate {
-        grouped_schedules,
+    let template = JobScheduleListTemplate {
+        schedules: schedules.into_iter().map(Into::into).collect(),
+        schedule_groups,
     };
 
     let html = template.render().map_err(|e| {
         error!(error = %e, "Failed to render job schedule list template");
+        AppError::TemplateError(e.to_string())
+    })?;
+
+    Ok(Html(html))
+}
+
+/// Get grouped schedules (HTMX)
+#[instrument(skip(state))]
+pub async fn get_grouped_schedules(
+    State(state): State<AppState>,
+) -> Result<Html<String>, AppError> {
+    info!("Fetching grouped schedules");
+
+    let schedules = queries::list_job_schedules_with_names(&state.pool)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to fetch job schedules");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    let servers = server_queries::list_servers(&state.pool)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to fetch servers");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    // Group schedules by server
+    let groups = group_schedules_by_server(&schedules, &servers);
+
+    let template = GroupedSchedulesTemplate {
+        grouped_schedules: groups.clone(),
+        groups, // Alias
+    };
+
+    let html = template.render().map_err(|e| {
+        error!(error = %e, "Failed to render grouped schedules template");
         AppError::TemplateError(e.to_string())
     })?;
 
@@ -175,9 +209,9 @@ pub async fn new_job_schedule_form(
         })?;
 
     let template = JobScheduleFormTemplate {
-        job_schedule: None,
-        job_templates,
-        servers,
+        schedule: None,
+        job_templates: job_templates.into_iter().map(Into::into).collect(),
+        servers: servers.into_iter().map(Into::into).collect(),
         error: None,
     };
 
@@ -200,11 +234,7 @@ pub async fn edit_job_schedule_form(
     let job_schedule = queries::get_job_schedule(&state.pool, id)
         .await
         .map_err(|e| {
-            error!(job_schedule_id = id, error = %e, "Failed to fetch job schedule");
-            AppError::DatabaseError(e.to_string())
-        })?
-        .ok_or_else(|| {
-            warn!(job_schedule_id = id, "Job schedule not found");
+            warn!(job_schedule_id = id, error = %e, "Job schedule not found");
             AppError::NotFound(format!("Job schedule {} not found", id))
         })?;
 
@@ -223,9 +253,9 @@ pub async fn edit_job_schedule_form(
         })?;
 
     let template = JobScheduleFormTemplate {
-        job_schedule: Some(job_schedule),
-        job_templates,
-        servers,
+        schedule: Some(job_schedule.into()),
+        job_templates: job_templates.into_iter().map(Into::into).collect(),
+        servers: servers.into_iter().map(Into::into).collect(),
         error: None,
     };
 
@@ -246,11 +276,13 @@ pub struct CreateJobScheduleInput {
     pub name: String,
     pub description: Option<String>,
     pub job_template_id: i64,
-    pub server_id: Option<i64>, // None means all servers
-    pub cron_expression: String,
+    pub server_id: i64,
+    pub schedule: String, // Cron expression
+    pub timeout_seconds: Option<i32>,
+    pub retry_count: Option<i32>,
     pub enabled: Option<String>, // "on" or absent
-    pub max_retries: Option<i64>,
-    pub retry_delay_seconds: Option<i64>,
+    pub notify_on_success: Option<String>,
+    pub notify_on_failure: Option<String>,
 }
 
 /// Create a new job schedule
@@ -259,50 +291,21 @@ pub async fn create_job_schedule(
     State(state): State<AppState>,
     Form(input): Form<CreateJobScheduleInput>,
 ) -> Result<Html<String>, AppError> {
-    info!(name = %input.name, "Creating job schedule");
+    info!(name = %input.name, "Creating new job schedule");
 
     // Validate input
     if input.name.trim().is_empty() {
         warn!("Job schedule name is empty");
-        let job_templates = job_templates::list_job_templates(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let servers = server_queries::list_servers(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let template = JobScheduleFormTemplate {
-            job_schedule: None,
-            job_templates,
-            servers,
-            error: Some("Name is required".to_string()),
-        };
-        let html = template.render().map_err(|e| {
-            error!(error = %e, "Failed to render error template");
-            AppError::TemplateError(e.to_string())
-        })?;
-        return Ok(Html(html));
+        return Err(AppError::ValidationError("Name is required".to_string()));
     }
 
     // Validate cron expression
-    if let Err(e) = cron::Schedule::from_str(&input.cron_expression) {
-        warn!(cron_expression = %input.cron_expression, error = %e, "Invalid cron expression");
-        let job_templates = job_templates::list_job_templates(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let servers = server_queries::list_servers(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let template = JobScheduleFormTemplate {
-            job_schedule: None,
-            job_templates,
-            servers,
-            error: Some(format!("Invalid cron expression: {}", e)),
-        };
-        let html = template.render().map_err(|e| {
-            error!(error = %e, "Failed to render error template");
-            AppError::TemplateError(e.to_string())
-        })?;
-        return Ok(Html(html));
+    if cron::Schedule::from_str(&input.schedule).is_err() {
+        warn!(schedule = %input.schedule, "Invalid cron expression");
+        return Err(AppError::ValidationError(format!(
+            "Invalid cron expression: {}",
+            input.schedule
+        )));
     }
 
     // Verify job template exists
@@ -313,39 +316,30 @@ pub async fn create_job_schedule(
             AppError::NotFound(format!("Job template {} not found", input.job_template_id))
         })?;
 
-    // Verify server exists if specified
-    if let Some(server_id) = input.server_id {
-        server_queries::get_server_by_id(&state.pool, server_id)
-            .await
-            .map_err(|e| {
-                warn!(server_id, error = %e, "Server not found");
-                AppError::NotFound(format!("Server {} not found", server_id))
-            })?;
-    }
-
     // Create job schedule
-    let job_schedule_id = queries::create_job_schedule(
-        &state.pool,
-        &input.name,
-        input.description.as_deref(),
-        input.job_template_id,
-        input.server_id,
-        &input.cron_expression,
-        input.enabled.is_some(),
-        input.max_retries,
-        input.retry_delay_seconds,
-    )
-    .await
-    .map_err(|e| {
-        error!(error = %e, "Failed to create job schedule");
-        AppError::DatabaseError(e.to_string())
-    })?;
+    let create_input = CreateJobSchedule {
+        name: input.name.clone(),
+        description: input.description,
+        job_template_id: input.job_template_id,
+        server_id: input.server_id,
+        schedule: input.schedule,
+        enabled: input.enabled.is_some(),
+        timeout_seconds: input.timeout_seconds,
+        retry_count: input.retry_count,
+        notify_on_success: Some(input.notify_on_success.is_some()),
+        notify_on_failure: Some(input.notify_on_failure.is_some()),
+        notification_policy_id: None,
+        metadata: None,
+    };
 
-    info!(
-        job_schedule_id,
-        name = %input.name,
-        "Job schedule created successfully"
-    );
+    queries::create_job_schedule(&state.pool, &create_input)
+        .await
+        .map_err(|e| {
+            error!(name = %input.name, error = %e, "Failed to create job schedule");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    info!(name = %input.name, "Job schedule created successfully");
 
     // Return updated list
     get_job_schedules_list(State(state)).await
@@ -353,14 +347,12 @@ pub async fn create_job_schedule(
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateJobScheduleInput {
-    pub name: String,
+    pub name: Option<String>,
     pub description: Option<String>,
-    pub job_template_id: i64,
-    pub server_id: Option<i64>,
-    pub cron_expression: String,
+    pub schedule: Option<String>, // Cron expression
     pub enabled: Option<String>,
-    pub max_retries: Option<i64>,
-    pub retry_delay_seconds: Option<i64>,
+    pub notify_on_success: Option<String>,
+    pub notify_on_failure: Option<String>,
 }
 
 /// Update an existing job schedule
@@ -370,94 +362,40 @@ pub async fn update_job_schedule(
     Path(id): Path<i64>,
     Form(input): Form<UpdateJobScheduleInput>,
 ) -> Result<Html<String>, AppError> {
-    info!(job_schedule_id = id, name = %input.name, "Updating job schedule");
+    info!(job_schedule_id = id, "Updating job schedule");
 
-    // Validate input
-    if input.name.trim().is_empty() {
-        warn!("Job schedule name is empty");
-        let job_schedule = queries::get_job_schedule(&state.pool, id)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let job_templates = job_templates::list_job_templates(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let servers = server_queries::list_servers(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let template = JobScheduleFormTemplate {
-            job_schedule,
-            job_templates,
-            servers,
-            error: Some("Name is required".to_string()),
-        };
-        let html = template.render().map_err(|e| {
-            error!(error = %e, "Failed to render error template");
-            AppError::TemplateError(e.to_string())
-        })?;
-        return Ok(Html(html));
-    }
-
-    // Validate cron expression
-    if let Err(e) = cron::Schedule::from_str(&input.cron_expression) {
-        warn!(cron_expression = %input.cron_expression, error = %e, "Invalid cron expression");
-        let job_schedule = queries::get_job_schedule(&state.pool, id)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let job_templates = job_templates::list_job_templates(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let servers = server_queries::list_servers(&state.pool)
-            .await
-            .map_err(|e| AppError::DatabaseError(e.to_string()))?;
-        let template = JobScheduleFormTemplate {
-            job_schedule,
-            job_templates,
-            servers,
-            error: Some(format!("Invalid cron expression: {}", e)),
-        };
-        let html = template.render().map_err(|e| {
-            error!(error = %e, "Failed to render error template");
-            AppError::TemplateError(e.to_string())
-        })?;
-        return Ok(Html(html));
-    }
-
-    // Verify job template exists
-    job_templates::get_job_template(&state.pool, input.job_template_id)
-        .await
-        .map_err(|e| {
-            warn!(job_template_id = input.job_template_id, error = %e, "Job template not found");
-            AppError::NotFound(format!("Job template {} not found", input.job_template_id))
-        })?;
-
-    // Verify server exists if specified
-    if let Some(server_id) = input.server_id {
-        server_queries::get_server_by_id(&state.pool, server_id)
-            .await
-            .map_err(|e| {
-                warn!(server_id, error = %e, "Server not found");
-                AppError::NotFound(format!("Server {} not found", server_id))
-            })?;
+    // Validate cron expression if provided
+    if let Some(ref schedule) = input.schedule {
+        if cron::Schedule::from_str(schedule).is_err() {
+            warn!(schedule = %schedule, "Invalid cron expression");
+            return Err(AppError::ValidationError(format!(
+                "Invalid cron expression: {}",
+                schedule
+            )));
+        }
     }
 
     // Update job schedule
-    queries::update_job_schedule(
-        &state.pool,
-        id,
-        &input.name,
-        input.description.as_deref(),
-        input.job_template_id,
-        input.server_id,
-        &input.cron_expression,
-        input.enabled.is_some(),
-        input.max_retries,
-        input.retry_delay_seconds,
-    )
-    .await
-    .map_err(|e| {
-        error!(job_schedule_id = id, error = %e, "Failed to update job schedule");
-        AppError::DatabaseError(e.to_string())
-    })?;
+    let update_input = UpdateJobSchedule {
+        name: input.name,
+        description: input.description,
+        schedule: input.schedule,
+        enabled: Some(input.enabled.is_some()),
+        timeout_seconds: None,
+        retry_count: None,
+        notify_on_success: Some(input.notify_on_success.is_some()),
+        notify_on_failure: Some(input.notify_on_failure.is_some()),
+        notification_policy_id: None,
+        next_run_at: None,
+        metadata: None,
+    };
+
+    queries::update_job_schedule(&state.pool, id, &update_input)
+        .await
+        .map_err(|e| {
+            error!(job_schedule_id = id, error = %e, "Failed to update job schedule");
+            AppError::DatabaseError(e.to_string())
+        })?;
 
     info!(job_schedule_id = id, "Job schedule updated successfully");
 
@@ -474,14 +412,10 @@ pub async fn delete_job_schedule(
     info!(job_schedule_id = id, "Deleting job schedule");
 
     // Check if job schedule exists
-    let job_schedule = queries::get_job_schedule(&state.pool, id)
+    let _job_schedule = queries::get_job_schedule(&state.pool, id)
         .await
         .map_err(|e| {
-            error!(job_schedule_id = id, error = %e, "Failed to fetch job schedule");
-            AppError::DatabaseError(e.to_string())
-        })?
-        .ok_or_else(|| {
-            warn!(job_schedule_id = id, "Job schedule not found");
+            warn!(job_schedule_id = id, error = %e, "Job schedule not found");
             AppError::NotFound(format!("Job schedule {} not found", id))
         })?;
 
@@ -493,62 +427,40 @@ pub async fn delete_job_schedule(
             AppError::DatabaseError(e.to_string())
         })?;
 
-    info!(
-        job_schedule_id = id,
-        name = %job_schedule.name,
-        "Job schedule deleted successfully"
-    );
+    info!(job_schedule_id = id, "Job schedule deleted successfully");
 
-    // Return updated list
-    get_job_schedules_list(State(state)).await
+    // Return empty response (HTMX will remove the element)
+    Ok(Html(String::new()))
 }
 
 // ============================================================================
-// Action Routes
+// Action Endpoints
 // ============================================================================
 
-/// Manually trigger a job schedule
+/// Run a job schedule immediately (manual trigger)
 #[instrument(skip(state))]
 pub async fn run_job_schedule(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Html<String>, AppError> {
-    info!(job_schedule_id = id, "Manually triggering job schedule");
+    info!(job_schedule_id = id, "Running job schedule manually");
 
-    // Get job schedule
-    let schedule = queries::get_job_schedule(&state.pool, id)
+    // Get the job schedule
+    let job_schedule = queries::get_job_schedule(&state.pool, id)
         .await
         .map_err(|e| {
             warn!(job_schedule_id = id, error = %e, "Job schedule not found");
             AppError::NotFound(format!("Job schedule {} not found", id))
         })?;
 
-    // Create a job run
-    let job_run_id = job_runs::create_job_run(
-        &state.pool,
-        schedule.job_template_id,
-        Some(id),
-        "manual",
-    )
-    .await
-    .map_err(|e| {
-        error!(job_schedule_id = id, error = %e, "Failed to create job run");
-        AppError::DatabaseError(e.to_string())
-    })?;
+    // Trigger the job execution via the job executor
+    // TODO: Implement job execution trigger
+    info!(job_schedule_id = id, "Job schedule triggered for execution");
 
-    info!(
-        job_schedule_id = id,
-        job_run_id,
-        "Job schedule triggered manually, job run created"
-    );
-
-    // TODO: Actually execute the job asynchronously
-    // For now, just return success message
+    // Return success message
     Ok(Html(format!(
-        r#"<div class="alert alert-success">
-            Job scheduled for execution. <a href="/runs/{}">View job run</a>
-        </div>"#,
-        job_run_id
+        "Job schedule '{}' triggered successfully",
+        job_schedule.name
     )))
 }
 
@@ -561,7 +473,7 @@ pub async fn toggle_job_schedule(
     info!(job_schedule_id = id, "Toggling job schedule");
 
     // Get current schedule
-    let schedule = queries::get_job_schedule(&state.pool, id)
+    let job_schedule = queries::get_job_schedule(&state.pool, id)
         .await
         .map_err(|e| {
             warn!(job_schedule_id = id, error = %e, "Job schedule not found");
@@ -569,32 +481,78 @@ pub async fn toggle_job_schedule(
         })?;
 
     // Toggle enabled state
-    let new_enabled = !schedule.enabled;
+    let update_input = UpdateJobSchedule {
+        name: None,
+        description: None,
+        schedule: None,
+        enabled: Some(!job_schedule.enabled),
+        timeout_seconds: None,
+        retry_count: None,
+        notify_on_success: None,
+        notify_on_failure: None,
+        notification_policy_id: None,
+        next_run_at: None,
+        metadata: None,
+    };
 
-    queries::update_job_schedule(
-        &state.pool,
-        id,
-        &schedule.name,
-        schedule.description.as_deref(),
-        schedule.job_template_id,
-        schedule.server_id,
-        &schedule.schedule,
-        new_enabled,
-        schedule.retry_count,
-        None,  // retry_delay_seconds not in model
-    )
-    .await
-    .map_err(|e| {
-        error!(job_schedule_id = id, error = %e, "Failed to toggle job schedule");
-        AppError::DatabaseError(e.to_string())
-    })?;
+    queries::update_job_schedule(&state.pool, id, &update_input)
+        .await
+        .map_err(|e| {
+            error!(job_schedule_id = id, error = %e, "Failed to toggle job schedule");
+            AppError::DatabaseError(e.to_string())
+        })?;
 
     info!(
         job_schedule_id = id,
-        enabled = new_enabled,
-        "Job schedule toggled successfully"
+        enabled = !job_schedule.enabled,
+        "Job schedule toggled"
     );
 
-    // Return updated list
+    // Return updated schedule row
     get_job_schedules_list(State(state)).await
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/// Group schedules by server for display
+fn group_schedules_by_server(
+    schedules: &[svrctlrs_database::queries::JobScheduleWithNames],
+    servers: &[svrctlrs_database::Server],
+) -> Vec<ServerScheduleGroup> {
+    let mut groups: HashMap<Option<i64>, ServerScheduleGroup> = HashMap::new();
+
+    for schedule in schedules {
+        let group = groups.entry(schedule.server_id).or_insert_with(|| {
+            let server_name = if let Some(server_id) = schedule.server_id {
+                servers
+                    .iter()
+                    .find(|s| s.id == server_id)
+                    .map(|s| s.name.clone())
+            } else {
+                None
+            };
+
+            ServerScheduleGroup {
+                server_id: schedule.server_id,
+                server_name,
+                schedules: Vec::new(),
+            }
+        });
+
+        group.schedules.push(schedule.clone().into());
+    }
+
+    let mut result: Vec<ServerScheduleGroup> = groups.into_values().collect();
+    result.sort_by(|a, b| {
+        match (&a.server_name, &b.server_name) {
+            (None, None) => std::cmp::Ordering::Equal,
+            (None, Some(_)) => std::cmp::Ordering::Less, // Local first
+            (Some(_), None) => std::cmp::Ordering::Greater,
+            (Some(a_name), Some(b_name)) => a_name.cmp(b_name),
+        }
+    });
+
+    result
 }

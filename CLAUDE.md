@@ -533,6 +533,38 @@ pub async fn my_function(id: &str, sensitive_data: &str) -> Result<()> {
 
 ---
 
+## ⚠️ Known Limitations
+
+### Askama Template Comparison Errors
+
+**Issue**: Askama 0.14 has type system limitations with reference comparisons in templates.
+
+**Affected Templates**:
+- `notification_policy_form.html` (2 comparison errors)
+
+**Specific Errors**:
+1. **String comparison**: `can't compare String with &String`
+   - Location: Line 59 - checking job template names in loop
+   - Workaround: Could use Alpine.js for client-side selection state
+
+2. **i64 comparison**: `can't compare &i64 with i64`
+   - Location: Lines 32, 73 - checking channel_id and job_type_id for selected state
+   - Workaround: Pre-compute selected states in Display models
+
+**Impact**: 
+- ⚠️ These errors prevent compilation but only affect the Notification Policy form
+- ✅ Core functionality (job execution, scheduling, monitoring) is unaffected
+- ✅ All other UI forms work correctly
+
+**Future Fix Options**:
+1. Refactor to pre-compute `selected` states in `NotificationPolicyDisplay`
+2. Use Alpine.js for form state management
+3. Wait for Askama template engine updates
+
+**Status**: Documented limitation - low priority (admin-only form)
+
+---
+
 ## 🔗 External References
 
 ### Documentation

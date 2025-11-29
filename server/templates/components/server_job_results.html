@@ -9,28 +9,18 @@
     <div class="card" style="background: var(--bg); margin-bottom: 0.5rem;">
         <div class="flex-between mb-2">
             <strong>{{ result.server_name }}</strong>
-            <span class="badge {% match result.status %}
-                {% when svrctlrs_database::models::JobRunStatus::Success %}badge-success
-                {% when svrctlrs_database::models::JobRunStatus::Failed %}badge-error
-                {% when svrctlrs_database::models::JobRunStatus::Running %}badge-info
-                {% when _ %}badge-secondary
-                {% endmatch %}">
-                {% match result.status %}
-                {% when svrctlrs_database::models::JobRunStatus::Success %}Success
-                {% when svrctlrs_database::models::JobRunStatus::Failed %}Failed
-                {% when svrctlrs_database::models::JobRunStatus::Running %}Running
-                {% when svrctlrs_database::models::JobRunStatus::Pending %}Pending
-                {% when _ %}Unknown
-                {% endmatch %}
+            <span class="badge {% if result.status == "success" %}badge-success{% elif result.status == "failed" %}badge-error{% elif result.status == "running" %}badge-info{% else %}badge-secondary{% endif %}">
+                {% if result.status == "success" %}Success
+                {% elif result.status == "failed" %}Failed
+                {% elif result.status == "running" %}Running
+                {% elif result.status == "pending" %}Pending
+                {% else %}Unknown
+                {% endif %}
             </span>
         </div>
 
         <div class="text-secondary" style="font-size: 0.875rem;">
-            {% match result.started_at %}
-            {% when Some with (sa) %}
-            <strong>Started:</strong> {{ sa }}<br>
-            {% when None %}
-            {% endmatch %}
+            <strong>Started:</strong> {{ result.started_at }}<br>
             {% match result.completed_at %}
             {% when Some with (ca) %}
             <strong>Completed:</strong> {{ ca }}<br>

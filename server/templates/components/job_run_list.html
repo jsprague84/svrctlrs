@@ -12,20 +12,13 @@
                 <span class="text-secondary" style="font-size: 0.875rem;">{{ run.started_at }}</span>
             </div>
             <div class="flex gap-2">
-                <span class="badge {% match run.status %}
-                    {% when svrctlrs_database::models::JobRunStatus::Success %}badge-success
-                    {% when svrctlrs_database::models::JobRunStatus::Failed %}badge-error
-                    {% when svrctlrs_database::models::JobRunStatus::PartialSuccess %}badge-warning
-                    {% when svrctlrs_database::models::JobRunStatus::Running %}badge-info
-                    {% when svrctlrs_database::models::JobRunStatus::Pending %}badge-secondary
-                    {% endmatch %}">
-                    {% match run.status %}
-                    {% when svrctlrs_database::models::JobRunStatus::Success %}Success
-                    {% when svrctlrs_database::models::JobRunStatus::Failed %}Failed
-                    {% when svrctlrs_database::models::JobRunStatus::PartialSuccess %}Partial Success
-                    {% when svrctlrs_database::models::JobRunStatus::Running %}Running
-                    {% when svrctlrs_database::models::JobRunStatus::Pending %}Pending
-                    {% endmatch %}
+                <span class="badge {% if run.status == "success" %}badge-success{% elif run.status == "failed" %}badge-error{% elif run.status == "partial_success" %}badge-warning{% elif run.status == "running" %}badge-info{% else %}badge-secondary{% endif %}">
+                    {% if run.status == "success" %}Success
+                    {% elif run.status == "failed" %}Failed
+                    {% elif run.status == "partial_success" %}Partial Success
+                    {% elif run.status == "running" %}Running
+                    {% else %}Pending
+                    {% endif %}
                 </span>
                 <button hx-get="/job-runs/{{ run.id }}"
                         hx-target="#job-run-detail-{{ run.id }}"
@@ -46,11 +39,9 @@
             {% when Some with (ca) %}
             <strong>Duration:</strong> {{ run.duration_seconds }}s<br>
             {% when None %}
-            {% match run.status %}
-            {% when svrctlrs_database::models::JobRunStatus::Running %}
+            {% if run.status == "running" %}
             <span class="text-info">Job is currently running...</span>
-            {% when _ %}
-            {% endmatch %}
+            {% endif %}
             {% endmatch %}
         </div>
 

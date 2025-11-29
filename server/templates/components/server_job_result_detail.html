@@ -1,0 +1,90 @@
+<!-- Server Job Result Detail -->
+<div class="card">
+    <h3>Server Job Result #{{ result.id }}</h3>
+
+    <div class="grid grid-cols-2 gap-4 mb-3">
+        <div>
+            <label class="text-secondary">Server</label>
+            <p><strong>{{ result.server_name }}</strong></p>
+        </div>
+        <div>
+            <label class="text-secondary">Status</label>
+            <p>
+                {% if result.status == "success" %}
+                <span class="badge badge-success">Success</span>
+                {% elif result.status == "failed" %}
+                <span class="badge badge-error">Failed</span>
+                {% elif result.status == "timeout" %}
+                <span class="badge badge-warning">Timeout</span>
+                {% else %}
+                <span class="badge badge-secondary">{{ result.status }}</span>
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4 mb-3">
+        <div>
+            <label class="text-secondary">Started At</label>
+            <p>{{ result.started_at }}</p>
+        </div>
+        <div>
+            <label class="text-secondary">Finished At</label>
+            <p>
+                {% match result.finished_at %}
+                {% when Some with (finished) %}
+                {{ finished }}
+                {% when None %}
+                <span class="text-secondary">Still running...</span>
+                {% endmatch %}
+            </p>
+        </div>
+    </div>
+
+    <div class="mb-3">
+        <label class="text-secondary">Duration</label>
+        <p>
+            {% match result.duration_ms %}
+            {% when Some with (duration) %}
+            {{ duration }} ms
+            {% when None %}
+            <span class="text-secondary">-</span>
+            {% endmatch %}
+        </p>
+    </div>
+
+    {% match result.exit_code %}
+    {% when Some with (code) %}
+    <div class="mb-3">
+        <label class="text-secondary">Exit Code</label>
+        <p><code>{{ code }}</code></p>
+    </div>
+    {% when None %}
+    {% endmatch %}
+
+    {% match result.output %}
+    {% when Some with (out) %}
+    <div class="mb-3">
+        <label class="text-secondary">Output</label>
+        <pre class="code-block">{{ out }}</pre>
+    </div>
+    {% when None %}
+    {% endmatch %}
+
+    {% match result.error %}
+    {% when Some with (err) %}
+    <div class="mb-3">
+        <label class="text-secondary">Error</label>
+        <pre class="code-block text-error">{{ err }}</pre>
+    </div>
+    {% when None %}
+    {% endmatch %}
+
+    {% if result.metadata_json != "{}" %}
+    <div class="mb-3">
+        <label class="text-secondary">Metadata</label>
+        <pre class="code-block">{{ result.metadata_json }}</pre>
+    </div>
+    {% endif %}
+</div>
+

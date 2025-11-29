@@ -18,14 +18,16 @@
         {% endmatch %}
 
         <div class="text-secondary mb-2">
-            <strong>Target:</strong>
-            {% if jt.target_type == "all_servers" %}
-                All Servers ({{ jt.server_count }})
-            {% else if jt.target_type == "tagged" %}
-                Tagged: {% for tag in jt.target_tags %}<span class="badge" style="background-color: {{ tag.color }}; color: #fff; font-size: 0.75rem;">{{ tag.name }}</span> {% endfor %}
-            {% else if jt.target_type == "specific" %}
-                Specific: {{ jt.server_count }} server(s)
+            <strong>Type:</strong>
+            {% if jt.is_composite %}
+                Composite Job ({{ jt.step_count }} steps)
+            {% else %}
+                Simple Job
             {% endif %}
+        </div>
+
+        <div class="text-secondary mb-2">
+            <strong>Schedules:</strong> {{ jt.schedule_count }}
         </div>
 
         {% if jt.is_composite %}

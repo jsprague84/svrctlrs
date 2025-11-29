@@ -29,7 +29,7 @@
                     name="channel_id"
                     required>
                 {% for channel in channels %}
-                <option value="{{ channel.id }}" {% if channel.id == p.channel_id %}selected{% endif %}>
+                <option value="{{ channel.id }}" {% if p.channel_id == channel.id %}selected{% endif %}>
                     {{ channel.name }}
                 </option>
                 {% endfor %}
@@ -56,7 +56,7 @@
                     <input type="checkbox"
                            name="job_template_ids"
                            value="{{ jt.id }}"
-                           {% for pjt in p.job_templates %}{% if pjt.id == jt.id %}checked{% endif %}{% endfor %}>
+                           {% for pjt_name in p.job_templates %}{% if jt.name == pjt_name %}checked{% endif %}{% endfor %}>
                     <span>{{ jt.name }}</span>
                 </label>
                 {% endfor %}
@@ -70,7 +70,7 @@
                     :required="scopeType === 'job_type'">
                 <option value="">Select a job type...</option>
                 {% for jt in job_types %}
-                <option value="{{ jt.id }}" {% match p.job_type_id %}{% when Some with (jtid) %}{% if jt.id == jtid %}selected{% endif %}{% when None %}{% endmatch %}>
+                <option value="{{ jt.id }}" {% match p.job_type_id %}{% when Some with (jtid) %}{% if jtid == jt.id %}selected{% endif %}{% when None %}{% endmatch %}>
                     {{ jt.name }}
                 </option>
                 {% endfor %}

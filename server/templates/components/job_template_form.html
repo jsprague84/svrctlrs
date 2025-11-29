@@ -1,4 +1,4 @@
-<div class="card" x-data="{ targetType: '{% match job_template %}{% when Some with (jt) %}{{ jt.target_type }}{% when None %}all_servers{% endmatch %}' }">
+<div class="card">
     <h2>{% match job_template %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Job Template</h2>
 
     {% match error %}
@@ -19,6 +19,17 @@
                    id="name"
                    name="name"
                    value="{{ jt.name }}"
+                   placeholder="weekly_system_updates"
+                   required>
+            <small class="text-secondary">Unique identifier (lowercase, underscores)</small>
+        </div>
+
+        <div class="form-group">
+            <label for="display_name">Display Name *</label>
+            <input type="text"
+                   id="display_name"
+                   name="display_name"
+                   value="{{ jt.display_name }}"
                    placeholder="Weekly System Updates"
                    required>
         </div>
@@ -30,54 +41,10 @@
                     required>
                 {% for job_type in job_types %}
                 <option value="{{ job_type.id }}" {% if job_type.id == jt.job_type_id %}selected{% endif %}>
-                    {{ job_type.name }}
+                    {{ job_type.display_name %}
                 </option>
                 {% endfor %}
             </select>
-        </div>
-
-        <div class="form-group">
-            <label for="target_type">Target Servers *</label>
-            <select id="target_type"
-                    name="target_type"
-                    x-model="targetType"
-                    required>
-                <option value="all_servers">All Servers</option>
-                <option value="tagged">Servers with Tags</option>
-                <option value="specific">Specific Servers</option>
-            </select>
-        </div>
-
-        <div class="form-group" x-show="targetType === 'tagged'">
-            <label>Select Tags</label>
-            <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
-                {% for tag in available_tags %}
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="tag_ids"
-                           value="{{ tag.id }}"
-                           {% for t in jt.target_tags %}{% if t.id == tag.id %}checked{% endif %}{% endfor %}>
-                    <span class="badge" style="background-color: {{ tag.color }}; color: #fff;">
-                        {{ tag.name }}
-                    </span>
-                </label>
-                {% endfor %}
-            </div>
-        </div>
-
-        <div class="form-group" x-show="targetType === 'specific'">
-            <label>Select Servers</label>
-            <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
-                {% for server in available_servers %}
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="server_ids"
-                           value="{{ server.id }}"
-                           {% for s in jt.target_servers %}{% if s.id == server.id %}checked{% endif %}{% endfor %}>
-                    <span>{{ server.name }}</span>
-                </label>
-                {% endfor %}
-            </div>
         </div>
 
         <div class="form-group">
@@ -89,27 +56,85 @@
         </div>
 
         <div class="form-group">
+            <label>
+                <input type="checkbox"
+                       name="is_composite"
+                       value="1"
+                       {% if jt.is_composite %}checked{% endif %}>
+                Composite Job (multi-step workflow)
+            </label>
+            <small class="text-secondary">If checked, you'll define multiple steps. Otherwise, select a single command template.</small>
+        </div>
+
+        {% if !jt.is_composite %}
+        <div class="form-group">
+            <label for="command_template_id">Command Template *</label>
+            <select id="command_template_id"
+                    name="command_template_id"
+                    {% if jt.is_composite %}disabled{% endif %}>
+                <option value="">Select a command...</option>
+                {% for ct in command_templates %}
+                <option value="{{ ct.id }}" {% match jt.command_template_id %}{% when Some with (id) %}{% if ct.id == id %}selected{% endif %}{% when None %}{% endmatch %}>
+                    {{ ct.display_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+
+        <div class="form-group">
             <label for="timeout_seconds">Timeout (seconds)</label>
             <input type="number"
                    id="timeout_seconds"
                    name="timeout_seconds"
-                   value="{% match jt.timeout_seconds %}{% when Some with (t) %}{{ t }}{% when None %}300{% endmatch %}"
+                   value="{{ jt.timeout_seconds }}"
                    min="1"
                    placeholder="300">
             <small class="text-secondary">Maximum time for job execution (default: 300s)</small>
         </div>
 
+        <div class="form-group">
+            <label for="retry_count">Retry Count</label>
+            <input type="number"
+                   id="retry_count"
+                   name="retry_count"
+                   value="{{ jt.retry_count }}"
+                   min="0"
+                   max="10"
+                   placeholder="0">
+            <small class="text-secondary">Number of retries on failure (default: 0)</small>
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox"
+                       name="notify_on_success"
+                       value="1"
+                       {% if jt.notify_on_success %}checked{% endif %}>
+                Notify on Success
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox"
+                       name="notify_on_failure"
+                       value="1"
+                       {% if jt.notify_on_failure %}checked{% endif %}>
+                Notify on Failure
+            </label>
+        </div>
+
         <div class="flex gap-2">
-            <button type="submit" class="btn btn-primary">
-                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
-            </button>
+            <button type="submit" class="btn btn-primary">Update Template</button>
             <button type="button"
-                    onclick="document.getElementById('job-template-form-container').innerHTML = ''"
-                    class="btn btn-secondary">
-                Cancel
-            </button>
+                    hx-get="/job-templates/list"
+                    hx-target="#job-template-list"
+                    hx-swap="innerHTML"
+                    class="btn btn-secondary">Cancel</button>
         </div>
     </form>
+
     {% when None %}
     <form hx-post="/job-templates"
           hx-target="#job-template-list"
@@ -120,6 +145,16 @@
             <input type="text"
                    id="name"
                    name="name"
+                   placeholder="weekly_system_updates"
+                   required>
+            <small class="text-secondary">Unique identifier (lowercase, underscores)</small>
+        </div>
+
+        <div class="form-group">
+            <label for="display_name">Display Name *</label>
+            <input type="text"
+                   id="display_name"
+                   name="display_name"
                    placeholder="Weekly System Updates"
                    required>
         </div>
@@ -132,52 +167,10 @@
                 <option value="">Select a job type...</option>
                 {% for job_type in job_types %}
                 <option value="{{ job_type.id }}">
-                    {{ job_type.name }}
+                    {{ job_type.display_name }}
                 </option>
                 {% endfor %}
             </select>
-        </div>
-
-        <div class="form-group">
-            <label for="target_type">Target Servers *</label>
-            <select id="target_type"
-                    name="target_type"
-                    x-model="targetType"
-                    required>
-                <option value="all_servers">All Servers</option>
-                <option value="tagged">Servers with Tags</option>
-                <option value="specific">Specific Servers</option>
-            </select>
-        </div>
-
-        <div class="form-group" x-show="targetType === 'tagged'">
-            <label>Select Tags</label>
-            <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
-                {% for tag in available_tags %}
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="tag_ids"
-                           value="{{ tag.id }}">
-                    <span class="badge" style="background-color: {{ tag.color }}; color: #fff;">
-                        {{ tag.name }}
-                    </span>
-                </label>
-                {% endfor %}
-            </div>
-        </div>
-
-        <div class="form-group" x-show="targetType === 'specific'">
-            <label>Select Servers</label>
-            <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
-                {% for server in available_servers %}
-                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
-                    <input type="checkbox"
-                           name="server_ids"
-                           value="{{ server.id }}">
-                    <span>{{ server.name }}</span>
-                </label>
-                {% endfor %}
-            </div>
         </div>
 
         <div class="form-group">
@@ -189,6 +182,30 @@
         </div>
 
         <div class="form-group">
+            <label>
+                <input type="checkbox"
+                       name="is_composite"
+                       value="1">
+                Composite Job (multi-step workflow)
+            </label>
+            <small class="text-secondary">If checked, you'll define multiple steps after creating the template.</small>
+        </div>
+
+        <div class="form-group" id="command-template-group">
+            <label for="command_template_id">Command Template *</label>
+            <select id="command_template_id"
+                    name="command_template_id">
+                <option value="">Select a command...</option>
+                {% for ct in command_templates %}
+                <option value="{{ ct.id }}">
+                    {{ ct.display_name }}
+                </option>
+                {% endfor %}
+            </select>
+            <small class="text-secondary">Not required for composite jobs</small>
+        </div>
+
+        <div class="form-group">
             <label for="timeout_seconds">Timeout (seconds)</label>
             <input type="number"
                    id="timeout_seconds"
@@ -196,18 +213,36 @@
                    value="300"
                    min="1"
                    placeholder="300">
-            <small class="text-secondary">Maximum time for job execution (default: 300s)</small>
+        </div>
+
+        <div class="form-group">
+            <label for="retry_count">Retry Count</label>
+            <input type="number"
+                   id="retry_count"
+                   name="retry_count"
+                   value="0"
+                   min="0"
+                   max="10"
+                   placeholder="0">
+        </div>
+
+        <div class="form-group">
+            <label>
+                <input type="checkbox"
+                       name="notify_on_failure"
+                       value="1"
+                       checked>
+                Notify on Failure
+            </label>
         </div>
 
         <div class="flex gap-2">
-            <button type="submit" class="btn btn-primary">
-                <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
-            </button>
+            <button type="submit" class="btn btn-primary">Create Template</button>
             <button type="button"
-                    onclick="document.getElementById('job-template-form-container').innerHTML = ''"
-                    class="btn btn-secondary">
-                Cancel
-            </button>
+                    hx-get="/job-templates/list"
+                    hx-target="#job-template-list"
+                    hx-swap="innerHTML"
+                    class="btn btn-secondary">Cancel</button>
         </div>
     </form>
     {% endmatch %}

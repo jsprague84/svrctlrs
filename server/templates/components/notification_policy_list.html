@@ -23,7 +23,7 @@
             <strong>Scope:</strong>
             {% if policy.scope_type == "all_jobs" %}All Jobs
             {% else if policy.scope_type == "specific_job_templates" %}Specific Job Templates ({{ policy.job_template_count }})
-            {% else if policy.scope_type == "job_type" %}Job Type: {{ policy.job_type_name }}
+            {% else if policy.scope_type == "job_type" %}Job Type: {% match policy.job_type_name %}{% when Some with (name) %}{{ name }}{% when None %}Unknown{% endmatch %}
             {% endif %}<br>
             <strong>Notify On:</strong>
             {% if policy.notify_on_success %}Success{% endif %}

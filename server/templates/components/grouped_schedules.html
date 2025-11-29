@@ -1,0 +1,117 @@
+<!-- Grouped Job Schedules by Server -->
+{% for group in groups %}
+<div class="card mb-3">
+    <div class="flex-between mb-2">
+        <h3>
+            {% match group.server_name %}
+            {% when Some with (name) %}
+                <i data-lucide="server" style="width: 20px; height: 20px;"></i>
+                {{ name }}
+            {% when None %}
+                <i data-lucide="home" style="width: 20px; height: 20px;"></i>
+                Local Tasks
+            {% endmatch %}
+        </h3>
+        <span class="badge badge-secondary">{{ group.schedules|length }} schedule(s)</span>
+    </div>
+
+    {% if group.schedules.is_empty() %}
+    <p class="text-secondary">No schedules configured for this server</p>
+    {% else %}
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Job Template</th>
+                    <th>Schedule</th>
+                    <th>Status</th>
+                    <th>Last Run</th>
+                    <th>Next Run</th>
+                    <th>Success/Fail</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for schedule in group.schedules %}
+                <tr>
+                    <td>
+                        <strong>{{ schedule.name }}</strong>
+                        {% match schedule.description %}
+                        {% when Some with (desc) %}
+                        <br><small class="text-secondary">{{ desc }}</small>
+                        {% when None %}
+                        {% endmatch %}
+                    </td>
+                    <td>{{ schedule.job_template_name }}</td>
+                    <td><code>{{ schedule.schedule }}</code></td>
+                    <td>
+                        {% if schedule.enabled %}
+                        <span class="badge badge-success">Enabled</span>
+                        {% else %}
+                        <span class="badge badge-secondary">Disabled</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% match schedule.last_run_at %}
+                        {% when Some with (last_run) %}
+                        {{ last_run }}
+                        {% match schedule.last_run_status %}
+                        {% when Some with (status) %}
+                        <br><small class="text-secondary">{{ status }}</small>
+                        {% when None %}
+                        {% endmatch %}
+                        {% when None %}
+                        <span class="text-secondary">Never</span>
+                        {% endmatch %}
+                    </td>
+                    <td>
+                        {% match schedule.next_run_at %}
+                        {% when Some with (next_run) %}
+                        {{ next_run }}
+                        {% when None %}
+                        <span class="text-secondary">-</span>
+                        {% endmatch %}
+                    </td>
+                    <td>
+                        <span class="text-success">{{ schedule.success_count }}</span> /
+                        <span class="text-error">{{ schedule.failure_count }}</span>
+                    </td>
+                    <td>
+                        <div class="flex gap-2">
+                            <button hx-get="/job-schedules/{{ schedule.id }}/edit"
+                                    hx-target="#schedule-form-container"
+                                    hx-swap="innerHTML"
+                                    class="btn btn-sm btn-secondary"
+                                    title="Edit">
+                                <i data-lucide="edit" style="width: 14px; height: 14px;"></i>
+                            </button>
+                            <button hx-post="/job-schedules/{{ schedule.id }}/run"
+                                    hx-target="#schedule-message"
+                                    hx-swap="innerHTML"
+                                    class="btn btn-sm btn-primary"
+                                    title="Run Now">
+                                <i data-lucide="play" style="width: 14px; height: 14px;"></i>
+                            </button>
+                            <button hx-delete="/job-schedules/{{ schedule.id }}"
+                                    hx-target="#schedule-list"
+                                    hx-swap="innerHTML"
+                                    hx-confirm="Delete schedule '{{ schedule.name }}'?"
+                                    class="btn btn-sm btn-error"
+                                    title="Delete">
+                                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+<!-- Message container -->
+<div id="schedule-message"></div>
+

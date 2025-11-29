@@ -29,8 +29,8 @@
                     name="job_type_id"
                     required>
                 {% for job_type in job_types %}
-                <option value="{{ job_type.id }}" {% if job_type.id == s.job_type_id %}selected{% endif %}>
-                    {{ job_type.name }}
+                <option value="{{ job_type.id }}" {% match s.job_type_id %}{% when Some with (id) %}{% if id == job_type.id %}selected{% endif %}{% when None %}{% endmatch %}>
+                    {{ job_type.display_name %}
                 </option>
                 {% endfor %}
             </select>
@@ -52,7 +52,7 @@
             <textarea id="description"
                       name="description"
                       rows="2"
-                      placeholder="What this step does">{% match s.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
+                      placeholder="What this step does">{{ s.description }}</textarea>
         </div>
 
         <div class="form-group">

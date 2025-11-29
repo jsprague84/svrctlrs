@@ -16,13 +16,14 @@
                         <strong>{{ step.name }}</strong>
                     </div>
                     <p class="text-secondary" style="font-size: 0.875rem;">
-                        <strong>Job Type:</strong> {{ step.job_type_name }}
+                        <strong>Command:</strong> {{ step.command_template_name }}<br>
+                        {% match step.job_type_name %}
+                        {% when Some with (jt_name) %}
+                        <strong>Job Type:</strong> {{ jt_name }}
+                        {% when None %}
+                        {% endmatch %}
                     </p>
-                    {% match step.description %}
-                    {% when Some with (d) %}
-                    <p class="text-secondary" style="font-size: 0.875rem;">{{ d }}</p>
-                    {% when None %}
-                    {% endmatch %}
+                    <p class="text-secondary" style="font-size: 0.875rem;">{{ step.description }}</p>
                 </div>
                 <div class="flex gap-1">
                     {% if step.order_index > 1 %}
@@ -33,14 +34,12 @@
                         <i data-lucide="arrow-up" style="width: 12px; height: 12px;"></i>
                     </button>
                     {% endif %}
-                    {% if step.order_index < steps | length %}
                     <button hx-post="/job-templates/{{ job_template_id }}/steps/{{ step.id }}/move-down"
                             hx-target="#job-template-steps"
                             hx-swap="innerHTML"
                             class="btn btn-sm btn-secondary">
                         <i data-lucide="arrow-down" style="width: 12px; height: 12px;"></i>
                     </button>
-                    {% endif %}
                     <button hx-get="/job-templates/{{ job_template_id }}/steps/{{ step.id }}/edit"
                             hx-target="#job-step-form-container"
                             hx-swap="innerHTML"
