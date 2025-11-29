@@ -440,6 +440,62 @@ impl From<svrctlrs_database::models::CommandTemplate> for CommandTemplateDisplay
     }
 }
 
+/// Template for rendering command template parameter form fields
+#[derive(Template)]
+#[template(path = "components/command_template_parameters.html")]
+pub struct CommandTemplateParametersTemplate {
+    pub parameters: Vec<ParameterDisplay>,
+}
+
+/// Display model for a single parameter from parameter schema
+#[derive(Debug, Clone)]
+pub struct ParameterDisplay {
+    pub name: String,
+    pub param_type: String, // "string", "number", "boolean", "select"
+    pub required: bool,
+    pub description: Option<String>,
+    pub default: Option<String>,
+    pub options: Option<Vec<String>>, // For select type
+}
+
+impl ParameterDisplay {
+    pub fn from_json(value: &serde_json::Value) -> Option<Self> {
+        let name = value.get("name")?.as_str()?.to_string();
+        let param_type = value.get("type")?.as_str()?.to_string();
+        let required = value.get("required").and_then(|v| v.as_bool()).unwrap_or(false);
+        let description = value.get("description").and_then(|v| v.as_str()).map(String::from);
+        let default = value
+            .get("default")
+            .and_then(|v| {
+                if v.is_string() {
+                    v.as_str().map(String::from)
+                } else if v.is_number() {
+                    Some(v.to_string())
+                } else if v.is_boolean() {
+                    Some(v.as_bool().unwrap().to_string())
+                } else {
+                    None
+                }
+            });
+        let options = value.get("options").and_then(|v| {
+            v.as_array().map(|arr| {
+                arr.iter()
+                    .filter_map(|item| item.as_str().map(String::from))
+                    .collect()
+            })
+        });
+
+        Some(Self {
+            name,
+            param_type,
+            required,
+            description,
+            default,
+            options,
+        })
+    }
+}
+
 // ============================================================================
 // Job Templates
 // ============================================================================

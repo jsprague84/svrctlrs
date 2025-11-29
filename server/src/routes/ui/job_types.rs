@@ -43,6 +43,10 @@ pub fn routes() -> Router<AppState> {
             "/job-types/{job_type_id}/command-templates/{id}",
             put(update_command_template).delete(delete_command_template),
         )
+        .route(
+            "/command-templates/{id}/parameters",
+            get(get_command_template_parameters),
+        )
 }
 
 // ============================================================================
@@ -850,4 +854,42 @@ pub async fn delete_command_template(
 
     // Return updated list
     get_command_templates(State(state), Path(job_type_id)).await
+}
+
+/// Get parameter form fields for a command template (HTMX)
+#[instrument(skip(state))]
+pub async fn get_command_template_parameters(
+    State(state): State<AppState>,
+    Path(template_id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    info!(template_id, "Fetching command template parameter schema");
+
+    // Get command template
+    let template = queries::get_command_template(&state.pool, template_id)
+        .await
+        .map_err(|e| {
+            error!(template_id, error = %e, "Failed to fetch command template");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    // Parse parameter schema
+    let schema = template.get_parameter_schema();
+    let parameters: Vec<crate::templates::ParameterDisplay> = if let Some(arr) = schema.as_array() {
+        arr.iter()
+            .filter_map(|v| crate::templates::ParameterDisplay::from_json(v))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    info!(template_id, param_count = parameters.len(), "Rendering parameter form fields");
+
+    // Render template
+    let tmpl = crate::templates::CommandTemplateParametersTemplate { parameters };
+    let html = tmpl.render().map_err(|e| {
+        error!(error = %e, "Failed to render parameter template");
+        AppError::TemplateError(e.to_string())
+    })?;
+
+    Ok(Html(html))
 }

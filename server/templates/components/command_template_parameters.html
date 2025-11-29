@@ -1,0 +1,71 @@
+{% if parameters.len() > 0 %}
+<div class="card bg-base-200" id="parameter-fields">
+    <h4>Command Parameters</h4>
+    <p class="text-secondary" style="font-size: 0.875rem; margin-bottom: 1rem;">
+        These parameters will be substituted into the command template when jobs run.
+    </p>
+
+    {% for param in parameters %}
+    <div class="form-group">
+        <label for="param_{{ param.name }}">
+            {{ param.description.as_ref().unwrap_or(&param.name) }}
+            {% if param.required %}<span class="text-error">*</span>{% endif %}
+        </label>
+
+        {% if param.param_type == "string" %}
+        <input type="text"
+               id="param_{{ param.name }}"
+               name="var_{{ param.name }}"
+               {% if param.required %}required{% endif %}
+               {% match param.default %}
+               {% when Some with (d) %}value="{{ d }}" placeholder="{{ d }}"{% when None %}{% endmatch %}>
+
+        {% else if param.param_type == "number" %}
+        <input type="number"
+               id="param_{{ param.name }}"
+               name="var_{{ param.name }}"
+               {% if param.required %}required{% endif %}
+               {% match param.default %}
+               {% when Some with (d) %}value="{{ d }}" placeholder="{{ d }}"{% when None %}{% endmatch %}>
+
+        {% else if param.param_type == "boolean" %}
+        <label class="flex gap-2 align-center" style="cursor: pointer;">
+            <input type="checkbox"
+                   id="param_{{ param.name }}"
+                   name="var_{{ param.name }}"
+                   value="true"
+                   {% match param.default %}
+                   {% when Some with (d) %}{% if d == "true" %}checked{% endif %}{% when None %}{% endmatch %}>
+            <span class="text-sm">{{ param.description.as_ref().unwrap_or(&"Enable".to_string()) }}</span>
+        </label>
+
+        {% else if param.param_type == "select" %}
+        <select id="param_{{ param.name }}"
+                name="var_{{ param.name }}"
+                {% if param.required %}required{% endif %}>
+            {% match param.options %}
+            {% when Some with (opts) %}
+                {% for option in opts %}
+                <option value="{{ option }}"
+                        {% match param.default %}
+                        {% when Some with (d) %}{% if d == option %}selected{% endif %}{% when None %}{% endmatch %}>
+                    {{ option }}
+                </option>
+                {% endfor %}
+            {% when None %}
+                <option value="">No options defined</option>
+            {% endmatch %}
+        </select>
+        {% endif %}
+
+        {% match param.description %}
+        {% when Some with (desc) %}
+        <small class="text-secondary">{{ desc }}</small>
+        {% when None %}
+        {% endmatch %}
+    </div>
+    {% endfor %}
+
+    <input type="hidden" name="has_parameters" value="1">
+</div>
+{% endif %}
