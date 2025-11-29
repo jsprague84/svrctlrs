@@ -264,9 +264,9 @@ pub async fn create_command_template(
         INSERT INTO command_templates (
             job_type_id, name, display_name, description, command, required_capabilities,
             os_filter, timeout_seconds, working_directory, environment, output_format,
-            parse_output, output_parser, notify_on_success, notify_on_failure, metadata
+            parse_output, output_parser, notify_on_success, notify_on_failure, parameter_schema, metadata
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(input.job_type_id)
@@ -284,6 +284,7 @@ pub async fn create_command_template(
     .bind(input.output_parser_string())
     .bind(input.notify_on_success)
     .bind(input.notify_on_failure)
+    .bind(input.parameter_schema_string())
     .bind(input.metadata_string())
     .execute(pool)
     .await
@@ -358,6 +359,10 @@ pub async fn update_command_template(
     if let Some(notify_failure) = input.notify_on_failure {
         query.push_str(", notify_on_failure = ?");
         params.push(if notify_failure { "1" } else { "0" }.to_string());
+    }
+    if let Some(param_schema) = input.parameter_schema_string() {
+        query.push_str(", parameter_schema = ?");
+        params.push(param_schema);
     }
     if let Some(metadata) = input.metadata_string() {
         query.push_str(", metadata = ?");

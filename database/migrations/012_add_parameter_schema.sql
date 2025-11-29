@@ -1,0 +1,39 @@
+-- Add parameter_schema field to command_templates for defining parameters
+-- that can be substituted in command templates
+
+ALTER TABLE command_templates ADD COLUMN parameter_schema TEXT;
+
+-- Example schema format (JSON array):
+-- [
+--   {
+--     "name": "container_name",
+--     "type": "string",
+--     "required": true,
+--     "description": "Name of the Docker container",
+--     "default": "",
+--     "validation": {
+--       "pattern": "^[a-zA-Z0-9_-]+$",
+--       "minLength": 1,
+--       "maxLength": 100
+--     }
+--   },
+--   {
+--     "name": "status",
+--     "type": "select",
+--     "required": false,
+--     "description": "Container status filter",
+--     "default": "running",
+--     "options": ["running", "stopped", "exited", "paused"]
+--   },
+--   {
+--     "name": "port",
+--     "type": "number",
+--     "required": false,
+--     "description": "Port number",
+--     "default": 8080,
+--     "validation": {
+--       "min": 1,
+--       "max": 65535
+--     }
+--   }
+-- ]

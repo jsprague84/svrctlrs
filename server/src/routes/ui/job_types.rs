@@ -587,6 +587,7 @@ impl CreateCommandTemplateFormInput {
             output_parser,
             notify_on_success: self.notify_on_success.is_some(),
             notify_on_failure: self.notify_on_failure.is_some() || self.notify_on_failure.is_none(),
+            parameter_schema: None, // TODO: Add parameter_schema form field
             metadata,
         })
     }
@@ -735,6 +736,7 @@ impl UpdateCommandTemplateFormInput {
             output_parser,
             notify_on_success: Some(self.notify_on_success.is_some()),
             notify_on_failure: Some(self.notify_on_failure.is_some()),
+            parameter_schema: None, // TODO: Add parameter_schema form field
             metadata,
         })
     }

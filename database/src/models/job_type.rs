@@ -84,6 +84,10 @@ pub struct CommandTemplate {
     pub notify_on_success: bool,
     pub notify_on_failure: bool,
 
+    /// JSON array defining parameters that can be substituted in the command
+    /// Format: [{"name": "var", "type": "string", "required": true, "description": "...", "default": "", "validation": {...}}]
+    pub parameter_schema: Option<String>,
+
     pub metadata: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -128,6 +132,14 @@ impl CommandTemplate {
             .as_ref()
             .and_then(|m| serde_json::from_str(m).ok())
             .unwrap_or(JsonValue::Object(serde_json::Map::new()))
+    }
+
+    /// Get parameter schema as JSON value
+    pub fn get_parameter_schema(&self) -> JsonValue {
+        self.parameter_schema
+            .as_ref()
+            .and_then(|ps| serde_json::from_str(ps).ok())
+            .unwrap_or(JsonValue::Array(Vec::new()))
     }
 
     /// Substitute variables in the command
@@ -252,6 +264,7 @@ pub struct CreateCommandTemplate {
     pub notify_on_success: bool,
     #[serde(default = "default_notify_on_failure")]
     pub notify_on_failure: bool,
+    pub parameter_schema: Option<JsonValue>,
     pub metadata: Option<JsonValue>,
 }
 
@@ -284,6 +297,13 @@ impl CreateCommandTemplate {
             .and_then(|p| serde_json::to_string(p).ok())
     }
 
+    /// Convert parameter_schema to JSON string
+    pub fn parameter_schema_string(&self) -> Option<String> {
+        self.parameter_schema
+            .as_ref()
+            .and_then(|ps| serde_json::to_string(ps).ok())
+    }
+
     /// Convert metadata to JSON string
     pub fn metadata_string(&self) -> Option<String> {
         self.metadata
@@ -308,6 +328,7 @@ pub struct UpdateCommandTemplate {
     pub output_parser: Option<JsonValue>,
     pub notify_on_success: Option<bool>,
     pub notify_on_failure: Option<bool>,
+    pub parameter_schema: Option<JsonValue>,
     pub metadata: Option<JsonValue>,
 }
 
@@ -338,6 +359,13 @@ impl UpdateCommandTemplate {
         self.output_parser
             .as_ref()
             .and_then(|p| serde_json::to_string(p).ok())
+    }
+
+    /// Convert parameter_schema to JSON string
+    pub fn parameter_schema_string(&self) -> Option<String> {
+        self.parameter_schema
+            .as_ref()
+            .and_then(|ps| serde_json::to_string(ps).ok())
     }
 
     /// Convert metadata to JSON string
