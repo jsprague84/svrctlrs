@@ -368,7 +368,7 @@ async fn server_delete(
 /// Test connection input
 #[derive(Debug, Deserialize)]
 struct TestConnectionInput {
-    host: String,
+    hostname: String,
     port: Option<i32>,
     username: Option<String>,
 }
@@ -378,22 +378,37 @@ async fn server_test_connection(
     State(_state): State<AppState>,
     Form(input): Form<TestConnectionInput>,
 ) -> Result<Html<String>, AppError> {
+    use crate::ssh::{test_connection, SshConfig};
+    use std::time::Duration;
+
     let port = input.port.unwrap_or(22);
     let username = input.username.unwrap_or_else(|| "root".to_string());
 
     tracing::info!(
         "Testing SSH connection to {}@{}:{}",
         username,
-        input.host,
+        input.hostname,
         port
     );
 
-    // TODO: Implement actual SSH connection test
-    // For now, return a placeholder response
-    Ok(Html(format!(
-        r#"<div class="alert alert-info">Connection test for {}@{}:{} - Feature coming soon</div>"#,
-        username, input.host, port
-    )))
+    let config = SshConfig {
+        host: input.hostname.clone(),
+        port: port as u16,
+        username: username.clone(),
+        key_path: None, // Will use default keys
+        timeout: Duration::from_secs(10),
+    };
+
+    match test_connection(&config).await {
+        Ok(output) => Ok(Html(format!(
+            r#"<div class="alert alert-success">✓ Connection successful to {}@{}:{}<br><small>{}</small></div>"#,
+            username, input.hostname, port, output
+        ))),
+        Err(e) => Ok(Html(format!(
+            r#"<div class="alert alert-error">✗ Connection failed to {}@{}:{}<br><small>{}</small></div>"#,
+            username, input.hostname, port, e
+        ))),
+    }
 }
 
 /// Test connection for existing server

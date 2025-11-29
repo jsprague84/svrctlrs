@@ -2,7 +2,7 @@ use askama::Template;
 use axum::{
     extract::{Path, State},
     response::Html,
-    routing::{get, put},
+    routing::{get, post, put},
     Form, Router,
 };
 use serde::Deserialize;
@@ -40,6 +40,7 @@ pub fn routes() -> Router<AppState> {
             "/job-templates/{id}",
             put(update_job_template).delete(delete_job_template),
         )
+        .route("/job-templates/{id}/run", post(run_job_template))
         // Template steps
         .route(
             "/job-templates/{template_id}/steps",
@@ -606,4 +607,33 @@ pub async fn delete_template_step(
 
     // Return empty response (HTMX will remove the element)
     Ok(Html(String::new()))
+}
+
+/// Run a job template on-demand
+#[instrument(skip(state))]
+async fn run_job_template(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    info!(job_template_id = id, "Running job template on-demand");
+
+    // Fetch the job template to validate it exists
+    let job_template = queries::get_job_template(&state.pool, id)
+        .await
+        .map_err(|e| {
+            error!(job_template_id = id, error = %e, "Failed to fetch job template");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    // For manual runs, we need a schedule_id. Create a dummy schedule or use 0 for manual
+    // TODO: Refactor to support manual runs without schedule_id
+    // For now, return a message that this feature requires a schedule
+
+    Ok(Html(format!(
+        r#"<div class="alert alert-info">
+            ℹ️ Manual execution of job template "{}" is not yet fully implemented.<br>
+            <small>Please create a schedule for this template or use the job scheduler.</small>
+        </div>"#,
+        job_template.display_name
+    )))
 }

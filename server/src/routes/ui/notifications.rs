@@ -2,7 +2,7 @@ use askama::Template;
 use axum::{
     extract::{Path, State},
     response::Html,
-    routing::{get, put},
+    routing::{get, post, put},
     Form, Router,
 };
 use serde::Deserialize;
@@ -54,6 +54,10 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/settings/notifications/channels/{id}",
             put(update_channel).delete(delete_channel),
+        )
+        .route(
+            "/settings/notifications/channels/{id}/test",
+            post(test_channel),
         )
         // Notification Policies
         .route(
@@ -627,4 +631,144 @@ pub async fn delete_policy(
 
     // Return empty response (HTMX will remove the element)
     Ok(Html(String::new()))
+}
+
+/// Test a notification channel
+#[instrument(skip(state))]
+pub async fn test_channel(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    use svrctlrs_database::models::notification::ChannelType;
+
+    info!(channel_id = id, "Testing notification channel");
+
+    // Fetch the channel
+    let channel = queries::get_notification_channel(&state.pool, id)
+        .await
+        .map_err(|e| {
+            error!(channel_id = id, error = %e, "Failed to fetch notification channel");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    // Parse config
+    let config: serde_json::Value = serde_json::from_str(&channel.config).unwrap_or(json!({}));
+
+    // Parse channel type
+    let channel_type: ChannelType =
+        serde_json::from_str(&format!("\"{}\"", channel.channel_type_str))
+            .unwrap_or(ChannelType::Gotify);
+
+    // Send test notification based on channel type
+    let result = match channel_type {
+        ChannelType::Gotify => {
+            let endpoint = config["endpoint"]
+                .as_str()
+                .unwrap_or("http://localhost:8080");
+            let token = config["token"].as_str().unwrap_or("");
+
+            if token.is_empty() {
+                return Ok(Html(
+                    r#"<div class="alert alert-error">✗ No token configured</div>"#.to_string(),
+                ));
+            }
+
+            // Send test message to Gotify
+            let client = reqwest::Client::new();
+            let url = format!("{}/message", endpoint.trim_end_matches('/'));
+
+            match client
+                .post(&url)
+                .header("X-Gotify-Key", token)
+                .json(&json!({
+                    "title": "Test Notification",
+                    "message": format!("Test message from SvrCtlRS channel: {}", channel.name),
+                    "priority": 5
+                }))
+                .send()
+                .await
+            {
+                Ok(resp) if resp.status().is_success() => Ok(format!(
+                    "✓ Test notification sent successfully to Gotify at {}",
+                    endpoint
+                )),
+                Ok(resp) => Err(format!(
+                    "✗ Gotify returned status {}: {}",
+                    resp.status(),
+                    resp.text().await.unwrap_or_default()
+                )),
+                Err(e) => Err(format!("✗ Failed to connect to Gotify: {}", e)),
+            }
+        }
+        ChannelType::Ntfy => {
+            let endpoint = config["endpoint"].as_str().unwrap_or("https://ntfy.sh");
+            let topic = config["topic"].as_str().unwrap_or("");
+
+            if topic.is_empty() {
+                return Ok(Html(
+                    r#"<div class="alert alert-error">✗ No topic configured</div>"#.to_string(),
+                ));
+            }
+
+            // Build request
+            let client = reqwest::Client::new();
+            let url = format!("{}/{}", endpoint.trim_end_matches('/'), topic);
+            let mut request = client.post(&url);
+
+            // Add authentication if configured
+            if let Some(token) = config["token"].as_str() {
+                if !token.is_empty() {
+                    request = request.header("Authorization", format!("Bearer {}", token));
+                }
+            } else if let (Some(username), Some(password)) =
+                (config["username"].as_str(), config["password"].as_str())
+            {
+                if !username.is_empty() && !password.is_empty() {
+                    request = request.basic_auth(username, Some(password));
+                }
+            }
+
+            // Send test message
+            match request
+                .header("Title", "Test Notification")
+                .header("Priority", "default")
+                .header("Tags", "test,svrctlrs")
+                .body(format!(
+                    "Test message from SvrCtlRS channel: {}",
+                    channel.name
+                ))
+                .send()
+                .await
+            {
+                Ok(resp) if resp.status().is_success() => Ok(format!(
+                    "✓ Test notification sent successfully to ntfy topic: {}",
+                    topic
+                )),
+                Ok(resp) => Err(format!(
+                    "✗ ntfy returned status {}: {}",
+                    resp.status(),
+                    resp.text().await.unwrap_or_default()
+                )),
+                Err(e) => Err(format!("✗ Failed to connect to ntfy: {}", e)),
+            }
+        }
+        _ => {
+            // Other channel types not yet implemented
+            Err(format!(
+                "✗ Testing not yet implemented for {:?} channels",
+                channel_type
+            ))
+        }
+    };
+
+    match result {
+        Ok(msg) => Ok(Html(format!(
+            r#"<div class="alert alert-success">{}</div>"#,
+            msg
+        ))),
+        Err(msg) => Ok(Html(format!(
+            r#"<div class="alert alert-error">{}</div>"#,
+            msg
+        ))),
+    }
 }

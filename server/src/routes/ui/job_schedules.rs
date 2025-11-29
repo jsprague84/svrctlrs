@@ -453,14 +453,47 @@ pub async fn run_job_schedule(
             AppError::NotFound(format!("Job schedule {} not found", id))
         })?;
 
-    // Trigger the job execution via the job executor
-    // TODO: Implement job execution trigger
-    info!(job_schedule_id = id, "Job schedule triggered for execution");
+    // Validate schedule is enabled
+    if !job_schedule.enabled {
+        return Ok(Html(format!(
+            r#"<div class="alert alert-warning">⚠️ Job schedule '{}' is disabled. Enable it first to run.</div>"#,
+            job_schedule.name
+        )));
+    }
+
+    // Create a job run record
+    use svrctlrs_database::queries::job_runs;
+
+    let job_run_id = job_runs::create_job_run(
+        &state.pool,
+        job_schedule.id,
+        job_schedule.job_template_id,
+        job_schedule.server_id,
+        0,     // retry_attempt
+        false, // is_retry
+        Some(r#"{"triggered":"manual","user":"system"}"#.to_string()),
+    )
+    .await
+    .map_err(|e| {
+        error!(job_schedule_id = id, error = %e, "Failed to create job run");
+        AppError::DatabaseError(e.to_string())
+    })?;
+
+    info!(
+        job_schedule_id = id,
+        job_run_id, "Job schedule triggered for manual execution"
+    );
+
+    // TODO: Trigger actual job execution via job executor
+    // For now, the job run is created and will be picked up by the scheduler
 
     // Return success message
     Ok(Html(format!(
-        "Job schedule '{}' triggered successfully",
-        job_schedule.name
+        r#"<div class="alert alert-success">
+            ✓ Job schedule '{}' triggered successfully<br>
+            <small>Job Run ID: {} - <a href="/job-runs/{}" class="link">View Details</a></small>
+        </div>"#,
+        job_schedule.name, job_run_id, job_run_id
     )))
 }
 
