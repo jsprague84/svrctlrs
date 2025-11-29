@@ -15,17 +15,17 @@
     
     <div class="stat-card">
         <div class="stat-value">{{ stats.active_tasks }}</div>
-        <div class="stat-label">Active Tasks</div>
+        <div class="stat-label">Active Schedules</div>
     </div>
-    
+
     <div class="stat-card">
-        <div class="stat-value">{{ stats.enabled_plugins }}</div>
-        <div class="stat-label">Enabled Features</div>
+        <div class="stat-value">{{ stats.active_jobs }}</div>
+        <div class="stat-label">Running Jobs</div>
     </div>
-    
+
     <div class="stat-card">
-        <div class="stat-value">{{ stats.total_tasks }}</div>
-        <div class="stat-label">Total Tasks</div>
+        <div class="stat-value">{{ stats.total_schedules }}</div>
+        <div class="stat-label">Total Schedules</div>
     </div>
 </div>
 
@@ -35,26 +35,51 @@
         <h2 class="card-title">Quick Actions</h2>
     </div>
     
-    <div class="flex gap-2">
+    <div class="flex gap-2 flex-wrap">
         <a href="/servers" class="btn btn-primary">
             <i data-lucide="server" style="width: 16px; height: 16px;"></i> Manage Servers
         </a>
-        <a href="/tasks" class="btn btn-primary">
-            <i data-lucide="list-checks" style="width: 16px; height: 16px;"></i> View Tasks
+        <a href="/job-templates" class="btn btn-primary">
+            <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> Job Templates
         </a>
-        <a href="/features" class="btn btn-primary">
-            <i data-lucide="box" style="width: 16px; height: 16px;"></i> Configure Features
+        <a href="/schedules" class="btn btn-primary">
+            <i data-lucide="calendar-clock" style="width: 16px; height: 16px;"></i> Schedules
+        </a>
+        <a href="/job-runs" class="btn btn-primary">
+            <i data-lucide="activity" style="width: 16px; height: 16px;"></i> Job History
         </a>
     </div>
 </div>
 
-<!-- Recent Activity (placeholder for future) -->
+<!-- Recent Job Runs -->
 <div class="card">
     <div class="card-header">
-        <h2 class="card-title">Recent Activity</h2>
+        <h2 class="card-title">Recent Job Runs</h2>
+        <a href="/job-runs" class="btn btn-sm btn-secondary">View All</a>
     </div>
-    
-    <p class="text-secondary">No recent activity to display.</p>
+
+    {% if stats.recent_runs.is_empty() %}
+    <p class="text-secondary">No recent job runs to display.</p>
+    {% else %}
+    <div class="grid grid-1">
+        {% for run in stats.recent_runs %}
+        <div class="card" style="background: var(--bg); margin-bottom: 0.5rem;">
+            <div class="flex-between">
+                <div>
+                    <strong>{{ run.job_name }}</strong> on <span class="text-secondary">{{ run.server_name }}</span>
+                </div>
+                <span class="badge {% if run.status == "success" %}badge-success{% else if run.status == "failed" %}badge-error{% else if run.status == "running" %}badge-info{% else %}badge-secondary{% endif %}">
+                    {{ run.status }}
+                </span>
+            </div>
+            <div class="text-secondary" style="font-size: 0.875rem; margin-top: 0.25rem;">
+                {{ run.started_at }}
+                {% if run.duration_seconds.is_some() %} &middot; {% match run.duration_seconds %}{% when Some with (d) %}{{ d }}s{% when None %}{% endmatch %}{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 

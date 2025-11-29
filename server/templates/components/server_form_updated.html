@@ -23,10 +23,10 @@
         </div>
 
         <div class="form-group">
-            <label for="host">Host *</label>
+            <label for="hostname">Host *</label>
             <input type="text"
-                   id="host"
-                   name="host"
+                   id="hostname"
+                   name="hostname"
                    value="{{ s.host }}"
                    placeholder="192.168.1.100 or example.com"
                    required>
@@ -38,7 +38,7 @@
                 <input type="number"
                        id="port"
                        name="port"
-                       value="{% match s.port %}{% when Some with (p) %}{{ p }}{% when None %}22{% endmatch %}"
+                       value="{{ s.port }}"
                        placeholder="22"
                        min="1"
                        max="65535">
@@ -46,14 +46,23 @@
 
             <div class="form-group">
                 <label for="credential_id">SSH Credential</label>
-                <select id="credential_id" name="credential_id">
+                <select id="credential_id" name="credential_id" data-selected-id="{% match s.credential_id %}{% when Some with (id) %}{{ id }}{% when None %}{% endmatch %}">
                     <option value="">Manual (username below)</option>
                     {% for cred in credentials %}
-                    <option value="{{ cred.id }}" {% match s.credential_id %}{% when Some with (cid) %}{% if cred.id == cid %}selected{% endif %}{% when None %}{% endmatch %}>
+                    <option value="{{ cred.id }}">
                         {{ cred.name }} ({{ cred.username }})
                     </option>
                     {% endfor %}
                 </select>
+                <script>
+                (function() {
+                    const select = document.getElementById('credential_id');
+                    const selectedId = select.getAttribute('data-selected-id');
+                    if (selectedId) {
+                        select.value = selectedId;
+                    }
+                })();
+                </script>
                 <small class="text-secondary">Or <a href="/credentials" class="text-primary">create a new credential</a></small>
             </div>
         </div>
@@ -63,7 +72,7 @@
             <input type="text"
                    id="username"
                    name="username"
-                   value="{% match s.username %}{% when Some with (u) %}{{ u }}{% when None %}{% endmatch %}"
+                   value="{{ s.username }}"
                    placeholder="ubuntu">
             <small class="text-secondary">Only used if no credential is selected above</small>
         </div>
@@ -71,27 +80,49 @@
         <div class="form-group">
             <label for="tags">Tags</label>
             <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
-                {% for tag in available_tags %}
+                {% if tags.is_empty() %}
+                <p class="text-secondary">No tags available. <a href="/tags" class="text-primary">Create a tag first</a></p>
+                {% else %}
+                {% for tag in tags %}
                 <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
                     <input type="checkbox"
                            name="tag_ids"
                            value="{{ tag.id }}"
-                           {% for st in s.tags %}{% if st.id == tag.id %}checked{% endif %}{% endfor %}>
+                           data-tag-id="{{ tag.id }}"
+                           {% if !selected_tags.is_empty() %}
+                           class="tag-checkbox"
+                           {% endif %}>
                     <span class="badge" style="background-color: {{ tag.color }}; color: #fff;">
                         {{ tag.name }}
                     </span>
                 </label>
                 {% endfor %}
+                {% endif %}
             </div>
             <small class="text-secondary">Or <a href="/tags" class="text-primary">create a new tag</a></small>
         </div>
+
+        {% if !selected_tags.is_empty() %}
+        <script>
+        // Pre-select tags for edit form
+        (function() {
+            const selectedIds = [{% for id in selected_tags %}{{ id }},{% endfor %}];
+            document.querySelectorAll('.tag-checkbox').forEach(cb => {
+                const tagId = parseInt(cb.getAttribute('data-tag-id'));
+                if (selectedIds.includes(tagId)) {
+                    cb.checked = true;
+                }
+            });
+        })();
+        </script>
+        {% endif %}
 
         <div class="form-group">
             <label for="description">Description (optional)</label>
             <textarea id="description"
                       name="description"
                       rows="3"
-                      placeholder="Brief description of this server">{% match s.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
+                      placeholder="Brief description of this server">{{ s.description }}</textarea>
         </div>
 
         <div class="form-group">
@@ -112,7 +143,7 @@
             <button type="button"
                     class="btn btn-secondary"
                     hx-post="/servers/test"
-                    hx-include="[name='host'], [name='port'], [name='username'], [name='credential_id']"
+                    hx-include="[name='hostname'], [name='port'], [name='username'], [name='credential_id']"
                     hx-target="#test-connection-result"
                     hx-swap="innerHTML">
                 Test Connection
@@ -138,10 +169,10 @@
         </div>
 
         <div class="form-group">
-            <label for="host">Host *</label>
+            <label for="hostname">Host *</label>
             <input type="text"
-                   id="host"
-                   name="host"
+                   id="hostname"
+                   name="hostname"
                    placeholder="192.168.1.100 or example.com"
                    required>
         </div>
@@ -184,7 +215,10 @@
         <div class="form-group">
             <label for="tags">Tags</label>
             <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
-                {% for tag in available_tags %}
+                {% if tags.is_empty() %}
+                <p class="text-secondary">No tags available. <a href="/tags" class="text-primary">Create a tag first</a></p>
+                {% else %}
+                {% for tag in tags %}
                 <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
                     <input type="checkbox"
                            name="tag_ids"
@@ -194,6 +228,7 @@
                     </span>
                 </label>
                 {% endfor %}
+                {% endif %}
             </div>
             <small class="text-secondary">Or <a href="/tags" class="text-primary">create a new tag</a></small>
         </div>
@@ -224,7 +259,7 @@
             <button type="button"
                     class="btn btn-secondary"
                     hx-post="/servers/test"
-                    hx-include="[name='host'], [name='port'], [name='username'], [name='credential_id']"
+                    hx-include="[name='hostname'], [name='port'], [name='username'], [name='credential_id']"
                     hx-target="#test-connection-result"
                     hx-swap="innerHTML">
                 Test Connection

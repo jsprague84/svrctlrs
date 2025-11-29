@@ -21,14 +21,48 @@
             {% if !server.description.is_empty() %}
             <strong>Description:</strong> {{ server.description }}<br>
             {% endif %}
+            {% if !server.os_distro.is_empty() %}
+            <strong>OS:</strong> {{ server.os_distro }}<br>
+            {% endif %}
+            {% if !server.package_manager.is_empty() %}
+            <strong>Package Manager:</strong> {{ server.package_manager }}<br>
+            {% endif %}
         </p>
-        
-        <div class="flex gap-2 mt-2">
+
+        <!-- Tags -->
+        {% if !server.tags.is_empty() %}
+        <div class="flex gap-1 mb-2 flex-wrap">
+            {% for tag in server.tags %}
+            <span class="badge" style="background-color: {{ tag.color }}; color: #fff;">
+                {{ tag.name }}
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Server capabilities container -->
+        <div id="server-{{ server.id }}-capabilities" class="mb-2"></div>
+
+        <div class="flex gap-2 mt-2 flex-wrap">
             <button hx-get="/servers/{{ server.id }}/edit"
                     hx-target="#server-form-container"
                     hx-swap="innerHTML"
                     class="btn btn-sm btn-secondary">
                 <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
+            </button>
+
+            <button hx-post="/servers/{{ server.id }}/test"
+                    hx-target="#server-{{ server.id }}-capabilities"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-secondary">
+                <i data-lucide="wifi" style="width: 14px; height: 14px;"></i> Test
+            </button>
+
+            <button hx-get="/servers/{{ server.id }}/capabilities"
+                    hx-target="#server-{{ server.id }}-capabilities"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-primary">
+                <i data-lucide="search" style="width: 14px; height: 14px;"></i> Detect
             </button>
 
             <button hx-delete="/servers/{{ server.id }}"

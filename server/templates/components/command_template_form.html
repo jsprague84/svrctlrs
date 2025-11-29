@@ -53,9 +53,37 @@
                       name="command"
                       rows="4"
                       class="font-mono"
-                      placeholder="docker ps --filter 'status={{"{{"}}status{{"}}"}}''"
+                      placeholder="docker ps --filter 'status=&#123;&#123;status&#125;&#125;'"
                       required>{{ ct.command }}</textarea>
-            <small class="text-secondary">Use {{"{{"}}variable{{"}}"}} syntax for substitution</small>
+            <small class="text-secondary">Use &#123;&#123;variable&#125;&#125; syntax for substitution</small>
+
+            <!-- Example Templates Dropdown -->
+            <details style="margin-top: 0.5rem;">
+                <summary style="cursor: pointer; color: var(--primary); font-size: 0.875rem;">
+                    <i data-lucide="lightbulb" style="width: 14px; height: 14px;"></i> View Example Command Templates
+                </summary>
+                <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px;">
+                    <p style="font-size: 0.875rem; margin-bottom: 0.5rem;"><strong>Docker:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem; margin-bottom: 0.5rem;">
+                        docker ps --filter "name=&#123;&#123;container_name&#125;&#125;" --format json
+                    </code>
+
+                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>System Updates (apt):</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem; margin-bottom: 0.5rem;">
+                        sudo apt-get update && sudo apt-get upgrade -y
+                    </code>
+
+                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>Service Management:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem; margin-bottom: 0.5rem;">
+                        systemctl &#123;&#123;action&#125;&#125; &#123;&#123;service_name&#125;&#125;
+                    </code>
+
+                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>File Operations:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
+                        cat &#123;&#123;file_path&#125;&#125; | grep "&#123;&#123;pattern&#125;&#125;"
+                    </code>
+                </div>
+            </details>
         </div>
 
         <!-- Required Capabilities -->
@@ -248,9 +276,37 @@
                       name="command"
                       rows="4"
                       class="font-mono"
-                      placeholder="docker ps --filter 'status={{"{{"}}status{{"}}"}}''"
+                      placeholder="docker ps --filter 'status=&#123;&#123;status&#125;&#125;'"
                       required></textarea>
-            <small class="text-secondary">Use {{"{{"}}variable{{"}}"}} syntax for substitution</small>
+            <small class="text-secondary">Use &#123;&#123;variable&#125;&#125; syntax for substitution</small>
+
+            <!-- Example Templates Dropdown -->
+            <details style="margin-top: 0.5rem;">
+                <summary style="cursor: pointer; color: var(--primary); font-size: 0.875rem;">
+                    <i data-lucide="lightbulb" style="width: 14px; height: 14px;"></i> View Example Command Templates
+                </summary>
+                <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px;">
+                    <p style="font-size: 0.875rem; margin-bottom: 0.5rem;"><strong>Docker:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem; margin-bottom: 0.5rem;">
+                        docker ps --filter "name=&#123;&#123;container_name&#125;&#125;" --format json
+                    </code>
+
+                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>System Updates (apt):</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem; margin-bottom: 0.5rem;">
+                        sudo apt-get update && sudo apt-get upgrade -y
+                    </code>
+
+                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>Service Management:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem; margin-bottom: 0.5rem;">
+                        systemctl &#123;&#123;action&#125;&#125; &#123;&#123;service_name&#125;&#125;
+                    </code>
+
+                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>File Operations:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
+                        cat &#123;&#123;file_path&#125;&#125; | grep "&#123;&#123;pattern&#125;&#125;"
+                    </code>
+                </div>
+            </details>
         </div>
 
         <!-- Required Capabilities -->

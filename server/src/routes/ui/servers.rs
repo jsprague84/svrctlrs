@@ -43,9 +43,25 @@ async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, App
     let credentials_list = credentials::list_credentials(db.pool()).await?;
     let tags_list = tags::list_tags(db.pool()).await?;
 
-    // Convert to display models
-    let servers_display: Vec<ServerDisplay> =
-        servers.into_iter().map(|s| server_to_display(&s)).collect();
+    // Convert to display models and fetch tags for each server
+    let mut servers_display: Vec<ServerDisplay> = Vec::new();
+    for server in servers {
+        let mut display = server_to_display(&server);
+
+        // Fetch tags for this server
+        if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.id).await {
+            display.tags = server_tags
+                .into_iter()
+                .map(|t| ServerTagInfo {
+                    name: t.name.clone(),
+                    color: t.color_or_default(),
+                })
+                .collect();
+        }
+
+        servers_display.push(display);
+    }
+
     let credentials_display: Vec<CredentialDisplay> = credentials_list
         .into_iter()
         .map(|c| credential_to_display(&c))
@@ -75,8 +91,25 @@ async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, App
 async fn server_list(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let db = state.db().await;
     let servers = servers_queries::list_servers(db.pool()).await?;
-    let servers_display: Vec<ServerDisplay> =
-        servers.into_iter().map(|s| server_to_display(&s)).collect();
+
+    // Convert servers to display models and fetch tags for each
+    let mut servers_display: Vec<ServerDisplay> = Vec::new();
+    for server in servers {
+        let mut display = server_to_display(&server);
+
+        // Fetch tags for this server
+        if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.id).await {
+            display.tags = server_tags
+                .into_iter()
+                .map(|t| ServerTagInfo {
+                    name: t.name.clone(),
+                    color: t.color_or_default(),
+                })
+                .collect();
+        }
+
+        servers_display.push(display);
+    }
 
     let template = ServerListTemplate {
         servers: servers_display,
@@ -786,6 +819,7 @@ fn server_to_display(server: &Server) -> ServerDisplay {
             .last_seen_at
             .map(|t| t.to_rfc3339())
             .unwrap_or_default(), // Convert Option → String
+        tag_ids: vec![],      // Will be filled by join query if needed
         tags: vec![],         // Will be filled by join query if needed
         capabilities: vec![], // TODO: Fetch from server_capabilities table
         created_at: server.created_at.to_rfc3339(),

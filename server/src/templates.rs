@@ -87,7 +87,7 @@ pub struct ServerListTemplate {
 }
 
 #[derive(Template)]
-#[template(path = "components/server_form.html")]
+#[template(path = "components/server_form_updated.html")]
 pub struct ServerFormTemplate {
     pub server: Option<ServerDisplay>,
     pub credentials: Vec<CredentialDisplay>,
@@ -104,6 +104,13 @@ pub struct ServerCapabilitiesTemplate {
     pub capabilities: Vec<String>,
 }
 
+/// Simple tag info for server display (name + color)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerTagInfo {
+    pub name: String,
+    pub color: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ServerDisplay {
     pub id: i64,
@@ -118,7 +125,8 @@ pub struct ServerDisplay {
     pub connection_type: String,
     pub connection_string: String, // Empty string if None (display-ready)
     pub is_local: bool,
-    pub tags: Vec<String>,
+    pub tag_ids: Vec<i64>, // For checking if a tag is selected
+    pub tags: Vec<ServerTagInfo>, // Tags with colors for display
     pub capabilities: Vec<String>,
     pub os_type: String,         // Empty string if None (display-ready)
     pub os_distro: String,       // Empty string if None (display-ready)
@@ -1127,6 +1135,8 @@ pub struct NotificationPolicyDisplay {
     pub notify_on_partial: bool,
     pub notify_on_timeout: bool,
     pub enabled: bool,
+    pub title_template: Option<String>,
+    pub body_template: Option<String>,
     pub created_at: String,
     // Scope-specific fields (populated based on scope_type)
     pub job_type_id: Option<i64>,
@@ -1419,6 +1429,7 @@ impl From<svrctlrs_database::Server> for ServerDisplay {
             connection_type,
             connection_string,
             is_local: s.is_local,
+            tag_ids: Vec::new(),      // TODO: Load from server_tags join
             tags: Vec::new(),         // TODO: Load from server_tags join
             capabilities: Vec::new(), // TODO: Load from server_capabilities join
             os_type: s.os_type.unwrap_or_default(),
@@ -1646,6 +1657,8 @@ impl From<svrctlrs_database::NotificationPolicy> for NotificationPolicyDisplay {
             notify_on_partial: false, // Not in current schema
             notify_on_timeout: np.on_timeout,
             enabled: np.enabled,
+            title_template: np.title_template,
+            body_template: np.body_template,
             created_at: created,
             job_type_id: None, // Derived from job_type_filter
             job_type_name: None,

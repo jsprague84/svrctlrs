@@ -111,6 +111,62 @@
                       placeholder="What this policy does">{% match p.description %}{% when Some with (d) %}{{ d }}{% when None %}{% endmatch %}</textarea>
         </div>
 
+        <!-- Message Templates -->
+        <div class="card" style="background: var(--bg-secondary); margin: 1rem 0;">
+            <h3 style="margin-bottom: 0.5rem;">Message Templates</h3>
+            <p class="text-secondary" style="font-size: 0.875rem; margin-bottom: 1rem;">
+                Customize notification messages using template variables. Available variables:
+                <code>job_name</code>, <code>job_type</code>, <code>status</code>, <code>server_name</code>,
+                <code>started_at</code>, <code>finished_at</code>, <code>duration</code>, <code>success_count</code>,
+                <code>failed_count</code>, <code>total_servers</code>
+            </p>
+
+            <div class="form-group">
+                <label for="title_template">Title Template</label>
+                <input type="text"
+                       id="title_template"
+                       name="title_template"
+                       value="{% match p.title_template %}{% when Some with (t) %}{{ t }}{% when None %}{% endmatch %}"
+                       placeholder="[&#123;&#123;status&#125;&#125;] &#123;&#123;job_name&#125;&#125; on &#123;&#123;server_name&#125;&#125;">
+                <small class="text-secondary">Leave empty for default title</small>
+            </div>
+
+            <div class="form-group">
+                <label for="body_template">Body Template</label>
+                <textarea id="body_template"
+                          name="body_template"
+                          rows="4"
+                          placeholder="Job: &#123;&#123;job_name&#125;&#125;&#10;Status: &#123;&#123;status&#125;&#125;&#10;Server: &#123;&#123;server_name&#125;&#125;&#10;Time: &#123;&#123;finished_at&#125;&#125;&#10;Duration: &#123;&#123;duration&#125;&#125;s">{% match p.body_template %}{% when Some with (b) %}{{ b }}{% when None %}{% endmatch %}</textarea>
+                <small class="text-secondary">Leave empty for default message</small>
+            </div>
+
+            <!-- Example Templates Dropdown -->
+            <details style="margin-top: 0.5rem;">
+                <summary style="cursor: pointer; color: var(--primary); font-size: 0.875rem;">
+                    <i data-lucide="lightbulb" style="width: 14px; height: 14px;"></i> View Example Templates
+                </summary>
+                <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px;">
+                    <p style="font-size: 0.875rem; margin-bottom: 0.5rem;"><strong>Success:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
+                        Title: ✅ &#123;&#123;job_name&#125;&#125; completed<br>
+                        Body: Successfully ran on &#123;&#123;success_count&#125;&#125;/&#123;&#123;total_servers&#125;&#125; servers in &#123;&#123;duration&#125;&#125;s
+                    </code>
+
+                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>Failure:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
+                        Title: ❌ &#123;&#123;job_name&#125;&#125; failed on &#123;&#123;server_name&#125;&#125;<br>
+                        Body: Job: &#123;&#123;job_name&#125;&#125;\nServer: &#123;&#123;server_name&#125;&#125;\nStarted: &#123;&#123;started_at&#125;&#125;\nStatus: &#123;&#123;status&#125;&#125;
+                    </code>
+
+                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>Partial:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
+                        Title: ⚠️  &#123;&#123;job_name&#125;&#125; partial success<br>
+                        Body: &#123;&#123;success_count&#125;&#125; succeeded, &#123;&#123;failed_count&#125;&#125; failed of &#123;&#123;total_servers&#125;&#125; servers
+                    </code>
+                </div>
+            </details>
+        </div>
+
         <div class="form-group">
             <label class="flex gap-2 align-center" style="cursor: pointer;">
                 <input type="checkbox"
@@ -229,6 +285,61 @@
                       name="description"
                       rows="2"
                       placeholder="What this policy does"></textarea>
+        </div>
+
+        <!-- Message Templates -->
+        <div class="card" style="background: var(--bg-secondary); margin: 1rem 0;">
+            <h3 style="margin-bottom: 0.5rem;">Message Templates</h3>
+            <p class="text-secondary" style="font-size: 0.875rem; margin-bottom: 1rem;">
+                Customize notification messages using template variables. Available variables:
+                <code>job_name</code>, <code>job_type</code>, <code>status</code>, <code>server_name</code>,
+                <code>started_at</code>, <code>finished_at</code>, <code>duration</code>, <code>success_count</code>,
+                <code>failed_count</code>, <code>total_servers</code>
+            </p>
+
+            <div class="form-group">
+                <label for="title_template">Title Template</label>
+                <input type="text"
+                       id="title_template"
+                       name="title_template"
+                       placeholder="[&#123;&#123;status&#125;&#125;] &#123;&#123;job_name&#125;&#125; on &#123;&#123;server_name&#125;&#125;">
+                <small class="text-secondary">Leave empty for default title</small>
+            </div>
+
+            <div class="form-group">
+                <label for="body_template">Body Template</label>
+                <textarea id="body_template"
+                          name="body_template"
+                          rows="4"
+                          placeholder="Job: &#123;&#123;job_name&#125;&#125;&#10;Status: &#123;&#123;status&#125;&#125;&#10;Server: &#123;&#123;server_name&#125;&#125;&#10;Time: &#123;&#123;finished_at&#125;&#125;&#10;Duration: &#123;&#123;duration&#125;&#125;s"></textarea>
+                <small class="text-secondary">Leave empty for default message</small>
+            </div>
+
+            <!-- Example Templates Dropdown -->
+            <details style="margin-top: 0.5rem;">
+                <summary style="cursor: pointer; color: var(--primary); font-size: 0.875rem;">
+                    <i data-lucide="lightbulb" style="width: 14px; height: 14px;"></i> View Example Templates
+                </summary>
+                <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px;">
+                    <p style="font-size: 0.875rem; margin-bottom: 0.5rem;"><strong>Success:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
+                        Title: ✅ &#123;&#123;job_name&#125;&#125; completed<br>
+                        Body: Successfully ran on &#123;&#123;success_count&#125;&#125;/&#123;&#123;total_servers&#125;&#125; servers in &#123;&#123;duration&#125;&#125;s
+                    </code>
+
+                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>Failure:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
+                        Title: ❌ &#123;&#123;job_name&#125;&#125; failed on &#123;&#123;server_name&#125;&#125;<br>
+                        Body: Job: &#123;&#123;job_name&#125;&#125;\nServer: &#123;&#123;server_name&#125;&#125;\nStarted: &#123;&#123;started_at&#125;&#125;\nStatus: &#123;&#123;status&#125;&#125;
+                    </code>
+
+                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>Partial:</strong></p>
+                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
+                        Title: ⚠️  &#123;&#123;job_name&#125;&#125; partial success<br>
+                        Body: &#123;&#123;success_count&#125;&#125; succeeded, &#123;&#123;failed_count&#125;&#125; failed of &#123;&#123;total_servers&#125;&#125; servers
+                    </code>
+                </div>
+            </details>
         </div>
 
         <div class="form-group">
