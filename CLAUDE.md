@@ -533,35 +533,36 @@ pub async fn my_function(id: &str, sensitive_data: &str) -> Result<()> {
 
 ---
 
-## ⚠️ Known Limitations
+## ⚠️ Known Limitations & Workarounds
 
-### Askama Template Comparison Errors
+### Askama Template Comparison Errors (RESOLVED)
 
 **Issue**: Askama 0.14 has type system limitations with reference comparisons in templates.
 
-**Affected Templates**:
-- `notification_policy_form.html` (2 comparison errors)
+**Solution**: Use Alpine.js `x-init` to set form selection state client-side instead of server-side `selected` attributes.
 
-**Specific Errors**:
-1. **String comparison**: `can't compare String with &String`
-   - Location: Line 59 - checking job template names in loop
-   - Workaround: Could use Alpine.js for client-side selection state
+**Implementation Pattern**:
+```html
+<!-- Instead of: -->
+<option value="{{ id }}" {% if id == other_id %}selected{% endif %}>
 
-2. **i64 comparison**: `can't compare &i64 with i64`
-   - Location: Lines 32, 73 - checking channel_id and job_type_id for selected state
-   - Workaround: Pre-compute selected states in Display models
+<!-- Use: -->
+<select x-init="$el.value = '{{ id }}'">
+  <option value="{{ id }}">
+```
 
-**Impact**: 
-- ⚠️ These errors prevent compilation but only affect the Notification Policy form
-- ✅ Core functionality (job execution, scheduling, monitoring) is unaffected
-- ✅ All other UI forms work correctly
+**Applied To**:
+- `job_template_form.html` - job_type_id and command_template_id selection
+- `job_template_step_form.html` - job_type_id selection
+- `notification_policy_form.html` - channel_id, job_type_id, and job_template checkboxes
 
-**Future Fix Options**:
-1. Refactor to pre-compute `selected` states in `NotificationPolicyDisplay`
-2. Use Alpine.js for form state management
-3. Wait for Askama template engine updates
+**Benefits**:
+- ✅ Avoids Askama reference type comparison errors
+- ✅ Leverages existing Alpine.js dependency
+- ✅ Maintains same UX (forms pre-populate correctly)
+- ✅ No performance impact (Alpine.js runs on page load)
 
-**Status**: Documented limitation - low priority (admin-only form)
+**Status**: ✅ Resolved - all forms compile and function correctly
 
 ---
 
