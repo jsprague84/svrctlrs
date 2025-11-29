@@ -14,7 +14,7 @@
         </div>
         
         <p class="text-secondary">
-            <strong>Host:</strong> {{ server.host }}{% if server.port != 0 %}:{{ server.port }}{% endif %}<br>
+            <strong>Host:</strong> {% if server.is_local %}localhost{% else %}{{ server.host }}{% endif %}{% if server.port != 0 %}:{{ server.port }}{% endif %}<br>
             {% if !server.username.is_empty() %}
             <strong>User:</strong> {{ server.username }}<br>
             {% endif %}
