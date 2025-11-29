@@ -18,8 +18,8 @@ use crate::{
     routes::ui::AppError,
     state::AppState,
     templates::{
-        GroupedSchedulesTemplate, JobScheduleFormTemplate,
-        JobScheduleListTemplate, JobSchedulesTemplate, ServerScheduleGroup,
+        GroupedSchedulesTemplate, JobScheduleFormTemplate, JobScheduleListTemplate,
+        JobSchedulesTemplate, ServerScheduleGroup,
     },
 };
 

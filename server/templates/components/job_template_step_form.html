@@ -27,10 +27,11 @@
             <label for="job_type_id">Job Type *</label>
             <select id="job_type_id"
                     name="job_type_id"
-                    required>
+                    required
+                    {% match s.job_type_id %}{% when Some with (id) %}x-init="$el.value = '{{ id }}'"{% when None %}{% endmatch %}>
                 {% for job_type in job_types %}
-                <option value="{{ job_type.id }}" {% match s.job_type_id %}{% when Some with (id) %}{% if id == job_type.id %}selected{% endif %}{% when None %}{% endmatch %}>
-                    {{ job_type.display_name %}
+                <option value="{{ job_type.id }}">
+                    {{ job_type.display_name }}
                 </option>
                 {% endfor %}
             </select>

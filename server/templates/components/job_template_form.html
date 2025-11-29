@@ -38,10 +38,11 @@
             <label for="job_type_id">Job Type *</label>
             <select id="job_type_id"
                     name="job_type_id"
-                    required>
+                    required
+                    x-init="$el.value = '{{ jt.job_type_id }}'">
                 {% for job_type in job_types %}
-                <option value="{{ job_type.id }}" {% if job_type.id == jt.job_type_id %}selected{% endif %}>
-                    {{ job_type.display_name %}
+                <option value="{{ job_type.id }}">
+                    {{ job_type.display_name }}
                 </option>
                 {% endfor %}
             </select>
@@ -71,10 +72,11 @@
             <label for="command_template_id">Command Template *</label>
             <select id="command_template_id"
                     name="command_template_id"
-                    {% if jt.is_composite %}disabled{% endif %}>
+                    {% if jt.is_composite %}disabled{% endif %}
+                    {% match jt.command_template_id %}{% when Some with (id) %}x-init="$el.value = '{{ id }}'"{% when None %}{% endmatch %}>
                 <option value="">Select a command...</option>
                 {% for ct in command_templates %}
-                <option value="{{ ct.id }}" {% match jt.command_template_id %}{% when Some with (id) %}{% if ct.id == id %}selected{% endif %}{% when None %}{% endmatch %}>
+                <option value="{{ ct.id }}">
                     {{ ct.display_name }}
                 </option>
                 {% endfor %}

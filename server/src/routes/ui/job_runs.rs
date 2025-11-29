@@ -68,7 +68,7 @@ pub async fn job_runs_page(
         AppError::DatabaseError(e.to_string())
     })? as usize;
 
-    let total_pages = (total_count + per_page - 1) / per_page;
+    let total_pages = total_count.div_ceil(per_page);
 
     // Get job runs with names (JOIN query)
     let job_runs = queries::list_job_runs_with_names(&state.pool, per_page as i64, offset)
@@ -115,7 +115,7 @@ pub async fn get_job_runs_list(
         AppError::DatabaseError(e.to_string())
     })? as usize;
 
-    let total_pages = (total_count + per_page - 1) / per_page;
+    let total_pages = total_count.div_ceil(per_page);
 
     // Get job runs with names
     let job_runs = queries::list_job_runs_with_names(&state.pool, per_page as i64, offset)

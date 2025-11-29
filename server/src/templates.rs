@@ -1483,9 +1483,9 @@ impl From<svrctlrs_database::queries::JobScheduleWithNames> for JobScheduleDispl
             last_run, // Alias
             last_run_status: js.last_run_status,
             next_run_at: next_run.clone(),
-            next_run, // Alias
-            success_count: 0,   // TODO: Load from job_runs aggregation
-            failure_count: 0,   // TODO: Load from job_runs aggregation
+            next_run,         // Alias
+            success_count: 0, // TODO: Load from job_runs aggregation
+            failure_count: 0, // TODO: Load from job_runs aggregation
             metadata_json,
             created_at: created,
         }
