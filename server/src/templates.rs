@@ -459,7 +459,10 @@ pub struct ParameterDisplay {
 }
 
 impl ParameterDisplay {
-    pub fn from_json(value: &serde_json::Value) -> Option<Self> {
+    pub fn from_json(
+        value: &serde_json::Value,
+        existing_vars: &std::collections::HashMap<String, String>,
+    ) -> Option<Self> {
         let name = value.get("name")?.as_str()?.to_string();
         let param_type = value.get("type")?.as_str()?.to_string();
         let required = value
@@ -470,7 +473,9 @@ impl ParameterDisplay {
             .get("description")
             .and_then(|v| v.as_str())
             .map(String::from);
-        let default = value.get("default").and_then(|v| {
+
+        // Get default from schema
+        let schema_default = value.get("default").and_then(|v| {
             if v.is_string() {
                 v.as_str().map(String::from)
             } else if v.is_number() {
@@ -481,6 +486,13 @@ impl ParameterDisplay {
                 None
             }
         });
+
+        // Use existing value if available, otherwise fall back to schema default
+        let default = existing_vars
+            .get(&name)
+            .map(String::from)
+            .or(schema_default);
+
         let options = value.get("options").and_then(|v| {
             v.as_array().map(|arr| {
                 arr.iter()

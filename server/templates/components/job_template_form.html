@@ -73,7 +73,7 @@
                     name="command_template_id"
                     :disabled="isComposite"
                     @change="if (this.value) { htmx.ajax('GET', '/command-templates/' + this.value + '/parameters', {target:'#command-parameters', swap:'innerHTML'}); }"
-                    {% match jt.command_template_id %}{% when Some with (id) %}x-init="$el.value = '{{ id }}'"{% when None %}{% endmatch %}>
+                    {% match jt.command_template_id %}{% when Some with (id) %}x-init="$el.value = '{{ id }}'; $nextTick(() => { if ($el.value) { htmx.ajax('GET', '/command-templates/' + $el.value + '/parameters?variables={{ jt.variables_json | urlencode }}', {target:'#command-parameters', swap:'innerHTML'}); } })"{% when None %}{% endmatch %}>
                 <option value="">Select a command...</option>
                 {% for ct in command_templates %}
                 <option value="{{ ct.id }}" data-job-type="{{ ct.job_type_id }}" x-show="!selectedJobType || selectedJobType == '' || selectedJobType == '{{ ct.job_type_id }}'">

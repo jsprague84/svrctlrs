@@ -1,11 +1,12 @@
 use askama::Template;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::Html,
     routing::{get, put},
     Form, Router,
 };
 use serde::Deserialize;
+use std::collections::HashMap;
 use svrctlrs_database::{
     models::{CreateCommandTemplate, CreateJobType, UpdateCommandTemplate, UpdateJobType},
     queries::job_types as queries,
@@ -856,11 +857,19 @@ pub async fn delete_command_template(
     get_command_templates(State(state), Path(job_type_id)).await
 }
 
+/// Query parameters for fetching command template parameters
+#[derive(Debug, Deserialize)]
+pub struct ParametersQuery {
+    /// Optional existing variables as URL-encoded JSON
+    pub variables: Option<String>,
+}
+
 /// Get parameter form fields for a command template (HTMX)
 #[instrument(skip(state))]
 pub async fn get_command_template_parameters(
     State(state): State<AppState>,
     Path(template_id): Path<i64>,
+    Query(query): Query<ParametersQuery>,
 ) -> Result<Html<String>, AppError> {
     info!(template_id, "Fetching command template parameter schema");
 
@@ -872,11 +881,24 @@ pub async fn get_command_template_parameters(
             AppError::DatabaseError(e.to_string())
         })?;
 
+    // Parse existing variables if provided
+    let existing_vars: HashMap<String, String> = if let Some(ref vars_json) = query.variables {
+        serde_json::from_str(vars_json).unwrap_or_default()
+    } else {
+        HashMap::new()
+    };
+
+    info!(
+        template_id,
+        existing_var_count = existing_vars.len(),
+        "Parsed existing variables"
+    );
+
     // Parse parameter schema
     let schema = template.get_parameter_schema();
     let parameters: Vec<crate::templates::ParameterDisplay> = if let Some(arr) = schema.as_array() {
         arr.iter()
-            .filter_map(crate::templates::ParameterDisplay::from_json)
+            .filter_map(|v| crate::templates::ParameterDisplay::from_json(v, &existing_vars))
             .collect()
     } else {
         Vec::new()
