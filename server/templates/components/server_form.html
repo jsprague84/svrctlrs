@@ -23,10 +23,10 @@
         </div>
         
         <div class="form-group">
-            <label for="host">Host *</label>
+            <label for="hostname">Host *</label>
             <input type="text" 
-                   id="host" 
-                   name="host" 
+                   id="hostname" 
+                   name="hostname" 
                    value="{{ s.host }}" 
                    placeholder="192.168.1.100 or example.com"
                    required>
@@ -70,7 +70,7 @@
             <button type="button" 
                     class="btn btn-secondary"
                     hx-post="/servers/test"
-                    hx-include="[name='host'], [name='port'], [name='username']"
+                    hx-include="[name='hostname'], [name='port'], [name='username']"
                     hx-target="#test-connection-result"
                     hx-swap="innerHTML">
                 Test Connection
@@ -96,10 +96,10 @@
         </div>
         
         <div class="form-group">
-            <label for="host">Host *</label>
+            <label for="hostname">Host *</label>
             <input type="text" 
-                   id="host" 
-                   name="host" 
+                   id="hostname" 
+                   name="hostname" 
                    placeholder="192.168.1.100 or example.com"
                    required>
         </div>
@@ -141,7 +141,7 @@
             <button type="button" 
                     class="btn btn-secondary"
                     hx-post="/servers/test"
-                    hx-include="[name='host'], [name='port'], [name='username']"
+                    hx-include="[name='hostname'], [name='port'], [name='username']"
                     hx-target="#test-connection-result"
                     hx-swap="innerHTML">
                 Test Connection
