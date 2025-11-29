@@ -496,7 +496,7 @@ pub struct CreateCommandTemplateFormInput {
     pub os_filter: Option<String>,             // JSON object string
     pub timeout_seconds: Option<i32>,
     pub working_directory: Option<String>,
-    pub environment: Option<String>,       // JSON object string
+    pub environment: Option<String>, // JSON object string
     pub output_format: Option<String>,
     pub parse_output: Option<String>,      // "on" or absent
     pub output_parser: Option<String>,     // JSON object string
@@ -658,7 +658,7 @@ pub struct UpdateCommandTemplateFormInput {
     pub os_filter: Option<String>,             // JSON object string
     pub timeout_seconds: Option<i32>,
     pub working_directory: Option<String>,
-    pub environment: Option<String>,       // JSON object string
+    pub environment: Option<String>, // JSON object string
     pub output_format: Option<String>,
     pub parse_output: Option<String>,      // "on" or absent
     pub output_parser: Option<String>,     // JSON object string
@@ -876,13 +876,17 @@ pub async fn get_command_template_parameters(
     let schema = template.get_parameter_schema();
     let parameters: Vec<crate::templates::ParameterDisplay> = if let Some(arr) = schema.as_array() {
         arr.iter()
-            .filter_map(|v| crate::templates::ParameterDisplay::from_json(v))
+            .filter_map(crate::templates::ParameterDisplay::from_json)
             .collect()
     } else {
         Vec::new()
     };
 
-    info!(template_id, param_count = parameters.len(), "Rendering parameter form fields");
+    info!(
+        template_id,
+        param_count = parameters.len(),
+        "Rendering parameter form fields"
+    );
 
     // Render template
     let tmpl = crate::templates::CommandTemplateParametersTemplate { parameters };

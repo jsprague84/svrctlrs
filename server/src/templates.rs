@@ -125,7 +125,7 @@ pub struct ServerDisplay {
     pub connection_type: String,
     pub connection_string: String, // Empty string if None (display-ready)
     pub is_local: bool,
-    pub tag_ids: Vec<i64>, // For checking if a tag is selected
+    pub tag_ids: Vec<i64>,        // For checking if a tag is selected
     pub tags: Vec<ServerTagInfo>, // Tags with colors for display
     pub capabilities: Vec<String>,
     pub os_type: String,         // Empty string if None (display-ready)
@@ -353,17 +353,17 @@ pub struct CommandTemplateDisplay {
     pub description: Option<String>,
     pub command: String,
     pub required_capabilities: Vec<String>,
-    pub os_filter_json: String,       // Pre-serialized JSON
+    pub os_filter_json: String, // Pre-serialized JSON
     pub timeout_seconds: i32,
     pub working_directory: Option<String>,
-    pub environment_json: String,     // Pre-serialized JSON
+    pub environment_json: String, // Pre-serialized JSON
     pub output_format: Option<String>,
     pub parse_output: bool,
-    pub output_parser_json: String,   // Pre-serialized JSON
+    pub output_parser_json: String, // Pre-serialized JSON
     pub notify_on_success: bool,
     pub notify_on_failure: bool,
     pub parameter_schema_json: String, // Pre-serialized JSON
-    pub metadata_json: String,        // Pre-serialized JSON
+    pub metadata_json: String,         // Pre-serialized JSON
     pub created_at: String,
 }
 
@@ -462,21 +462,25 @@ impl ParameterDisplay {
     pub fn from_json(value: &serde_json::Value) -> Option<Self> {
         let name = value.get("name")?.as_str()?.to_string();
         let param_type = value.get("type")?.as_str()?.to_string();
-        let required = value.get("required").and_then(|v| v.as_bool()).unwrap_or(false);
-        let description = value.get("description").and_then(|v| v.as_str()).map(String::from);
-        let default = value
-            .get("default")
-            .and_then(|v| {
-                if v.is_string() {
-                    v.as_str().map(String::from)
-                } else if v.is_number() {
-                    Some(v.to_string())
-                } else if v.is_boolean() {
-                    Some(v.as_bool().unwrap().to_string())
-                } else {
-                    None
-                }
-            });
+        let required = value
+            .get("required")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let description = value
+            .get("description")
+            .and_then(|v| v.as_str())
+            .map(String::from);
+        let default = value.get("default").and_then(|v| {
+            if v.is_string() {
+                v.as_str().map(String::from)
+            } else if v.is_number() {
+                Some(v.to_string())
+            } else if v.is_boolean() {
+                Some(v.as_bool().unwrap().to_string())
+            } else {
+                None
+            }
+        });
         let options = value.get("options").and_then(|v| {
             v.as_array().map(|arr| {
                 arr.iter()
