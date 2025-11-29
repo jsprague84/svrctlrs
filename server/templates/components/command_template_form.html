@@ -86,6 +86,86 @@
             </details>
         </div>
 
+        <!-- Parameter Schema -->
+        <div class="card bg-base-200">
+            <h4>Parameter Schema</h4>
+            <p class="text-secondary" style="font-size: 0.875rem; margin-bottom: 1rem;">
+                Define parameters that can be used in the command template with &#123;&#123;parameter_name&#125;&#125; syntax.
+                These will create form fields when users create jobs from this template.
+            </p>
+
+            <input type="hidden" name="parameter_schema" x-model="parameterSchemaJson">
+
+            <!-- Parameter List -->
+            <div x-show="parameters.length > 0" class="mb-3">
+                <template x-for="(param, index) in parameters" :key="index">
+                    <div class="card bg-base-100 mb-2" style="padding: 0.75rem;">
+                        <div class="flex-between mb-2">
+                            <div>
+                                <strong x-text="param.name"></strong>
+                                <span class="badge badge-sm ml-2" x-text="param.type"></span>
+                                <span x-show="param.required" class="badge badge-sm badge-error ml-1">Required</span>
+                            </div>
+                            <button type="button" @click="removeParameter(index)" class="btn btn-sm btn-danger">
+                                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        </div>
+                        <p class="text-secondary text-sm" x-text="param.description || 'No description'"></p>
+                        <div class="text-sm mt-1">
+                            <span class="text-secondary">Default:</span> <code x-text="param.default !== undefined && param.default !== null && param.default !== '' ? param.default : 'none'"></code>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Add Parameter Form -->
+            <div class="card bg-base-100" style="padding: 0.75rem;">
+                <div class="grid grid-cols-2 gap-3 mb-2">
+                    <div>
+                        <label class="text-sm">Parameter Name *</label>
+                        <input type="text"
+                               x-model="newParam.name"
+                               placeholder="container_name"
+                               class="w-full">
+                    </div>
+                    <div>
+                        <label class="text-sm">Type *</label>
+                        <select x-model="newParam.type" class="w-full">
+                            <option value="string">String</option>
+                            <option value="number">Number</option>
+                            <option value="boolean">Boolean</option>
+                            <option value="select">Select (Options)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="text-sm">Description</label>
+                    <input type="text"
+                           x-model="newParam.description"
+                           placeholder="What this parameter is for"
+                           class="w-full">
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-2">
+                    <div>
+                        <label class="text-sm">Default Value</label>
+                        <input type="text"
+                               x-model="newParam.default"
+                               placeholder="Optional default"
+                               class="w-full">
+                    </div>
+                    <div>
+                        <label class="flex gap-2 align-center" style="cursor: pointer;">
+                            <input type="checkbox" x-model="newParam.required">
+                            <span class="text-sm">Required</span>
+                        </label>
+                    </div>
+                </div>
+                <button type="button" @click="addParameter()" class="btn btn-sm btn-secondary">
+                    <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Parameter
+                </button>
+            </div>
+        </div>
+
         <!-- Required Capabilities -->
         <div class="form-group">
             <label>Required Capabilities</label>
@@ -309,6 +389,86 @@
             </details>
         </div>
 
+        <!-- Parameter Schema -->
+        <div class="card bg-base-200">
+            <h4>Parameter Schema</h4>
+            <p class="text-secondary" style="font-size: 0.875rem; margin-bottom: 1rem;">
+                Define parameters that can be used in the command template with &#123;&#123;parameter_name&#125;&#125; syntax.
+                These will create form fields when users create jobs from this template.
+            </p>
+
+            <input type="hidden" name="parameter_schema" x-model="parameterSchemaJson">
+
+            <!-- Parameter List -->
+            <div x-show="parameters.length > 0" class="mb-3">
+                <template x-for="(param, index) in parameters" :key="index">
+                    <div class="card bg-base-100 mb-2" style="padding: 0.75rem;">
+                        <div class="flex-between mb-2">
+                            <div>
+                                <strong x-text="param.name"></strong>
+                                <span class="badge badge-sm ml-2" x-text="param.type"></span>
+                                <span x-show="param.required" class="badge badge-sm badge-error ml-1">Required</span>
+                            </div>
+                            <button type="button" @click="removeParameter(index)" class="btn btn-sm btn-danger">
+                                <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        </div>
+                        <p class="text-secondary text-sm" x-text="param.description || 'No description'"></p>
+                        <div class="text-sm mt-1">
+                            <span class="text-secondary">Default:</span> <code x-text="param.default !== undefined && param.default !== null && param.default !== '' ? param.default : 'none'"></code>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Add Parameter Form -->
+            <div class="card bg-base-100" style="padding: 0.75rem;">
+                <div class="grid grid-cols-2 gap-3 mb-2">
+                    <div>
+                        <label class="text-sm">Parameter Name *</label>
+                        <input type="text"
+                               x-model="newParam.name"
+                               placeholder="container_name"
+                               class="w-full">
+                    </div>
+                    <div>
+                        <label class="text-sm">Type *</label>
+                        <select x-model="newParam.type" class="w-full">
+                            <option value="string">String</option>
+                            <option value="number">Number</option>
+                            <option value="boolean">Boolean</option>
+                            <option value="select">Select (Options)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="text-sm">Description</label>
+                    <input type="text"
+                           x-model="newParam.description"
+                           placeholder="What this parameter is for"
+                           class="w-full">
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-2">
+                    <div>
+                        <label class="text-sm">Default Value</label>
+                        <input type="text"
+                               x-model="newParam.default"
+                               placeholder="Optional default"
+                               class="w-full">
+                    </div>
+                    <div>
+                        <label class="flex gap-2 align-center" style="cursor: pointer;">
+                            <input type="checkbox" x-model="newParam.required">
+                            <span class="text-sm">Required</span>
+                        </label>
+                    </div>
+                </div>
+                <button type="button" @click="addParameter()" class="btn btn-sm btn-secondary">
+                    <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Parameter
+                </button>
+            </div>
+        </div>
+
         <!-- Required Capabilities -->
         <div class="form-group">
             <label>Required Capabilities</label>
@@ -457,6 +617,15 @@ function commandTemplateForm() {
         capabilities: {% match command_template %}{% when Some with (ct) %}{{ ct.get_required_capabilities()|json|safe }}{% when None %}[]{% endmatch %},
         newCapability: '',
         capabilitiesJson: '',
+        parameters: {% match command_template %}{% when Some with (ct) %}{{ ct.get_parameter_schema()|json|safe }}{% when None %}[]{% endmatch %},
+        newParam: {
+            name: '',
+            type: 'string',
+            description: '',
+            default: '',
+            required: false
+        },
+        parameterSchemaJson: '',
         osFilterText: {% match command_template %}{% when Some with (ct) %}'{{ ct.get_os_filter()|json|safe }}'{% when None %}'{}'{% endmatch %},
         osFilterJson: '',
         environmentText: {% match command_template %}{% when Some with (ct) %}'{{ ct.get_environment()|json|safe }}'{% when None %}'{}'{% endmatch %},
@@ -487,6 +656,36 @@ function commandTemplateForm() {
             this.capabilitiesJson = this.capabilities.length > 0 ? JSON.stringify(this.capabilities) : '';
         },
 
+        addParameter() {
+            if (this.newParam.name.trim()) {
+                const param = {
+                    name: this.newParam.name.trim(),
+                    type: this.newParam.type,
+                    required: this.newParam.required,
+                    description: this.newParam.description.trim() || undefined,
+                    default: this.newParam.default.trim() || undefined
+                };
+                this.parameters.push(param);
+                this.newParam = {
+                    name: '',
+                    type: 'string',
+                    description: '',
+                    default: '',
+                    required: false
+                };
+                this.updateParameterSchemaJson();
+            }
+        },
+
+        removeParameter(index) {
+            this.parameters.splice(index, 1);
+            this.updateParameterSchemaJson();
+        },
+
+        updateParameterSchemaJson() {
+            this.parameterSchemaJson = this.parameters.length > 0 ? JSON.stringify(this.parameters) : '';
+        },
+
         serializeJsonField(text, outputVar) {
             try {
                 if (text.trim()) {
@@ -502,6 +701,7 @@ function commandTemplateForm() {
 
         serializeAllFields() {
             this.updateCapabilitiesJson();
+            this.updateParameterSchemaJson();
             this.serializeJsonField(this.osFilterText, 'osFilterJson');
             this.serializeJsonField(this.environmentText, 'environmentJson');
             this.serializeJsonField(this.parserText, 'parserJson');

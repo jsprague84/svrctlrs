@@ -353,16 +353,17 @@ pub struct CommandTemplateDisplay {
     pub description: Option<String>,
     pub command: String,
     pub required_capabilities: Vec<String>,
-    pub os_filter_json: String, // Pre-serialized JSON
+    pub os_filter_json: String,       // Pre-serialized JSON
     pub timeout_seconds: i32,
     pub working_directory: Option<String>,
-    pub environment_json: String, // Pre-serialized JSON
+    pub environment_json: String,     // Pre-serialized JSON
     pub output_format: Option<String>,
     pub parse_output: bool,
-    pub output_parser_json: String, // Pre-serialized JSON
+    pub output_parser_json: String,   // Pre-serialized JSON
     pub notify_on_success: bool,
     pub notify_on_failure: bool,
-    pub metadata_json: String, // Pre-serialized JSON
+    pub parameter_schema_json: String, // Pre-serialized JSON
+    pub metadata_json: String,        // Pre-serialized JSON
     pub created_at: String,
 }
 
@@ -383,6 +384,10 @@ impl CommandTemplateDisplay {
         self.output_parser_json.clone()
     }
 
+    pub fn get_parameter_schema(&self) -> String {
+        self.parameter_schema_json.clone()
+    }
+
     pub fn get_metadata(&self) -> String {
         self.metadata_json.clone()
     }
@@ -401,6 +406,8 @@ impl From<svrctlrs_database::models::CommandTemplate> for CommandTemplateDisplay
             serde_json::to_string(&ct.get_environment()).unwrap_or_else(|_| "{}".to_string());
         let output_parser_json =
             serde_json::to_string(&ct.get_output_parser()).unwrap_or_else(|_| "{}".to_string());
+        let parameter_schema_json =
+            serde_json::to_string(&ct.get_parameter_schema()).unwrap_or_else(|_| "[]".to_string());
         let metadata_json =
             serde_json::to_string(&ct.get_metadata()).unwrap_or_else(|_| "{}".to_string());
         let created_at = ct
@@ -426,6 +433,7 @@ impl From<svrctlrs_database::models::CommandTemplate> for CommandTemplateDisplay
             output_parser_json,
             notify_on_success: ct.notify_on_success,
             notify_on_failure: ct.notify_on_failure,
+            parameter_schema_json,
             metadata_json,
             created_at,
         }

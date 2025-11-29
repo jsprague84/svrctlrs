@@ -492,12 +492,13 @@ pub struct CreateCommandTemplateFormInput {
     pub os_filter: Option<String>,             // JSON object string
     pub timeout_seconds: Option<i32>,
     pub working_directory: Option<String>,
-    pub environment: Option<String>, // JSON object string
+    pub environment: Option<String>,       // JSON object string
     pub output_format: Option<String>,
     pub parse_output: Option<String>,      // "on" or absent
     pub output_parser: Option<String>,     // JSON object string
     pub notify_on_success: Option<String>, // "on" or absent
     pub notify_on_failure: Option<String>, // "on" or absent
+    pub parameter_schema: Option<String>,  // JSON array string
     pub metadata: Option<String>,          // JSON object string
 }
 
@@ -587,7 +588,17 @@ impl CreateCommandTemplateFormInput {
             output_parser,
             notify_on_success: self.notify_on_success.is_some(),
             notify_on_failure: self.notify_on_failure.is_some() || self.notify_on_failure.is_none(),
-            parameter_schema: None, // TODO: Add parameter_schema form field
+            parameter_schema: if let Some(ps_str) = &self.parameter_schema {
+                if !ps_str.trim().is_empty() {
+                    Some(serde_json::from_str(ps_str).map_err(|e| {
+                        AppError::ValidationError(format!("Invalid parameter_schema JSON: {}", e))
+                    })?)
+                } else {
+                    None
+                }
+            } else {
+                None
+            },
             metadata,
         })
     }
@@ -643,12 +654,13 @@ pub struct UpdateCommandTemplateFormInput {
     pub os_filter: Option<String>,             // JSON object string
     pub timeout_seconds: Option<i32>,
     pub working_directory: Option<String>,
-    pub environment: Option<String>, // JSON object string
+    pub environment: Option<String>,       // JSON object string
     pub output_format: Option<String>,
     pub parse_output: Option<String>,      // "on" or absent
     pub output_parser: Option<String>,     // JSON object string
     pub notify_on_success: Option<String>, // "on" or absent
     pub notify_on_failure: Option<String>, // "on" or absent
+    pub parameter_schema: Option<String>,  // JSON array string
     pub metadata: Option<String>,          // JSON object string
 }
 
@@ -706,6 +718,19 @@ impl UpdateCommandTemplateFormInput {
             None
         };
 
+        // Parse parameter_schema
+        let parameter_schema = if let Some(ref ps_str) = self.parameter_schema {
+            if !ps_str.trim().is_empty() {
+                Some(serde_json::from_str(ps_str).map_err(|e| {
+                    AppError::ValidationError(format!("Invalid parameter_schema JSON: {}", e))
+                })?)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
         // Parse metadata
         let metadata = if let Some(ref meta_str) = self.metadata {
             if !meta_str.trim().is_empty() {
@@ -736,7 +761,7 @@ impl UpdateCommandTemplateFormInput {
             output_parser,
             notify_on_success: Some(self.notify_on_success.is_some()),
             notify_on_failure: Some(self.notify_on_failure.is_some()),
-            parameter_schema: None, // TODO: Add parameter_schema form field
+            parameter_schema,
             metadata,
         })
     }
