@@ -15,6 +15,7 @@ use svrctlrs_database::{
     queries::job_templates,
     queries::job_types,
     queries::notifications as queries,
+    sqlx,
 };
 use tracing::{error, info, instrument, warn};
 
@@ -24,7 +25,8 @@ use crate::{
     templates::{
         NotificationChannelFormTemplate as ChannelFormTemplate,
         NotificationChannelListTemplate as ChannelListTemplate, NotificationChannelsTemplate,
-        NotificationPoliciesTemplate, NotificationPolicyFormTemplate as PolicyFormTemplate,
+        NotificationPoliciesTemplate, NotificationPolicyDisplay,
+        NotificationPolicyFormTemplate as PolicyFormTemplate,
         NotificationPolicyListTemplate as PolicyListTemplate,
     },
 };
@@ -306,7 +308,7 @@ pub async fn notification_policies_page(
 ) -> Result<Html<String>, AppError> {
     info!("Rendering notification policies page");
 
-    let policies = queries::list_notification_policies(&state.pool)
+    let policies_raw = queries::list_notification_policies(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch notification policies");
@@ -320,9 +322,37 @@ pub async fn notification_policies_page(
             AppError::DatabaseError(e.to_string())
         })?;
 
+    // Convert policies and populate channel names
+    let mut policies: Vec<NotificationPolicyDisplay> = Vec::new();
+    for policy in policies_raw {
+        let mut display: NotificationPolicyDisplay = policy.clone().into();
+
+        // Query the notification_policy_channels table to get channel_id
+        let policy_channel: Option<(i64,)> = sqlx::query_as(
+            "SELECT channel_id FROM notification_policy_channels WHERE policy_id = ? LIMIT 1",
+        )
+        .bind(policy.id)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to fetch policy channel");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+        // Find and set channel name
+        if let Some((channel_id,)) = policy_channel {
+            if let Some(channel) = channels.iter().find(|c| c.id == channel_id) {
+                display.channel_id = channel.id;
+                display.channel_name = channel.name.clone();
+            }
+        }
+
+        policies.push(display);
+    }
+
     let template = NotificationPoliciesTemplate {
         user: None,
-        policies: policies.into_iter().map(Into::into).collect(),
+        policies,
         channels: channels.into_iter().map(Into::into).collect(),
     };
 

@@ -9,6 +9,7 @@ use serde::Deserialize;
 use svrctlrs_database::{
     models::{CreateCommandTemplate, CreateJobType, UpdateCommandTemplate, UpdateJobType},
     queries::job_types as queries,
+    sqlx,
 };
 use tracing::{error, info, instrument, warn};
 
@@ -16,8 +17,8 @@ use crate::{
     routes::ui::AppError,
     state::AppState,
     templates::{
-        CommandTemplateListTemplate, JobTypeFormTemplate, JobTypeListTemplate, JobTypeViewTemplate,
-        JobTypesTemplate,
+        CommandTemplateListTemplate, JobTypeDisplay, JobTypeFormTemplate, JobTypeListTemplate,
+        JobTypeViewTemplate, JobTypesTemplate,
     },
 };
 
@@ -53,15 +54,38 @@ pub fn routes() -> Router<AppState> {
 pub async fn job_types_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     info!("Rendering job types page");
 
-    let job_types = queries::list_job_types(&state.pool)
+    let job_types_raw = queries::list_job_types(&state.pool).await.map_err(|e| {
+        error!(error = %e, "Failed to fetch job types");
+        AppError::DatabaseError(e.to_string())
+    })?;
+
+    // Convert to display models and fetch counts
+    let mut job_types = Vec::new();
+    for jt in job_types_raw {
+        let mut display: JobTypeDisplay = jt.clone().into();
+
+        // Get command template count
+        let cmd_count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM command_templates WHERE job_type_id = ?",
+        )
+        .bind(jt.id)
+        .fetch_one(&state.pool)
         .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to fetch job types");
-            AppError::DatabaseError(e.to_string())
-        })?
-        .into_iter()
-        .map(Into::into)
-        .collect();
+        .unwrap_or(0);
+
+        // Get job template count
+        let job_count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM job_templates WHERE job_type_id = ?",
+        )
+        .bind(jt.id)
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(0);
+
+        display.command_template_count = cmd_count;
+        display.job_template_count = job_count;
+        job_types.push(display);
+    }
 
     let template = JobTypesTemplate {
         user: None, // TODO: Add authentication
