@@ -6,6 +6,7 @@ use axum::{
     Form, Router,
 };
 use serde::Deserialize;
+use std::collections::HashMap;
 use svrctlrs_database::{
     models::{CreateJobTemplate, CreateJobTemplateStep, UpdateJobTemplate, UpdateJobTemplateStep},
     queries::job_templates as queries,
@@ -229,6 +230,28 @@ pub struct CreateJobTemplateInput {
     pub retry_delay_seconds: Option<i32>,
     pub notify_on_success: Option<String>,
     pub notify_on_failure: Option<String>,
+    #[serde(flatten)]
+    pub extra_fields: HashMap<String, String>,
+}
+
+impl CreateJobTemplateInput {
+    /// Extract variable values from form fields (fields starting with "var_")
+    fn extract_variables(&self) -> Option<HashMap<String, String>> {
+        let variables: HashMap<String, String> = self
+            .extra_fields
+            .iter()
+            .filter_map(|(key, value)| {
+                key.strip_prefix("var_")
+                    .map(|var_name| (var_name.to_string(), value.clone()))
+            })
+            .collect();
+
+        if variables.is_empty() {
+            None
+        } else {
+            Some(variables)
+        }
+    }
 }
 
 /// Create a new job template
@@ -255,6 +278,18 @@ pub async fn create_job_template(
             AppError::NotFound(format!("Job type {} not found", input.job_type_id))
         })?;
 
+    // Extract parameter variables from form fields
+    let variables = input.extract_variables();
+
+    if let Some(ref vars) = variables {
+        info!(
+            name = %input.name,
+            variables = ?vars,
+            "Extracted {} parameter variables",
+            vars.len()
+        );
+    }
+
     // Create job template
     let create_input = CreateJobTemplate {
         name: input.name.clone(),
@@ -263,7 +298,7 @@ pub async fn create_job_template(
         job_type_id: input.job_type_id,
         is_composite: input.is_composite.is_some(),
         command_template_id: input.command_template_id,
-        variables: None,
+        variables,
         timeout_seconds: input.timeout_seconds.unwrap_or(300),
         retry_count: input.retry_count.unwrap_or(0),
         retry_delay_seconds: input.retry_delay_seconds.unwrap_or(30),
@@ -299,6 +334,28 @@ pub struct UpdateJobTemplateInput {
     pub retry_delay_seconds: Option<i32>,
     pub notify_on_success: Option<String>,
     pub notify_on_failure: Option<String>,
+    #[serde(flatten)]
+    pub extra_fields: HashMap<String, String>,
+}
+
+impl UpdateJobTemplateInput {
+    /// Extract variable values from form fields (fields starting with "var_")
+    fn extract_variables(&self) -> Option<HashMap<String, String>> {
+        let variables: HashMap<String, String> = self
+            .extra_fields
+            .iter()
+            .filter_map(|(key, value)| {
+                key.strip_prefix("var_")
+                    .map(|var_name| (var_name.to_string(), value.clone()))
+            })
+            .collect();
+
+        if variables.is_empty() {
+            None
+        } else {
+            Some(variables)
+        }
+    }
 }
 
 /// Update an existing job template
@@ -320,12 +377,24 @@ pub async fn update_job_template(
         }
     }
 
+    // Extract parameter variables from form fields
+    let variables = input.extract_variables();
+
+    if let Some(ref vars) = variables {
+        info!(
+            job_template_id = id,
+            variables = ?vars,
+            "Extracted {} parameter variables",
+            vars.len()
+        );
+    }
+
     // Update job template
     let update_input = UpdateJobTemplate {
         display_name: input.display_name,
         description: input.description,
         command_template_id: input.command_template_id,
-        variables: None,
+        variables,
         timeout_seconds: input.timeout_seconds,
         retry_count: input.retry_count,
         retry_delay_seconds: input.retry_delay_seconds,
