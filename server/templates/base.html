@@ -33,9 +33,10 @@
         document.addEventListener('DOMContentLoaded', function() {
             lucide.createIcons();
 
-            // Re-initialize icons after HTMX swaps
-            document.body.addEventListener('htmx:afterSwap', function() {
-                lucide.createIcons();
+            // Re-initialize icons after HTMX swaps (scoped to swapped element for performance)
+            document.body.addEventListener('htmx:afterSwap', function(event) {
+                // Only process icons in the swapped element, not the entire document
+                lucide.createIcons({ nameAttr: 'data-lucide', el: event.detail.target });
             });
 
             // Global HTMX error handling
