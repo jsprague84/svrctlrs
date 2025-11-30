@@ -678,7 +678,11 @@ pub async fn toggle_policy(
             AppError::DatabaseError(e.to_string())
         })?;
 
-    info!(policy_id = id, enabled = !policy.enabled, "Notification policy toggled successfully");
+    info!(
+        policy_id = id,
+        enabled = !policy.enabled,
+        "Notification policy toggled successfully"
+    );
 
     // Return updated list (so the entire policy card is refreshed with new state)
     get_policies_list(State(state)).await
