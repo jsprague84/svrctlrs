@@ -6,7 +6,7 @@
 {% block content %}
 <div class="flex-between mb-3">
     <h1>Job Schedules</h1>
-    <button hx-get="/schedules/new"
+    <button hx-get="/job-schedules/new"
             hx-target="#schedule-form-container"
             hx-swap="innerHTML"
             class="btn btn-primary">
@@ -23,7 +23,7 @@
 
 <!-- Schedule List (auto-refreshes) -->
 <div id="schedule-list"
-     hx-get="/schedules/list"
+     hx-get="/job-schedules/list"
      hx-trigger="every 30s"
      hx-swap="innerHTML">
     {% include "components/job_schedule_list.html" %}

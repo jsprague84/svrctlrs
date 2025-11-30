@@ -9,7 +9,7 @@
 
     {% match schedule %}
     {% when Some with (s) %}
-    <form hx-put="/schedules/{{ s.id }}"
+    <form hx-put="/job-schedules/{{ s.id }}"
           hx-target="#schedule-list"
           hx-swap="innerHTML">
 
@@ -72,7 +72,7 @@
         </div>
     </form>
     {% when None %}
-    <form hx-post="/schedules"
+    <form hx-post="/job-schedules"
           hx-target="#schedule-list"
           hx-swap="innerHTML">
 

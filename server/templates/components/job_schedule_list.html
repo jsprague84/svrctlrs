@@ -44,14 +44,14 @@
             </p>
 
             <div class="flex gap-2 mt-2">
-                <button hx-get="/schedules/{{ schedule.id }}/edit"
+                <button hx-get="/job-schedules/{{ schedule.id }}/edit"
                         hx-target="#schedule-form-container"
                         hx-swap="innerHTML"
                         class="btn btn-sm btn-secondary">
                     <i data-lucide="pencil" style="width: 12px; height: 12px;"></i> Edit
                 </button>
 
-                <button hx-post="/schedules/{{ schedule.id }}/toggle"
+                <button hx-post="/job-schedules/{{ schedule.id }}/toggle"
                         hx-target="#schedule-{{ schedule.id }}"
                         hx-swap="outerHTML"
                         class="btn btn-sm btn-secondary">
@@ -62,12 +62,12 @@
                     {% endif %}
                 </button>
 
-                <button hx-post="/schedules/{{ schedule.id }}/run-now"
+                <button hx-post="/job-schedules/{{ schedule.id }}/run-now"
                         class="btn btn-sm btn-primary">
                     <i data-lucide="zap" style="width: 12px; height: 12px;"></i> Run Now
                 </button>
 
-                <button hx-delete="/schedules/{{ schedule.id }}"
+                <button hx-delete="/job-schedules/{{ schedule.id }}"
                         hx-target="#schedule-{{ schedule.id }}"
                         hx-swap="outerHTML"
                         hx-confirm="Delete schedule '{{ schedule.name }}'?"
