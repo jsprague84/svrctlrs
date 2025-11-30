@@ -622,6 +622,8 @@ The **Command Template System** enables creating reusable, parameterized command
 **3. Job Runs** (`job_runs` table)
 - Executes rendered command with substituted variables
 - Inherits configuration from job template
+- Stores rendered command in `rendered_command` field for audit trail
+- Audit field shows exact command that was executed on the server
 
 ### Data Flow
 
@@ -640,6 +642,7 @@ The **Command Template System** enables creating reusable, parameterized command
    └─ Loads template + variables
    └─ Renders: "apt-get install nginx"
    └─ Executes on target server
+   └─ Stores rendered command in job_runs.rendered_command for audit trail
 ```
 
 ### Implementation Details
