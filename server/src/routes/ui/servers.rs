@@ -208,7 +208,7 @@ struct CreateServerInput {
     description: Option<String>,
     is_local: Option<String>, // checkbox "on" or None
     enabled: Option<String>,  // checkbox "on" or None
-    tags: Option<Vec<i64>>,   // Multi-select tag IDs
+    tag_ids: Option<Vec<i64>>,   // Multi-select tag IDs (matches form field name)
 }
 
 /// Create server handler
@@ -262,7 +262,7 @@ async fn server_create(
     match servers_queries::create_server(db.pool(), &create_server).await {
         Ok(server_id) => {
             // Add tags if provided
-            if let Some(tag_ids) = input.tags {
+            if let Some(tag_ids) = input.tag_ids {
                 for tag_id in tag_ids {
                     let _ = tags::add_server_tag(db.pool(), server_id, tag_id).await;
                 }
@@ -270,8 +270,26 @@ async fn server_create(
 
             // Success - return updated list with success message
             let servers = servers_queries::list_servers(db.pool()).await?;
-            let servers_display: Vec<ServerDisplay> =
-                servers.into_iter().map(|s| server_to_display(&s)).collect();
+
+            // Convert servers to display models and fetch tags for each
+            let mut servers_display: Vec<ServerDisplay> = Vec::new();
+            for server in servers {
+                let mut display = server_to_display(&server);
+
+                // Fetch tags for this server
+                if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.id).await {
+                    display.tags = server_tags
+                        .into_iter()
+                        .map(|t| ServerTagInfo {
+                            name: t.name.clone(),
+                            color: t.color_or_default(),
+                        })
+                        .collect();
+                }
+
+                servers_display.push(display);
+            }
+
             let template = ServerListTemplate {
                 servers: servers_display,
             };
@@ -307,6 +325,7 @@ struct UpdateServerInput {
     credential_id: Option<String>,
     description: Option<String>,
     enabled: Option<String>,
+    tag_ids: Option<Vec<i64>>, // Multi-select tag IDs (matches form field name)
 }
 
 /// Update server handler
@@ -350,10 +369,51 @@ async fn server_update(
 
     match servers_queries::update_server(db.pool(), id, &update_server).await {
         Ok(_) => {
-            // Success - return updated list
+            // Update tags if provided
+            if let Some(new_tag_ids) = input.tag_ids {
+                // Get current tags
+                let current_tags = tags::get_server_tags(db.pool(), id)
+                    .await
+                    .unwrap_or_default();
+                let current_tag_ids: Vec<i64> = current_tags.iter().map(|t| t.id).collect();
+
+                // Remove tags that are no longer selected
+                for current_tag_id in &current_tag_ids {
+                    if !new_tag_ids.contains(current_tag_id) {
+                        let _ = tags::remove_server_tag(db.pool(), id, *current_tag_id).await;
+                    }
+                }
+
+                // Add new tags
+                for new_tag_id in &new_tag_ids {
+                    if !current_tag_ids.contains(new_tag_id) {
+                        let _ = tags::add_server_tag(db.pool(), id, *new_tag_id).await;
+                    }
+                }
+            }
+
+            // Success - return updated list with tags loaded
             let servers = servers_queries::list_servers(db.pool()).await?;
-            let servers_display: Vec<ServerDisplay> =
-                servers.into_iter().map(|s| server_to_display(&s)).collect();
+
+            // Convert servers to display models and fetch tags for each
+            let mut servers_display: Vec<ServerDisplay> = Vec::new();
+            for server in servers {
+                let mut display = server_to_display(&server);
+
+                // Fetch tags for this server
+                if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.id).await {
+                    display.tags = server_tags
+                        .into_iter()
+                        .map(|t| ServerTagInfo {
+                            name: t.name.clone(),
+                            color: t.color_or_default(),
+                        })
+                        .collect();
+                }
+
+                servers_display.push(display);
+            }
+
             let template = ServerListTemplate {
                 servers: servers_display,
             };
