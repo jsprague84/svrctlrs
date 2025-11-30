@@ -17,6 +17,9 @@ use crate::{state::AppState, templates::*};
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/settings", get(settings_page))
+        .route("/settings/general", get(general_settings_page))
+        .route("/settings/general/{key}/edit", get(setting_form_edit))
+        .route("/settings/general/{key}", put(setting_update))
         .route("/settings/notifications", get(notifications_page))
         .route("/settings/notifications/new", get(notification_form_new))
         .route("/settings/notifications", post(notification_create))
@@ -88,6 +91,202 @@ async fn settings_page() -> Result<Html<String>, AppError> {
     let user = get_user_from_session().await;
     let template = SettingsTemplate { user };
     Ok(Html(template.render()?))
+}
+
+/// General settings page handler
+async fn general_settings_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+    let user = get_user_from_session().await;
+
+    // Load settings from database
+    let db = state.db().await;
+    let db_settings = queries::settings::list_settings(db.pool()).await?;
+    let settings = db_settings.into_iter().map(SettingDisplay::from).collect();
+
+    let template = GeneralSettingsTemplate { user, settings };
+    Ok(Html(template.render()?))
+}
+
+/// Edit setting form (inline)
+async fn setting_form_edit(
+    State(state): State<AppState>,
+    Path(key): Path<String>,
+) -> Result<Html<String>, AppError> {
+    // Load setting from database
+    let db = state.db().await;
+    let setting = queries::settings::get_setting(db.pool(), &key).await?;
+    let setting_display = SettingDisplay::from(setting);
+
+    // Render inline edit form
+    let desc_html = if let Some(ref desc) = setting_display.description {
+        format!("<br><small class=\"text-secondary\">{}</small>", desc)
+    } else {
+        String::new()
+    };
+
+    let form_html = match setting_display.value_type.as_str() {
+        "boolean" => {
+            let checked = if setting_display.value == "true" || setting_display.value == "1" {
+                "checked"
+            } else {
+                ""
+            };
+            format!(
+                "<tr id=\"setting-row-{}\">\
+    <td>\
+        <strong>{}</strong>\
+        {}\
+    </td>\
+    <td>\
+        <label class=\"switch\">\
+            <input type=\"checkbox\" name=\"value\" {} hx-put=\"/settings/general/{}\" hx-target=\"#setting-row-{}\" hx-swap=\"outerHTML\">\
+            <span class=\"slider\"></span>\
+        </label>\
+    </td>\
+    <td><span class=\"badge badge-secondary\">{}</span></td>\
+    <td class=\"text-secondary\" style=\"font-size: 0.875rem;\">{}</td>\
+    <td>\
+        <button hx-get=\"/settings/general\" hx-target=\"#settings-list\" hx-swap=\"innerHTML\" class=\"btn btn-sm btn-secondary\">\
+            <i data-lucide=\"x\" style=\"width: 12px; height: 12px;\"></i> Cancel\
+        </button>\
+    </td>\
+</tr>",
+                setting_display.key,
+                setting_display.key,
+                desc_html,
+                checked,
+                setting_display.key,
+                setting_display.key,
+                setting_display.value_type,
+                setting_display.updated_at
+            )
+        }
+        _ => {
+            format!(
+                "<tr id=\"setting-row-{}\">\
+    <td>\
+        <strong>{}</strong>\
+        {}\
+    </td>\
+    <td>\
+        <form hx-put=\"/settings/general/{}\" hx-target=\"#setting-row-{}\" hx-swap=\"outerHTML\" class=\"inline-form\">\
+            <input type=\"text\" name=\"value\" value=\"{}\" class=\"form-control\" required>\
+        </form>\
+    </td>\
+    <td><span class=\"badge badge-secondary\">{}</span></td>\
+    <td class=\"text-secondary\" style=\"font-size: 0.875rem;\">{}</td>\
+    <td>\
+        <button type=\"submit\" form=\"setting-form-{}\" class=\"btn btn-sm btn-primary\">\
+            <i data-lucide=\"save\" style=\"width: 12px; height: 12px;\"></i> Save\
+        </button>\
+        <button hx-get=\"/settings/general\" hx-target=\"#settings-list\" hx-swap=\"innerHTML\" class=\"btn btn-sm btn-secondary\">\
+            <i data-lucide=\"x\" style=\"width: 12px; height: 12px;\"></i> Cancel\
+        </button>\
+    </td>\
+</tr>",
+                setting_display.key,
+                setting_display.key,
+                desc_html,
+                setting_display.key,
+                setting_display.key,
+                setting_display.value,
+                setting_display.value_type,
+                setting_display.updated_at,
+                setting_display.key
+            )
+        }
+    };
+
+    Ok(Html(form_html))
+}
+
+/// Update setting input
+#[derive(Debug, Deserialize)]
+struct UpdateSettingInput {
+    value: Option<String>,
+}
+
+/// Update setting handler
+async fn setting_update(
+    State(state): State<AppState>,
+    Path(key): Path<String>,
+    Form(input): Form<UpdateSettingInput>,
+) -> Result<Html<String>, AppError> {
+    tracing::info!("Updating setting '{}': {:?}", key, input);
+
+    let db = state.db().await;
+
+    // Get existing setting to determine type
+    let existing = queries::settings::get_setting(db.pool(), &key).await?;
+
+    // Determine value based on type
+    let value = if existing.value_type == "boolean" {
+        // Checkbox: presence means true, absence means false
+        if input.value.is_some() {
+            "true".to_string()
+        } else {
+            "false".to_string()
+        }
+    } else {
+        input.value.unwrap_or_default()
+    };
+
+    // Update in database
+    let update_setting = svrctlrs_database::models::UpdateSetting { value };
+
+    queries::settings::update_setting(db.pool(), &key, &update_setting).await?;
+
+    // Return updated row
+    let updated = queries::settings::get_setting(db.pool(), &key).await?;
+    let setting_display = SettingDisplay::from(updated);
+
+    let desc_html = if let Some(ref desc) = setting_display.description {
+        format!("<br><small class=\"text-secondary\">{}</small>", desc)
+    } else {
+        String::new()
+    };
+
+    let value_html = if setting_display.value_type == "boolean" {
+        if setting_display.value == "true" || setting_display.value == "1" {
+            "<span class=\"badge badge-success\">Enabled</span>".to_string()
+        } else {
+            "<span class=\"badge badge-secondary\">Disabled</span>".to_string()
+        }
+    } else {
+        format!("<code>{}</code>", setting_display.value)
+    };
+
+    let row_html = format!(
+        "<tr id=\"setting-row-{}\">\
+    <td>\
+        <strong>{}</strong>\
+        {}\
+    </td>\
+    <td id=\"setting-value-{}\">\
+        {}\
+    </td>\
+    <td><span class=\"badge badge-secondary\">{}</span></td>\
+    <td class=\"text-secondary\" style=\"font-size: 0.875rem;\">{}</td>\
+    <td>\
+        <button hx-get=\"/settings/general/{}/edit\"\
+                hx-target=\"#setting-row-{}\"\
+                hx-swap=\"outerHTML\"\
+                class=\"btn btn-sm btn-secondary\">\
+            <i data-lucide=\"edit\" style=\"width: 12px; height: 12px;\"></i> Edit\
+        </button>\
+    </td>\
+</tr>",
+        setting_display.key,
+        setting_display.key,
+        desc_html,
+        setting_display.key,
+        value_html,
+        setting_display.value_type,
+        setting_display.updated_at,
+        setting_display.key,
+        setting_display.key
+    );
+
+    Ok(Html(row_html))
 }
 
 /// Notifications page handler

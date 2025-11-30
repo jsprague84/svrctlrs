@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}General Settings - SvrCtlRS{% endblock %}
+{% block nav_settings %}active{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-3">
+    <h1>General Settings</h1>
+    <a href="/settings" class="btn btn-secondary">
+        <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i> Back to Settings
+    </a>
+</div>
+
+<p class="text-secondary mb-4">
+    Configure application-wide settings. These settings control system behavior and preferences.
+</p>
+
+<!-- Settings List -->
+<div id="settings-list">
+    {% include "components/settings_list.html" %}
+</div>
+{% endblock %}

@@ -1316,6 +1316,28 @@ pub struct SettingsTemplate {
     pub user: Option<User>,
 }
 
+#[derive(Template)]
+#[template(path = "pages/settings_general.html")]
+pub struct GeneralSettingsTemplate {
+    pub user: Option<User>,
+    pub settings: Vec<SettingDisplay>,
+}
+
+#[derive(Template)]
+#[template(path = "components/settings_list.html")]
+pub struct SettingsListTemplate {
+    pub settings: Vec<SettingDisplay>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SettingDisplay {
+    pub key: String,
+    pub value: String,
+    pub value_type: String,
+    pub description: Option<String>,
+    pub updated_at: String,
+}
+
 // ============================================================================
 // Notifications (Legacy Backend Configuration - COMMENTED OUT)
 // ============================================================================
@@ -1773,6 +1795,27 @@ impl From<svrctlrs_database::NotificationPolicy> for NotificationPolicyDisplay {
             max_per_hour: np.max_per_hour,
             // Multi-channel support (populated separately in edit handler)
             policy_channels: Vec::new(),
+        }
+    }
+}
+
+/// Convert database Setting to display model
+impl From<svrctlrs_database::models::Setting> for SettingDisplay {
+    fn from(s: svrctlrs_database::models::Setting) -> Self {
+        use chrono::Local;
+
+        let updated_at = s
+            .updated_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+
+        Self {
+            key: s.key,
+            value: s.value,
+            value_type: s.value_type,
+            description: s.description,
+            updated_at,
         }
     }
 }

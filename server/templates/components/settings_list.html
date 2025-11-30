@@ -1,0 +1,53 @@
+{% if settings.is_empty() %}
+<div class="alert alert-info">
+    <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+    No settings found in the database.
+</div>
+{% else %}
+<div class="card">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Setting</th>
+                <th>Value</th>
+                <th>Type</th>
+                <th>Last Updated</th>
+                <th style="width: 100px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for setting in settings %}
+            <tr id="setting-row-{{ setting.key }}">
+                <td>
+                    <strong>{{ setting.key }}</strong>
+                    {% if setting.description.is_some() %}
+                    <br><small class="text-secondary">{{ setting.description.as_ref().unwrap() }}</small>
+                    {% endif %}
+                </td>
+                <td id="setting-value-{{ setting.key }}">
+                    {% if setting.value_type == "boolean" %}
+                        {% if setting.value == "true" || setting.value == "1" %}
+                            <span class="badge badge-success">Enabled</span>
+                        {% else %}
+                            <span class="badge badge-secondary">Disabled</span>
+                        {% endif %}
+                    {% else %}
+                        <code>{{ setting.value }}</code>
+                    {% endif %}
+                </td>
+                <td><span class="badge badge-secondary">{{ setting.value_type }}</span></td>
+                <td class="text-secondary" style="font-size: 0.875rem;">{{ setting.updated_at }}</td>
+                <td>
+                    <button hx-get="/settings/general/{{ setting.key }}/edit"
+                            hx-target="#setting-row-{{ setting.key }}"
+                            hx-swap="outerHTML"
+                            class="btn btn-sm btn-secondary">
+                        <i data-lucide="edit" style="width: 12px; height: 12px;"></i> Edit
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
