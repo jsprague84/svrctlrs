@@ -600,6 +600,299 @@ pub async fn my_function(id: &str, sensitive_data: &str) -> Result<()> {
 
 ---
 
+## 🎯 Command Template System
+
+### Overview
+
+The **Command Template System** enables creating reusable, parameterized commands for job templates. This provides a flexible way to define operations with variable substitution, validation, and testing capabilities.
+
+### Architecture Components
+
+**1. Command Templates** (`command_templates` table)
+- Reusable command patterns with `{{variable}}` placeholders
+- Parameter schemas (JSON) defining required/optional variables
+- Type support: string, number, boolean, select
+- Belongs to a job type for organization
+
+**2. Job Templates** (`job_templates` table)
+- References a command template via `command_template_id`
+- Stores parameter values in `variables` (JSON)
+- Variables merged with command template at runtime
+
+**3. Job Runs** (`job_runs` table)
+- Executes rendered command with substituted variables
+- Inherits configuration from job template
+
+### Data Flow
+
+```
+1. Admin creates Command Template
+   └─ Template: "apt-get install {{package_name}}"
+   └─ Schema: [{"name": "package_name", "type": "string", "required": true}]
+
+2. Admin creates Job Template
+   └─ Selects command template
+   └─ AJAX loads parameter form fields
+   └─ Fills in: package_name = "nginx"
+   └─ Stored as: {"package_name": "nginx"}
+
+3. Job Run executes
+   └─ Loads template + variables
+   └─ Renders: "apt-get install nginx"
+   └─ Executes on target server
+```
+
+### Implementation Details
+
+**Parameter Schema (JSON)**
+```json
+[
+  {
+    "name": "package_name",
+    "type": "string",
+    "description": "Package to install",
+    "required": true,
+    "default": null,
+    "options": null
+  },
+  {
+    "name": "version",
+    "type": "string",
+    "description": "Package version",
+    "required": false,
+    "default": "latest",
+    "options": null
+  },
+  {
+    "name": "auto_restart",
+    "type": "boolean",
+    "description": "Restart service after install",
+    "required": false,
+    "default": "false",
+    "options": null
+  },
+  {
+    "name": "priority",
+    "type": "select",
+    "description": "Installation priority",
+    "required": true,
+    "default": "normal",
+    "options": ["low", "normal", "high"]
+  }
+]
+```
+
+**Variable Extraction Pattern**
+```rust
+// Form fields named: var_package_name, var_version, var_auto_restart
+#[derive(Deserialize)]
+pub struct CreateJobTemplateInput {
+    pub name: String,
+    pub command_template_id: Option<i64>,
+    #[serde(flatten)]
+    pub extra_fields: HashMap<String, String>,  // Captures var_* fields
+}
+
+impl CreateJobTemplateInput {
+    fn extract_variables(&self) -> Option<HashMap<String, String>> {
+        let variables: HashMap<String, String> = self
+            .extra_fields
+            .iter()
+            .filter_map(|(key, value)| {
+                key.strip_prefix("var_")
+                    .map(|var_name| (var_name.to_string(), value.clone()))
+            })
+            .collect();
+
+        if variables.is_empty() { None } else { Some(variables) }
+    }
+}
+```
+
+**Dynamic Parameter Loading (HTMX)**
+```html
+<!-- Job template form -->
+<select id="command_template_id"
+        name="command_template_id"
+        @change="if (this.value) {
+            htmx.ajax('GET', '/command-templates/' + this.value + '/parameters',
+                     {target:'#command-parameters', swap:'innerHTML'});
+        }">
+    <option value="">Select a command...</option>
+    {% for ct in command_templates %}
+    <option value="{{ ct.id }}">{{ ct.display_name }}</option>
+    {% endfor %}
+</select>
+
+<!-- Dynamic parameter container -->
+<div id="command-parameters"></div>
+```
+
+**Parameter Form Rendering**
+```rust
+// Handler: server/src/routes/ui/job_types.rs:1137
+pub async fn get_command_template_parameters(
+    State(state): State<AppState>,
+    Path(template_id): Path<i64>,
+    Query(query): Query<ParametersQuery>,
+) -> Result<Html<String>, AppError> {
+    let template = queries::get_command_template(&state.pool, template_id).await?;
+
+    // Parse existing variables if editing
+    let existing_vars: HashMap<String, String> =
+        query.variables
+            .as_ref()
+            .and_then(|json| serde_json::from_str(json).ok())
+            .unwrap_or_default();
+
+    // Parse parameter schema
+    let schema = template.get_parameter_schema();
+    let parameters: Vec<ParameterDisplay> = if let Some(arr) = schema.as_array() {
+        arr.iter()
+            .filter_map(|v| ParameterDisplay::from_json(v, &existing_vars))
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    // Render template: command_template_parameters.html
+    let tmpl = CommandTemplateParametersTemplate { parameters };
+    Ok(Html(tmpl.render()?))
+}
+```
+
+### Key Files
+
+| Component | File | Lines |
+|-----------|------|-------|
+| **UI Routes** | | |
+| Command template management | `server/src/routes/ui/job_types.rs` | 1-1200 |
+| Job template management | `server/src/routes/ui/job_templates.rs` | 1-500 |
+| Parameter loader (AJAX) | `server/src/routes/ui/job_types.rs` | 1137-1189 |
+| **Templates** | | |
+| Command template list | `server/templates/components/command_template_list.html` | 1-100 |
+| Command template form | `server/templates/components/command_template_form.html` | 1-150 |
+| Command template test | `server/templates/components/command_template_test.html` | 1-82 |
+| Test result display | `server/templates/components/command_template_test_result.html` | 1-48 |
+| Parameter fields (AJAX) | `server/templates/components/command_template_parameters.html` | 1-72 |
+| Job template form | `server/templates/components/job_template_form.html` | 70-88, 212-229 |
+| **Database** | | |
+| Schema migration | `database/migrations/011_complete_restructure.sql` | Lines with command_templates |
+| **Display Models** | | |
+| Template displays | `server/src/templates.rs` | CommandTemplateDisplay, ParameterDisplay |
+
+### Features Completed
+
+#### Phase 1: Schema & CRUD ✅
+- Database tables (command_templates, relationships)
+- CRUD operations for command templates
+- UI for creating/editing/deleting templates
+- Parameter schema storage (JSON)
+
+#### Phase 2: Validation & Testing ✅
+- Variable extraction using regex (`{{variable_name}}`)
+- Parameter validation against schema
+- Command rendering with test values
+- Testing UI with live preview
+- Error reporting for invalid templates
+
+#### Phase 3: Template Execution Integration ✅
+- Job template form integration
+- Dynamic parameter field loading (AJAX)
+- Variable storage in job_templates.variables
+- Automatic form field generation from schema
+- Pre-population of existing values when editing
+
+### Usage Example
+
+**1. Create Command Template** (`/job-types/1`)
+```
+Name: update_package
+Display Name: Update System Package
+Command: apt-get update && apt-get install -y {{package_name}}{{#if version}}={{version}}{{/if}}
+Parameters:
+  - package_name: string, required
+  - version: string, optional
+```
+
+**2. Test Command Template**
+```
+Test Values:
+  package_name: nginx
+  version: 1.20
+
+Rendered Command:
+  apt-get update && apt-get install -y nginx=1.20
+
+✅ Validation passed!
+```
+
+**3. Create Job Template** (`/job-templates/new`)
+```
+Name: weekly_nginx_update
+Job Type: System Maintenance
+Command Template: Update System Package
+Parameters (auto-loaded):
+  package_name: nginx
+  version: latest
+
+Stored in job_templates.variables:
+  {"package_name": "nginx", "version": "latest"}
+```
+
+**4. Execute Job Run**
+```
+Job Template: weekly_nginx_update
+Rendered Command: apt-get update && apt-get install -y nginx=latest
+Target: server-01 (SSH)
+Status: Success
+```
+
+### Development Notes
+
+**Display Model Pattern** (Critical for Templates)
+```rust
+// ❌ Database model (has serde_json::Value)
+pub struct CommandTemplate {
+    pub parameter_schema: Option<JsonValue>,  // Cannot use in Askama
+}
+
+// ✅ Display model (template-friendly)
+pub struct CommandTemplateDisplay {
+    pub parameter_schema_json: String,  // Pre-serialized for display
+    pub variables: Vec<String>,         // Computed from template
+}
+
+impl From<CommandTemplate> for CommandTemplateDisplay {
+    fn from(ct: CommandTemplate) -> Self {
+        let variables = extract_template_variables(&ct.command);
+        Self {
+            parameter_schema_json: ct.parameter_schema
+                .map(|v| serde_json::to_string_pretty(&v).unwrap_or_default())
+                .unwrap_or_default(),
+            variables,
+        }
+    }
+}
+```
+
+**Variable Naming Convention**
+- Template placeholders: `{{variable_name}}`
+- Form field names: `var_variable_name`
+- Stored JSON: `{"variable_name": "value"}`
+- Backend extracts by stripping `var_` prefix
+
+**AJAX Pattern for Dynamic Forms**
+1. User selects command template from dropdown
+2. Alpine.js `@change` event triggers AJAX
+3. HTMX loads `/command-templates/{id}/parameters`
+4. Backend renders parameter form fields
+5. Fields injected into `#command-parameters` container
+6. Form submission includes all `var_*` fields
+7. Backend extracts variables and stores as JSON
+
+---
+
 ## 📌 Project Information
 
 - **Owner**: Johnathon Sprague (jsprague84)
