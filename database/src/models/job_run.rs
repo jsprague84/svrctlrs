@@ -74,6 +74,7 @@ pub struct JobRun {
     pub exit_code: Option<i32>,
     pub output: Option<String>,
     pub error: Option<String>,
+    pub rendered_command: Option<String>,
 
     // Retry tracking
     pub retry_attempt: i32,

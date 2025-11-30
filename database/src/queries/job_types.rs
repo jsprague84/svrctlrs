@@ -254,7 +254,10 @@ pub async fn get_command_template(pool: &Pool<Sqlite>, id: i64) -> Result<Comman
 }
 
 /// Get a command template by name
-pub async fn get_command_template_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<CommandTemplate> {
+pub async fn get_command_template_by_name(
+    pool: &Pool<Sqlite>,
+    name: &str,
+) -> Result<CommandTemplate> {
     sqlx::query_as::<_, CommandTemplate>(
         r#"
         SELECT id, job_type_id, name, display_name, description, command, required_capabilities,

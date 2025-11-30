@@ -387,7 +387,7 @@ impl JobExecutor {
             );
             error!(job_run_id, server = %server.name, "{}", error_msg);
 
-            self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg))
+            self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg), None)
                 .await?;
 
             return Err(Error::Other(
@@ -403,7 +403,7 @@ impl JobExecutor {
             );
             error!(job_run_id, server = %server.name, "{}", error_msg);
 
-            self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg))
+            self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg), None)
                 .await?;
 
             return Err(Error::Other("OS distro does not match filter".to_string()));
@@ -436,8 +436,15 @@ impl JobExecutor {
                     "Command completed successfully"
                 );
 
-                self.finish_job_run(job_run_id, "success", Some(exit_code), Some(output), None)
-                    .await?;
+                self.finish_job_run(
+                    job_run_id,
+                    "success",
+                    Some(exit_code),
+                    Some(output),
+                    None,
+                    Some(command),
+                )
+                .await?;
 
                 Ok(())
             }
@@ -450,8 +457,15 @@ impl JobExecutor {
                     "Command execution failed"
                 );
 
-                self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg))
-                    .await?;
+                self.finish_job_run(
+                    job_run_id,
+                    "failure",
+                    None,
+                    None,
+                    Some(error_msg),
+                    Some(command),
+                )
+                .await?;
 
                 Err(e)
             }
@@ -480,7 +494,7 @@ impl JobExecutor {
             let error_msg = "Composite job has no steps defined".to_string();
             error!(job_run_id, "{}", error_msg);
 
-            self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg))
+            self.finish_job_run(job_run_id, "failure", None, None, Some(error_msg), None)
                 .await?;
 
             return Err(Error::Other(
@@ -596,6 +610,7 @@ impl JobExecutor {
             } else {
                 Some("One or more steps failed".to_string())
             },
+            None, // Composite jobs have multiple commands, not a single rendered command
         )
         .await?;
 
@@ -862,8 +877,8 @@ impl JobExecutor {
         sqlx::query_as::<_, JobRun>(
             r#"
             SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
-                   duration_ms, exit_code, output, error, retry_attempt, is_retry, notification_sent,
-                   notification_error, metadata
+                   duration_ms, exit_code, output, error, rendered_command, retry_attempt, is_retry,
+                   notification_sent, notification_error, metadata
             FROM job_runs
             WHERE id = ?
             "#,
@@ -882,6 +897,7 @@ impl JobExecutor {
         exit_code: Option<i32>,
         output: Option<String>,
         error: Option<String>,
+        rendered_command: Option<String>,
     ) -> Result<()> {
         let now = Utc::now();
 
@@ -899,7 +915,8 @@ impl JobExecutor {
                 duration_ms = ?,
                 exit_code = ?,
                 output = ?,
-                error = ?
+                error = ?,
+                rendered_command = ?
             WHERE id = ?
             "#,
         )
@@ -909,6 +926,7 @@ impl JobExecutor {
         .bind(exit_code)
         .bind(output)
         .bind(error)
+        .bind(rendered_command)
         .bind(id)
         .execute(&self.db_pool)
         .await

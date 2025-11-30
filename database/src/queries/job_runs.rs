@@ -18,8 +18,8 @@ pub async fn list_job_runs(pool: &Pool<Sqlite>, limit: i64, offset: i64) -> Resu
     sqlx::query_as::<_, JobRun>(
         r#"
         SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
-               duration_ms, exit_code, output, error, retry_attempt, is_retry, notification_sent,
-               notification_error, metadata
+               duration_ms, exit_code, output, error, rendered_command, retry_attempt, is_retry,
+               notification_sent, notification_error, metadata
         FROM job_runs
         ORDER BY started_at DESC
         LIMIT ? OFFSET ?
@@ -50,6 +50,7 @@ pub struct JobRunWithNames {
     pub exit_code: Option<i32>,
     pub output: Option<String>,
     pub error: Option<String>,
+    pub rendered_command: Option<String>,
     pub retry_attempt: i32,
     pub is_retry: bool,
     pub notification_sent: bool,
@@ -74,7 +75,7 @@ pub async fn list_job_runs_with_names(
             jr.server_id,
             s.name as server_name,
             jr.status, jr.started_at, jr.finished_at, jr.duration_ms, jr.exit_code,
-            jr.output, jr.error, jr.retry_attempt, jr.is_retry,
+            jr.output, jr.error, jr.rendered_command, jr.retry_attempt, jr.is_retry,
             jr.notification_sent, jr.notification_error, jr.metadata
         FROM job_runs jr
         INNER JOIN job_templates jt ON jr.job_template_id = jt.id
@@ -101,8 +102,8 @@ pub async fn get_job_run(pool: &Pool<Sqlite>, id: i64) -> Result<JobRun> {
     sqlx::query_as::<_, JobRun>(
         r#"
         SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
-               duration_ms, exit_code, output, error, retry_attempt, is_retry, notification_sent,
-               notification_error, metadata
+               duration_ms, exit_code, output, error, rendered_command, retry_attempt, is_retry,
+               notification_sent, notification_error, metadata
         FROM job_runs
         WHERE id = ?
         "#,
@@ -124,8 +125,8 @@ pub async fn get_job_runs_by_template(
     sqlx::query_as::<_, JobRun>(
         r#"
         SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
-               duration_ms, exit_code, output, error, retry_attempt, is_retry, notification_sent,
-               notification_error, metadata
+               duration_ms, exit_code, output, error, rendered_command, retry_attempt, is_retry,
+               notification_sent, notification_error, metadata
         FROM job_runs
         WHERE job_template_id = ?
         ORDER BY started_at DESC
@@ -150,8 +151,8 @@ pub async fn get_job_runs_by_schedule(
     sqlx::query_as::<_, JobRun>(
         r#"
         SELECT id, job_schedule_id, job_template_id, server_id, status, started_at, finished_at,
-               duration_ms, exit_code, output, error, retry_attempt, is_retry, notification_sent,
-               notification_error, metadata
+               duration_ms, exit_code, output, error, rendered_command, retry_attempt, is_retry,
+               notification_sent, notification_error, metadata
         FROM job_runs
         WHERE job_schedule_id = ?
         ORDER BY started_at DESC
@@ -226,7 +227,7 @@ pub async fn update_job_run_status(
 }
 
 /// Mark job run as complete with final results
-#[instrument(skip(pool, output, error))]
+#[instrument(skip(pool, output, error, rendered_command))]
 pub async fn finish_job_run(
     pool: &Pool<Sqlite>,
     id: i64,
@@ -234,6 +235,7 @@ pub async fn finish_job_run(
     exit_code: Option<i32>,
     output: Option<String>,
     error: Option<String>,
+    rendered_command: Option<String>,
 ) -> Result<()> {
     let now = Utc::now();
 
@@ -251,7 +253,8 @@ pub async fn finish_job_run(
             duration_ms = ?,
             exit_code = ?,
             output = ?,
-            error = ?
+            error = ?,
+            rendered_command = ?
         WHERE id = ?
         "#,
     )
@@ -261,6 +264,7 @@ pub async fn finish_job_run(
     .bind(exit_code)
     .bind(output)
     .bind(error)
+    .bind(rendered_command)
     .bind(id)
     .execute(pool)
     .await

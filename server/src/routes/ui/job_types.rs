@@ -19,10 +19,9 @@ use crate::{
     routes::ui::AppError,
     state::AppState,
     templates::{
-        CommandTemplateDisplay, CommandTemplateListTemplate,
-        CommandTemplateTestResultTemplate, CommandTemplateTestTemplate, JobTypeDisplay,
-        JobTypeFormTemplate, JobTypeListTemplate, JobTypeViewTemplate, JobTypesTemplate,
-        ParameterDisplay, ValidationResult,
+        CommandTemplateDisplay, CommandTemplateListTemplate, CommandTemplateTestResultTemplate,
+        CommandTemplateTestTemplate, JobTypeDisplay, JobTypeFormTemplate, JobTypeListTemplate,
+        JobTypeViewTemplate, JobTypesTemplate, ParameterDisplay, ValidationResult,
     },
 };
 
@@ -946,7 +945,10 @@ pub async fn clone_command_template(
             AppError::DatabaseError(e.to_string())
         })?;
 
-    info!(template_id, clone_name, "Command template cloned successfully");
+    info!(
+        template_id,
+        clone_name, "Command template cloned successfully"
+    );
 
     // Return updated list
     get_command_templates(State(state), Path(job_type_id)).await
@@ -958,7 +960,10 @@ pub async fn test_command_template(
     State(state): State<AppState>,
     Path((job_type_id, template_id)): Path<(i64, i64)>,
 ) -> Result<Html<String>, AppError> {
-    info!(job_type_id, template_id, "Displaying command template test form");
+    info!(
+        job_type_id,
+        template_id, "Displaying command template test form"
+    );
 
     // Get command template
     let template = queries::get_command_template(&state.pool, template_id)
@@ -1008,7 +1013,12 @@ pub async fn validate_command_template(
     Path((job_type_id, template_id)): Path<(i64, i64)>,
     Form(params): Form<HashMap<String, String>>,
 ) -> Result<Html<String>, AppError> {
-    info!(job_type_id, template_id, ?params, "Validating command template");
+    info!(
+        job_type_id,
+        template_id,
+        ?params,
+        "Validating command template"
+    );
 
     // Get command template
     let template = queries::get_command_template(&state.pool, template_id)
@@ -1038,7 +1048,10 @@ async fn generate_clone_name(pool: &Pool<Sqlite>, original_name: &str) -> Result
     let mut counter = 2;
 
     // Keep trying until we find a unique name
-    while queries::get_command_template_by_name(pool, &candidate).await.is_ok() {
+    while queries::get_command_template_by_name(pool, &candidate)
+        .await
+        .is_ok()
+    {
         candidate = format!("{}_copy_{}", original_name, counter);
         counter += 1;
     }
@@ -1105,7 +1118,9 @@ fn validate_template_with_params(
 
     // Check for extra parameters
     for param_name in params.keys() {
-        if !expected_params.contains_key(param_name) && !command.contains(&format!("{{{{{}}}}}", param_name)) {
+        if !expected_params.contains_key(param_name)
+            && !command.contains(&format!("{{{{{}}}}}", param_name))
+        {
             warnings.push(format!(
                 "Parameter '{}' provided but not used in command",
                 param_name

@@ -293,6 +293,7 @@ pub async fn cancel_job_run(
         None,
         None,
         Some("Job run cancelled by user".to_string()),
+        None, // No rendered command for manual cancellation
     )
     .await
     .map_err(|e| {
