@@ -2,9 +2,31 @@
 
 This file provides comprehensive guidance for AI assistants working with the SvrCtlRS codebase.
 
-**Last Updated**: 2025-11-28
+**Last Updated**: 2025-11-30
 **Architecture Version**: v2.0 (Job-Based System)
-**Status**: ✅ Active Development
+**Status**: ✅ Active Development - Phase 6 Complete
+
+---
+
+## 📈 Recent Updates
+
+### Phase 5: Schedule Override UI (Completed 2025-11-30)
+- ✅ Alpine.js integration for dynamic template defaults
+- ✅ Job schedule form populates defaults from selected job template
+- ✅ Client-side state management for better UX
+- ✅ Automatic population of timeout, retry, and notification settings
+
+### Phase 6: General Settings Management (Completed 2025-11-30)
+- ✅ Settings management UI with inline editing
+- ✅ `/settings/general` page for application-wide settings
+- ✅ Database model and query layer for settings CRUD
+- ✅ Support for string, number, boolean, and JSON value types
+- ✅ HTMX-based inline editing (similar to job schedules pattern)
+
+**Database Fix** (2025-11-30):
+- Fixed settings table column name mismatch (`type` → `value_type`)
+- Corrected sqlx model annotations
+- All routes now working correctly (commit `6a5203b`)
 
 ---
 
@@ -186,7 +208,7 @@ svrctlrs/
 |-----------|-----------|---------|
 | Backend | Axum | 0.8 |
 | Frontend | HTMX + Alpine.js | 2.0.3 + 3.14.1 |
-| Templates | Askama | 0.12 |
+| Templates | Askama | 0.14 |
 | Database | SQLite + sqlx | Latest |
 | Runtime | Tokio | Latest |
 | SSH | openssh_sftp_client | Latest |
@@ -580,7 +602,7 @@ pub async fn my_function(id: &str, sensitive_data: &str) -> Result<()> {
 
 ## 📌 Project Information
 
-- **Owner**: Josh Sprague (jsprague84)
+- **Owner**: Johnathon Sprague (jsprague84)
 - **GitHub**: https://github.com/jsprague84/svrctlrs
 - **Original Project**: weatherust (reference for feature parity)
 - **Test Environment**: docker-vm
