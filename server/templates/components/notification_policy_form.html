@@ -84,21 +84,21 @@
             <div style="border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
                 <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
                     <input type="checkbox"
-                           name="notify_on_success"
-                           {% if p.notify_on_success %}checked{% endif %}>
+                           name="on_success"
+                           {% if p.on_success %}checked{% endif %}>
                     <span>Job Success</span>
                 </label>
                 <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
                     <input type="checkbox"
-                           name="notify_on_failure"
-                           {% if p.notify_on_failure %}checked{% endif %}>
+                           name="on_failure"
+                           {% if p.on_failure %}checked{% endif %}>
                     <span>Job Failure</span>
                 </label>
                 <label class="flex gap-2 align-center" style="cursor: pointer;">
                     <input type="checkbox"
-                           name="notify_on_partial"
-                           {% if p.notify_on_partial %}checked{% endif %}>
-                    <span>Partial Success</span>
+                           name="on_timeout"
+                           {% if p.on_timeout %}checked{% endif %}>
+                    <span>Job Timeout</span>
                 </label>
             </div>
         </div>
@@ -261,20 +261,20 @@
             <div style="border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
                 <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
                     <input type="checkbox"
-                           name="notify_on_success">
+                           name="on_success">
                     <span>Job Success</span>
                 </label>
                 <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
                     <input type="checkbox"
-                           name="notify_on_failure"
+                           name="on_failure"
                            checked>
                     <span>Job Failure</span>
                 </label>
                 <label class="flex gap-2 align-center" style="cursor: pointer;">
                     <input type="checkbox"
-                           name="notify_on_partial"
+                           name="on_timeout"
                            checked>
-                    <span>Partial Success</span>
+                    <span>Job Timeout</span>
                 </label>
             </div>
         </div>

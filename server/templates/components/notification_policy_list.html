@@ -26,9 +26,9 @@
             {% else if policy.scope_type == "job_type" %}Job Type: {% match policy.job_type_name %}{% when Some with (name) %}{{ name }}{% when None %}Unknown{% endmatch %}
             {% endif %}<br>
             <strong>Notify On:</strong>
-            {% if policy.notify_on_success %}Success{% endif %}
-            {% if policy.notify_on_failure %}{% if policy.notify_on_success %}, {% endif %}Failure{% endif %}
-            {% if policy.notify_on_partial %}{% if policy.notify_on_success || policy.notify_on_failure %}, {% endif %}Partial Success{% endif %}
+            {% if policy.on_success %}Success{% endif %}
+            {% if policy.on_failure %}{% if policy.on_success %}, {% endif %}Failure{% endif %}
+            {% if policy.on_timeout %}{% if policy.on_success || policy.on_failure %}, {% endif %}Timeout{% endif %}
         </p>
 
         <div class="flex gap-2 mt-2">

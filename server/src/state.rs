@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 use svrctlrs_core::{NotificationManager, RemoteExecutor, Result};
-use svrctlrs_database::{Database, SqlxPool, SqlxSqlite};
+use svrctlrs_database::{Database, NotificationService, SqlxPool, SqlxSqlite};
 use svrctlrs_scheduler::Scheduler;
 use tokio::sync::RwLock;
 
@@ -40,7 +40,9 @@ impl AppState {
     /// Start the scheduler
     pub async fn start_scheduler(&self) -> Result<()> {
         use svrctlrs_core::executor::JobExecutor;
-        use tracing::info;
+        use svrctlrs_core::{GotifyBackend, NtfyBackend};
+        use svrctlrs_database::queries;
+        use tracing::{info, warn};
 
         let mut scheduler_lock = self.scheduler.write().await;
 
@@ -51,10 +53,94 @@ impl AppState {
             10, // max_concurrent_jobs
         ));
 
-        // Create and start the new scheduler
-        let mut scheduler = Scheduler::new(self.pool.clone(), executor);
+        // Load notification backends from database
+        let client = reqwest::Client::new();
+        let backends = match queries::notifications::list_notification_channels(&self.pool).await {
+            Ok(backends) => backends
+                .into_iter()
+                .filter(|b| b.enabled)
+                .collect::<Vec<_>>(),
+            Err(e) => {
+                warn!("Failed to load notification backends from database: {}", e);
+                Vec::new()
+            }
+        };
 
-        info!("Starting job scheduler");
+        // Initialize Gotify backend
+        let mut gotify_backend: Option<Arc<GotifyBackend>> = None;
+        for backend in backends.iter().filter(|b| b.channel_type_str == "gotify") {
+            let config = backend.get_config();
+            if let (Some(url), Some(token)) = (
+                config.get("url").and_then(|v| v.as_str()),
+                config.get("token").and_then(|v| v.as_str()),
+            ) {
+                match GotifyBackend::with_url_and_key(client.clone(), url, token) {
+                    Ok(gb) => {
+                        gotify_backend = Some(Arc::new(gb));
+                        info!(
+                            "Initialized Gotify backend for notifications: {}",
+                            backend.name
+                        );
+                        break;
+                    }
+                    Err(e) => {
+                        warn!(
+                            "Failed to initialize Gotify backend {}: {}",
+                            backend.name, e
+                        );
+                    }
+                }
+            }
+        }
+
+        // Initialize ntfy backend
+        let mut ntfy_backend: Option<Arc<NtfyBackend>> = None;
+        for backend in backends.iter().filter(|b| b.channel_type_str == "ntfy") {
+            let config = backend.get_config();
+            if let (Some(url), Some(topic)) = (
+                config.get("url").and_then(|v| v.as_str()),
+                config.get("topic").and_then(|v| v.as_str()),
+            ) {
+                match NtfyBackend::with_url_and_topic(client.clone(), url, topic) {
+                    Ok(mut nb) => {
+                        // Add authentication if configured
+                        if let Some(token) = config.get("token").and_then(|v| v.as_str()) {
+                            if !token.trim().is_empty() {
+                                nb = nb.with_token(token);
+                            }
+                        } else if let (Some(username), Some(password)) = (
+                            config.get("username").and_then(|v| v.as_str()),
+                            config.get("password").and_then(|v| v.as_str()),
+                        ) {
+                            if !username.trim().is_empty() && !password.trim().is_empty() {
+                                nb = nb.with_basic_auth(username, password);
+                            }
+                        }
+                        ntfy_backend = Some(Arc::new(nb));
+                        info!(
+                            "Initialized ntfy backend for notifications: {}",
+                            backend.name
+                        );
+                        break;
+                    }
+                    Err(e) => {
+                        warn!("Failed to initialize ntfy backend {}: {}", backend.name, e);
+                    }
+                }
+            }
+        }
+
+        // Create notification service with loaded backends
+        let notification_service = Arc::new(NotificationService::new(
+            self.pool.clone(),
+            gotify_backend,
+            ntfy_backend,
+        ));
+
+        // Create and start the new scheduler with notification service
+        let mut scheduler = Scheduler::new(self.pool.clone(), executor, Some(notification_service));
+
+        info!("Starting job scheduler with automatic notifications");
         scheduler.start().await?;
 
         *scheduler_lock = Some(scheduler);

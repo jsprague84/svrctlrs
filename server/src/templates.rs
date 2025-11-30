@@ -1210,10 +1210,9 @@ pub struct NotificationPolicyDisplay {
     pub scope_type: String, // "global", "job_type", "job_template", "job_schedule"
     pub channel_id: i64,
     pub channel_name: String,
-    pub notify_on_success: bool,
-    pub notify_on_failure: bool,
-    pub notify_on_partial: bool,
-    pub notify_on_timeout: bool,
+    pub on_success: bool,
+    pub on_failure: bool,
+    pub on_timeout: bool,
     pub enabled: bool,
     pub title_template: Option<String>,
     pub body_template: Option<String>,
@@ -1594,10 +1593,9 @@ impl From<svrctlrs_database::NotificationPolicy> for NotificationPolicyDisplay {
             scope_type,
             channel_id: 0,               // TODO: Get from notification_policy_channels
             channel_name: String::new(), // TODO: Join from notification_channels
-            notify_on_success: np.on_success,
-            notify_on_failure: np.on_failure,
-            notify_on_partial: false, // Not in current schema
-            notify_on_timeout: np.on_timeout,
+            on_success: np.on_success,
+            on_failure: np.on_failure,
+            on_timeout: np.on_timeout,
             enabled: np.enabled,
             title_template: np.title_template,
             body_template: np.body_template,

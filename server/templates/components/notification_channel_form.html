@@ -1,4 +1,30 @@
-<div class="card" x-data="{ channelType: '{% match channel %}{% when Some with (c) %}{{ c.channel_type }}{% when None %}gotify{% endmatch %}' }">
+<div class="card" x-data="{
+    channelType: '{% match channel %}{% when Some with (c) %}{{ c.channel_type }}{% when None %}gotify{% endmatch %}',
+    buildConfig() {
+        const config = {};
+        if (this.channelType === 'gotify') {
+            const url = document.querySelector('input[name=endpoint]').value;
+            const token = document.querySelector('input[name=token]').value;
+            if (url) config.url = url;
+            if (token) config.token = token;
+        } else if (this.channelType === 'ntfy') {
+            const url = document.querySelector('input[name=endpoint]').value;
+            const topic = document.querySelector('input[name=topic]').value;
+            const token = document.querySelector('input[name=token]').value;
+            if (url) config.url = url;
+            if (topic) config.topic = topic;
+            if (token) config.token = token;
+        }
+        return JSON.stringify(config);
+    },
+    handleSubmit(event) {
+        // Build and inject config JSON
+        const configField = event.target.querySelector('input[name=config]');
+        if (configField) {
+            configField.value = this.buildConfig();
+        }
+    }
+}">
     <h2>{% match channel %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Notification Channel</h2>
 
     {% match error %}
@@ -9,9 +35,12 @@
 
     {% match channel %}
     {% when Some with (c) %}
-    <form hx-put="/notification-channels/{{ c.id }}"
+    <form hx-put="/settings/notifications/channels/{{ c.id }}"
           hx-target="#channel-list"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          @submit="handleSubmit">
+
+        <input type="hidden" name="config" value="">
 
         <div class="form-group">
             <label for="name">Channel Name *</label>
@@ -103,9 +132,12 @@
         </div>
     </form>
     {% when None %}
-    <form hx-post="/notification-channels"
+    <form hx-post="/settings/notifications/channels"
           hx-target="#channel-list"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          @submit="handleSubmit">
+
+        <input type="hidden" name="config" value="">
 
         <div class="form-group">
             <label for="name">Channel Name *</label>
