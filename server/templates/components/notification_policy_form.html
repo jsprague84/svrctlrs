@@ -9,7 +9,7 @@
 
     {% match policy %}
     {% when Some with (p) %}
-    <form hx-put="/notification-policies/{{ p.id }}"
+    <form hx-put="/settings/notifications/policies/{{ p.id }}"
           hx-target="#policy-list"
           hx-swap="innerHTML">
 
@@ -283,7 +283,7 @@
         </div>
     </form>
     {% when None %}
-    <form hx-post="/notification-policies"
+    <form hx-post="/settings/notifications/policies"
           hx-target="#policy-list"
           hx-swap="innerHTML">
 
