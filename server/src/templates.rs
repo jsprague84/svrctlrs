@@ -1226,16 +1226,6 @@ pub struct NotificationPolicyDisplay {
     pub job_template_count: i64,    // Count of templates using this policy
 }
 
-// ============================================================================
-// Tasks (Legacy - Keep for backward compatibility)
-// ============================================================================
-
-#[derive(Template)]
-#[template(path = "pages/tasks.html")]
-pub struct TasksTemplate {
-    pub user: Option<User>,
-}
-
 #[derive(Template)]
 #[template(path = "components/task_list.html")]
 pub struct TaskListTemplate {

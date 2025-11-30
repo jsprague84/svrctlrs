@@ -26,12 +26,11 @@ use crate::{
 /// Create router with all job schedule routes
 pub fn routes() -> Router<AppState> {
     Router::new()
-        // Main page (also mapped to /tasks for compatibility)
+        // Main page
         .route(
             "/job-schedules",
             get(job_schedules_page).post(create_job_schedule),
         )
-        .route("/tasks", get(job_schedules_page))
         // List endpoint
         .route("/job-schedules/list", get(get_job_schedules_list))
         .route("/schedules/list", get(get_job_schedules_list))
@@ -61,7 +60,7 @@ pub fn routes() -> Router<AppState> {
 // Page Routes
 // ============================================================================
 
-/// Display the job schedules management page (replaces /tasks)
+/// Display the job schedules management page
 #[instrument(skip(state))]
 pub async fn job_schedules_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     info!("Rendering job schedules page");
