@@ -982,6 +982,7 @@ mod tests {
             notification_sent: false,
             notification_error: None,
             metadata: None,
+            rendered_command: None,
         };
 
         assert_eq!(service.calculate_severity(&job_run), 1);

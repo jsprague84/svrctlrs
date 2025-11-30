@@ -391,6 +391,7 @@ mod tests {
             notification_sent: false,
             notification_error: None,
             metadata: None,
+            rendered_command: None,
         };
 
         let duration = job_run.calculate_duration_ms().unwrap();
@@ -419,6 +420,7 @@ mod tests {
             notification_sent: false,
             notification_error: None,
             metadata: None,
+            rendered_command: None,
         };
 
         let step1 = StepExecutionResult {
