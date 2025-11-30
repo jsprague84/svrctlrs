@@ -34,6 +34,13 @@
                             title="Clone">
                         <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
                     </button>
+                    <button hx-get="/job-types/{{ job_type_id }}/command-templates/{{ ct.id }}/test"
+                            hx-target="#command-template-test-container"
+                            hx-swap="innerHTML"
+                            class="btn btn-sm btn-secondary"
+                            title="Test">
+                        <i data-lucide="play-circle" style="width: 12px; height: 12px;"></i>
+                    </button>
                     <button hx-delete="/job-types/{{ job_type_id }}/command-templates/{{ ct.id }}"
                             hx-target="#command-template-{{ ct.id }}"
                             hx-swap="outerHTML"
@@ -60,3 +67,4 @@
 </div>
 
 <div id="command-template-form-container" class="mt-2"></div>
+<div id="command-template-test-container" class="mt-2"></div>

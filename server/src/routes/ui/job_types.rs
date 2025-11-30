@@ -19,8 +19,10 @@ use crate::{
     routes::ui::AppError,
     state::AppState,
     templates::{
-        CommandTemplateListTemplate, JobTypeDisplay, JobTypeFormTemplate, JobTypeListTemplate,
-        JobTypeViewTemplate, JobTypesTemplate,
+        CommandTemplateDisplay, CommandTemplateListTemplate,
+        CommandTemplateTestResultTemplate, CommandTemplateTestTemplate, JobTypeDisplay,
+        JobTypeFormTemplate, JobTypeListTemplate, JobTypeViewTemplate, JobTypesTemplate,
+        ParameterDisplay, ValidationResult,
     },
 };
 
@@ -48,6 +50,14 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/job-types/{job_type_id}/command-templates/{id}/clone",
             axum::routing::post(clone_command_template),
+        )
+        .route(
+            "/job-types/{job_type_id}/command-templates/{id}/test",
+            get(test_command_template),
+        )
+        .route(
+            "/job-types/{job_type_id}/command-templates/{id}/validate",
+            axum::routing::post(validate_command_template),
         )
         .route(
             "/command-templates/{id}/parameters",
@@ -942,6 +952,86 @@ pub async fn clone_command_template(
     get_command_templates(State(state), Path(job_type_id)).await
 }
 
+/// Display test form for command template (HTMX)
+#[instrument(skip(state))]
+pub async fn test_command_template(
+    State(state): State<AppState>,
+    Path((job_type_id, template_id)): Path<(i64, i64)>,
+) -> Result<Html<String>, AppError> {
+    info!(job_type_id, template_id, "Displaying command template test form");
+
+    // Get command template
+    let template = queries::get_command_template(&state.pool, template_id)
+        .await
+        .map_err(|e| {
+            error!(template_id, error = %e, "Failed to fetch command template");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    // Convert to display model
+    let template_display: CommandTemplateDisplay = template.clone().into();
+
+    // Parse parameter schema
+    let param_schema = if let Some(ref schema_json) = template.parameter_schema {
+        if let Ok(schema) = serde_json::from_str::<Vec<serde_json::Value>>(schema_json) {
+            let empty_vars = std::collections::HashMap::new();
+            schema
+                .iter()
+                .filter_map(|v| ParameterDisplay::from_json(v, &empty_vars))
+                .collect()
+        } else {
+            Vec::new()
+        }
+    } else {
+        Vec::new()
+    };
+
+    // Render test form
+    let tmpl = CommandTemplateTestTemplate {
+        job_type_id,
+        template: template_display,
+        param_schema,
+    };
+
+    let html = tmpl.render().map_err(|e| {
+        error!(error = %e, "Failed to render test template");
+        AppError::TemplateError(e.to_string())
+    })?;
+
+    Ok(Html(html))
+}
+
+/// Validate command template with test parameters (HTMX)
+#[instrument(skip(state))]
+pub async fn validate_command_template(
+    State(state): State<AppState>,
+    Path((job_type_id, template_id)): Path<(i64, i64)>,
+    Form(params): Form<HashMap<String, String>>,
+) -> Result<Html<String>, AppError> {
+    info!(job_type_id, template_id, ?params, "Validating command template");
+
+    // Get command template
+    let template = queries::get_command_template(&state.pool, template_id)
+        .await
+        .map_err(|e| {
+            error!(template_id, error = %e, "Failed to fetch command template");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    // Perform validation
+    let validation = validate_template_with_params(&template, params);
+
+    // Render result
+    let tmpl = CommandTemplateTestResultTemplate { validation };
+
+    let html = tmpl.render().map_err(|e| {
+        error!(error = %e, "Failed to render validation result");
+        AppError::TemplateError(e.to_string())
+    })?;
+
+    Ok(Html(html))
+}
+
 /// Generate a unique clone name by appending _copy or _copy_N
 async fn generate_clone_name(pool: &Pool<Sqlite>, original_name: &str) -> Result<String, AppError> {
     let mut candidate = format!("{}_copy", original_name);
@@ -954,6 +1044,85 @@ async fn generate_clone_name(pool: &Pool<Sqlite>, original_name: &str) -> Result
     }
 
     Ok(candidate)
+}
+
+/// Validate a command template with provided parameters
+fn validate_template_with_params(
+    template: &svrctlrs_database::models::CommandTemplate,
+    params: HashMap<String, String>,
+) -> ValidationResult {
+    let mut errors = Vec::new();
+    let mut warnings = Vec::new();
+    let command = template.command.clone();
+
+    // Parse parameter schema
+    let schema = template.get_parameter_schema();
+    let expected_params: HashMap<String, bool> = if let Some(arr) = schema.as_array() {
+        arr.iter()
+            .filter_map(|v| {
+                let name = v.get("name")?.as_str()?.to_string();
+                let required = v.get("required")?.as_bool().unwrap_or(false);
+                Some((name, required))
+            })
+            .collect()
+    } else {
+        HashMap::new()
+    };
+
+    // Check for missing required parameters
+    for (param_name, required) in &expected_params {
+        if *required && !params.contains_key(param_name) {
+            errors.push(format!("Missing required parameter: {}", param_name));
+        }
+    }
+
+    // Substitute parameters in command
+    let mut rendered_command = command.clone();
+    let mut undefined_vars = Vec::new();
+
+    // Find all {{variable}} patterns
+    let re = regex::Regex::new(r"\{\{(\w+)\}\}").unwrap();
+    for cap in re.captures_iter(&command) {
+        let var_name = &cap[1];
+        if let Some(value) = params.get(var_name) {
+            rendered_command = rendered_command.replace(&format!("{{{{{}}}}}", var_name), value);
+        } else {
+            undefined_vars.push(var_name.to_string());
+        }
+    }
+
+    // Check for undefined variables
+    for var in &undefined_vars {
+        if !expected_params.contains_key(var) {
+            warnings.push(format!(
+                "Variable '{}' used in command but not defined in parameter schema",
+                var
+            ));
+        } else if !params.contains_key(var) {
+            errors.push(format!("Missing value for variable: {}", var));
+        }
+    }
+
+    // Check for extra parameters
+    for param_name in params.keys() {
+        if !expected_params.contains_key(param_name) && !command.contains(&format!("{{{{{}}}}}", param_name)) {
+            warnings.push(format!(
+                "Parameter '{}' provided but not used in command",
+                param_name
+            ));
+        }
+    }
+
+    ValidationResult {
+        is_valid: errors.is_empty(),
+        rendered_command: Some(rendered_command),
+        errors,
+        warnings: if warnings.is_empty() {
+            None
+        } else {
+            Some(warnings)
+        },
+    }
 }
 
 /// Query parameters for fetching command template parameters

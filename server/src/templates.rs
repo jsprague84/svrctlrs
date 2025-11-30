@@ -352,6 +352,28 @@ pub struct CommandTemplateFormTemplate {
     pub error: Option<String>,
 }
 
+#[derive(Template)]
+#[template(path = "components/command_template_test.html")]
+pub struct CommandTemplateTestTemplate {
+    pub job_type_id: i64,
+    pub template: CommandTemplateDisplay,
+    pub param_schema: Vec<ParameterDisplay>,
+}
+
+#[derive(Template)]
+#[template(path = "components/command_template_test_result.html")]
+pub struct CommandTemplateTestResultTemplate {
+    pub validation: ValidationResult,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ValidationResult {
+    pub is_valid: bool,
+    pub rendered_command: Option<String>,
+    pub errors: Vec<String>,
+    pub warnings: Option<Vec<String>>,
+}
+
 #[derive(Debug, Clone)]
 pub struct CommandTemplateDisplay {
     pub id: i64,

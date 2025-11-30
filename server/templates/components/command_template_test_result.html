@@ -1,0 +1,47 @@
+{% if validation.is_valid %}
+<div class="alert alert-success">
+    <i data-lucide="check-circle" style="width: 16px; height: 16px;"></i>
+    Command template is valid!
+</div>
+
+{% if validation.rendered_command.is_some() %}
+<div class="form-group">
+    <label>Rendered Command</label>
+    <code style="display: block; background: var(--success-bg, #d4edda); color: var(--success-text, #155724); padding: 0.75rem; border-radius: 4px; font-size: 0.875rem; border: 1px solid var(--success-border, #c3e6cb);">{{ validation.rendered_command.as_ref().unwrap() }}</code>
+</div>
+{% endif %}
+
+{% if validation.warnings.is_some() && !validation.warnings.as_ref().unwrap().is_empty() %}
+<div class="alert alert-warning mt-2">
+    <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i>
+    <strong>Warnings:</strong>
+    <ul style="margin: 0.5rem 0 0 1.5rem;">
+        {% for warning in validation.warnings.as_ref().unwrap() %}
+        <li>{{ warning }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% else %}
+<div class="alert alert-danger">
+    <i data-lucide="x-circle" style="width: 16px; height: 16px;"></i>
+    <strong>Validation Failed</strong>
+</div>
+
+<div class="form-group">
+    <label>Errors</label>
+    <ul style="color: var(--danger); margin: 0.5rem 0 0 1.5rem;">
+        {% for error in validation.errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+    </ul>
+</div>
+
+{% if validation.rendered_command.is_some() %}
+<div class="form-group mt-2">
+    <label>Partial Render (with errors)</label>
+    <code style="display: block; background: var(--danger-bg, #f8d7da); color: var(--danger-text, #721c24); padding: 0.75rem; border-radius: 4px; font-size: 0.875rem; border: 1px solid var(--danger-border, #f5c6cb);">{{ validation.rendered_command.as_ref().unwrap() }}</code>
+</div>
+{% endif %}
+{% endif %}

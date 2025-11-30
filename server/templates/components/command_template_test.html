@@ -1,0 +1,81 @@
+<div class="card">
+    <div class="flex-between">
+        <h3>Test Command Template: {{ template.name }}</h3>
+        <button onclick="document.getElementById('command-template-test-container').innerHTML = ''"
+                class="btn btn-sm btn-secondary"
+                title="Close">
+            <i data-lucide="x" style="width: 14px; height: 14px;"></i>
+        </button>
+    </div>
+
+    <form hx-post="/job-types/{{ job_type_id }}/command-templates/{{ template.id }}/validate"
+          hx-target="#test-result"
+          hx-swap="innerHTML">
+
+        <div class="form-group">
+            <label>Original Command</label>
+            <code style="display: block; background: var(--bg); padding: 0.5rem; border-radius: 4px; font-size: 0.875rem;">{{ template.command }}</code>
+        </div>
+
+        {% if !param_schema.is_empty() %}
+        <div class="form-group">
+            <label>Test Parameters</label>
+            <div class="mt-1" style="border: 1px solid var(--border); padding: 0.75rem; border-radius: 4px;">
+                {% for param in param_schema %}
+                <div class="form-group" style="margin-bottom: 0.75rem;">
+                    <label for="param-{{ param.name }}">
+                        {{ param.name }}
+                        {% if param.required %}
+                        <span style="color: var(--danger);">*</span>
+                        {% endif %}
+                    </label>
+                    {% if param.description.is_some() %}
+                    <p class="text-secondary" style="font-size: 0.75rem; margin-top: 0.25rem;">{{ param.description.as_ref().unwrap() }}</p>
+                    {% endif %}
+
+                    {% match param.param_type.as_str() %}
+                    {% when "select" %}
+                        <select id="param-{{ param.name }}" name="{{ param.name }}" class="form-control"
+                                {% if param.required %}required{% endif %}>
+                            <option value="">-- Select {{ param.name }} --</option>
+                            {% if param.options.is_some() %}
+                                {% for option in param.options.as_ref().unwrap() %}
+                                <option value="{{ option }}">{{ option }}</option>
+                                {% endfor %}
+                            {% endif %}
+                        </select>
+                    {% when "number" %}
+                        <input type="number" id="param-{{ param.name }}" name="{{ param.name }}" class="form-control"
+                               {% if param.required %}required{% endif %}
+                               {% if param.default.is_some() %}value="{{ param.default.as_ref().unwrap() }}"{% endif %}>
+                    {% when "boolean" %}
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="param-{{ param.name }}" name="{{ param.name }}" value="true">
+                            Enable {{ param.name }}
+                        </label>
+                    {% when _ %}
+                        <input type="text" id="param-{{ param.name }}" name="{{ param.name }}" class="form-control"
+                               {% if param.required %}required{% endif %}
+                               {% if param.default.is_some() %}value="{{ param.default.as_ref().unwrap() }}"{% endif %}
+                               placeholder="Enter {{ param.name }}">
+                    {% endmatch %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="flex gap-2">
+            <button type="submit" class="btn btn-primary">
+                <i data-lucide="play-circle" style="width: 14px; height: 14px;"></i> Validate & Preview
+            </button>
+            <button type="button"
+                    onclick="document.getElementById('command-template-test-container').innerHTML = ''"
+                    class="btn btn-secondary">
+                Cancel
+            </button>
+        </div>
+    </form>
+
+    <div id="test-result" class="mt-2"></div>
+</div>
