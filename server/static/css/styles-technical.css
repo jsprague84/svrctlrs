@@ -256,6 +256,8 @@ h3 {
 
     .sidebar {
         transform: translateX(-100%);
+        /* Add extra bottom padding on mobile to account for browser UI (taskbar) */
+        padding-bottom: 120px;
     }
 
     .sidebar.open {

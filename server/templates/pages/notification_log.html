@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+
+{% block title %}Notification Log - SvrCtlRS{% endblock %}
+{% block nav_notification_log %}active{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-3">
+    <h1>Notification Log</h1>
+</div>
+
+<p class="text-secondary mb-3">
+    Audit trail of all sent notifications, including success/failure status and retry information.
+</p>
+
+<!-- Log Table -->
+{% if logs.is_empty() %}
+<div class="card">
+    <p class="text-secondary">No notifications sent yet.</p>
+</div>
+{% else %}
+<div class="card">
+    <div style="overflow-x: auto;">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Sent At</th>
+                    <th>Status</th>
+                    <th>Channel</th>
+                    <th>Policy</th>
+                    <th>Title</th>
+                    <th>Priority</th>
+                    <th>Retries</th>
+                    <th>Job Run</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                <tr id="log-{{ log.id }}">
+                    <td>{{ log.sent_at }}</td>
+                    <td>
+                        {% if log.success %}
+                        <span class="badge badge-success">Success</span>
+                        {% else %}
+                        <span class="badge badge-danger">Failed</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ log.channel_name }}</td>
+                    <td>
+                        {% match log.policy_name %}
+                        {% when Some with (name) %}{{ name }}{% when None %}<span class="text-secondary">-</span>
+                        {% endmatch %}
+                    </td>
+                    <td>{{ log.title }}</td>
+                    <td>
+                        <span class="badge {% if log.priority >= 7 %}badge-danger{% else if log.priority >= 5 %}badge-warning{% else %}badge-info{% endif %}">
+                            {{ log.priority }}
+                        </span>
+                    </td>
+                    <td>{{ log.retry_count }}</td>
+                    <td>
+                        {% match log.job_run_id %}
+                        {% when Some with (run_id) %}
+                        <a href="/job-runs/{{ run_id }}" class="text-link">#{{ run_id }}</a>
+                        {% when None %}
+                        <span class="text-secondary">-</span>
+                        {% endmatch %}
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-secondary"
+                                onclick="document.getElementById('log-details-{{ log.id }}').classList.toggle('hidden')">
+                            <i data-lucide="info" style="width: 14px; height: 14px;"></i>
+                        </button>
+                    </td>
+                </tr>
+                <tr id="log-details-{{ log.id }}" class="hidden">
+                    <td colspan="9" style="background-color: var(--color-bg-secondary);">
+                        <div style="padding: 1rem;">
+                            <h4 class="mb-2">Notification Details</h4>
+                            <div class="mb-2">
+                                <strong>Body:</strong>
+                                {% match log.body %}
+                                {% when Some with (body) %}
+                                <pre style="white-space: pre-wrap; background-color: var(--color-bg); padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem;">{{ body }}</pre>
+                                {% when None %}
+                                <p class="text-secondary">No body content</p>
+                                {% endmatch %}
+                            </div>
+                            {% if !log.success %}
+                            {% match log.error_message %}
+                            {% when Some with (error) %}
+                            <div class="alert alert-error">
+                                <strong>Error:</strong> {{ error }}
+                            </div>
+                            {% when None %}
+                            {% endmatch %}
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

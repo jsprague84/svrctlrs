@@ -173,6 +173,14 @@ pub async fn get_job_run_detail(
             AppError::DatabaseError(e.to_string())
         })?;
 
+    // Get step execution results (for composite jobs)
+    let step_results = queries::get_step_execution_results(&state.pool, id)
+        .await
+        .map_err(|e| {
+            error!(job_run_id = id, error = %e, "Failed to fetch step execution results");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
     // Get servers for display
     let servers = server_queries::list_servers(&state.pool)
         .await
@@ -182,12 +190,14 @@ pub async fn get_job_run_detail(
         })?;
 
     let server_results_display: Vec<_> = server_results.into_iter().map(Into::into).collect();
+    let step_results_display: Vec<_> = step_results.into_iter().map(Into::into).collect();
 
     let template = JobRunDetailTemplate {
         user: None,
         job_run: job_run.into(),
         server_results: server_results_display.clone(),
         results: server_results_display, // Alias
+        step_results: step_results_display,
         servers: servers.into_iter().map(Into::into).collect(),
     };
 

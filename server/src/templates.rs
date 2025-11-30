@@ -101,7 +101,15 @@ pub struct ServerFormTemplate {
 pub struct ServerCapabilitiesTemplate {
     pub server_id: i64,
     pub server: ServerDisplay, // Full server info for display
-    pub capabilities: Vec<String>,
+    pub capabilities: Vec<ServerCapabilityDisplay>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ServerCapabilityDisplay {
+    pub capability: String,
+    pub available: bool,
+    pub version: Option<String>,
+    pub detected_at: String,
 }
 
 /// Simple tag info for server display (name + color)
@@ -923,6 +931,7 @@ pub struct JobRunDetailTemplate {
     pub job_run: JobRunDisplay,
     pub server_results: Vec<ServerJobResultDisplay>,
     pub results: Vec<ServerJobResultDisplay>, // Alias for template compatibility
+    pub step_results: Vec<StepExecutionResultDisplay>,
     pub servers: Vec<ServerDisplay>,
 }
 
@@ -1136,6 +1145,31 @@ pub struct ServerJobResultDetailTemplate {
     pub result: ServerJobResultDisplay,
 }
 
+// Step Execution Results (for composite jobs)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StepExecutionResultDisplay {
+    pub id: i64,
+    pub job_run_id: i64,
+    pub step_order: i32,
+    pub step_name: String,
+    pub command_template_id: i64,
+    pub status: String,
+    pub started_at: String,
+    pub finished_at: Option<String>,
+    pub duration_ms: Option<i64>,
+    pub duration_seconds: f64,
+    pub exit_code: Option<i32>,
+    pub output: Option<String>,
+    pub error: Option<String>,
+    pub metadata_json: String,
+}
+
+impl StepExecutionResultDisplay {
+    pub fn duration_seconds(&self) -> f64 {
+        self.duration_ms.map(|ms| ms as f64 / 1000.0).unwrap_or(0.0)
+    }
+}
+
 // ============================================================================
 // Notification Channels
 // ============================================================================
@@ -1241,6 +1275,35 @@ pub struct NotificationPolicyDisplay {
     pub max_per_hour: Option<i32>,
     // Multi-channel support
     pub policy_channels: Vec<PolicyChannelAssignment>,
+}
+
+// ============================================================================
+// Notification Log (Audit Trail)
+// ============================================================================
+
+#[derive(Template)]
+#[template(path = "pages/notification_log.html")]
+pub struct NotificationLogPageTemplate {
+    pub user: Option<User>,
+    pub logs: Vec<NotificationLogDisplay>,
+    pub channels: Vec<NotificationChannelDisplay>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotificationLogDisplay {
+    pub id: i64,
+    pub channel_id: i64,
+    pub channel_name: String,
+    pub policy_id: Option<i64>,
+    pub policy_name: Option<String>,
+    pub job_run_id: Option<i64>,
+    pub title: String,
+    pub body: Option<String>,
+    pub priority: i32,
+    pub success: bool,
+    pub error_message: Option<String>,
+    pub retry_count: i32,
+    pub sent_at: String,
 }
 
 // ============================================================================
@@ -1530,6 +1593,50 @@ impl From<svrctlrs_database::ServerJobResult> for ServerJobResultDisplay {
             error_message: r.error,
             metadata_json,
             timestamp: started.clone(), // Alias for started_at
+        }
+    }
+}
+
+/// Convert database StepExecutionResult to display model
+impl From<svrctlrs_database::StepExecutionResult> for StepExecutionResultDisplay {
+    fn from(s: svrctlrs_database::StepExecutionResult) -> Self {
+        use chrono::Local;
+
+        let started = s
+            .started_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+
+        let finished = s.finished_at.map(|dt| {
+            dt.with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string()
+        });
+
+        let duration_seconds = s.duration_ms.map(|ms| ms as f64 / 1000.0).unwrap_or(0.0);
+
+        let metadata_json = s
+            .metadata
+            .as_ref()
+            .and_then(|m| serde_json::to_string(m).ok())
+            .unwrap_or_else(|| "{}".to_string());
+
+        Self {
+            id: s.id,
+            job_run_id: s.job_run_id,
+            step_order: s.step_order,
+            step_name: s.step_name,
+            command_template_id: s.command_template_id,
+            status: s.status_str,
+            started_at: started,
+            finished_at: finished,
+            duration_ms: s.duration_ms,
+            duration_seconds,
+            exit_code: s.exit_code,
+            output: s.output,
+            error: s.error,
+            metadata_json,
         }
     }
 }

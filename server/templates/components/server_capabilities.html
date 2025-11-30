@@ -5,18 +5,53 @@
 </div>
 {% else %}
 <div class="card">
-    <h3>Detected Capabilities</h3>
-    <div class="flex gap-2 flex-wrap mt-2">
+    <div class="flex-between mb-2">
+        <h4>Detected Capabilities</h4>
+        <button hx-get="/servers/{{ server_id }}/capabilities"
+                hx-target="#server-{{ server_id }}-capabilities"
+                hx-swap="innerHTML"
+                class="btn btn-sm btn-secondary">
+            <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i> Re-detect
+        </button>
+    </div>
+    <div class="grid grid-2 gap-2">
         {% for cap in capabilities %}
-        <div class="badge badge-success">
-            <i data-lucide="{% if cap == "docker" %}package{% else if cap == "systemd" %}activity{% else %}download{% endif %}" style="width: 14px; height: 14px;"></i>
-            {% if cap == "docker" %}Docker
-            {% else if cap == "systemd" %}systemd
-            {% else if cap == "apt_get" %}apt-get
-            {% else if cap == "dnf" %}dnf
-            {% else if cap == "yum" %}yum
-            {% else %}{{ cap }}
-            {% endif %}
+        <div class="card" style="padding: 0.75rem; {% if !cap.available %}opacity: 0.6;{% endif %}">
+            <div class="flex-between mb-1">
+                <div class="flex gap-2 align-center">
+                    {% if cap.capability == "docker" %}<i data-lucide="package" style="width: 16px; height: 16px;"></i>
+                    {% else if cap.capability == "systemd" %}<i data-lucide="activity" style="width: 16px; height: 16px;"></i>
+                    {% else if cap.capability == "apt" %}<i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                    {% else if cap.capability == "apt_get" %}<i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                    {% else if cap.capability == "dnf" %}<i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                    {% else if cap.capability == "yum" %}<i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                    {% else if cap.capability == "pacman" %}<i data-lucide="download" style="width: 16px; height: 16px;"></i>
+                    {% else %}<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i>
+                    {% endif %}
+                    <strong>{% if cap.capability == "docker" %}Docker
+                    {% else if cap.capability == "systemd" %}systemd
+                    {% else if cap.capability == "apt" %}apt
+                    {% else if cap.capability == "apt_get" %}apt
+                    {% else if cap.capability == "dnf" %}dnf
+                    {% else if cap.capability == "yum" %}yum
+                    {% else if cap.capability == "pacman" %}pacman
+                    {% else %}{{ cap.capability }}
+                    {% endif %}</strong>
+                </div>
+                <span class="badge {% if cap.available %}badge-success{% else %}badge-secondary{% endif %}">
+                    {% if cap.available %}Available{% else %}Unavailable{% endif %}
+                </span>
+            </div>
+            {% match cap.version %}
+            {% when Some with (v) %}
+            <div class="text-secondary" style="font-size: 0.875rem;">
+                <strong>Version:</strong> {{ v }}
+            </div>
+            {% when None %}
+            {% endmatch %}
+            <div class="text-secondary" style="font-size: 0.75rem; margin-top: 0.25rem;">
+                Detected: {{ cap.detected_at }}
+            </div>
         </div>
         {% endfor %}
     </div>

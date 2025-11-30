@@ -597,7 +597,19 @@ async fn server_capabilities(
         let template = ServerCapabilitiesTemplate {
             server_id: id,
             server: server_to_display(&server),
-            capabilities: capabilities.into_iter().map(|c| c.capability).collect(),
+            capabilities: capabilities
+                .into_iter()
+                .map(|c| ServerCapabilityDisplay {
+                    capability: c.capability,
+                    available: c.available,
+                    version: c.version,
+                    detected_at: c
+                        .detected_at
+                        .with_timezone(&chrono::Local)
+                        .format("%Y-%m-%d %H:%M")
+                        .to_string(),
+                })
+                .collect(),
         };
         return Ok(Html(template.render()?));
     }
@@ -728,7 +740,19 @@ echo "LVM=$(command -v lvm >/dev/null 2>&1 && echo '1' || echo '0')"
             let template = ServerCapabilitiesTemplate {
                 server_id: id,
                 server: server_to_display(&server),
-                capabilities: capabilities.into_iter().map(|c| c.capability).collect(),
+                capabilities: capabilities
+                    .into_iter()
+                    .map(|c| ServerCapabilityDisplay {
+                        capability: c.capability,
+                        available: c.available,
+                        version: c.version,
+                        detected_at: c
+                            .detected_at
+                            .with_timezone(&chrono::Local)
+                            .format("%Y-%m-%d %H:%M")
+                            .to_string(),
+                    })
+                    .collect(),
             };
             Ok(Html(template.render()?))
         }

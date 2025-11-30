@@ -27,8 +27,8 @@ use crate::{
     templates::{
         NotificationChannelFormTemplate as ChannelFormTemplate,
         NotificationChannelListTemplate as ChannelListTemplate, NotificationChannelsTemplate,
-        NotificationPoliciesTemplate, NotificationPolicyDisplay,
-        NotificationPolicyFormTemplate as PolicyFormTemplate,
+        NotificationLogDisplay, NotificationLogPageTemplate, NotificationPoliciesTemplate,
+        NotificationPolicyDisplay, NotificationPolicyFormTemplate as PolicyFormTemplate,
         NotificationPolicyListTemplate as PolicyListTemplate, PolicyChannelAssignment,
     },
 };
@@ -83,6 +83,8 @@ pub fn routes() -> Router<AppState> {
             "/settings/notifications/policies/{id}/toggle",
             post(toggle_policy),
         )
+        // Notification Log (Audit Trail)
+        .route("/settings/notifications/log", get(notification_log_page))
 }
 
 // ============================================================================
@@ -951,4 +953,86 @@ pub async fn test_channel(
             msg
         ))),
     }
+}
+
+// ============================================================================
+// Notification Log (Audit Trail)
+// ============================================================================
+
+/// Display notification audit log page
+#[instrument(skip(state))]
+pub async fn notification_log_page(
+    State(state): State<AppState>,
+) -> Result<Html<String>, AppError> {
+    info!("Rendering notification audit log page");
+
+    // Fetch recent notification logs (limit 100)
+    let logs_raw = queries::get_notification_log(&state.pool, 100, 0)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to fetch notification logs");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    // Fetch channels for display
+    let channels = queries::list_notification_channels(&state.pool)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to fetch notification channels");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    // Convert to display models
+    let mut logs: Vec<NotificationLogDisplay> = Vec::new();
+    for log in logs_raw {
+        // Find channel name
+        let channel_name = channels
+            .iter()
+            .find(|c| c.id == log.channel_id)
+            .map(|c| c.name.clone())
+            .unwrap_or_else(|| format!("Channel #{}", log.channel_id));
+
+        // Fetch policy name if available
+        let policy_name = if let Some(policy_id) = log.policy_id {
+            queries::get_notification_policy(&state.pool, policy_id)
+                .await
+                .ok()
+                .map(|p| p.name)
+        } else {
+            None
+        };
+
+        logs.push(NotificationLogDisplay {
+            id: log.id,
+            channel_id: log.channel_id,
+            channel_name,
+            policy_id: log.policy_id,
+            policy_name,
+            job_run_id: log.job_run_id,
+            title: log.title,
+            body: log.body,
+            priority: log.priority,
+            success: log.success,
+            error_message: log.error_message,
+            retry_count: log.retry_count,
+            sent_at: log
+                .sent_at
+                .with_timezone(&chrono::Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
+        });
+    }
+
+    let template = NotificationLogPageTemplate {
+        user: None,
+        logs,
+        channels: channels.into_iter().map(Into::into).collect(),
+    };
+
+    let html = template.render().map_err(|e| {
+        error!(error = %e, "Failed to render notification log template");
+        AppError::TemplateError(e.to_string())
+    })?;
+
+    Ok(Html(html))
 }

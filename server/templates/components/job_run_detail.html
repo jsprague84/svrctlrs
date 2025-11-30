@@ -13,7 +13,67 @@
         {% endmatch %}
     </div>
 
-    <h5>Server Results</h5>
+    {% if !step_results.is_empty() %}
+    <h5 class="mt-3">Step Execution Results</h5>
+    <div class="mt-2">
+        {% for step in step_results %}
+        <div class="card mb-2" style="background: var(--bg); padding: 0.75rem;">
+            <div class="flex-between mb-1">
+                <div>
+                    <strong>{{ step.step_order }}. {{ step.step_name }}</strong>
+                </div>
+                <span class="badge {% if step.status == "success" %}badge-success{% else if step.status == "failure" %}badge-error{% else if step.status == "running" %}badge-info{% else %}badge-secondary{% endif %}">
+                    {% if step.status == "success" %}Success
+                    {% else if step.status == "failure" %}Failed
+                    {% else if step.status == "running" %}Running
+                    {% else if step.status == "skipped" %}Skipped
+                    {% else %}{{ step.status }}
+                    {% endif %}
+                </span>
+            </div>
+            <div class="text-secondary" style="font-size: 0.875rem;">
+                <strong>Started:</strong> {{ step.started_at }}
+                {% match step.finished_at %}
+                {% when Some with (finished) %}
+                | <strong>Finished:</strong> {{ finished }} | <strong>Duration:</strong> {{ step.duration_seconds }}s
+                {% when None %}
+                {% endmatch %}
+                {% match step.exit_code %}
+                {% when Some with (code) %}
+                | <strong>Exit Code:</strong> {{ code }}
+                {% when None %}
+                {% endmatch %}
+            </div>
+            {% match step.output %}
+            {% when Some with (output) %}
+            {% if !output.is_empty() %}
+            <details class="mt-1">
+                <summary style="cursor: pointer; user-select: none;">
+                    <strong>Output</strong>
+                </summary>
+                <pre style="white-space: pre-wrap; background-color: var(--color-bg); padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.75rem;">{{ output }}</pre>
+            </details>
+            {% endif %}
+            {% when None %}
+            {% endmatch %}
+            {% match step.error %}
+            {% when Some with (error) %}
+            {% if !error.is_empty() %}
+            <details class="mt-1">
+                <summary style="cursor: pointer; user-select: none; color: var(--color-error);">
+                    <strong>Error</strong>
+                </summary>
+                <pre style="white-space: pre-wrap; background-color: var(--color-bg); padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.75rem; color: var(--color-error);">{{ error }}</pre>
+            </details>
+            {% endif %}
+            {% when None %}
+            {% endmatch %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <h5 class="mt-3">Server Results</h5>
     <div id="server-results-{{ job_run.id }}">
         {% include "components/server_job_results.html" %}
     </div>
