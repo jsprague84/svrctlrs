@@ -26,14 +26,14 @@
                 <i data-lucide="send" style="width: 14px; height: 14px;"></i> Test
             </button>
 
-            <button hx-get="/notification-channels/{{ channel.id }}/edit"
+            <button hx-get="/settings/notifications/channels/{{ channel.id }}/edit"
                     hx-target="#channel-form-container"
                     hx-swap="innerHTML"
                     class="btn btn-sm btn-secondary">
                 <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
             </button>
 
-            <button hx-delete="/notification-channels/{{ channel.id }}"
+            <button hx-delete="/settings/notifications/channels/{{ channel.id }}"
                     hx-target="#channel-{{ channel.id }}"
                     hx-swap="outerHTML"
                     hx-confirm="Delete channel '{{ channel.name }}'?"
