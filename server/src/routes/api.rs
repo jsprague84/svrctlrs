@@ -23,10 +23,6 @@ pub fn routes() -> Router<AppState> {
         .route("/config/reload", post(reload_config))
         // Metrics
         .route("/metrics", get(get_metrics))
-        .route("/metrics/{plugin_id}", get(plugin_metrics))
-        // Tasks
-        .route("/tasks", get(list_all_tasks))
-        .route("/tasks/execute", post(execute_task))
         // Notifications
         .route("/notifications/{id}/test", post(test_notification))
 }
@@ -113,54 +109,6 @@ async fn get_metrics(State(state): State<AppState>) -> impl IntoResponse {
             "servers_configured": state.config.servers.len()
         }
     }))
-}
-
-/// Get feature-specific metrics
-#[instrument(skip(_state))]
-async fn plugin_metrics(
-    State(_state): State<AppState>,
-    Path(feature_id): Path<String>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    // Legacy endpoint - features are now built-in
-    // TODO: Fetch actual metrics from database
-    Ok(Json(json!({
-        "feature_id": feature_id,
-        "metrics": {},
-        "note": "This endpoint is deprecated. Features are now built-in."
-    })))
-}
-
-/// List all scheduled tasks
-#[instrument(skip(_state))]
-async fn list_all_tasks(State(_state): State<AppState>) -> impl IntoResponse {
-    // Legacy endpoint - tasks are now managed in the database
-    // Use /tasks/list or query the database directly
-    Json(json!({
-        "tasks": [],
-        "note": "This endpoint is deprecated. Tasks are now managed in the database. Use the UI or database API."
-    }))
-}
-
-/// Request to execute a task
-#[derive(Debug, Deserialize)]
-struct ExecuteTaskRequest {
-    plugin_id: String,
-    task_id: String,
-}
-
-/// Execute a task manually
-#[instrument(skip(_state))]
-async fn execute_task(
-    State(_state): State<AppState>,
-    Json(req): Json<ExecuteTaskRequest>,
-) -> Result<impl IntoResponse, (StatusCode, String)> {
-    info!(feature_id = %req.plugin_id, task_id = %req.task_id, "Manual task execution requested (deprecated endpoint)");
-
-    // Legacy endpoint - task execution is now done through database task IDs
-    Err::<Json<serde_json::Value>, _>((
-        StatusCode::GONE,
-        format!("This endpoint is deprecated. Use POST /tasks/<task_id>/run instead. Feature: {}, Task: {}", req.plugin_id, req.task_id)
-    ))
 }
 
 /// Test notification input

@@ -57,14 +57,23 @@ pub async fn get_user_from_session() -> Option<User> {
 }
 
 /// 404 handler
-async fn not_found() -> Result<impl IntoResponse, AppError> {
+async fn not_found() -> impl IntoResponse {
     use crate::templates::NotFoundTemplate;
     use askama::Template;
-    use axum::response::Html;
+    use axum::{http::StatusCode, response::Html};
 
     let user = get_user_from_session().await;
     let template = NotFoundTemplate { user };
-    Ok(Html(template.render()?))
+
+    // Return 404 status code with rendered template
+    (
+        StatusCode::NOT_FOUND,
+        Html(
+            template
+                .render()
+                .unwrap_or_else(|_| "<html><body><h1>404 Not Found</h1></body></html>".to_string()),
+        ),
+    )
 }
 
 // ============================================================================
