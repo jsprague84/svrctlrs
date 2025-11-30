@@ -33,27 +33,18 @@ pub fn routes() -> Router<AppState> {
         )
         // List endpoint
         .route("/job-schedules/list", get(get_job_schedules_list))
-        .route("/schedules/list", get(get_job_schedules_list))
-        .route("/schedules/grouped", get(get_grouped_schedules))
+        .route("/job-schedules/grouped", get(get_grouped_schedules))
         // Form endpoints
         .route("/job-schedules/new", get(new_job_schedule_form))
-        .route("/schedules/new", get(new_job_schedule_form))
         .route("/job-schedules/{id}/edit", get(edit_job_schedule_form))
-        .route("/schedules/{id}/edit", get(edit_job_schedule_form))
         // CRUD endpoints
         .route(
             "/job-schedules/{id}",
             put(update_job_schedule).delete(delete_job_schedule),
         )
-        .route(
-            "/schedules/{id}",
-            put(update_job_schedule).delete(delete_job_schedule),
-        )
         // Action endpoints
         .route("/job-schedules/{id}/run-now", post(run_job_schedule))
-        .route("/schedules/{id}/run-now", post(run_job_schedule))
         .route("/job-schedules/{id}/toggle", post(toggle_job_schedule))
-        .route("/schedules/{id}/toggle", post(toggle_job_schedule))
 }
 
 // ============================================================================
