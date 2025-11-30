@@ -4,29 +4,59 @@ This file provides comprehensive guidance for AI assistants working with the Svr
 
 **Last Updated**: 2025-11-30
 **Architecture Version**: v2.0 (Job-Based System)
-**Status**: ✅ Active Development - Phase 6 Complete
+**Status**: ✅ Production Ready - Command Template System Complete
 
 ---
 
 ## 📈 Recent Updates
 
-### Phase 5: Schedule Override UI (Completed 2025-11-30)
-- ✅ Alpine.js integration for dynamic template defaults
-- ✅ Job schedule form populates defaults from selected job template
-- ✅ Client-side state management for better UX
-- ✅ Automatic population of timeout, retry, and notification settings
+### Command Template System - COMPLETE (2025-11-30)
 
-### Phase 6: General Settings Management (Completed 2025-11-30)
-- ✅ Settings management UI with inline editing
-- ✅ `/settings/general` page for application-wide settings
-- ✅ Database model and query layer for settings CRUD
-- ✅ Support for string, number, boolean, and JSON value types
-- ✅ HTMX-based inline editing (similar to job schedules pattern)
+**Phase 1: Database Schema & Models** ✅
+- Database migration 012 adds `command_templates` table
+- Model structs: `CommandTemplate`, `CreateCommandTemplate`, `UpdateCommandTemplate`
+- Full CRUD query layer in `database/src/queries/command_templates.rs`
 
-**Database Fix** (2025-11-30):
-- Fixed settings table column name mismatch (`type` → `value_type`)
-- Corrected sqlx model annotations
-- All routes now working correctly (commit `6a5203b`)
+**Phase 2: CRUD Operations & API** ✅
+- REST endpoints for command template management
+- HTMX UI routes in `server/src/routes/ui/command_templates.rs`
+- Template list, create, edit, delete operations
+
+**Phase 3: Variable Substitution Engine** ✅
+- Template variable parsing with `{{variable_name}}` syntax
+- Runtime variable substitution in executor
+- Variable extraction and validation
+- Test/preview UI for templates
+
+**Phase 4: Runtime Execution with Audit Trail** ✅
+- Migration 013 adds `rendered_command` field to `job_runs` table
+- Executor stores actual executed command for audit purposes
+- UI displays rendered command in job run details
+- Full command traceability for security and debugging
+
+**Phase 5: Composite Job Templates** ✅ **(FULLY IMPLEMENTED)**
+- Multi-step workflow execution (already in migration 011!)
+- `job_template_steps` table with ordering and conditional execution
+- `step_execution_results` table for per-step tracking
+- Executor: `execute_composite_job()` method in `core/src/executor.rs:477-615`
+- API endpoints: Full CRUD for template steps
+- UI: Step list, add/edit/delete, reordering with HTMX
+- Features:
+  - Sequential step execution
+  - `continue_on_failure` support
+  - Per-step status tracking
+  - Combined output aggregation
+  - Overall success/failure determination
+
+### Earlier Phases (Pre-Command Template System)
+
+**Schedule Override UI** (Completed Earlier)
+- Alpine.js integration for dynamic template defaults
+- Job schedule form populates defaults from selected job template
+
+**General Settings Management** (Completed Earlier)
+- Settings management UI with inline editing
+- Support for string, number, boolean, and JSON value types
 
 ---
 
