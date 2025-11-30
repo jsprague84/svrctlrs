@@ -1,26 +1,38 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 64">
   <defs>
     <style>
-      .accent { fill: #7aa2f7; }
-      .text { fill: currentColor; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 600; }
-      .icon-gear { fill: none; stroke: #7aa2f7; stroke-width: 2; }
-      .icon-accent { fill: #7aa2f7; }
+      .text-light { fill: #7dcfff; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 600; }
+      .text-dark { fill: #3d59a1; }
+      .gear { fill: none; stroke: #565f89; stroke-width: 1.5; stroke-linecap: round; }
+      .crab-body { fill: #bb9af7; }
+      .crab-accent { fill: #9d7cd8; }
     </style>
   </defs>
 
-  <!-- Icon: Gear with RS -->
+  <!-- Icon: Gear with Ferris (Rust crab) -->
   <g transform="translate(24 32)">
-    <!-- Gear outline -->
-    <circle class="icon-gear" cx="0" cy="0" r="14"/>
-    <circle class="icon-gear" cx="0" cy="0" r="8"/>
-    <!-- Gear teeth -->
-    <path class="icon-gear" d="M 0,-16 L 0,-18 M 0,16 L 0,18 M -16,0 L -18,0 M 16,0 L 18,0 M -11,-11 L -13,-13 M 11,-11 L 13,-13 M -11,11 L -13,13 M 11,11 L 13,13"/>
-    <!-- RS letters inside -->
-    <text class="icon-accent" x="-7" y="5" font-size="10" font-weight="700">RS</text>
+    <!-- Gear teeth (8 teeth) -->
+    <path class="gear" d="M 0,-16 L 0,-18 M 0,16 L 0,18 M -16,0 L -18,0 M 16,0 L 18,0 M -11,-11 L -13,-13 M 11,-11 L 13,-13 M -11,11 L -13,13 M 11,11 L 13,13"/>
+    <!-- Gear outer circle -->
+    <circle class="gear" cx="0" cy="0" r="14"/>
+
+    <!-- Simplified Ferris crab -->
+    <!-- Left claw -->
+    <path class="crab-accent" d="M -8,-3 L -10,-1 L -8,0 Z"/>
+    <!-- Right claw -->
+    <path class="crab-accent" d="M 8,-3 L 10,-1 L 8,0 Z"/>
+    <!-- Body (rounded) -->
+    <ellipse class="crab-body" cx="0" cy="2" rx="7" ry="6"/>
+    <!-- Eyes -->
+    <circle fill="#1a1b26" cx="-3" cy="1" r="1.5"/>
+    <circle fill="#1a1b26" cx="3" cy="1" r="1.5"/>
+    <!-- Eye highlights -->
+    <circle fill="#c0caf5" cx="-2.5" cy="0.5" r="0.5"/>
+    <circle fill="#c0caf5" cx="3.5" cy="0.5" r="0.5"/>
   </g>
 
   <!-- SvrCtlRS wordmark -->
-  <text class="text" x="64" y="40" font-size="28">
-    SvrCtl<tspan class="accent">RS</tspan>
+  <text x="64" y="40" font-size="28">
+    <tspan class="text-light">SvrCtl</tspan><tspan class="text-dark">RS</tspan>
   </text>
 </svg>

@@ -1,24 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <defs>
     <style>
-      .gear { fill: none; stroke: #7aa2f7; stroke-width: 3; }
-      .center { fill: #1a1b26; }
-      .text { fill: #7aa2f7; font-family: system-ui, sans-serif; font-weight: 700; }
+      .bg { fill: #1a1b26; }
+      .gear { fill: none; stroke: #565f89; stroke-width: 2; stroke-linecap: round; }
+      .crab-body { fill: #bb9af7; }
+      .crab-accent { fill: #9d7cd8; }
     </style>
   </defs>
 
   <!-- Background -->
-  <rect width="64" height="64" fill="#1a1b26" rx="8"/>
+  <rect width="64" height="64" class="bg" rx="12"/>
 
-  <!-- Gear -->
+  <!-- Gear with Ferris -->
   <g transform="translate(32 32)">
-    <!-- Outer gear circle -->
+    <!-- Gear teeth (8 teeth) -->
+    <path class="gear" d="M 0,-22 L 0,-24 M 0,22 L 0,24 M -22,0 L -24,0 M 22,0 L 24,0 M -16,-16 L -18,-18 M 16,-16 L 18,-18 M -16,16 L -18,18 M 16,16 L 18,18"/>
+    <!-- Gear outer circle -->
     <circle class="gear" cx="0" cy="0" r="20"/>
-    <!-- Gear teeth (8 directions) -->
-    <path class="gear" d="M 0,-24 L 0,-26 M 0,24 L 0,26 M -24,0 L -26,0 M 24,0 L 26,0 M -17,-17 L -19,-19 M 17,-17 L 19,-19 M -17,17 L -19,19 M 17,17 L 19,19"/>
-    <!-- Inner circle -->
-    <circle class="center" cx="0" cy="0" r="14"/>
-    <!-- RS text -->
-    <text class="text" x="-11" y="7" font-size="16">RS</text>
+
+    <!-- Simplified Ferris crab (larger for favicon) -->
+    <!-- Left claw -->
+    <path class="crab-accent" d="M -11,-4 L -14,-1 L -11,0 Z"/>
+    <!-- Right claw -->
+    <path class="crab-accent" d="M 11,-4 L 14,-1 L 11,0 Z"/>
+    <!-- Body (rounded) -->
+    <ellipse class="crab-body" cx="0" cy="3" rx="10" ry="8"/>
+    <!-- Eyes -->
+    <circle fill="#1a1b26" cx="-4" cy="2" r="2"/>
+    <circle fill="#1a1b26" cx="4" cy="2" r="2"/>
+    <!-- Eye highlights -->
+    <circle fill="#c0caf5" cx="-3.2" cy="1.2" r="0.8"/>
+    <circle fill="#c0caf5" cx="4.8" cy="1.2" r="0.8"/>
+    <!-- Smile -->
+    <path fill="none" stroke="#1a1b26" stroke-width="1" stroke-linecap="round" d="M -3,5 Q 0,7 3,5"/>
   </g>
 </svg>
