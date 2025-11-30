@@ -272,8 +272,8 @@ pub struct CreateJobScheduleInput {
     pub timeout_seconds: Option<i32>,
     pub retry_count: Option<i32>,
     pub enabled: Option<String>, // "on" or absent
-    pub notify_on_success: Option<String>,
-    pub notify_on_failure: Option<String>,
+    pub notify_on_success: Option<String>, // "on" or absent
+    pub notify_on_failure: Option<String>, // "on" or absent
 }
 
 /// Create a new job schedule
@@ -308,6 +308,7 @@ pub async fn create_job_schedule(
         })?;
 
     // Create job schedule
+    // For checkbox overrides: if checked, set Some(true), otherwise None to use template default
     let create_input = CreateJobSchedule {
         name: input.name.clone(),
         description: input.description,
@@ -317,8 +318,8 @@ pub async fn create_job_schedule(
         enabled: input.enabled.is_some(),
         timeout_seconds: input.timeout_seconds,
         retry_count: input.retry_count,
-        notify_on_success: Some(input.notify_on_success.is_some()),
-        notify_on_failure: Some(input.notify_on_failure.is_some()),
+        notify_on_success: input.notify_on_success.map(|_| true),
+        notify_on_failure: input.notify_on_failure.map(|_| true),
         notification_policy_id: None,
         metadata: None,
     };
@@ -342,8 +343,10 @@ pub struct UpdateJobScheduleInput {
     pub description: Option<String>,
     pub schedule: Option<String>, // Cron expression
     pub enabled: Option<String>,
-    pub notify_on_success: Option<String>,
-    pub notify_on_failure: Option<String>,
+    pub timeout_seconds: Option<i32>,
+    pub retry_count: Option<i32>,
+    pub notify_on_success: Option<String>, // "on" or absent
+    pub notify_on_failure: Option<String>, // "on" or absent
 }
 
 /// Update an existing job schedule
@@ -367,15 +370,16 @@ pub async fn update_job_schedule(
     }
 
     // Update job schedule
+    // For checkbox overrides: if checked, set Some(true), otherwise None to use template default
     let update_input = UpdateJobSchedule {
         name: input.name,
         description: input.description,
         schedule: input.schedule,
         enabled: Some(input.enabled.is_some()),
-        timeout_seconds: None,
-        retry_count: None,
-        notify_on_success: Some(input.notify_on_success.is_some()),
-        notify_on_failure: Some(input.notify_on_failure.is_some()),
+        timeout_seconds: input.timeout_seconds,
+        retry_count: input.retry_count,
+        notify_on_success: input.notify_on_success.map(|_| true),
+        notify_on_failure: input.notify_on_failure.map(|_| true),
         notification_policy_id: None,
         next_run_at: None,
         metadata: None,

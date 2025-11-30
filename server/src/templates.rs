@@ -547,7 +547,7 @@ pub struct JobTemplateFormTemplate {
     pub error: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct JobTemplateDisplay {
     pub id: i64,
     pub name: String,
