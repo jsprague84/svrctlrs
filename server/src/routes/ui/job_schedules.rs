@@ -271,7 +271,7 @@ pub struct CreateJobScheduleInput {
     pub schedule: String, // Cron expression
     pub timeout_seconds: Option<i32>,
     pub retry_count: Option<i32>,
-    pub enabled: Option<String>, // "on" or absent
+    pub enabled: Option<String>,           // "on" or absent
     pub notify_on_success: Option<String>, // "on" or absent
     pub notify_on_failure: Option<String>, // "on" or absent
 }
