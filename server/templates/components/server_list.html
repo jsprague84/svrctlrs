@@ -40,8 +40,12 @@
         </div>
         {% endif %}
 
-        <!-- Server capabilities container -->
-        <div id="server-{{ server.id }}-capabilities" class="mb-2"></div>
+        <!-- Server capabilities container (auto-loads on page load) -->
+        <div id="server-{{ server.id }}-capabilities"
+             class="mb-2"
+             hx-get="/servers/{{ server.id }}/capabilities/display"
+             hx-trigger="load"
+             hx-swap="innerHTML"></div>
 
         <div class="flex gap-2 mt-2 flex-wrap">
             <button hx-get="/servers/{{ server.id }}/edit"

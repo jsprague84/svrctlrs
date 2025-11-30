@@ -28,6 +28,10 @@ pub fn routes() -> Router<AppState> {
         .route("/servers/{id}/test", post(server_test_by_id))
         .route("/servers/{id}/capabilities", get(server_capabilities))
         .route(
+            "/servers/{id}/capabilities/display",
+            get(server_capabilities_display),
+        )
+        .route(
             "/servers/{id}/tags",
             post(server_add_tag).delete(server_remove_tag),
         )
@@ -206,9 +210,9 @@ struct CreateServerInput {
     username: Option<String>,
     credential_id: Option<String>, // Can be "none" or numeric ID
     description: Option<String>,
-    is_local: Option<String>, // checkbox "on" or None
-    enabled: Option<String>,  // checkbox "on" or None
-    tag_ids: Option<Vec<i64>>,   // Multi-select tag IDs (matches form field name)
+    is_local: Option<String>,  // checkbox "on" or None
+    enabled: Option<String>,   // checkbox "on" or None
+    tag_ids: Option<Vec<i64>>, // Multi-select tag IDs (matches form field name)
 }
 
 /// Create server handler
@@ -827,6 +831,37 @@ echo "LVM=$(command -v lvm >/dev/null 2>&1 && echo '1' || echo '0')"
             )))
         }
     }
+}
+
+/// Display existing server capabilities (without re-detecting)
+async fn server_capabilities_display(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    let db = state.db().await;
+    let server = servers_queries::get_server(db.pool(), id).await?;
+
+    // Just fetch existing capabilities from database without re-detecting
+    let capabilities = servers_queries::get_server_capabilities(db.pool(), id).await?;
+
+    let template = ServerCapabilitiesTemplate {
+        server_id: id,
+        server: server_to_display(&server),
+        capabilities: capabilities
+            .into_iter()
+            .map(|c| ServerCapabilityDisplay {
+                capability: c.capability,
+                available: c.available,
+                version: c.version,
+                detected_at: c
+                    .detected_at
+                    .with_timezone(&chrono::Local)
+                    .format("%Y-%m-%d %H:%M")
+                    .to_string(),
+            })
+            .collect(),
+    };
+    Ok(Html(template.render()?))
 }
 
 /// Add tag to server input
