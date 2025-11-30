@@ -23,14 +23,23 @@
                     <button hx-get="/job-types/{{ job_type_id }}/command-templates/{{ ct.id }}/edit"
                             hx-target="#command-template-form-container"
                             hx-swap="innerHTML"
-                            class="btn btn-sm btn-secondary">
+                            class="btn btn-sm btn-secondary"
+                            title="Edit">
                         <i data-lucide="pencil" style="width: 12px; height: 12px;"></i>
+                    </button>
+                    <button hx-post="/job-types/{{ job_type_id }}/command-templates/{{ ct.id }}/clone"
+                            hx-target="#command-template-list"
+                            hx-swap="innerHTML"
+                            class="btn btn-sm btn-secondary"
+                            title="Clone">
+                        <i data-lucide="copy" style="width: 12px; height: 12px;"></i>
                     </button>
                     <button hx-delete="/job-types/{{ job_type_id }}/command-templates/{{ ct.id }}"
                             hx-target="#command-template-{{ ct.id }}"
                             hx-swap="outerHTML"
                             hx-confirm="Delete command template '{{ ct.name }}'?"
-                            class="btn btn-sm btn-danger">
+                            class="btn btn-sm btn-danger"
+                            title="Delete">
                         <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                     </button>
                 </div>

@@ -6,6 +6,7 @@ use axum::{
     Form, Router,
 };
 use serde::Deserialize;
+use sqlx::{Pool, Sqlite};
 use std::collections::HashMap;
 use svrctlrs_database::{
     models::{CreateCommandTemplate, CreateJobType, UpdateCommandTemplate, UpdateJobType},
@@ -43,6 +44,10 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/job-types/{job_type_id}/command-templates/{id}",
             put(update_command_template).delete(delete_command_template),
+        )
+        .route(
+            "/job-types/{job_type_id}/command-templates/{id}/clone",
+            axum::routing::post(clone_command_template),
         )
         .route(
             "/command-templates/{id}/parameters",
@@ -855,6 +860,100 @@ pub async fn delete_command_template(
 
     // Return updated list
     get_command_templates(State(state), Path(job_type_id)).await
+}
+
+/// Clone a command template (HTMX)
+#[instrument(skip(state))]
+pub async fn clone_command_template(
+    State(state): State<AppState>,
+    Path(template_id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    info!(template_id, "Cloning command template");
+
+    // Get the original template
+    let original = queries::get_command_template(&state.pool, template_id)
+        .await
+        .map_err(|e| {
+            error!(template_id, error = %e, "Failed to fetch command template");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    let job_type_id = original.job_type_id;
+
+    // Generate a unique name for the clone
+    let clone_name = generate_clone_name(&state.pool, &original.name).await?;
+
+    // Create a new command template with the same properties
+    let create_input = CreateCommandTemplate {
+        job_type_id: original.job_type_id,
+        name: clone_name.clone(),
+        display_name: format!("{} (Copy)", original.display_name),
+        description: original.description.clone(),
+        command: original.command.clone(),
+        required_capabilities: if original.required_capabilities.is_some() {
+            Some(original.get_required_capabilities())
+        } else {
+            None
+        },
+        os_filter: if original.os_filter.is_some() {
+            Some(original.get_os_filter())
+        } else {
+            None
+        },
+        timeout_seconds: original.timeout_seconds,
+        working_directory: original.working_directory.clone(),
+        environment: if original.environment.is_some() {
+            Some(original.get_environment())
+        } else {
+            None
+        },
+        output_format: original.output_format.clone(),
+        parse_output: original.parse_output,
+        output_parser: if original.output_parser.is_some() {
+            Some(original.get_output_parser())
+        } else {
+            None
+        },
+        notify_on_success: original.notify_on_success,
+        notify_on_failure: original.notify_on_failure,
+        parameter_schema: if original.parameter_schema.is_some() {
+            Some(original.get_parameter_schema())
+        } else {
+            None
+        },
+        metadata: if original.metadata.is_some() {
+            Some(original.get_metadata())
+        } else {
+            None
+        },
+    };
+
+    // Create the cloned template
+    queries::create_command_template(&state.pool, &create_input)
+        .await
+        .map_err(|e| {
+            error!(template_id, error = %e, "Failed to create cloned command template");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    info!(template_id, clone_name, "Command template cloned successfully");
+
+    // Return updated list
+    get_command_templates(State(state), Path(job_type_id)).await
+}
+
+/// Generate a unique clone name by appending _copy or _copy_N
+async fn generate_clone_name(pool: &Pool<Sqlite>, original_name: &str) -> Result<String, AppError> {
+    let mut candidate = format!("{}_copy", original_name);
+    let mut counter = 2;
+
+    // Keep trying until we find a unique name
+    while queries::get_command_template_by_name(pool, &candidate).await.is_ok() {
+        candidate = format!("{}_copy_{}", original_name, counter);
+        counter += 1;
+    }
+
+    Ok(candidate)
 }
 
 /// Query parameters for fetching command template parameters
