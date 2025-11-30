@@ -32,16 +32,16 @@
         </p>
 
         <div class="flex gap-2 mt-2">
-            <button hx-get="/notification-policies/{{ policy.id }}/edit"
+            <button hx-get="/settings/notifications/policies/{{ policy.id }}/edit"
                     hx-target="#policy-form-container"
                     hx-swap="innerHTML"
                     class="btn btn-sm btn-secondary">
                 <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
             </button>
 
-            <button hx-post="/notification-policies/{{ policy.id }}/toggle"
-                    hx-target="#policy-{{ policy.id }}"
-                    hx-swap="outerHTML"
+            <button hx-post="/settings/notifications/policies/{{ policy.id }}/toggle"
+                    hx-target="#policy-list"
+                    hx-swap="innerHTML"
                     class="btn btn-sm btn-secondary">
                 {% if policy.enabled %}
                 <i data-lucide="pause" style="width: 14px; height: 14px;"></i> Disable
@@ -50,7 +50,7 @@
                 {% endif %}
             </button>
 
-            <button hx-delete="/notification-policies/{{ policy.id }}"
+            <button hx-delete="/settings/notifications/policies/{{ policy.id }}"
                     hx-target="#policy-{{ policy.id }}"
                     hx-swap="outerHTML"
                     hx-confirm="Delete policy '{{ policy.name }}'?"

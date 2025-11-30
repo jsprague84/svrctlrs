@@ -77,6 +77,10 @@ pub fn routes() -> Router<AppState> {
             "/settings/notifications/policies/{id}",
             put(update_policy).delete(delete_policy),
         )
+        .route(
+            "/settings/notifications/policies/{id}/toggle",
+            post(toggle_policy),
+        )
 }
 
 // ============================================================================
@@ -631,6 +635,53 @@ pub async fn delete_policy(
 
     // Return empty response (HTMX will remove the element)
     Ok(Html(String::new()))
+}
+
+/// Toggle a notification policy enabled/disabled
+#[instrument(skip(state))]
+pub async fn toggle_policy(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    info!(policy_id = id, "Toggling notification policy");
+
+    // Get current policy
+    let policy = queries::get_notification_policy(&state.pool, id)
+        .await
+        .map_err(|e| {
+            warn!(policy_id = id, error = %e, "Notification policy not found");
+            AppError::NotFound(format!("Notification policy {} not found", id))
+        })?;
+
+    // Toggle enabled
+    let update_input = UpdateNotificationPolicy {
+        name: None,
+        description: None,
+        on_success: None,
+        on_failure: None,
+        on_timeout: None,
+        job_type_filter: None,
+        server_filter: None,
+        tag_filter: None,
+        min_severity: None,
+        max_per_hour: None,
+        title_template: None,
+        body_template: None,
+        enabled: Some(!policy.enabled),
+        metadata: None,
+    };
+
+    queries::update_notification_policy(&state.pool, id, &update_input)
+        .await
+        .map_err(|e| {
+            error!(policy_id = id, error = %e, "Failed to toggle notification policy");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    info!(policy_id = id, enabled = !policy.enabled, "Notification policy toggled successfully");
+
+    // Return updated list (so the entire policy card is refreshed with new state)
+    get_policies_list(State(state)).await
 }
 
 /// Test a notification channel
