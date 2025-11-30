@@ -44,6 +44,15 @@
                 <i data-lucide="pencil" style="width: 14px; height: 14px;"></i> Edit
             </button>
 
+            {% if jt.is_composite %}
+            <button hx-get="/job-templates/{{ jt.id }}/steps"
+                    hx-target="#job-template-steps-{{ jt.id }}"
+                    hx-swap="innerHTML"
+                    class="btn btn-sm btn-info">
+                <i data-lucide="list" style="width: 14px; height: 14px;"></i> Manage Steps ({{ jt.step_count }})
+            </button>
+            {% endif %}
+
             <button hx-post="/job-templates/{{ jt.id }}/run"
                     class="btn btn-sm btn-primary">
                 <i data-lucide="play" style="width: 14px; height: 14px;"></i> Run Now
@@ -65,6 +74,11 @@
             </button>
             {% endif %}
         </div>
+
+        {% if jt.is_composite %}
+        <!-- Container for step management UI -->
+        <div id="job-template-steps-{{ jt.id }}" class="mt-3"></div>
+        {% endif %}
     </div>
     {% endfor %}
 </div>

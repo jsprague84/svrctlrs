@@ -11,7 +11,8 @@
     {% when Some with (s) %}
     <form hx-put="/job-templates/{{ job_template_id }}/steps/{{ s.id }}"
           hx-target="#job-template-steps"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          x-data="{ selectedJobType: '{% match s.job_type_id %}{% when Some with (id) %}{{ id }}{% when None %}{% endmatch %}' }">
 
         <div class="form-group">
             <label for="name">Step Name *</label>
@@ -24,36 +25,54 @@
         </div>
 
         <div class="form-group">
-            <label for="job_type_id">Job Type *</label>
+            <label for="job_type_id">Job Type (for filtering commands)</label>
             <select id="job_type_id"
-                    name="job_type_id"
-                    required
-                    {% match s.job_type_id %}{% when Some with (id) %}x-init="$el.value = '{{ id }}'"{% when None %}{% endmatch %}>
+                    x-model="selectedJobType">
+                <option value="">All command templates</option>
                 {% for job_type in job_types %}
                 <option value="{{ job_type.id }}">
                     {{ job_type.display_name }}
                 </option>
                 {% endfor %}
             </select>
+            <small class="text-secondary">Filter command templates by job type</small>
         </div>
 
         <div class="form-group">
-            <label for="order_index">Step Order *</label>
+            <label for="command_template_id">Command Template *</label>
+            <select id="command_template_id"
+                    name="command_template_id"
+                    required
+                    x-init="$el.value = '{{ s.command_template_id }}'">
+                <option value="">Select a command...</option>
+                {% for ct in command_templates %}
+                <option value="{{ ct.id }}" data-job-type="{{ ct.job_type_id }}" x-show="!selectedJobType || selectedJobType == '' || selectedJobType == '{{ ct.job_type_id }}'">
+                    {{ ct.display_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="step_order">Step Order *</label>
             <input type="number"
-                   id="order_index"
-                   name="order_index"
-                   value="{{ s.order_index }}"
-                   min="1"
+                   id="step_order"
+                   name="step_order"
+                   value="{{ s.step_order }}"
+                   min="0"
                    required>
-            <small class="text-secondary">Steps execute in order (1, 2, 3...)</small>
+            <small class="text-secondary">Steps execute in order (0, 1, 2...)</small>
         </div>
 
         <div class="form-group">
-            <label for="description">Description (optional)</label>
-            <textarea id="description"
-                      name="description"
-                      rows="2"
-                      placeholder="What this step does">{{ s.description }}</textarea>
+            <label for="timeout_seconds">Timeout Override (seconds)</label>
+            <input type="number"
+                   id="timeout_seconds"
+                   name="timeout_seconds"
+                   {% match s.timeout_seconds %}{% when Some with (t) %}value="{{ t }}"{% when None %}{% endmatch %}
+                   min="1"
+                   placeholder="Use template default">
+            <small class="text-secondary">Override job template timeout for this step</small>
         </div>
 
         <div class="form-group">
@@ -81,7 +100,8 @@
     {% when None %}
     <form hx-post="/job-templates/{{ job_template_id }}/steps"
           hx-target="#job-template-steps"
-          hx-swap="innerHTML">
+          hx-swap="innerHTML"
+          x-data="{ selectedJobType: '' }">
 
         <div class="form-group">
             <label for="name">Step Name *</label>
@@ -93,36 +113,52 @@
         </div>
 
         <div class="form-group">
-            <label for="job_type_id">Job Type *</label>
+            <label for="job_type_id">Job Type (for filtering commands)</label>
             <select id="job_type_id"
-                    name="job_type_id"
-                    required>
-                <option value="">Select a job type...</option>
+                    x-model="selectedJobType">
+                <option value="">All command templates</option>
                 {% for job_type in job_types %}
                 <option value="{{ job_type.id }}">
-                    {{ job_type.name }}
+                    {{ job_type.display_name }}
+                </option>
+                {% endfor %}
+            </select>
+            <small class="text-secondary">Filter command templates by job type</small>
+        </div>
+
+        <div class="form-group">
+            <label for="command_template_id">Command Template *</label>
+            <select id="command_template_id"
+                    name="command_template_id"
+                    required>
+                <option value="">Select a command...</option>
+                {% for ct in command_templates %}
+                <option value="{{ ct.id }}" data-job-type="{{ ct.job_type_id }}" x-show="!selectedJobType || selectedJobType == '' || selectedJobType == '{{ ct.job_type_id }}'">
+                    {{ ct.display_name }}
                 </option>
                 {% endfor %}
             </select>
         </div>
 
         <div class="form-group">
-            <label for="order_index">Step Order *</label>
+            <label for="step_order">Step Order *</label>
             <input type="number"
-                   id="order_index"
-                   name="order_index"
+                   id="step_order"
+                   name="step_order"
                    value="{{ next_order_index }}"
-                   min="1"
+                   min="0"
                    required>
-            <small class="text-secondary">Steps execute in order (1, 2, 3...)</small>
+            <small class="text-secondary">Steps execute in order (0, 1, 2...)</small>
         </div>
 
         <div class="form-group">
-            <label for="description">Description (optional)</label>
-            <textarea id="description"
-                      name="description"
-                      rows="2"
-                      placeholder="What this step does"></textarea>
+            <label for="timeout_seconds">Timeout Override (seconds)</label>
+            <input type="number"
+                   id="timeout_seconds"
+                   name="timeout_seconds"
+                   min="1"
+                   placeholder="Use template default">
+            <small class="text-secondary">Override job template timeout for this step</small>
         </div>
 
         <div class="form-group">

@@ -111,6 +111,17 @@
         </div>
 
         <div class="form-group">
+            <label for="retry_delay_seconds">Retry Delay (seconds)</label>
+            <input type="number"
+                   id="retry_delay_seconds"
+                   name="retry_delay_seconds"
+                   value="{{ jt.retry_delay_seconds }}"
+                   min="1"
+                   placeholder="60">
+            <small class="text-secondary">Delay between retry attempts (default: 60s)</small>
+        </div>
+
+        <div class="form-group">
             <label>
                 <input type="checkbox"
                        name="notify_on_success"
@@ -236,6 +247,17 @@
                    min="0"
                    max="10"
                    placeholder="0">
+        </div>
+
+        <div class="form-group">
+            <label for="retry_delay_seconds">Retry Delay (seconds)</label>
+            <input type="number"
+                   id="retry_delay_seconds"
+                   name="retry_delay_seconds"
+                   value="60"
+                   min="1"
+                   placeholder="60">
+            <small class="text-secondary">Delay between retry attempts (default: 60s)</small>
         </div>
 
         <div class="form-group">
