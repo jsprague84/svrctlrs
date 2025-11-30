@@ -7,7 +7,7 @@ use crate::models::{Setting, UpdateSetting};
 pub async fn list_settings(pool: &Pool<Sqlite>) -> Result<Vec<Setting>> {
     sqlx::query_as::<_, Setting>(
         r#"
-        SELECT key, value, type, description, updated_at
+        SELECT key, value, value_type, description, updated_at
         FROM settings
         ORDER BY key
         "#,
@@ -21,7 +21,7 @@ pub async fn list_settings(pool: &Pool<Sqlite>) -> Result<Vec<Setting>> {
 pub async fn get_setting(pool: &Pool<Sqlite>, key: &str) -> Result<Setting> {
     sqlx::query_as::<_, Setting>(
         r#"
-        SELECT key, value, type, description, updated_at
+        SELECT key, value, value_type, description, updated_at
         FROM settings
         WHERE key = ?
         "#,
@@ -68,9 +68,9 @@ pub async fn update_setting(pool: &Pool<Sqlite>, key: &str, update: &UpdateSetti
 pub async fn set_setting(pool: &Pool<Sqlite>, key: &str, value: &str) -> Result<()> {
     sqlx::query(
         r#"
-        INSERT INTO settings (key, value, type, updated_at)
+        INSERT INTO settings (key, value, value_type, updated_at)
         VALUES (?, ?, 'string', CURRENT_TIMESTAMP)
-        ON CONFLICT(key) DO UPDATE SET 
+        ON CONFLICT(key) DO UPDATE SET
             value = excluded.value,
             updated_at = CURRENT_TIMESTAMP
         "#,

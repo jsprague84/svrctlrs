@@ -7,7 +7,6 @@ use sqlx::FromRow;
 pub struct Setting {
     pub key: String,
     pub value: String,
-    #[sqlx(rename = "type")]
     pub value_type: String, // 'string', 'number', 'boolean', 'json'
     pub description: Option<String>,
     pub updated_at: DateTime<Utc>,
