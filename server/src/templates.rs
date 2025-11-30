@@ -1199,7 +1199,16 @@ pub struct NotificationPolicyFormTemplate {
     pub channels: Vec<NotificationChannelDisplay>,
     pub job_types: Vec<JobTypeDisplay>, // For scoping policy to job type
     pub job_templates: Vec<JobTemplateDisplay>, // For scoping policy to job template
+    pub servers: Vec<ServerDisplay>,    // For server filtering
+    pub tags: Vec<TagDisplay>,          // For tag filtering
     pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolicyChannelAssignment {
+    pub channel_id: i64,
+    pub channel_name: String,
+    pub priority_override: Option<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1223,6 +1232,15 @@ pub struct NotificationPolicyDisplay {
     pub job_template_id: Option<i64>,
     pub job_templates: Vec<String>, // Template names if scoped to multiple
     pub job_template_count: i64,    // Count of templates using this policy
+    // Filtering fields
+    pub job_type_filter: Option<Vec<String>>,
+    pub server_filter: Option<Vec<i64>>,
+    pub tag_filter: Option<Vec<String>>,
+    // Throttling fields
+    pub min_severity: Option<i32>,
+    pub max_per_hour: Option<i32>,
+    // Multi-channel support
+    pub policy_channels: Vec<PolicyChannelAssignment>,
 }
 
 // ============================================================================
@@ -1381,6 +1399,28 @@ impl From<svrctlrs_database::Server> for ServerDisplay {
             systemd_available: s.systemd_available,
             enabled: s.enabled,
             last_seen_at: last_seen,
+            created_at: created,
+        }
+    }
+}
+
+/// Convert database Tag to display model
+impl From<svrctlrs_database::Tag> for TagDisplay {
+    fn from(t: svrctlrs_database::Tag) -> Self {
+        use chrono::Local;
+
+        let created = t
+            .created_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+
+        Self {
+            id: t.id,
+            name: t.name,
+            color: t.color.unwrap_or_else(|| "#6B7280".to_string()), // Default gray color
+            description: t.description,
+            server_count: 0, // TODO: Count servers with this tag
             created_at: created,
         }
     }
@@ -1605,6 +1645,27 @@ impl From<svrctlrs_database::NotificationPolicy> for NotificationPolicyDisplay {
             job_template_id: None, // Not in current schema
             job_templates: Vec::new(),
             job_template_count: 0,
+            // Filtering fields
+            job_type_filter: if job_type_filter_vec.is_empty() {
+                None
+            } else {
+                Some(job_type_filter_vec)
+            },
+            server_filter: if server_filter_vec.is_empty() {
+                None
+            } else {
+                Some(server_filter_vec)
+            },
+            tag_filter: if tag_filter_vec.is_empty() {
+                None
+            } else {
+                Some(tag_filter_vec)
+            },
+            // Throttling fields
+            min_severity: Some(np.min_severity),
+            max_per_hour: np.max_per_hour,
+            // Multi-channel support (populated separately in edit handler)
+            policy_channels: Vec::new(),
         }
     }
 }

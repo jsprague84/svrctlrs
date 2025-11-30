@@ -24,17 +24,23 @@
         </div>
 
         <div class="form-group">
-            <label for="channel_id">Notification Channel *</label>
-            <select id="channel_id"
-                    name="channel_id"
-                    required
-                    x-init="$el.value = '{{ p.channel_id }}'">
+            <label>Notification Channels *</label>
+            <small style="color: var(--text-secondary); display: block; margin-bottom: 0.5rem;">
+                Select one or more channels to send notifications to
+            </small>
+            <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
                 {% for channel in channels %}
-                <option value="{{ channel.id }}">
-                    {{ channel.name }}
-                </option>
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="channel_ids"
+                           value="{{ channel.id }}"
+                           {% if p.policy_channels | length > 0 %}
+                               x-init="if ({{ p.policy_channels | json }}.some(c => c.channel_id === {{ channel.id }})) $el.checked = true"
+                           {% endif %}>
+                    <span>{{ channel.name }}</span>
+                </label>
                 {% endfor %}
-            </select>
+            </div>
         </div>
 
         <div class="form-group">
@@ -167,6 +173,94 @@
             </details>
         </div>
 
+        <!-- Advanced Filtering -->
+        <div class="card" style="background: var(--bg-secondary); margin: 1rem 0;">
+            <h3 style="margin-bottom: 0.5rem;">Advanced Filtering</h3>
+            <p class="text-secondary" style="font-size: 0.875rem; margin-bottom: 1rem;">
+                Optionally filter which jobs trigger this policy. Leave empty to apply to all jobs matching the scope above.
+            </p>
+
+            <div class="form-group">
+                <label for="job_type_filter_select">Filter by Job Type</label>
+                <select id="job_type_filter_select" multiple size="4" style="width: 100%;">
+                    {% for jt in job_types %}
+                    <option value="{{ jt.name }}">{{ jt.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" id="job_type_filter" name="job_type_filter" value="">
+                <small class="text-secondary">Hold Ctrl/Cmd to select multiple</small>
+            </div>
+
+            <div class="form-group">
+                <label for="server_filter_select">Filter by Server</label>
+                <select id="server_filter_select" multiple size="4" style="width: 100%;">
+                    {% for server in servers %}
+                    <option value="{{ server.id }}">{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" id="server_filter" name="server_filter" value="">
+                <small class="text-secondary">Hold Ctrl/Cmd to select multiple</small>
+            </div>
+
+            <div class="form-group">
+                <label for="tag_filter_select">Filter by Tag</label>
+                <select id="tag_filter_select" multiple size="4" style="width: 100%;">
+                    {% for tag in tags %}
+                    <option value="{{ tag.name }}">{{ tag.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" id="tag_filter" name="tag_filter" value="">
+                <small class="text-secondary">Hold Ctrl/Cmd to select multiple</small>
+            </div>
+
+            <script>
+                // Sync multi-select to hidden comma-separated input
+                document.getElementById('job_type_filter_select').addEventListener('change', function() {
+                    const selected = Array.from(this.selectedOptions).map(opt => opt.value);
+                    document.getElementById('job_type_filter').value = selected.join(',');
+                });
+                document.getElementById('server_filter_select').addEventListener('change', function() {
+                    const selected = Array.from(this.selectedOptions).map(opt => opt.value);
+                    document.getElementById('server_filter').value = selected.join(',');
+                });
+                document.getElementById('tag_filter_select').addEventListener('change', function() {
+                    const selected = Array.from(this.selectedOptions).map(opt => opt.value);
+                    document.getElementById('tag_filter').value = selected.join(',');
+                });
+            </script>
+        </div>
+
+        <!-- Throttling & Severity -->
+        <div class="card" style="background: var(--bg-secondary); margin: 1rem 0;">
+            <h3 style="margin-bottom: 0.5rem;">Throttling & Severity</h3>
+            <p class="text-secondary" style="font-size: 0.875rem; margin-bottom: 1rem;">
+                Control notification frequency and priority.
+            </p>
+
+            <div class="form-group">
+                <label for="min_severity">Minimum Severity (1-5)</label>
+                <input type="number"
+                       id="min_severity"
+                       name="min_severity"
+                       min="1"
+                       max="5"
+                       value="{% match p.min_severity %}{% when Some with (s) %}{{ s }}{% when None %}1{% endmatch %}"
+                       placeholder="1">
+                <small class="text-secondary">Only notify if job severity is >= this value (1=lowest, 5=highest)</small>
+            </div>
+
+            <div class="form-group">
+                <label for="max_per_hour">Max Notifications Per Hour</label>
+                <input type="number"
+                       id="max_per_hour"
+                       name="max_per_hour"
+                       min="1"
+                       value="{% match p.max_per_hour %}{% when Some with (m) %}{{ m }}{% when None %}{% endmatch %}"
+                       placeholder="Unlimited">
+                <small class="text-secondary">Leave empty for unlimited. Prevents notification spam.</small>
+            </div>
+        </div>
+
         <div class="form-group">
             <label class="flex gap-2 align-center" style="cursor: pointer;">
                 <input type="checkbox"
@@ -203,17 +297,20 @@
         </div>
 
         <div class="form-group">
-            <label for="channel_id">Notification Channel *</label>
-            <select id="channel_id"
-                    name="channel_id"
-                    required>
-                <option value="">Select a channel...</option>
+            <label>Notification Channels *</label>
+            <small style="color: var(--text-secondary); display: block; margin-bottom: 0.5rem;">
+                Select one or more channels to send notifications to
+            </small>
+            <div style="max-height: 150px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem;">
                 {% for channel in channels %}
-                <option value="{{ channel.id }}">
-                    {{ channel.name }}
-                </option>
+                <label class="flex gap-2 align-center mb-1" style="cursor: pointer;">
+                    <input type="checkbox"
+                           name="channel_ids"
+                           value="{{ channel.id }}">
+                    <span>{{ channel.name }}</span>
+                </label>
                 {% endfor %}
-            </select>
+            </div>
         </div>
 
         <div class="form-group">
@@ -340,6 +437,93 @@
                     </code>
                 </div>
             </details>
+        </div>
+
+        <!-- Advanced Filtering -->
+        <div class="card" style="background: var(--bg-secondary); margin: 1rem 0;">
+            <h3 style="margin-bottom: 0.5rem;">Advanced Filtering</h3>
+            <p class="text-secondary" style="font-size: 0.875rem; margin-bottom: 1rem;">
+                Optionally filter which jobs trigger this policy. Leave empty to apply to all jobs matching the scope above.
+            </p>
+
+            <div class="form-group">
+                <label for="job_type_filter_select_new">Filter by Job Type</label>
+                <select id="job_type_filter_select_new" multiple size="4" style="width: 100%;">
+                    {% for jt in job_types %}
+                    <option value="{{ jt.name }}">{{ jt.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" id="job_type_filter_new" name="job_type_filter" value="">
+                <small class="text-secondary">Hold Ctrl/Cmd to select multiple</small>
+            </div>
+
+            <div class="form-group">
+                <label for="server_filter_select_new">Filter by Server</label>
+                <select id="server_filter_select_new" multiple size="4" style="width: 100%;">
+                    {% for server in servers %}
+                    <option value="{{ server.id }}">{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" id="server_filter_new" name="server_filter" value="">
+                <small class="text-secondary">Hold Ctrl/Cmd to select multiple</small>
+            </div>
+
+            <div class="form-group">
+                <label for="tag_filter_select_new">Filter by Tag</label>
+                <select id="tag_filter_select_new" multiple size="4" style="width: 100%;">
+                    {% for tag in tags %}
+                    <option value="{{ tag.name }}">{{ tag.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" id="tag_filter_new" name="tag_filter" value="">
+                <small class="text-secondary">Hold Ctrl/Cmd to select multiple</small>
+            </div>
+
+            <script>
+                // Sync multi-select to hidden comma-separated input (new form)
+                document.getElementById('job_type_filter_select_new').addEventListener('change', function() {
+                    const selected = Array.from(this.selectedOptions).map(opt => opt.value);
+                    document.getElementById('job_type_filter_new').value = selected.join(',');
+                });
+                document.getElementById('server_filter_select_new').addEventListener('change', function() {
+                    const selected = Array.from(this.selectedOptions).map(opt => opt.value);
+                    document.getElementById('server_filter_new').value = selected.join(',');
+                });
+                document.getElementById('tag_filter_select_new').addEventListener('change', function() {
+                    const selected = Array.from(this.selectedOptions).map(opt => opt.value);
+                    document.getElementById('tag_filter_new').value = selected.join(',');
+                });
+            </script>
+        </div>
+
+        <!-- Throttling & Severity -->
+        <div class="card" style="background: var(--bg-secondary); margin: 1rem 0;">
+            <h3 style="margin-bottom: 0.5rem;">Throttling & Severity</h3>
+            <p class="text-secondary" style="font-size: 0.875rem; margin-bottom: 1rem;">
+                Control notification frequency and priority.
+            </p>
+
+            <div class="form-group">
+                <label for="min_severity_new">Minimum Severity (1-5)</label>
+                <input type="number"
+                       id="min_severity_new"
+                       name="min_severity"
+                       min="1"
+                       max="5"
+                       value="1"
+                       placeholder="1">
+                <small class="text-secondary">Only notify if job severity is >= this value (1=lowest, 5=highest)</small>
+            </div>
+
+            <div class="form-group">
+                <label for="max_per_hour_new">Max Notifications Per Hour</label>
+                <input type="number"
+                       id="max_per_hour_new"
+                       name="max_per_hour"
+                       min="1"
+                       placeholder="Unlimited">
+                <small class="text-secondary">Leave empty for unlimited. Prevents notification spam.</small>
+            </div>
         </div>
 
         <div class="form-group">

@@ -15,6 +15,8 @@ use svrctlrs_database::{
     queries::job_templates,
     queries::job_types,
     queries::notifications as queries,
+    queries::servers,
+    queries::tags,
     sqlx,
 };
 use tracing::{error, info, instrument, warn};
@@ -27,7 +29,7 @@ use crate::{
         NotificationChannelListTemplate as ChannelListTemplate, NotificationChannelsTemplate,
         NotificationPoliciesTemplate, NotificationPolicyDisplay,
         NotificationPolicyFormTemplate as PolicyFormTemplate,
-        NotificationPolicyListTemplate as PolicyListTemplate,
+        NotificationPolicyListTemplate as PolicyListTemplate, PolicyChannelAssignment,
     },
 };
 
@@ -421,11 +423,21 @@ pub async fn new_policy_form(State(state): State<AppState>) -> Result<Html<Strin
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
+    let servers_list = servers::list_servers(&state.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    let tags_list = tags::list_tags(&state.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
     let template = PolicyFormTemplate {
         policy: None,
         channels: channels.into_iter().map(Into::into).collect(),
         job_types: job_types_list.into_iter().map(Into::into).collect(),
         job_templates: job_templates_list.into_iter().map(Into::into).collect(),
+        servers: servers_list.into_iter().map(Into::into).collect(),
+        tags: tags_list.into_iter().map(Into::into).collect(),
         error: None,
     };
 
@@ -464,11 +476,37 @@ pub async fn edit_policy_form(
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
+    let servers_list = servers::list_servers(&state.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    let tags_list = tags::list_tags(&state.pool)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    // Fetch policy channels for multi-channel support
+    let policy_channels = queries::get_policy_channels(&state.pool, id)
+        .await
+        .map_err(|e| AppError::DatabaseError(e.to_string()))?;
+
+    // Convert policy to display model and populate policy_channels
+    let mut policy_display: NotificationPolicyDisplay = policy.into();
+    policy_display.policy_channels = policy_channels
+        .into_iter()
+        .map(|c| PolicyChannelAssignment {
+            channel_id: c.id,
+            channel_name: c.name,
+            priority_override: None, // TODO: Get from notification_policy_channels
+        })
+        .collect();
+
     let template = PolicyFormTemplate {
-        policy: Some(policy.into()),
+        policy: Some(policy_display),
         channels: channels.into_iter().map(Into::into).collect(),
         job_types: job_types_list.into_iter().map(Into::into).collect(),
         job_templates: job_templates_list.into_iter().map(Into::into).collect(),
+        servers: servers_list.into_iter().map(Into::into).collect(),
+        tags: tags_list.into_iter().map(Into::into).collect(),
         error: None,
     };
 
@@ -484,6 +522,7 @@ pub async fn edit_policy_form(
 pub struct CreatePolicyInput {
     pub name: String,
     pub description: Option<String>,
+    pub channel_ids: Vec<i64>, // Multiple channel IDs from checkboxes
     pub on_success: Option<String>,
     pub on_failure: Option<String>,
     pub on_timeout: Option<String>,
@@ -491,6 +530,7 @@ pub struct CreatePolicyInput {
     pub server_filter: Option<String>,   // Comma-separated IDs or JSON
     pub tag_filter: Option<String>,      // Comma-separated or JSON
     pub min_severity: Option<i32>,
+    pub max_per_hour: Option<i32>,
     pub title_template: Option<String>,
     pub body_template: Option<String>,
     pub enabled: Option<String>,
@@ -545,21 +585,42 @@ pub async fn create_policy(
         server_filter,
         tag_filter,
         min_severity: input.min_severity.unwrap_or(1),
-        max_per_hour: None,
+        max_per_hour: input.max_per_hour,
         title_template: input.title_template,
         body_template: input.body_template,
         enabled: input.enabled.is_some(),
         metadata: None,
     };
 
-    queries::create_notification_policy(&state.pool, &create_input)
+    let policy_id = queries::create_notification_policy(&state.pool, &create_input)
         .await
         .map_err(|e| {
             error!(name = %input.name, error = %e, "Failed to create notification policy");
             AppError::DatabaseError(e.to_string())
         })?;
 
-    info!(name = %input.name, "Notification policy created successfully");
+    info!(name = %input.name, policy_id = policy_id, "Notification policy created successfully");
+
+    // Add policy channels
+    for channel_id in &input.channel_ids {
+        queries::add_policy_channel(&state.pool, policy_id, *channel_id, None)
+            .await
+            .map_err(|e| {
+                error!(
+                    policy_id = policy_id,
+                    channel_id = channel_id,
+                    error = %e,
+                    "Failed to add channel to policy"
+                );
+                AppError::DatabaseError(e.to_string())
+            })?;
+    }
+
+    info!(
+        policy_id = policy_id,
+        channel_count = input.channel_ids.len(),
+        "Policy channels linked successfully"
+    );
 
     // Return updated list
     get_policies_list(State(state)).await
@@ -569,9 +630,15 @@ pub async fn create_policy(
 pub struct UpdatePolicyInput {
     pub name: Option<String>,
     pub description: Option<String>,
+    pub channel_ids: Vec<i64>, // Multiple channel IDs from checkboxes
     pub on_success: Option<String>,
     pub on_failure: Option<String>,
     pub on_timeout: Option<String>,
+    pub job_type_filter: Option<String>, // Comma-separated or JSON
+    pub server_filter: Option<String>,   // Comma-separated IDs or JSON
+    pub tag_filter: Option<String>,      // Comma-separated or JSON
+    pub min_severity: Option<i32>,
+    pub max_per_hour: Option<i32>,
     pub title_template: Option<String>,
     pub body_template: Option<String>,
     pub enabled: Option<String>,
@@ -586,17 +653,42 @@ pub async fn update_policy(
 ) -> Result<Html<String>, AppError> {
     info!(policy_id = id, "Updating notification policy");
 
+    // Parse filters (same logic as create_policy)
+    let job_type_filter = input.job_type_filter.map(|s| {
+        if s.trim().is_empty() {
+            Vec::new() // Empty filter means "no filter" (allow all)
+        } else {
+            s.split(',').map(|s| s.trim().to_string()).collect()
+        }
+    });
+
+    let server_filter = input.server_filter.map(|s| {
+        if s.trim().is_empty() {
+            Vec::new()
+        } else {
+            s.split(',').filter_map(|s| s.trim().parse().ok()).collect()
+        }
+    });
+
+    let tag_filter = input.tag_filter.map(|s| {
+        if s.trim().is_empty() {
+            Vec::new()
+        } else {
+            s.split(',').map(|s| s.trim().to_string()).collect()
+        }
+    });
+
     let update_input = UpdateNotificationPolicy {
         name: input.name,
         description: input.description,
         on_success: Some(input.on_success.is_some()),
         on_failure: Some(input.on_failure.is_some()),
         on_timeout: Some(input.on_timeout.is_some()),
-        job_type_filter: None,
-        server_filter: None,
-        tag_filter: None,
-        min_severity: None,
-        max_per_hour: None,
+        job_type_filter,
+        server_filter,
+        tag_filter,
+        min_severity: input.min_severity,
+        max_per_hour: input.max_per_hour,
         title_template: input.title_template,
         body_template: input.body_template,
         enabled: Some(input.enabled.is_some()),
@@ -611,6 +703,39 @@ pub async fn update_policy(
         })?;
 
     info!(policy_id = id, "Notification policy updated successfully");
+
+    // Delete all existing policy channels
+    sqlx::query("DELETE FROM notification_policy_channels WHERE policy_id = ?")
+        .bind(id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| {
+            error!(policy_id = id, error = %e, "Failed to delete existing policy channels");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    info!(policy_id = id, "Existing policy channels deleted");
+
+    // Add the new policy channels
+    for channel_id in &input.channel_ids {
+        queries::add_policy_channel(&state.pool, id, *channel_id, None)
+            .await
+            .map_err(|e| {
+                error!(
+                    policy_id = id,
+                    channel_id = channel_id,
+                    error = %e,
+                    "Failed to add channel to policy"
+                );
+                AppError::DatabaseError(e.to_string())
+            })?;
+    }
+
+    info!(
+        policy_id = id,
+        channel_count = input.channel_ids.len(),
+        "Policy channels updated successfully"
+    );
 
     // Return updated list
     get_policies_list(State(state)).await
