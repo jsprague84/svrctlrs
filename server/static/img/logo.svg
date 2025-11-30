@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 64">
+  <defs>
+    <style>
+      .accent { fill: #7aa2f7; }
+      .text { fill: currentColor; font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-weight: 600; }
+      .icon-gear { fill: none; stroke: #7aa2f7; stroke-width: 2; }
+      .icon-accent { fill: #7aa2f7; }
+    </style>
+  </defs>
+
+  <!-- Icon: Gear with RS -->
+  <g transform="translate(24 32)">
+    <!-- Gear outline -->
+    <circle class="icon-gear" cx="0" cy="0" r="14"/>
+    <circle class="icon-gear" cx="0" cy="0" r="8"/>
+    <!-- Gear teeth -->
+    <path class="icon-gear" d="M 0,-16 L 0,-18 M 0,16 L 0,18 M -16,0 L -18,0 M 16,0 L 18,0 M -11,-11 L -13,-13 M 11,-11 L 13,-13 M -11,11 L -13,13 M 11,11 L 13,13"/>
+    <!-- RS letters inside -->
+    <text class="icon-accent" x="-7" y="5" font-size="10" font-weight="700">RS</text>
+  </g>
+
+  <!-- SvrCtlRS wordmark -->
+  <text class="text" x="64" y="40" font-size="28">
+    SvrCtl<tspan class="accent">RS</tspan>
+  </text>
+</svg>

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <style>
+      .gear { fill: none; stroke: #7aa2f7; stroke-width: 3; }
+      .center { fill: #1a1b26; }
+      .text { fill: #7aa2f7; font-family: system-ui, sans-serif; font-weight: 700; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="64" height="64" fill="#1a1b26" rx="8"/>
+
+  <!-- Gear -->
+  <g transform="translate(32 32)">
+    <!-- Outer gear circle -->
+    <circle class="gear" cx="0" cy="0" r="20"/>
+    <!-- Gear teeth (8 directions) -->
+    <path class="gear" d="M 0,-24 L 0,-26 M 0,24 L 0,26 M -24,0 L -26,0 M 24,0 L 26,0 M -17,-17 L -19,-19 M 17,-17 L 19,-19 M -17,17 L -19,19 M 17,17 L 19,19"/>
+    <!-- Inner circle -->
+    <circle class="center" cx="0" cy="0" r="14"/>
+    <!-- RS text -->
+    <text class="text" x="-11" y="7" font-size="16">RS</text>
+  </g>
+</svg>

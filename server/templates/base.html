@@ -8,6 +8,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}SvrCtlRS{% endblock %}</title>
 
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+
     <!-- Prevent FOUC (Flash of Unstyled Content) - Set theme immediately -->
     <script>
         // Set theme on html element before page renders
@@ -110,7 +113,9 @@
                 <i data-lucide="menu" style="width: 20px; height: 20px;"></i>
             </button>
 
-            <a href="/" class="header-title" aria-label="SvrCtlRS Home">SvrCtlRS</a>
+            <a href="/" class="header-title" aria-label="SvrCtlRS Home">
+                <img src="/static/img/logo.svg" alt="SvrCtlRS" style="height: 32px; width: auto;">
+            </a>
 
             <div class="header-spacer"></div>
 
