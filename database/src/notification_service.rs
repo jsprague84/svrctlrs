@@ -359,12 +359,12 @@ impl NotificationService {
                 stdout_snippet: job_run
                     .output
                     .as_deref()
-                    .map(|s| truncate_string(s, 200))
+                    .map(|s| truncate_string(s, 1000))
                     .unwrap_or_default(),
                 stderr_snippet: job_run
                     .error
                     .as_deref()
-                    .map(|s| truncate_string(s, 200))
+                    .map(|s| truncate_string(s, 1000))
                     .unwrap_or_default(),
             }]
         } else {
@@ -403,12 +403,12 @@ impl NotificationService {
                     stdout_snippet: result
                         .output
                         .as_deref()
-                        .map(|s| truncate_string(s, 200))
+                        .map(|s| truncate_string(s, 1000))
                         .unwrap_or_default(),
                     stderr_snippet: result
                         .error
                         .as_deref()
-                        .map(|s| truncate_string(s, 200))
+                        .map(|s| truncate_string(s, 1000))
                         .unwrap_or_default(),
                 });
             }
