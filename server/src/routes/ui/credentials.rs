@@ -262,7 +262,7 @@ async fn credential_create(
 
             // Prepend success message
             Ok(Html(format!(
-                r#"<div class="alert alert-success">✓ Credential '{}' created successfully!</div>{}"#,
+                r#"<div class="alert alert-success alert-auto-dismiss">✓ Credential '{}' created successfully!</div>{}"#,
                 input.name, list_html
             )))
         }
@@ -271,14 +271,14 @@ async fn credential_create(
             let error_msg = e.to_string();
             if error_msg.contains("UNIQUE constraint") && error_msg.contains("credentials.name") {
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ A credential with the name '{}' already exists. Please use a different name.</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ A credential with the name '{}' already exists. Please use a different name.</div>"#,
                     input.name
                 )))
             } else {
                 // Other database error
                 tracing::error!("Failed to create credential: {}", e);
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ Failed to create credential: {}</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ Failed to create credential: {}</div>"#,
                     e
                 )))
             }
@@ -296,7 +296,7 @@ async fn credential_update(
     if let Some(ref name) = input.name {
         if name.trim().is_empty() {
             return Ok(Html(
-                r#"<div class="alert alert-error">✗ Name cannot be empty</div>"#.to_string(),
+                r#"<div class="alert alert-error alert-auto-dismiss">✗ Name cannot be empty</div>"#.to_string(),
             ));
         }
     }
@@ -304,7 +304,7 @@ async fn credential_update(
     if let Some(ref value) = input.value {
         if value.trim().is_empty() {
             return Ok(Html(
-                r#"<div class="alert alert-error">✗ Value cannot be empty</div>"#.to_string(),
+                r#"<div class="alert alert-error alert-auto-dismiss">✗ Value cannot be empty</div>"#.to_string(),
             ));
         }
     }
@@ -345,7 +345,7 @@ async fn credential_update(
 
             // Prepend success message
             Ok(Html(format!(
-                r#"<div class="alert alert-success">✓ Credential '{}' updated successfully!</div>{}"#,
+                r#"<div class="alert alert-success alert-auto-dismiss">✓ Credential '{}' updated successfully!</div>{}"#,
                 credential_name, list_html
             )))
         }
@@ -354,13 +354,13 @@ async fn credential_update(
             let error_msg = e.to_string();
             if error_msg.contains("UNIQUE constraint") && error_msg.contains("credentials.name") {
                 Ok(Html(
-                    r#"<div class="alert alert-error">✗ A credential with that name already exists. Please use a different name.</div>"#.to_string()
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ A credential with that name already exists. Please use a different name.</div>"#.to_string()
                 ))
             } else {
                 // Other database error
                 tracing::error!("Failed to update credential: {}", e);
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ Failed to update credential: {}</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ Failed to update credential: {}</div>"#,
                     e
                 )))
             }
@@ -386,7 +386,7 @@ async fn credential_delete(
         Ok(_) => {
             // Success
             Ok(Html(format!(
-                r#"<div class="alert alert-success">✓ Credential '{}' deleted successfully!</div>"#,
+                r#"<div class="alert alert-success alert-auto-dismiss">✓ Credential '{}' deleted successfully!</div>"#,
                 credential_name
             )))
         }
@@ -395,14 +395,14 @@ async fn credential_delete(
             let error_msg = e.to_string();
             if error_msg.contains("in use") {
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ Cannot delete credential '{}': it is in use by one or more servers</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ Cannot delete credential '{}': it is in use by one or more servers</div>"#,
                     credential_name
                 )))
             } else {
                 // Other error
                 tracing::error!("Failed to delete credential: {}", e);
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ Failed to delete credential: {}</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ Failed to delete credential: {}</div>"#,
                     e
                 )))
             }
@@ -434,7 +434,7 @@ async fn test_connection(
     // Verify it's an SSH key credential
     if !credential.is_ssh_key() {
         return Ok(Html(format!(
-            r#"<div class="alert alert-error">✗ Credential '{}' is not an SSH key. Only SSH key credentials can be tested.</div>"#,
+            r#"<div class="alert alert-error alert-auto-dismiss">✗ Credential '{}' is not an SSH key. Only SSH key credentials can be tested.</div>"#,
             credential.name
         )));
     }

@@ -203,7 +203,7 @@ async fn tag_create(
 
             // Prepend success message
             Ok(Html(format!(
-                r#"<div class="alert alert-success">✓ Tag '{}' created successfully!</div>{}"#,
+                r#"<div class="alert alert-success alert-auto-dismiss">✓ Tag '{}' created successfully!</div>{}"#,
                 input.name, list_html
             )))
         }
@@ -212,20 +212,20 @@ async fn tag_create(
             let error_msg = e.to_string();
             if error_msg.contains("UNIQUE constraint") && error_msg.contains("tags.name") {
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ A tag with the name '{}' already exists. Please use a different name.</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ A tag with the name '{}' already exists. Please use a different name.</div>"#,
                     input.name
                 )))
             } else if error_msg.contains("Validation error") {
                 // Validation error from database layer
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ {}</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ {}</div>"#,
                     error_msg
                 )))
             } else {
                 // Other database error
                 tracing::error!("Failed to create tag: {}", e);
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ Failed to create tag: {}</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ Failed to create tag: {}</div>"#,
                     e
                 )))
             }
@@ -243,7 +243,7 @@ async fn tag_update(
     if let Some(ref name) = input.name {
         if name.trim().is_empty() {
             return Ok(Html(
-                r#"<div class="alert alert-error">✗ Name cannot be empty</div>"#.to_string(),
+                r#"<div class="alert alert-error alert-auto-dismiss">✗ Name cannot be empty</div>"#.to_string(),
             ));
         }
     }
@@ -252,7 +252,7 @@ async fn tag_update(
     if let Some(ref color) = input.color {
         if !color.is_empty() && !Tag::is_valid_color(color) {
             return Ok(Html(format!(
-                r#"<div class="alert alert-error">✗ Invalid color format: '{}'. Expected format: #RRGGBB (e.g., #5E81AC)</div>"#,
+                r#"<div class="alert alert-error alert-auto-dismiss">✗ Invalid color format: '{}'. Expected format: #RRGGBB (e.g., #5E81AC)</div>"#,
                 color
             )));
         }
@@ -287,7 +287,7 @@ async fn tag_update(
 
             // Prepend success message
             Ok(Html(format!(
-                r#"<div class="alert alert-success">✓ Tag '{}' updated successfully!</div>{}"#,
+                r#"<div class="alert alert-success alert-auto-dismiss">✓ Tag '{}' updated successfully!</div>{}"#,
                 tag_name, list_html
             )))
         }
@@ -296,19 +296,19 @@ async fn tag_update(
             let error_msg = e.to_string();
             if error_msg.contains("UNIQUE constraint") && error_msg.contains("tags.name") {
                 Ok(Html(
-                    r#"<div class="alert alert-error">✗ A tag with that name already exists. Please use a different name.</div>"#.to_string()
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ A tag with that name already exists. Please use a different name.</div>"#.to_string()
                 ))
             } else if error_msg.contains("Validation error") {
                 // Validation error from database layer
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ {}</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ {}</div>"#,
                     error_msg
                 )))
             } else {
                 // Other database error
                 tracing::error!("Failed to update tag: {}", e);
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ Failed to update tag: {}</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ Failed to update tag: {}</div>"#,
                     e
                 )))
             }
@@ -334,7 +334,7 @@ async fn tag_delete(
         Ok(_) => {
             // Success
             Ok(Html(format!(
-                r#"<div class="alert alert-success">✓ Tag '{}' deleted successfully!</div>"#,
+                r#"<div class="alert alert-success alert-auto-dismiss">✓ Tag '{}' deleted successfully!</div>"#,
                 tag_name
             )))
         }
@@ -342,7 +342,7 @@ async fn tag_delete(
             // Error
             tracing::error!("Failed to delete tag: {}", e);
             Ok(Html(format!(
-                r#"<div class="alert alert-error">✗ Failed to delete tag: {}</div>"#,
+                r#"<div class="alert alert-error alert-auto-dismiss">✗ Failed to delete tag: {}</div>"#,
                 e
             )))
         }

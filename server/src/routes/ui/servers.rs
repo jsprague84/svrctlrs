@@ -253,7 +253,7 @@ async fn server_create(
         let _tags_list = tags::list_tags(db.pool()).await?;
 
         return Ok(Html(format!(
-            r#"<div class="alert alert-error">Validation error: {}</div>"#,
+            r#"<div class="alert alert-error alert-auto-dismiss">Validation error: {}</div>"#,
             e
         )));
     }
@@ -301,7 +301,7 @@ async fn server_create(
             let list_html = template.render()?;
 
             Ok(Html(format!(
-                r#"<div class="alert alert-success">Server '{}' created successfully!</div>{}"#,
+                r#"<div class="alert alert-success alert-auto-dismiss">Server '{}' created successfully!</div>{}"#,
                 create_server.name, list_html
             )))
         }
@@ -310,7 +310,7 @@ async fn server_create(
             let error_msg = e.to_string();
             if error_msg.contains("UNIQUE constraint") && error_msg.contains("servers.name") {
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">A server with the name '{}' already exists. Please use a different name.</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">A server with the name '{}' already exists. Please use a different name.</div>"#,
                     create_server.name
                 )))
             } else {
@@ -429,7 +429,7 @@ async fn server_update(
             let list_html = template.render()?;
 
             Ok(Html(format!(
-                r#"<div class="alert alert-success">Server '{}' updated successfully!</div>{}"#,
+                r#"<div class="alert alert-success alert-auto-dismiss">Server '{}' updated successfully!</div>{}"#,
                 server_name, list_html
             )))
         }
@@ -437,7 +437,7 @@ async fn server_update(
             let error_msg = e.to_string();
             if error_msg.contains("UNIQUE constraint") && error_msg.contains("servers.name") {
                 Ok(Html(
-                    r#"<div class="alert alert-error">A server with that name already exists. Please use a different name.</div>"#.to_string()
+                    r#"<div class="alert alert-error alert-auto-dismiss">A server with that name already exists. Please use a different name.</div>"#.to_string()
                 ))
             } else {
                 Err(e.into())
@@ -462,7 +462,7 @@ async fn server_delete(
     servers_queries::delete_server(db.pool(), id).await?;
 
     Ok(Html(format!(
-        r#"<div class="alert alert-success">Server '{}' deleted successfully!</div>"#,
+        r#"<div class="alert alert-success alert-auto-dismiss">Server '{}' deleted successfully!</div>"#,
         server_name
     )))
 }
@@ -503,11 +503,11 @@ async fn server_test_connection(
 
     match test_connection(&config).await {
         Ok(output) => Ok(Html(format!(
-            r#"<div class="alert alert-success">✓ Connection successful to {}@{}:{}<br><small>{}</small></div>"#,
+            r#"<div class="alert alert-success alert-auto-dismiss">✓ Connection successful to {}@{}:{}<br><small>{}</small></div>"#,
             username, input.hostname, port, output
         ))),
         Err(e) => Ok(Html(format!(
-            r#"<div class="alert alert-error">✗ Connection failed to {}@{}:{}<br><small>{}</small></div>"#,
+            r#"<div class="alert alert-error alert-auto-dismiss">✗ Connection failed to {}@{}:{}<br><small>{}</small></div>"#,
             username, input.hostname, port, e
         ))),
     }
@@ -529,7 +529,7 @@ async fn server_test_by_id(
     // Handle local server
     if server.server.is_local {
         return Ok(Html(
-            r#"<div class="alert alert-success">✅ Local server - no SSH connection needed</div>"#
+            r#"<div class="alert alert-success alert-auto-dismiss">✅ Local server - no SSH connection needed</div>"#
                 .to_string(),
         ));
     }
@@ -539,7 +539,7 @@ async fn server_test_by_id(
         Some(h) if !h.is_empty() => h.clone(),
         _ => {
             return Ok(Html(
-                r#"<div class="alert alert-error">❌ No hostname configured</div>"#.to_string(),
+                r#"<div class="alert alert-error alert-auto-dismiss">❌ No hostname configured</div>"#.to_string(),
             ));
         }
     };
@@ -548,7 +548,7 @@ async fn server_test_by_id(
         Some(u) if !u.is_empty() => u.clone(),
         _ => {
             return Ok(Html(
-                r#"<div class="alert alert-error">❌ No username configured</div>"#.to_string(),
+                r#"<div class="alert alert-error alert-auto-dismiss">❌ No username configured</div>"#.to_string(),
             ));
         }
     };
@@ -697,7 +697,7 @@ async fn server_capabilities(
         Some(h) if !h.is_empty() => h.clone(),
         _ => {
             return Ok(Html(
-                r#"<div class="alert alert-error">❌ No hostname configured</div>"#.to_string(),
+                r#"<div class="alert alert-error alert-auto-dismiss">❌ No hostname configured</div>"#.to_string(),
             ));
         }
     };
@@ -706,7 +706,7 @@ async fn server_capabilities(
         Some(u) if !u.is_empty() => u.clone(),
         _ => {
             return Ok(Html(
-                r#"<div class="alert alert-error">❌ No username configured</div>"#.to_string(),
+                r#"<div class="alert alert-error alert-auto-dismiss">❌ No username configured</div>"#.to_string(),
             ));
         }
     };
@@ -842,7 +842,7 @@ echo "LVM=$(command -v lvm >/dev/null 2>&1 && echo '1' || echo '0')"
                 e
             );
             Ok(Html(format!(
-                r#"<div class="alert alert-error">
+                r#"<div class="alert alert-error alert-auto-dismiss">
                     ❌ Capability detection failed: {}
                     <br><small class="text-secondary">Ensure SSH connection is working</small>
                 </div>"#,
@@ -900,7 +900,7 @@ async fn server_add_tag(
     tags::add_server_tag(db.pool(), id, input.tag_id).await?;
 
     Ok(Html(
-        r#"<div class="alert alert-success">Tag added successfully!</div>"#.to_string(),
+        r#"<div class="alert alert-success alert-auto-dismiss">Tag added successfully!</div>"#.to_string(),
     ))
 }
 
@@ -920,7 +920,7 @@ async fn server_remove_tag(
     tags::remove_server_tag(db.pool(), id, input.tag_id).await?;
 
     Ok(Html(
-        r#"<div class="alert alert-success">Tag removed successfully!</div>"#.to_string(),
+        r#"<div class="alert alert-success alert-auto-dismiss">Tag removed successfully!</div>"#.to_string(),
     ))
 }
 

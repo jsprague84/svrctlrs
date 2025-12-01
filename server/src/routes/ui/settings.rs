@@ -506,7 +506,7 @@ async fn notification_create(
             let list_html = template.render()?;
 
             Ok(Html(format!(
-                r#"<div class="alert alert-success">✓ Notification channel '{}' ({}) created successfully!</div>{}"#,
+                r#"<div class="alert alert-success alert-auto-dismiss">✓ Notification channel '{}' ({}) created successfully!</div>{}"#,
                 input.name, input.channel_type, list_html
             )))
         }
@@ -515,7 +515,7 @@ async fn notification_create(
             let error_msg = e.to_string();
             if error_msg.contains("UNIQUE constraint") {
                 Ok(Html(format!(
-                    r#"<div class="alert alert-error">✗ A notification channel with the name '{}' already exists. Please use a different name.</div>"#,
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ A notification channel with the name '{}' already exists. Please use a different name.</div>"#,
                     input.name
                 )))
             } else {
@@ -614,7 +614,7 @@ async fn notification_update(
             let list_html = template.render()?;
 
             Ok(Html(format!(
-                r#"<div class="alert alert-success">✓ Notification channel '{}' updated successfully!</div>{}"#,
+                r#"<div class="alert alert-success alert-auto-dismiss">✓ Notification channel '{}' updated successfully!</div>{}"#,
                 backend_name, list_html
             )))
         }
@@ -622,7 +622,7 @@ async fn notification_update(
             let error_msg = e.to_string();
             if error_msg.contains("UNIQUE constraint") {
                 Ok(Html(
-                    r#"<div class="alert alert-error">✗ A notification channel with that name already exists. Please use a different name.</div>"#.to_string()
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ A notification channel with that name already exists. Please use a different name.</div>"#.to_string()
                 ))
             } else {
                 Err(e.into())
@@ -648,7 +648,7 @@ async fn notification_delete(
 
     // Return success message
     Ok(Html(format!(
-        r#"<div class="alert alert-success">✓ Notification channel '{}' deleted successfully!</div>"#,
+        r#"<div class="alert alert-success alert-auto-dismiss">✓ Notification channel '{}' deleted successfully!</div>"#,
         channel_name
     )))
 }

@@ -876,7 +876,7 @@ pub async fn test_channel(
 
             if token.is_empty() {
                 return Ok(Html(
-                    r#"<div class="alert alert-error">✗ No token configured</div>"#.to_string(),
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ No token configured</div>"#.to_string(),
                 ));
             }
 
@@ -913,7 +913,7 @@ pub async fn test_channel(
 
             if topic.is_empty() {
                 return Ok(Html(
-                    r#"<div class="alert alert-error">✗ No topic configured</div>"#.to_string(),
+                    r#"<div class="alert alert-error alert-auto-dismiss">✗ No topic configured</div>"#.to_string(),
                 ));
             }
 
@@ -970,11 +970,11 @@ pub async fn test_channel(
 
     match result {
         Ok(msg) => Ok(Html(format!(
-            r#"<div class="alert alert-success">{}</div>"#,
+            r#"<div class="alert alert-success alert-auto-dismiss">{}</div>"#,
             msg
         ))),
         Err(msg) => Ok(Html(format!(
-            r#"<div class="alert alert-error">{}</div>"#,
+            r#"<div class="alert alert-error alert-auto-dismiss">{}</div>"#,
             msg
         ))),
     }

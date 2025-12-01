@@ -486,7 +486,7 @@ pub async fn run_job_schedule(
 
     // Return success message
     Ok(Html(format!(
-        r#"<div class="alert alert-success">
+        r#"<div class="alert alert-success alert-auto-dismiss">
             ✓ Job schedule '{}' triggered successfully<br>
             <small>Job Run ID: {} - <a href="/job-runs/{}" class="link">View Details</a></small>
         </div>"#,
