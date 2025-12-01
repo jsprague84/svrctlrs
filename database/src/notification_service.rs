@@ -918,6 +918,7 @@ mod tests {
             job_name: "test-job".to_string(),
             job_type: "docker".to_string(),
             schedule_name: "daily".to_string(),
+            server_name: "test-server".to_string(),
             status: "success".to_string(),
             severity: "1".to_string(),
             total_servers: 1,

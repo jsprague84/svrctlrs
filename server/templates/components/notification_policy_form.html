@@ -171,7 +171,7 @@
                         <div class="flex-between align-center mb-1">
                             <strong style="font-size: 0.875rem;">Simple Success</strong>
                             <button type="button"
-                                    onclick="document.getElementById('title_template').value='✓ {{job_name}} completed on {{server_name}}'; document.getElementById('body_template').value='Job completed successfully in {{duration_seconds}} seconds.';"
+                                    onclick="document.getElementById('title_template').value='✓ &#123;&#123;job_name&#125;&#125; completed on &#123;&#123;server_name&#125;&#125;'; document.getElementById('body_template').value='Job completed successfully in &#123;&#123;duration_seconds&#125;&#125; seconds.';"
                                     class="btn btn-sm btn-secondary">
                                 Use This
                             </button>
@@ -187,7 +187,7 @@
                         <div class="flex-between align-center mb-1">
                             <strong style="font-size: 0.875rem;">Detailed Failure</strong>
                             <button type="button"
-                                    onclick="document.getElementById('title_template').value='✗ {{job_name}} failed on {{server_name}}'; document.getElementById('body_template').value='Job: {{job_name}}\nServer: {{server_name}}\nStatus: {{status}}\nStarted: {{started_at}}\nDuration: {{duration_seconds}}s\n\nCheck the job run details for error information.';"
+                                    onclick="document.getElementById('title_template').value='✗ &#123;&#123;job_name&#125;&#125; failed on &#123;&#123;server_name&#125;&#125;'; document.getElementById('body_template').value='Job: &#123;&#123;job_name&#125;&#125;\nServer: &#123;&#123;server_name&#125;&#125;\nStatus: &#123;&#123;status&#125;&#125;\nStarted: &#123;&#123;started_at&#125;&#125;\nDuration: &#123;&#123;duration_seconds&#125;&#125;s\n\nCheck the job run details for error information.';"
                                     class="btn btn-sm btn-secondary">
                                 Use This
                             </button>
@@ -203,7 +203,7 @@
                         <div class="flex-between align-center mb-1">
                             <strong style="font-size: 0.875rem;">Multi-Server Summary</strong>
                             <button type="button"
-                                    onclick="document.getElementById('title_template').value='[{{severity}}] {{job_name}}: {{success_count}}/{{total_servers}} succeeded'; document.getElementById('body_template').value='Job Summary:\n- Total Servers: {{total_servers}}\n- Successful: {{success_count}}\n- Failed: {{failure_count}}\n- Duration: {{duration_seconds}}s\n\nStarted: {{started_at}}\nFinished: {{finished_at}}';"
+                                    onclick="document.getElementById('title_template').value='[&#123;&#123;severity&#125;&#125;] &#123;&#123;job_name&#125;&#125;: &#123;&#123;success_count&#125;&#125;/&#123;&#123;total_servers&#125;&#125; succeeded'; document.getElementById('body_template').value='Job Summary:\n- Total Servers: &#123;&#123;total_servers&#125;&#125;\n- Successful: &#123;&#123;success_count&#125;&#125;\n- Failed: &#123;&#123;failure_count&#125;&#125;\n- Duration: &#123;&#123;duration_seconds&#125;&#125;s\n\nStarted: &#123;&#123;started_at&#125;&#125;\nFinished: &#123;&#123;finished_at&#125;&#125;';"
                                     class="btn btn-sm btn-secondary">
                                 Use This
                             </button>
@@ -219,7 +219,7 @@
                         <div class="flex-between align-center mb-1">
                             <strong style="font-size: 0.875rem;">Critical Failure Alert</strong>
                             <button type="button"
-                                    onclick="document.getElementById('title_template').value='🚨 CRITICAL: {{job_name}} failed on {{server_name}}'; document.getElementById('body_template').value='CRITICAL FAILURE DETECTED\n\nJob: {{job_name}}\nType: {{job_type}}\nServer: {{server_name}}\nTime: {{finished_at}}\n\nImmediate attention required!';"
+                                    onclick="document.getElementById('title_template').value='🚨 CRITICAL: &#123;&#123;job_name&#125;&#125; failed on &#123;&#123;server_name&#125;&#125;'; document.getElementById('body_template').value='CRITICAL FAILURE DETECTED\n\nJob: &#123;&#123;job_name&#125;&#125;\nType: &#123;&#123;job_type&#125;&#125;\nServer: &#123;&#123;server_name&#125;&#125;\nTime: &#123;&#123;finished_at&#125;&#125;\n\nImmediate attention required!';"
                                     class="btn btn-sm btn-secondary">
                                 Use This
                             </button>
@@ -235,7 +235,7 @@
                         <div class="flex-between align-center mb-1">
                             <strong style="font-size: 0.875rem;">Daily Report</strong>
                             <button type="button"
-                                    onclick="document.getElementById('title_template').value='📊 Daily Report: {{job_name}}'; document.getElementById('body_template').value='Daily Job Summary\n\nServers Processed: {{total_servers}}\n✓ Successful: {{success_count}}\n✗ Failed: {{failure_count}}\n\nTotal Duration: {{duration_seconds}}s\nCompleted: {{finished_at}}';"
+                                    onclick="document.getElementById('title_template').value='📊 Daily Report: &#123;&#123;job_name&#125;&#125;'; document.getElementById('body_template').value='Daily Job Summary\n\nServers Processed: &#123;&#123;total_servers&#125;&#125;\n✓ Successful: &#123;&#123;success_count&#125;&#125;\n✗ Failed: &#123;&#123;failure_count&#125;&#125;\n\nTotal Duration: &#123;&#123;duration_seconds&#125;&#125;s\nCompleted: &#123;&#123;finished_at&#125;&#125;';"
                                     class="btn btn-sm btn-secondary">
                                 Use This
                             </button>
@@ -517,7 +517,7 @@
                         <div class="flex-between align-center mb-1">
                             <strong style="font-size: 0.875rem;">Simple Success</strong>
                             <button type="button"
-                                    onclick="document.getElementById('title_template').value='✓ {{job_name}} completed on {{server_name}}'; document.getElementById('body_template').value='Job completed successfully in {{duration_seconds}} seconds.';"
+                                    onclick="document.getElementById('title_template').value='✓ &#123;&#123;job_name&#125;&#125; completed on &#123;&#123;server_name&#125;&#125;'; document.getElementById('body_template').value='Job completed successfully in &#123;&#123;duration_seconds&#125;&#125; seconds.';"
                                     class="btn btn-sm btn-secondary">
                                 Use This
                             </button>
@@ -533,7 +533,7 @@
                         <div class="flex-between align-center mb-1">
                             <strong style="font-size: 0.875rem;">Detailed Failure</strong>
                             <button type="button"
-                                    onclick="document.getElementById('title_template').value='✗ {{job_name}} failed on {{server_name}}'; document.getElementById('body_template').value='Job: {{job_name}}\nServer: {{server_name}}\nStatus: {{status}}\nStarted: {{started_at}}\nDuration: {{duration_seconds}}s\n\nCheck the job run details for error information.';"
+                                    onclick="document.getElementById('title_template').value='✗ &#123;&#123;job_name&#125;&#125; failed on &#123;&#123;server_name&#125;&#125;'; document.getElementById('body_template').value='Job: &#123;&#123;job_name&#125;&#125;\nServer: &#123;&#123;server_name&#125;&#125;\nStatus: &#123;&#123;status&#125;&#125;\nStarted: &#123;&#123;started_at&#125;&#125;\nDuration: &#123;&#123;duration_seconds&#125;&#125;s\n\nCheck the job run details for error information.';"
                                     class="btn btn-sm btn-secondary">
                                 Use This
                             </button>
@@ -549,7 +549,7 @@
                         <div class="flex-between align-center mb-1">
                             <strong style="font-size: 0.875rem;">Multi-Server Summary</strong>
                             <button type="button"
-                                    onclick="document.getElementById('title_template').value='[{{severity}}] {{job_name}}: {{success_count}}/{{total_servers}} succeeded'; document.getElementById('body_template').value='Job Summary:\n- Total Servers: {{total_servers}}\n- Successful: {{success_count}}\n- Failed: {{failure_count}}\n- Duration: {{duration_seconds}}s\n\nStarted: {{started_at}}\nFinished: {{finished_at}}';"
+                                    onclick="document.getElementById('title_template').value='[&#123;&#123;severity&#125;&#125;] &#123;&#123;job_name&#125;&#125;: &#123;&#123;success_count&#125;&#125;/&#123;&#123;total_servers&#125;&#125; succeeded'; document.getElementById('body_template').value='Job Summary:\n- Total Servers: &#123;&#123;total_servers&#125;&#125;\n- Successful: &#123;&#123;success_count&#125;&#125;\n- Failed: &#123;&#123;failure_count&#125;&#125;\n- Duration: &#123;&#123;duration_seconds&#125;&#125;s\n\nStarted: &#123;&#123;started_at&#125;&#125;\nFinished: &#123;&#123;finished_at&#125;&#125;';"
                                     class="btn btn-sm btn-secondary">
                                 Use This
                             </button>
@@ -565,7 +565,7 @@
                         <div class="flex-between align-center mb-1">
                             <strong style="font-size: 0.875rem;">Critical Failure Alert</strong>
                             <button type="button"
-                                    onclick="document.getElementById('title_template').value='🚨 CRITICAL: {{job_name}} failed on {{server_name}}'; document.getElementById('body_template').value='CRITICAL FAILURE DETECTED\n\nJob: {{job_name}}\nType: {{job_type}}\nServer: {{server_name}}\nTime: {{finished_at}}\n\nImmediate attention required!';"
+                                    onclick="document.getElementById('title_template').value='🚨 CRITICAL: &#123;&#123;job_name&#125;&#125; failed on &#123;&#123;server_name&#125;&#125;'; document.getElementById('body_template').value='CRITICAL FAILURE DETECTED\n\nJob: &#123;&#123;job_name&#125;&#125;\nType: &#123;&#123;job_type&#125;&#125;\nServer: &#123;&#123;server_name&#125;&#125;\nTime: &#123;&#123;finished_at&#125;&#125;\n\nImmediate attention required!';"
                                     class="btn btn-sm btn-secondary">
                                 Use This
                             </button>
@@ -581,7 +581,7 @@
                         <div class="flex-between align-center mb-1">
                             <strong style="font-size: 0.875rem;">Daily Report</strong>
                             <button type="button"
-                                    onclick="document.getElementById('title_template').value='📊 Daily Report: {{job_name}}'; document.getElementById('body_template').value='Daily Job Summary\n\nServers Processed: {{total_servers}}\n✓ Successful: {{success_count}}\n✗ Failed: {{failure_count}}\n\nTotal Duration: {{duration_seconds}}s\nCompleted: {{finished_at}}';"
+                                    onclick="document.getElementById('title_template').value='📊 Daily Report: &#123;&#123;job_name&#125;&#125;'; document.getElementById('body_template').value='Daily Job Summary\n\nServers Processed: &#123;&#123;total_servers&#125;&#125;\n✓ Successful: &#123;&#123;success_count&#125;&#125;\n✗ Failed: &#123;&#123;failure_count&#125;&#125;\n\nTotal Duration: &#123;&#123;duration_seconds&#125;&#125;s\nCompleted: &#123;&#123;finished_at&#125;&#125;';"
                                     class="btn btn-sm btn-secondary">
                                 Use This
                             </button>
