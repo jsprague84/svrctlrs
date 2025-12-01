@@ -3,7 +3,6 @@
 mod api;
 mod servers;
 pub mod ui;
-mod webhooks;
 
 use axum::Router;
 
@@ -16,7 +15,5 @@ pub fn api_routes(state: AppState) -> Router {
         .nest("/v1", api::routes())
         // Server management routes
         .nest("/v1/servers", servers::routes())
-        // Webhook routes
-        .nest("/webhooks", webhooks::routes())
         .with_state(state)
 }
