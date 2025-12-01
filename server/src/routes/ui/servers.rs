@@ -582,11 +582,13 @@ async fn server_test_by_id(
             let _ = servers_queries::update_server_status(db.pool(), id, None).await;
 
             Ok(Html(format!(
-                r#"<div class="alert alert-success">
-                    ✅ Connection successful!
-                    <br><small class="text-secondary">{}</small>
+                r#"<div x-data="{{ show: true }}" x-init="setTimeout(() => {{ show = false; setTimeout(() => {{ htmx.ajax('GET', '/servers/{}/capabilities/display', {{target: '#server-{}-capabilities', swap: 'innerHTML'}}); }}, 300); }}, 3000)">
+                    <div x-show="show" x-transition class="alert alert-success">
+                        ✅ Connection successful!
+                        <br><small class="text-secondary">{}</small>
+                    </div>
                 </div>"#,
-                output
+                id, id, output
             )))
         }
         Err(e) => {
@@ -600,11 +602,13 @@ async fn server_test_by_id(
             let _ = servers_queries::update_server_status(db.pool(), id, Some(e.to_string())).await;
 
             Ok(Html(format!(
-                r#"<div class="alert alert-error">
-                    ❌ Connection failed: {}
-                    <br><small class="text-secondary">Check hostname, port, username, and SSH key</small>
+                r#"<div x-data="{{ show: true }}" x-init="setTimeout(() => {{ show = false; setTimeout(() => {{ htmx.ajax('GET', '/servers/{}/capabilities/display', {{target: '#server-{}-capabilities', swap: 'innerHTML'}}); }}, 300); }}, 3000)">
+                    <div x-show="show" x-transition class="alert alert-error">
+                        ❌ Connection failed: {}
+                        <br><small class="text-secondary">Check hostname, port, username, and SSH key</small>
+                    </div>
                 </div>"#,
-                e
+                id, id, e
             )))
         }
     }
@@ -683,6 +687,7 @@ async fn server_capabilities(
                         .to_string(),
                 })
                 .collect(),
+            should_expand: true, // Detect clicked - show expanded and auto-collapse
         };
         return Ok(Html(template.render()?));
     }
@@ -826,6 +831,7 @@ echo "LVM=$(command -v lvm >/dev/null 2>&1 && echo '1' || echo '0')"
                             .to_string(),
                     })
                     .collect(),
+                should_expand: true, // Detect clicked - show expanded and auto-collapse
             };
             Ok(Html(template.render()?))
         }
@@ -873,6 +879,7 @@ async fn server_capabilities_display(
                     .to_string(),
             })
             .collect(),
+        should_expand: false, // Page load - start collapsed
     };
     Ok(Html(template.render()?))
 }

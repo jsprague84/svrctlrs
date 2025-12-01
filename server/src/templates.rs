@@ -101,6 +101,7 @@ pub struct ServerCapabilitiesTemplate {
     pub server_id: i64,
     pub server: ServerDisplay, // Full server info for display
     pub capabilities: Vec<ServerCapabilityDisplay>,
+    pub should_expand: bool, // Whether to show expanded view initially
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

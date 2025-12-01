@@ -4,7 +4,7 @@
     No capabilities detected. Click "Detect" to scan this server.
 </div>
 {% else %}
-<div x-data="{ expanded: true }" x-init="setTimeout(() => expanded = false, 4000)">
+<div x-data="{ expanded: {% if should_expand %}true{% else %}false{% endif %} }" x-init="{% if should_expand %}setTimeout(() => expanded = false, 4000){% endif %}">
     <!-- Compact View (collapsed) -->
     <div x-show="!expanded"
          @click="expanded = true"
