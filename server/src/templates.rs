@@ -906,7 +906,7 @@ pub struct JobRunListTemplate {
 }
 
 #[derive(Template)]
-#[template(path = "components/job_run_detail.html")]
+#[template(path = "pages/job_run_detail.html")]
 pub struct JobRunDetailTemplate {
     pub user: Option<User>,
     pub job_run: JobRunDisplay,

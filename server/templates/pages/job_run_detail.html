@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}Job Run #{{ job_run.id }} - SvrCtlRS{% endblock %}
+{% block nav_job_runs %}active{% endblock %}
+
+{% block content %}
+<div class="flex-between mb-3">
+    <div>
+        <h1>Job Run #{{ job_run.id }}</h1>
+        <div class="text-secondary mt-1">
+            <a href="/job-runs" class="link">← Back to Job Runs</a>
+        </div>
+    </div>
+    <span class="badge {% if job_run.status == "success" %}badge-success{% else if job_run.status == "failed" %}badge-error{% else if job_run.status == "running" %}badge-info{% else %}badge-secondary{% endif %}">
+        {% if job_run.status == "success" %}Success
+        {% else if job_run.status == "failed" %}Failed
+        {% else if job_run.status == "running" %}Running
+        {% else %}{{ job_run.status }}
+        {% endif %}
+    </span>
+</div>
+
+<div class="card mb-3">
+    <h4>Job Information</h4>
+    <div class="text-secondary" style="font-size: 0.875rem;">
+        <strong>Job Schedule:</strong> {{ job_run.job_schedule_name }}<br>
+        <strong>Job Template:</strong> {{ job_run.job_template_name }}<br>
+        <strong>Server:</strong> {{ job_run.server_name }}<br>
+        <strong>Trigger Type:</strong> {{ job_run.trigger_type }}<br>
+        {% if job_run.is_retry %}
+        <strong>Retry Attempt:</strong> {{ job_run.retry_attempt }}<br>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Include the job run detail component -->
+{% include "components/job_run_detail.html" %}
+{% endblock %}
