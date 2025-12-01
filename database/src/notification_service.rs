@@ -419,6 +419,7 @@ impl NotificationService {
             job_name: job_template.name.clone(),
             job_type: job_type_name.to_string(),
             schedule_name: format!("Schedule {}", job_run.job_schedule_id), // TODO: Load actual schedule name
+            server_name: server.name.clone(),
             status: job_run.status_str.clone(),
             severity: self.calculate_severity(job_run).to_string(),
             total_servers,
@@ -446,6 +447,7 @@ impl NotificationService {
             ("{{job_name}}", context.job_name.as_str()),
             ("{{job_type}}", context.job_type.as_str()),
             ("{{schedule_name}}", context.schedule_name.as_str()),
+            ("{{server_name}}", context.server_name.as_str()),
             ("{{status}}", context.status.as_str()),
             ("{{severity}}", context.severity.as_str()),
             ("{{total_servers}}", total_servers.as_str()),
@@ -846,6 +848,7 @@ pub struct TemplateContext {
     pub job_name: String,
     pub job_type: String,
     pub schedule_name: String,
+    pub server_name: String,
     pub status: String,
     pub severity: String,
     pub total_servers: i64,
