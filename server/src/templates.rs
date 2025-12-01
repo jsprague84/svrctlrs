@@ -604,51 +604,6 @@ impl JobTemplateDisplay {
     }
 }
 
-/// Convert database JobTemplate to display model
-impl From<svrctlrs_database::models::JobTemplate> for JobTemplateDisplay {
-    fn from(jt: svrctlrs_database::models::JobTemplate) -> Self {
-        use chrono::Local;
-
-        let variables_json =
-            serde_json::to_string(&jt.get_variables()).unwrap_or_else(|_| "{}".to_string());
-        let metadata_json =
-            serde_json::to_string(&jt.get_metadata()).unwrap_or_else(|_| "{}".to_string());
-        let created_at = jt
-            .created_at
-            .with_timezone(&Local)
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        let updated_at = jt
-            .updated_at
-            .with_timezone(&Local)
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-
-        Self {
-            id: jt.id,
-            name: jt.name,
-            display_name: jt.display_name,
-            description: jt.description,
-            job_type_id: jt.job_type_id,
-            job_type_name: String::new(), // TODO: Join from job_type table
-            is_composite: jt.is_composite,
-            command_template_id: jt.command_template_id,
-            variables_json,
-            timeout_seconds: jt.timeout_seconds,
-            retry_count: jt.retry_count,
-            retry_delay_seconds: jt.retry_delay_seconds,
-            notify_on_success: jt.notify_on_success,
-            notify_on_failure: jt.notify_on_failure,
-            notification_policy_id: jt.notification_policy_id,
-            step_count: 0,     // TODO: Count from job_template_steps table
-            schedule_count: 0, // TODO: Count from job_schedules table
-            metadata_json,
-            created_at,
-            updated_at,
-        }
-    }
-}
-
 // Optimized From implementation using joined data
 impl From<svrctlrs_database::queries::JobTemplateWithNames> for JobTemplateDisplay {
     fn from(jt: svrctlrs_database::queries::JobTemplateWithNames) -> Self {
@@ -693,6 +648,57 @@ impl From<svrctlrs_database::queries::JobTemplateWithNames> for JobTemplateDispl
             notification_policy_id: jt.notification_policy_id,
             step_count: 0,     // TODO: Count from job_template_steps table
             schedule_count: 0, // TODO: Count from job_schedules table
+            metadata_json,
+            created_at,
+            updated_at,
+        }
+    }
+}
+
+// Optimized From implementation with counts from database query
+impl From<svrctlrs_database::queries::JobTemplateWithCounts> for JobTemplateDisplay {
+    fn from(jt: svrctlrs_database::queries::JobTemplateWithCounts) -> Self {
+        use chrono::Local;
+
+        let variables_json = jt
+            .variables
+            .as_ref()
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "{}".to_string());
+        let metadata_json = jt
+            .metadata
+            .as_ref()
+            .map(|m| m.to_string())
+            .unwrap_or_else(|| "{}".to_string());
+        let created_at = jt
+            .created_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+        let updated_at = jt
+            .updated_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+
+        Self {
+            id: jt.id,
+            name: jt.name,
+            display_name: jt.display_name,
+            description: jt.description,
+            job_type_id: jt.job_type_id,
+            job_type_name: jt.job_type_name, // ✅ From JOIN
+            is_composite: jt.is_composite,
+            command_template_id: jt.command_template_id,
+            variables_json,
+            timeout_seconds: jt.timeout_seconds,
+            retry_count: jt.retry_count,
+            retry_delay_seconds: jt.retry_delay_seconds,
+            notify_on_success: jt.notify_on_success,
+            notify_on_failure: jt.notify_on_failure,
+            notification_policy_id: jt.notification_policy_id,
+            step_count: jt.step_count,         // ✅ From database COUNT
+            schedule_count: jt.schedule_count, // ✅ From database COUNT
             metadata_json,
             created_at,
             updated_at,
@@ -757,13 +763,19 @@ impl JobTemplateStepDisplay {
     }
 }
 
-/// Convert database JobTemplateStep to display model
-impl From<svrctlrs_database::models::JobTemplateStep> for JobTemplateStepDisplay {
-    fn from(step: svrctlrs_database::models::JobTemplateStep) -> Self {
-        let variables_json =
-            serde_json::to_string(&step.get_variables()).unwrap_or_else(|_| "{}".to_string());
-        let metadata_json =
-            serde_json::to_string(&step.get_metadata()).unwrap_or_else(|_| "{}".to_string());
+/// Optimized From implementation with joined names from database query
+impl From<svrctlrs_database::queries::JobTemplateStepWithNames> for JobTemplateStepDisplay {
+    fn from(step: svrctlrs_database::queries::JobTemplateStepWithNames) -> Self {
+        let variables_json = step
+            .variables
+            .as_ref()
+            .and_then(|v| serde_json::to_string(v).ok())
+            .unwrap_or_else(|| "{}".to_string());
+        let metadata_json = step
+            .metadata
+            .as_ref()
+            .and_then(|m| serde_json::to_string(m).ok())
+            .unwrap_or_else(|| "{}".to_string());
 
         Self {
             id: step.id,
@@ -773,9 +785,9 @@ impl From<svrctlrs_database::models::JobTemplateStep> for JobTemplateStepDisplay
             name: step.name.clone(),
             description: step.name, // Alias for template compatibility
             command_template_id: step.command_template_id,
-            command_template_name: String::new(), // TODO: Join from command_template table
-            job_type_id: None,                    // TODO: Join from command_templates table
-            job_type_name: None,                  // TODO: Join from command_templates table
+            command_template_name: step.command_template_name, // ✅ From database JOIN
+            job_type_id: step.job_type_id,                     // ✅ From database JOIN
+            job_type_name: step.job_type_name,                 // ✅ From database JOIN
             variables_json,
             continue_on_failure: step.continue_on_failure,
             timeout_seconds: step.timeout_seconds,
@@ -871,58 +883,6 @@ impl JobScheduleDisplay {
     }
 }
 
-/// Convert database JobSchedule to display model
-impl From<svrctlrs_database::models::JobSchedule> for JobScheduleDisplay {
-    fn from(js: svrctlrs_database::models::JobSchedule) -> Self {
-        use chrono::Local;
-
-        let metadata_json =
-            serde_json::to_string(&js.get_metadata()).unwrap_or_else(|_| "{}".to_string());
-        let created_at = js
-            .created_at
-            .with_timezone(&Local)
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        let last_run_at = js.last_run_at.map(|dt| {
-            dt.with_timezone(&Local)
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string()
-        });
-        let next_run_at = js.next_run_at.map(|dt| {
-            dt.with_timezone(&Local)
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string()
-        });
-
-        Self {
-            id: js.id,
-            name: js.name,
-            description: js.description,
-            job_template_id: js.job_template_id,
-            job_template_name: String::new(), // TODO: Join from job_template table
-            server_id: Some(js.server_id),
-            server_name: None, // TODO: Join from servers table
-            schedule: js.schedule.clone(),
-            cron_expression: js.schedule, // Alias for template compatibility
-            enabled: js.enabled,
-            timeout_seconds: js.timeout_seconds,
-            retry_count: js.retry_count,
-            notify_on_success: js.notify_on_success,
-            notify_on_failure: js.notify_on_failure,
-            notification_policy_id: js.notification_policy_id,
-            last_run_at: last_run_at.clone(),
-            last_run: last_run_at, // Alias
-            last_run_status: js.last_run_status_str,
-            next_run_at: next_run_at.clone(),
-            next_run: next_run_at, // Alias
-            success_count: js.success_count,
-            failure_count: js.failure_count,
-            metadata_json,
-            created_at,
-        }
-    }
-}
-
 // ============================================================================
 // Job Runs
 // ============================================================================
@@ -1008,65 +968,6 @@ impl JobRunDisplay {
                 }
             }
             None => "".to_string(),
-        }
-    }
-}
-
-/// Convert database JobRun to display model
-impl From<svrctlrs_database::models::JobRun> for JobRunDisplay {
-    fn from(jr: svrctlrs_database::models::JobRun) -> Self {
-        use chrono::Local;
-
-        let metadata_json =
-            serde_json::to_string(&jr.get_metadata()).unwrap_or_else(|_| "{}".to_string());
-        let started_at = jr
-            .started_at
-            .with_timezone(&Local)
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
-        let finished_at = jr.finished_at.map(|dt| {
-            dt.with_timezone(&Local)
-                .format("%Y-%m-%d %H:%M:%S")
-                .to_string()
-        });
-        let duration_seconds = jr.duration_ms.map(|ms| ms as f64 / 1000.0).unwrap_or(0.0);
-        let trigger_type = if jr.is_retry {
-            "retry"
-        } else if jr.job_schedule_id == 0 {
-            "manual"
-        } else {
-            "scheduled"
-        };
-        let success_count = if jr.status_str == "success" { 1 } else { 0 };
-        let failed_count = if jr.status_str == "failed" { 1 } else { 0 };
-
-        Self {
-            id: jr.id,
-            job_schedule_id: jr.job_schedule_id,
-            job_schedule_name: String::new(), // TODO: Join from job_schedule table
-            job_template_id: jr.job_template_id,
-            job_template_name: String::new(), // TODO: Join from job_template table
-            server_id: jr.server_id,
-            server_name: String::new(), // TODO: Join from servers table
-            status: jr.status_str,
-            started_at,
-            finished_at: finished_at.clone(),
-            completed_at: finished_at, // Alias
-            duration_ms: jr.duration_ms,
-            duration_seconds,
-            exit_code: jr.exit_code,
-            output: jr.output,
-            error: jr.error,
-            rendered_command: jr.rendered_command,
-            retry_attempt: jr.retry_attempt,
-            is_retry: jr.is_retry,
-            notification_sent: jr.notification_sent,
-            notification_error: jr.notification_error,
-            metadata_json,
-            trigger_type: trigger_type.to_string(),
-            total_servers: 1, // Single server job
-            success_count,
-            failed_count,
         }
     }
 }
@@ -1447,10 +1348,12 @@ pub struct LoginForm {
     pub password: String,
 }
 
-/// Convert database Server to display model
-impl From<svrctlrs_database::Server> for ServerDisplay {
-    fn from(s: svrctlrs_database::Server) -> Self {
+/// Convert database ServerWithDetails to display model (optimized with JOINed data)
+impl From<svrctlrs_database::ServerWithDetails> for ServerDisplay {
+    fn from(swd: svrctlrs_database::ServerWithDetails) -> Self {
         use chrono::Local;
+
+        let s = swd.server;
 
         let last_seen = s
             .last_seen_at
@@ -1485,6 +1388,25 @@ impl From<svrctlrs_database::Server> for ServerDisplay {
             )
         };
 
+        // Extract tag IDs and names from joined Tag models
+        let tag_ids: Vec<i64> = swd.tags.iter().map(|t| t.id).collect();
+        let tags: Vec<ServerTagInfo> = swd
+            .tags
+            .iter()
+            .map(|t| ServerTagInfo {
+                name: t.name.clone(),
+                color: t.color_or_default(),
+            })
+            .collect();
+
+        // Extract capability names from joined ServerCapability models
+        let capabilities: Vec<String> = swd
+            .capabilities
+            .iter()
+            .filter(|c| c.available)
+            .map(|c| c.capability.clone())
+            .collect();
+
         Self {
             id: s.id,
             name: s.name,
@@ -1494,13 +1416,13 @@ impl From<svrctlrs_database::Server> for ServerDisplay {
             username: s.username.unwrap_or_default(),
             description: s.description.unwrap_or_default(),
             credential_id: s.credential_id,
-            credential_name: String::new(), // TODO: Join from credentials table
+            credential_name: swd.credential_name.unwrap_or_default(),
             connection_type,
             connection_string,
             is_local: s.is_local,
-            tag_ids: Vec::new(),      // TODO: Load from server_tags join
-            tags: Vec::new(),         // TODO: Load from server_tags join
-            capabilities: Vec::new(), // TODO: Load from server_capabilities join
+            tag_ids,
+            tags,
+            capabilities,
             os_type: s.os_type.unwrap_or_default(),
             os_distro: s.os_distro.unwrap_or_default(),
             os_version: String::new(), // Not in current schema
@@ -1514,23 +1436,24 @@ impl From<svrctlrs_database::Server> for ServerDisplay {
     }
 }
 
-/// Convert database Tag to display model
-impl From<svrctlrs_database::Tag> for TagDisplay {
-    fn from(t: svrctlrs_database::Tag) -> Self {
+/// Convert database TagWithCount to display model (optimized with server count)
+impl From<svrctlrs_database::TagWithCount> for TagDisplay {
+    fn from(twc: svrctlrs_database::TagWithCount) -> Self {
         use chrono::Local;
 
-        let created = t
+        let created = twc
+            .tag
             .created_at
             .with_timezone(&Local)
             .format("%Y-%m-%d %H:%M:%S")
             .to_string();
 
         Self {
-            id: t.id,
-            name: t.name,
-            color: t.color.unwrap_or_else(|| "#6B7280".to_string()), // Default gray color
-            description: t.description,
-            server_count: 0, // TODO: Count servers with this tag
+            id: twc.tag.id,
+            name: twc.tag.name,
+            color: twc.tag.color.unwrap_or_else(|| "#6B7280".to_string()), // Default gray color
+            description: twc.tag.description,
+            server_count: twc.server_count,
             created_at: created,
         }
     }
@@ -1585,9 +1508,9 @@ impl From<svrctlrs_database::queries::JobScheduleWithNames> for JobScheduleDispl
             last_run, // Alias
             last_run_status: js.last_run_status,
             next_run_at: next_run.clone(),
-            next_run,         // Alias
-            success_count: 0, // TODO: Load from job_runs aggregation
-            failure_count: 0, // TODO: Load from job_runs aggregation
+            next_run, // Alias
+            success_count: js.success_count,
+            failure_count: js.failure_count,
             metadata_json,
             created_at: created,
         }
@@ -1785,8 +1708,8 @@ impl From<svrctlrs_database::NotificationPolicy> for NotificationPolicyDisplay {
             name: np.name,
             description: np.description,
             scope_type,
-            channel_id: 0,               // TODO: Get from notification_policy_channels
-            channel_name: String::new(), // TODO: Join from notification_channels
+            channel_id: 0, // Legacy field - use policy_channels instead
+            channel_name: String::from("(Not loaded)"), // Legacy field - use policy_channels instead
             on_success: np.on_success,
             on_failure: np.on_failure,
             on_timeout: np.on_timeout,

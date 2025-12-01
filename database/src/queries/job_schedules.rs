@@ -123,6 +123,37 @@ pub async fn get_job_schedule(pool: &Pool<Sqlite>, id: i64) -> Result<JobSchedul
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
+/// Get job schedule by ID with joined names (optimized for display)
+#[instrument(skip(pool))]
+pub async fn get_job_schedule_with_names(
+    pool: &Pool<Sqlite>,
+    id: i64,
+) -> Result<JobScheduleWithNames> {
+    sqlx::query_as::<_, JobScheduleWithNames>(
+        r#"
+        SELECT
+            js.id, js.name, js.description, js.job_template_id,
+            jt.name as job_template_name,
+            js.server_id,
+            s.name as server_name,
+            js.schedule, js.enabled, js.timeout_seconds, js.retry_count,
+            js.notify_on_success, js.notify_on_failure, js.notification_policy_id,
+            js.last_run_at, js.last_run_status, js.next_run_at,
+            js.success_count, js.failure_count, js.metadata,
+            js.created_at, js.updated_at
+        FROM job_schedules js
+        INNER JOIN job_templates jt ON js.job_template_id = jt.id
+        LEFT JOIN servers s ON js.server_id = s.id
+        WHERE js.id = ?
+        "#,
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to get job schedule with names")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
 /// Get all schedules for a job template
 #[instrument(skip(pool))]
 pub async fn get_schedules_by_template(

@@ -182,7 +182,7 @@ pub async fn get_job_run_detail(
         })?;
 
     // Get servers for display
-    let servers = server_queries::list_servers(&state.pool)
+    let servers = server_queries::list_servers_with_details(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch servers");
@@ -226,7 +226,7 @@ pub async fn get_job_run_results(
         })?;
 
     // Get servers for display
-    let servers = server_queries::list_servers(&state.pool)
+    let servers = server_queries::list_servers_with_details(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch servers");

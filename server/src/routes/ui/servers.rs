@@ -5,11 +5,13 @@ use axum::{
     extract::{Path, State},
     response::{Html, IntoResponse},
     routing::{get, post, put},
-    Form, Router,
+    Router,
 };
+use axum_extra::extract::Form; // Use axum_extra::Form for proper multi-value support
 use serde::Deserialize;
+use servers_queries::ServerWithDetails;
 use svrctlrs_database::{
-    models::{CreateServer, Server, UpdateServer},
+    models::{CreateServer, UpdateServer},
     queries::{credentials, servers as servers_queries, tags},
 };
 
@@ -43,9 +45,9 @@ async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, App
 
     // Load servers, credentials, and tags from database
     let db = state.db().await;
-    let servers = servers_queries::list_servers(db.pool()).await?;
+    let servers = servers_queries::list_servers_with_details(db.pool()).await?;
     let credentials_list = credentials::list_credentials(db.pool()).await?;
-    let tags_list = tags::list_tags(db.pool()).await?;
+    let tags_list = tags::get_tags_with_counts(db.pool()).await?;
 
     // Convert to display models and fetch tags for each server
     let mut servers_display: Vec<ServerDisplay> = Vec::new();
@@ -53,7 +55,7 @@ async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, App
         let mut display = server_to_display(&server);
 
         // Fetch tags for this server
-        if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.id).await {
+        if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.server.id).await {
             display.tags = server_tags
                 .into_iter()
                 .map(|t| ServerTagInfo {
@@ -73,12 +75,12 @@ async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, App
     let tags_display: Vec<TagDisplay> = tags_list
         .into_iter()
         .map(|t| TagDisplay {
-            id: t.id,
-            name: t.name.clone(),
-            color: t.color_or_default(),
-            description: t.description.clone(),
-            server_count: 0, // Will be filled by tags query if needed
-            created_at: t.created_at.to_rfc3339(),
+            id: t.tag.id,
+            name: t.tag.name.clone(),
+            color: t.tag.color_or_default(),
+            description: t.tag.description.clone(),
+            server_count: t.server_count,
+            created_at: t.tag.created_at.to_rfc3339(),
         })
         .collect();
 
@@ -94,7 +96,7 @@ async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, App
 /// Get server list (HTMX component)
 async fn server_list(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let db = state.db().await;
-    let servers = servers_queries::list_servers(db.pool()).await?;
+    let servers = servers_queries::list_servers_with_details(db.pool()).await?;
 
     // Convert servers to display models and fetch tags for each
     let mut servers_display: Vec<ServerDisplay> = Vec::new();
@@ -102,7 +104,7 @@ async fn server_list(State(state): State<AppState>) -> Result<Html<String>, AppE
         let mut display = server_to_display(&server);
 
         // Fetch tags for this server
-        if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.id).await {
+        if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.server.id).await {
             display.tags = server_tags
                 .into_iter()
                 .map(|t| ServerTagInfo {
@@ -125,7 +127,7 @@ async fn server_list(State(state): State<AppState>) -> Result<Html<String>, AppE
 async fn server_form_new(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let db = state.db().await;
     let credentials_list = credentials::list_credentials(db.pool()).await?;
-    let tags_list = tags::list_tags(db.pool()).await?;
+    let tags_list = tags::get_tags_with_counts(db.pool()).await?;
 
     let credentials_display: Vec<CredentialDisplay> = credentials_list
         .into_iter()
@@ -134,12 +136,12 @@ async fn server_form_new(State(state): State<AppState>) -> Result<Html<String>, 
     let tags_display: Vec<TagDisplay> = tags_list
         .into_iter()
         .map(|t| TagDisplay {
-            id: t.id,
-            name: t.name.clone(),
-            color: t.color_or_default(),
-            description: t.description.clone(),
-            server_count: 0,
-            created_at: t.created_at.to_rfc3339(),
+            id: t.tag.id,
+            name: t.tag.name.clone(),
+            color: t.tag.color_or_default(),
+            description: t.tag.description.clone(),
+            server_count: t.server_count,
+            created_at: t.tag.created_at.to_rfc3339(),
         })
         .collect();
 
@@ -159,9 +161,9 @@ async fn server_form_edit(
     Path(id): Path<i64>,
 ) -> Result<Html<String>, AppError> {
     let db = state.db().await;
-    let server_result = servers_queries::get_server(db.pool(), id).await;
+    let server_result = servers_queries::get_server_with_details(db.pool(), id).await;
     let credentials_list = credentials::list_credentials(db.pool()).await?;
-    let tags_list = tags::list_tags(db.pool()).await?;
+    let tags_list = tags::get_tags_with_counts(db.pool()).await?;
     let server_tags = tags::get_server_tags(db.pool(), id)
         .await
         .unwrap_or_default();
@@ -173,12 +175,12 @@ async fn server_form_edit(
     let tags_display: Vec<TagDisplay> = tags_list
         .into_iter()
         .map(|t| TagDisplay {
-            id: t.id,
-            name: t.name.clone(),
-            color: t.color_or_default(),
-            description: t.description.clone(),
-            server_count: 0,
-            created_at: t.created_at.to_rfc3339(),
+            id: t.tag.id,
+            name: t.tag.name.clone(),
+            color: t.tag.color_or_default(),
+            description: t.tag.description.clone(),
+            server_count: t.server_count,
+            created_at: t.tag.created_at.to_rfc3339(),
         })
         .collect();
     let selected_tags: Vec<i64> = server_tags.iter().map(|t| t.id).collect();
@@ -210,9 +212,10 @@ struct CreateServerInput {
     username: Option<String>,
     credential_id: Option<String>, // Can be "none" or numeric ID
     description: Option<String>,
-    is_local: Option<String>,  // checkbox "on" or None
-    enabled: Option<String>,   // checkbox "on" or None
-    tag_ids: Option<Vec<i64>>, // Multi-select tag IDs (matches form field name)
+    is_local: Option<String>, // checkbox "on" or None
+    enabled: Option<String>,  // checkbox "on" or None
+    #[serde(default)] // Empty vec when no checkboxes selected
+    tag_ids: Vec<i64>, // Multi-select tag IDs (matches form field name)
 }
 
 /// Create server handler
@@ -265,15 +268,13 @@ async fn server_create(
 
     match servers_queries::create_server(db.pool(), &create_server).await {
         Ok(server_id) => {
-            // Add tags if provided
-            if let Some(tag_ids) = input.tag_ids {
-                for tag_id in tag_ids {
-                    let _ = tags::add_server_tag(db.pool(), server_id, tag_id).await;
-                }
+            // Add tags if any were selected
+            for tag_id in &input.tag_ids {
+                let _ = tags::add_server_tag(db.pool(), server_id, *tag_id).await;
             }
 
             // Success - return updated list with success message
-            let servers = servers_queries::list_servers(db.pool()).await?;
+            let servers = servers_queries::list_servers_with_details(db.pool()).await?;
 
             // Convert servers to display models and fetch tags for each
             let mut servers_display: Vec<ServerDisplay> = Vec::new();
@@ -281,7 +282,7 @@ async fn server_create(
                 let mut display = server_to_display(&server);
 
                 // Fetch tags for this server
-                if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.id).await {
+                if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.server.id).await {
                     display.tags = server_tags
                         .into_iter()
                         .map(|t| ServerTagInfo {
@@ -329,7 +330,8 @@ struct UpdateServerInput {
     credential_id: Option<String>,
     description: Option<String>,
     enabled: Option<String>,
-    tag_ids: Option<Vec<i64>>, // Multi-select tag IDs (matches form field name)
+    #[serde(default)] // Empty vec when no checkboxes selected
+    tag_ids: Vec<i64>, // Multi-select tag IDs (matches form field name)
 }
 
 /// Update server handler
@@ -351,7 +353,10 @@ async fn server_update(
     let server_name = if let Some(ref name) = input.name {
         name.clone()
     } else {
-        servers_queries::get_server(db.pool(), id).await?.name
+        servers_queries::get_server_with_details(db.pool(), id)
+            .await?
+            .server
+            .name
     };
 
     let update_server = UpdateServer {
@@ -361,7 +366,7 @@ async fn server_update(
         username: input.username,
         credential_id,
         description: input.description,
-        enabled: input.enabled.map(|_| true),
+        enabled: Some(input.enabled.is_some() && input.enabled.as_deref() == Some("on")), // Checkbox: Some("on") = true, None = false
         os_type: None,
         os_distro: None,
         package_manager: None,
@@ -373,31 +378,31 @@ async fn server_update(
 
     match servers_queries::update_server(db.pool(), id, &update_server).await {
         Ok(_) => {
-            // Update tags if provided
-            if let Some(new_tag_ids) = input.tag_ids {
-                // Get current tags
-                let current_tags = tags::get_server_tags(db.pool(), id)
-                    .await
-                    .unwrap_or_default();
-                let current_tag_ids: Vec<i64> = current_tags.iter().map(|t| t.id).collect();
+            // Update tags (always, even if empty to clear all tags)
+            let new_tag_ids = &input.tag_ids;
 
-                // Remove tags that are no longer selected
-                for current_tag_id in &current_tag_ids {
-                    if !new_tag_ids.contains(current_tag_id) {
-                        let _ = tags::remove_server_tag(db.pool(), id, *current_tag_id).await;
-                    }
+            // Get current tags
+            let current_tags = tags::get_server_tags(db.pool(), id)
+                .await
+                .unwrap_or_default();
+            let current_tag_ids: Vec<i64> = current_tags.iter().map(|t| t.id).collect();
+
+            // Remove tags that are no longer selected
+            for current_tag_id in &current_tag_ids {
+                if !new_tag_ids.contains(current_tag_id) {
+                    let _ = tags::remove_server_tag(db.pool(), id, *current_tag_id).await;
                 }
+            }
 
-                // Add new tags
-                for new_tag_id in &new_tag_ids {
-                    if !current_tag_ids.contains(new_tag_id) {
-                        let _ = tags::add_server_tag(db.pool(), id, *new_tag_id).await;
-                    }
+            // Add new tags
+            for new_tag_id in new_tag_ids {
+                if !current_tag_ids.contains(new_tag_id) {
+                    let _ = tags::add_server_tag(db.pool(), id, *new_tag_id).await;
                 }
             }
 
             // Success - return updated list with tags loaded
-            let servers = servers_queries::list_servers(db.pool()).await?;
+            let servers = servers_queries::list_servers_with_details(db.pool()).await?;
 
             // Convert servers to display models and fetch tags for each
             let mut servers_display: Vec<ServerDisplay> = Vec::new();
@@ -405,7 +410,7 @@ async fn server_update(
                 let mut display = server_to_display(&server);
 
                 // Fetch tags for this server
-                if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.id).await {
+                if let Ok(server_tags) = tags::get_server_tags(db.pool(), server.server.id).await {
                     display.tags = server_tags
                         .into_iter()
                         .map(|t| ServerTagInfo {
@@ -447,9 +452,9 @@ async fn server_delete(
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, AppError> {
     let db = state.db().await;
-    let server_name = servers_queries::get_server(db.pool(), id)
+    let server_name = servers_queries::get_server_with_details(db.pool(), id)
         .await
-        .map(|s| s.name)
+        .map(|s| s.server.name)
         .unwrap_or_else(|_| format!("Server {}", id));
 
     // Delete from database
@@ -517,12 +522,12 @@ async fn server_test_by_id(
     use std::time::Duration;
 
     let db = state.db().await;
-    let server = servers_queries::get_server(db.pool(), id).await?;
+    let server = servers_queries::get_server_with_details(db.pool(), id).await?;
 
-    tracing::info!("Testing connection for server: {}", server.name);
+    tracing::info!("Testing connection for server: {}", server.server.name);
 
     // Handle local server
-    if server.is_local {
+    if server.server.is_local {
         return Ok(Html(
             r#"<div class="alert alert-success">✅ Local server - no SSH connection needed</div>"#
                 .to_string(),
@@ -530,7 +535,7 @@ async fn server_test_by_id(
     }
 
     // Validate server configuration
-    let hostname = match &server.hostname {
+    let hostname = match &server.server.hostname {
         Some(h) if !h.is_empty() => h.clone(),
         _ => {
             return Ok(Html(
@@ -539,7 +544,7 @@ async fn server_test_by_id(
         }
     };
 
-    let username = match &server.username {
+    let username = match &server.server.username {
         Some(u) if !u.is_empty() => u.clone(),
         _ => {
             return Ok(Html(
@@ -549,7 +554,7 @@ async fn server_test_by_id(
     };
 
     // Get credential if specified
-    let key_path = if let Some(cred_id) = server.credential_id {
+    let key_path = if let Some(cred_id) = server.server.credential_id {
         match credentials::get_credential(db.pool(), cred_id).await {
             Ok(cred) => Some(cred.value),
             Err(e) => {
@@ -564,7 +569,7 @@ async fn server_test_by_id(
     // Create SSH config
     let ssh_config = SshConfig {
         host: hostname.clone(),
-        port: server.port as u16,
+        port: server.server.port as u16,
         username: username.clone(),
         key_path,
         timeout: Duration::from_secs(10),
@@ -585,7 +590,11 @@ async fn server_test_by_id(
             )))
         }
         Err(e) => {
-            tracing::warn!("SSH connection test failed for {}: {}", server.name, e);
+            tracing::warn!(
+                "SSH connection test failed for {}: {}",
+                server.server.name,
+                e
+            );
 
             // Update server status (failure - with error)
             let _ = servers_queries::update_server_status(db.pool(), id, Some(e.to_string())).await;
@@ -610,12 +619,12 @@ async fn server_capabilities(
     use std::time::Duration;
 
     let db = state.db().await;
-    let server = servers_queries::get_server(db.pool(), id).await?;
+    let server = servers_queries::get_server_with_details(db.pool(), id).await?;
 
-    tracing::info!("Detecting capabilities for server: {}", server.name);
+    tracing::info!("Detecting capabilities for server: {}", server.server.name);
 
     // Handle local server
-    if server.is_local {
+    if server.server.is_local {
         // Detect local capabilities
         let mut detected_caps = Vec::new();
 
@@ -679,7 +688,7 @@ async fn server_capabilities(
     }
 
     // Remote server - detect via SSH
-    let hostname = match &server.hostname {
+    let hostname = match &server.server.hostname {
         Some(h) if !h.is_empty() => h.clone(),
         _ => {
             return Ok(Html(
@@ -688,7 +697,7 @@ async fn server_capabilities(
         }
     };
 
-    let username = match &server.username {
+    let username = match &server.server.username {
         Some(u) if !u.is_empty() => u.clone(),
         _ => {
             return Ok(Html(
@@ -698,7 +707,7 @@ async fn server_capabilities(
     };
 
     // Get credential if specified
-    let key_path = if let Some(cred_id) = server.credential_id {
+    let key_path = if let Some(cred_id) = server.server.credential_id {
         match credentials::get_credential(db.pool(), cred_id).await {
             Ok(cred) => Some(cred.value),
             Err(e) => {
@@ -713,7 +722,7 @@ async fn server_capabilities(
     // Create SSH config
     let ssh_config = SshConfig {
         host: hostname.clone(),
-        port: server.port as u16,
+        port: server.server.port as u16,
         username: username.clone(),
         key_path,
         timeout: Duration::from_secs(30),
@@ -796,7 +805,7 @@ echo "LVM=$(command -v lvm >/dev/null 2>&1 && echo '1' || echo '0')"
             tracing::info!(
                 "Detected {} capabilities for server '{}'",
                 detected_caps.len(),
-                server.name
+                server.server.name
             );
 
             // Return updated capabilities
@@ -821,7 +830,11 @@ echo "LVM=$(command -v lvm >/dev/null 2>&1 && echo '1' || echo '0')"
             Ok(Html(template.render()?))
         }
         Err(e) => {
-            tracing::warn!("Capability detection failed for {}: {}", server.name, e);
+            tracing::warn!(
+                "Capability detection failed for {}: {}",
+                server.server.name,
+                e
+            );
             Ok(Html(format!(
                 r#"<div class="alert alert-error">
                     ❌ Capability detection failed: {}
@@ -839,7 +852,7 @@ async fn server_capabilities_display(
     Path(id): Path<i64>,
 ) -> Result<Html<String>, AppError> {
     let db = state.db().await;
-    let server = servers_queries::get_server(db.pool(), id).await?;
+    let server = servers_queries::get_server_with_details(db.pool(), id).await?;
 
     // Just fetch existing capabilities from database without re-detecting
     let capabilities = servers_queries::get_server_capabilities(db.pool(), id).await?;
@@ -909,7 +922,8 @@ async fn server_remove_tag(
 // ============================================================================
 
 /// Convert DB server to UI display model
-fn server_to_display(server: &Server) -> ServerDisplay {
+fn server_to_display(server_with_details: &ServerWithDetails) -> ServerDisplay {
+    let server = &server_with_details.server;
     ServerDisplay {
         id: server.id,
         name: server.name.clone(),

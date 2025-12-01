@@ -3,8 +3,9 @@ use axum::{
     extract::{Path, State},
     response::Html,
     routing::{get, post, put},
-    Form, Router,
+    Router,
 };
+use axum_extra::extract::Form;
 use serde::Deserialize;
 use serde_json::json;
 use svrctlrs_database::{
@@ -395,8 +396,32 @@ pub async fn get_policies_list(State(state): State<AppState>) -> Result<Html<Str
             AppError::DatabaseError(e.to_string())
         })?;
 
+    // Convert policies and populate policy_channels for each
+    let mut policy_displays: Vec<NotificationPolicyDisplay> =
+        policies.into_iter().map(Into::into).collect();
+
+    // Populate policy_channels for each policy
+    for policy in &mut policy_displays {
+        let policy_channels = queries::get_policy_channel_assignments(&state.pool, policy.id)
+            .await
+            .map_err(|e| {
+                warn!(policy_id = policy.id, error = %e, "Failed to fetch policy channels");
+                e
+            })
+            .unwrap_or_default();
+
+        policy.policy_channels = policy_channels
+            .into_iter()
+            .map(|pc| PolicyChannelAssignment {
+                channel_id: pc.channel_id,
+                channel_name: pc.channel_name,
+                priority_override: pc.priority_override,
+            })
+            .collect();
+    }
+
     let template = PolicyListTemplate {
-        policies: policies.into_iter().map(Into::into).collect(),
+        policies: policy_displays,
         channels: channels.into_iter().map(Into::into).collect(),
     };
 
@@ -421,15 +446,15 @@ pub async fn new_policy_form(State(state): State<AppState>) -> Result<Html<Strin
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let job_templates_list = job_templates::list_job_templates(&state.pool)
+    let job_templates_list = job_templates::list_job_templates_with_counts(&state.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let servers_list = servers::list_servers(&state.pool)
+    let servers_list = servers::list_servers_with_details(&state.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let tags_list = tags::list_tags(&state.pool)
+    let tags_list = tags::get_tags_with_counts(&state.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
@@ -474,15 +499,15 @@ pub async fn edit_policy_form(
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let job_templates_list = job_templates::list_job_templates(&state.pool)
+    let job_templates_list = job_templates::list_job_templates_with_counts(&state.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let servers_list = servers::list_servers(&state.pool)
+    let servers_list = servers::list_servers_with_details(&state.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
-    let tags_list = tags::list_tags(&state.pool)
+    let tags_list = tags::get_tags_with_counts(&state.pool)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 

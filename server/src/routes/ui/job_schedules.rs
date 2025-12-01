@@ -3,8 +3,10 @@ use axum::{
     extract::{Path, State},
     response::Html,
     routing::{get, post, put},
-    Form, Router,
+    Router,
 };
+use axum_extra::extract::Form;
+use cron::Schedule;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -63,14 +65,14 @@ pub async fn job_schedules_page(State(state): State<AppState>) -> Result<Html<St
             AppError::DatabaseError(e.to_string())
         })?;
 
-    let job_templates = job_templates::list_job_templates(&state.pool)
+    let job_templates = job_templates::list_job_templates_with_counts(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch job templates");
             AppError::DatabaseError(e.to_string())
         })?;
 
-    let servers = server_queries::list_servers(&state.pool)
+    let servers = server_queries::list_servers_with_details(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch servers");
@@ -114,7 +116,7 @@ pub async fn get_job_schedules_list(
             AppError::DatabaseError(e.to_string())
         })?;
 
-    let servers = server_queries::list_servers(&state.pool)
+    let servers = server_queries::list_servers_with_details(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch servers");
@@ -151,7 +153,7 @@ pub async fn get_grouped_schedules(
             AppError::DatabaseError(e.to_string())
         })?;
 
-    let servers = server_queries::list_servers(&state.pool)
+    let servers = server_queries::list_servers_with_details(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch servers");
@@ -185,14 +187,14 @@ pub async fn new_job_schedule_form(
 ) -> Result<Html<String>, AppError> {
     info!("Rendering new job schedule form");
 
-    let job_templates = job_templates::list_job_templates(&state.pool)
+    let job_templates = job_templates::list_job_templates_with_counts(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch job templates");
             AppError::DatabaseError(e.to_string())
         })?;
 
-    let servers = server_queries::list_servers(&state.pool)
+    let servers = server_queries::list_servers_with_details(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch servers");
@@ -222,21 +224,21 @@ pub async fn edit_job_schedule_form(
 ) -> Result<Html<String>, AppError> {
     info!(job_schedule_id = id, "Rendering edit job schedule form");
 
-    let job_schedule = queries::get_job_schedule(&state.pool, id)
+    let job_schedule = queries::get_job_schedule_with_names(&state.pool, id)
         .await
         .map_err(|e| {
             warn!(job_schedule_id = id, error = %e, "Job schedule not found");
             AppError::NotFound(format!("Job schedule {} not found", id))
         })?;
 
-    let job_templates = job_templates::list_job_templates(&state.pool)
+    let job_templates = job_templates::list_job_templates_with_counts(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch job templates");
             AppError::DatabaseError(e.to_string())
         })?;
 
-    let servers = server_queries::list_servers(&state.pool)
+    let servers = server_queries::list_servers_with_details(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch servers");
@@ -291,7 +293,7 @@ pub async fn create_job_schedule(
     }
 
     // Validate cron expression
-    if cron::Schedule::from_str(&input.schedule).is_err() {
+    if Schedule::from_str(&input.schedule).is_err() {
         warn!(schedule = %input.schedule, "Invalid cron expression");
         return Err(AppError::ValidationError(format!(
             "Invalid cron expression: {}",
@@ -360,7 +362,7 @@ pub async fn update_job_schedule(
 
     // Validate cron expression if provided
     if let Some(ref schedule) = input.schedule {
-        if cron::Schedule::from_str(schedule).is_err() {
+        if Schedule::from_str(schedule).is_err() {
             warn!(schedule = %schedule, "Invalid cron expression");
             return Err(AppError::ValidationError(format!(
                 "Invalid cron expression: {}",
@@ -441,7 +443,7 @@ pub async fn run_job_schedule(
     info!(job_schedule_id = id, "Running job schedule manually");
 
     // Get the job schedule
-    let job_schedule = queries::get_job_schedule(&state.pool, id)
+    let job_schedule = queries::get_job_schedule_with_names(&state.pool, id)
         .await
         .map_err(|e| {
             warn!(job_schedule_id = id, error = %e, "Job schedule not found");
@@ -463,9 +465,9 @@ pub async fn run_job_schedule(
         &state.pool,
         job_schedule.id,
         job_schedule.job_template_id,
-        job_schedule.server_id,
-        0,     // retry_attempt
-        false, // is_retry
+        job_schedule.server_id.unwrap_or(1), // Default to localhost (id=1) if not specified
+        0,                                   // retry_attempt
+        false,                               // is_retry
         Some(r#"{"triggered":"manual","user":"system"}"#.to_string()),
     )
     .await
@@ -501,7 +503,7 @@ pub async fn toggle_job_schedule(
     info!(job_schedule_id = id, "Toggling job schedule");
 
     // Get current schedule
-    let job_schedule = queries::get_job_schedule(&state.pool, id)
+    let job_schedule = queries::get_job_schedule_with_names(&state.pool, id)
         .await
         .map_err(|e| {
             warn!(job_schedule_id = id, error = %e, "Job schedule not found");
@@ -547,7 +549,7 @@ pub async fn toggle_job_schedule(
 /// Group schedules by server for display
 fn group_schedules_by_server(
     schedules: &[svrctlrs_database::queries::JobScheduleWithNames],
-    servers: &[svrctlrs_database::Server],
+    servers: &[svrctlrs_database::ServerWithDetails],
 ) -> Vec<ServerScheduleGroup> {
     let mut groups: HashMap<Option<i64>, ServerScheduleGroup> = HashMap::new();
 
@@ -556,8 +558,8 @@ fn group_schedules_by_server(
             let server_name = if let Some(server_id) = schedule.server_id {
                 servers
                     .iter()
-                    .find(|s| s.id == server_id)
-                    .map(|s| s.name.clone())
+                    .find(|s| s.server.id == server_id)
+                    .map(|s| s.server.name.clone())
             } else {
                 None
             };

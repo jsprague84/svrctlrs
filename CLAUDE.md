@@ -378,6 +378,98 @@ async fn job_types_page(State(state): State<AppState>) -> Result<Html<String>, A
 
 ---
 
+### Form Handling: Multi-Value Fields (Checkboxes, Multi-Select)
+
+**CRITICAL**: When working with HTML forms that contain checkboxes or multi-select dropdowns, you MUST use `axum_extra::extract::Form` instead of `axum::Form`.
+
+#### Why axum_extra?
+
+- **`axum::Form`** uses `serde_urlencoded` which **CANNOT** deserialize repeated form fields (`tag_ids=1&tag_ids=2`) into `Vec<T>`
+- **`axum_extra::extract::Form`** uses `serde_html_form` which **CAN** properly handle multi-value form fields
+
+#### Dependency Setup
+
+```toml
+# server/Cargo.toml
+[dependencies]
+axum-extra = { version = "0.12", features = ["form"] }
+```
+
+#### Import Pattern
+
+```rust
+// ❌ DON'T use this for multi-value fields:
+use axum::Form;
+
+// ✅ DO use this instead:
+use axum_extra::extract::Form;
+```
+
+#### Form Input Struct Pattern
+
+```rust
+#[derive(Deserialize, Debug)]
+pub struct CreateServerInput {
+    pub name: String,
+    pub hostname: String,
+    pub port: Option<u16>,
+    pub credential_id: Option<String>,
+    pub username: Option<String>,
+    pub description: Option<String>,
+    pub enabled: Option<String>,
+
+    // Multi-value field (checkboxes)
+    #[serde(default)]  // Empty vec when no checkboxes selected
+    pub tag_ids: Vec<i64>,  // Matches HTML: <input name="tag_ids" value="1">
+}
+```
+
+#### HTML Template Pattern
+
+```html
+<!-- Multiple checkboxes with same name -->
+<div class="form-group">
+    <label>Tags</label>
+    {% for tag in tags %}
+    <label>
+        <input type="checkbox"
+               name="tag_ids"      <!-- Same name for all checkboxes -->
+               value="{{ tag.id }}"
+               {% if selected_tags.contains(&tag.id) %}checked{% endif %}>
+        {{ tag.name }}
+    </label>
+    {% endfor %}
+</div>
+```
+
+#### Handler Pattern
+
+```rust
+async fn create_server(
+    State(state): State<AppState>,
+    Form(input): Form<CreateServerInput>,  // axum_extra::extract::Form
+) -> Result<Html<String>, AppError> {
+    // ... create server logic ...
+
+    // Handle tags (Vec<i64> is guaranteed to exist, empty or not)
+    for tag_id in &input.tag_ids {
+        tags::add_server_tag(db.pool(), server_id, *tag_id).await?;
+    }
+
+    // ... rest of handler ...
+}
+```
+
+#### Common Pitfall: 422 Unprocessable Entity
+
+If you see `422 Unprocessable Entity` errors with 0ms latency when submitting forms with checkboxes:
+- This means deserialization failed **before** reaching your handler
+- Check that you're using `axum_extra::extract::Form` (not `axum::Form`)
+- Check that your struct field is `Vec<T>` with `#[serde(default)]`
+- Check that HTML inputs have matching `name` attributes
+
+---
+
 ## 🔨 Development Workflows
 
 ### Working with Job Types

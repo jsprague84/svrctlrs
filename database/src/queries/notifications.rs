@@ -239,6 +239,36 @@ pub async fn get_policy_channels(
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
+/// Policy channel assignment row from database (with priority override)
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PolicyChannelRow {
+    pub channel_id: i64,
+    pub channel_name: String,
+    pub priority_override: Option<i32>,
+}
+
+/// Get channel assignments for a policy (with priority overrides)
+#[instrument(skip(pool))]
+pub async fn get_policy_channel_assignments(
+    pool: &Pool<Sqlite>,
+    policy_id: i64,
+) -> Result<Vec<PolicyChannelRow>> {
+    sqlx::query_as::<_, PolicyChannelRow>(
+        r#"
+        SELECT npc.channel_id, nc.name as channel_name, npc.priority_override
+        FROM notification_policy_channels npc
+        JOIN notification_channels nc ON npc.channel_id = nc.id
+        WHERE npc.policy_id = ?
+        ORDER BY nc.name
+        "#,
+    )
+    .bind(policy_id)
+    .fetch_all(pool)
+    .await
+    .context("Failed to get policy channel assignments")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
 /// Create a new notification policy
 #[instrument(skip(pool, input))]
 pub async fn create_notification_policy(

@@ -5,8 +5,9 @@ use axum::{
     extract::State,
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
-    Form, Router,
+    Router,
 };
+use axum_extra::extract::Form;
 
 use super::AppError;
 use crate::{state::AppState, templates::*};

@@ -439,3 +439,97 @@ mod tests {
         assert!(get_server(&pool, id).await.is_err());
     }
 }
+
+// ============================================================================
+// Optimized Queries with Joined Data
+// ============================================================================
+
+/// Extended server with credential name, tags, and capabilities for display
+#[derive(Debug, Clone)]
+pub struct ServerWithDetails {
+    pub server: Server,
+    pub credential_name: Option<String>,
+    pub tags: Vec<crate::models::Tag>,
+    pub capabilities: Vec<ServerCapability>,
+}
+
+/// List all servers with credential names, tags, and capabilities (optimized for display)
+#[instrument(skip(pool))]
+pub async fn list_servers_with_details(pool: &Pool<Sqlite>) -> Result<Vec<ServerWithDetails>> {
+    let servers = list_servers(pool).await?;
+    let mut result = Vec::new();
+
+    for server in servers {
+        // Get credential name if set
+        let credential_name = if let Some(cred_id) = server.credential_id {
+            let cred: Option<(String,)> = sqlx::query_as(
+                r#"
+                SELECT name
+                FROM credentials
+                WHERE id = ?
+                "#,
+            )
+            .bind(cred_id)
+            .fetch_optional(pool)
+            .await
+            .context("Failed to get credential name")
+            .map_err(|e| Error::DatabaseError(e.to_string()))?;
+            cred.map(|(name,)| name)
+        } else {
+            None
+        };
+
+        // Get tags
+        let tags = crate::queries::tags::get_server_tags(pool, server.id).await?;
+
+        // Get capabilities
+        let capabilities = get_server_capabilities(pool, server.id).await?;
+
+        result.push(ServerWithDetails {
+            server,
+            credential_name,
+            tags,
+            capabilities,
+        });
+    }
+
+    Ok(result)
+}
+
+/// Get a single server by ID with credential name, tags, and capabilities
+#[instrument(skip(pool))]
+pub async fn get_server_with_details(pool: &Pool<Sqlite>, id: i64) -> Result<ServerWithDetails> {
+    let server = get_server(pool, id).await?;
+
+    // Get credential name if set
+    let credential_name = if let Some(cred_id) = server.credential_id {
+        let cred: Option<(String,)> = sqlx::query_as(
+            r#"
+            SELECT name
+            FROM credentials
+            WHERE id = ?
+            "#,
+        )
+        .bind(cred_id)
+        .fetch_optional(pool)
+        .await
+        .context("Failed to get credential name")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        cred.map(|(name,)| name)
+    } else {
+        None
+    };
+
+    // Get tags
+    let tags = crate::queries::tags::get_server_tags(pool, server.id).await?;
+
+    // Get capabilities
+    let capabilities = get_server_capabilities(pool, server.id).await?;
+
+    Ok(ServerWithDetails {
+        server,
+        credential_name,
+        tags,
+        capabilities,
+    })
+}

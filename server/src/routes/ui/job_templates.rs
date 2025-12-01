@@ -3,8 +3,9 @@ use axum::{
     extract::{Path, State},
     response::Html,
     routing::{get, post, put},
-    Form, Router,
+    Router,
 };
+use axum_extra::extract::Form;
 use serde::Deserialize;
 use std::collections::HashMap;
 use svrctlrs_database::{
@@ -70,7 +71,7 @@ pub fn routes() -> Router<AppState> {
 pub async fn job_templates_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     info!("Rendering job templates page");
 
-    let job_templates = queries::list_job_templates(&state.pool)
+    let job_templates = queries::list_job_templates_with_counts(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch job templates");
@@ -107,7 +108,7 @@ pub async fn get_job_templates_list(
 ) -> Result<Html<String>, AppError> {
     info!("Fetching job templates list");
 
-    let job_templates = queries::list_job_templates(&state.pool)
+    let job_templates = queries::list_job_templates_with_counts(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to fetch job templates");
@@ -175,7 +176,7 @@ pub async fn edit_job_template_form(
 ) -> Result<Html<String>, AppError> {
     info!(job_template_id = id, "Rendering edit job template form");
 
-    let job_template = queries::get_job_template(&state.pool, id)
+    let job_template = queries::get_job_template_with_names(&state.pool, id)
         .await
         .map_err(|e| {
             warn!(job_template_id = id, error = %e, "Job template not found");
@@ -437,8 +438,14 @@ pub async fn delete_job_template(
     queries::delete_job_template(&state.pool, id)
         .await
         .map_err(|e| {
-            error!(job_template_id = id, error = %e, "Failed to delete job template");
-            AppError::DatabaseError(e.to_string())
+            let error_msg = e.to_string();
+            if error_msg.contains("in use") || error_msg.contains("Cannot delete") {
+                warn!(job_template_id = id, error = %e, "Cannot delete job template: in use");
+                AppError::ValidationError(error_msg)
+            } else {
+                error!(job_template_id = id, error = %e, "Failed to delete job template");
+                AppError::DatabaseError(error_msg)
+            }
         })?;
 
     info!(job_template_id = id, "Job template deleted successfully");
@@ -459,7 +466,7 @@ pub async fn get_template_steps(
 ) -> Result<Html<String>, AppError> {
     info!(template_id, "Fetching template steps");
 
-    let steps = queries::get_job_template_steps(&state.pool, template_id)
+    let steps = queries::get_job_template_steps_with_names(&state.pool, template_id)
         .await
         .map_err(|e| {
             error!(template_id, error = %e, "Failed to fetch template steps");
@@ -501,7 +508,7 @@ pub async fn new_template_step_form(
     .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
     // Get next order index
-    let steps = queries::get_job_template_steps(&state.pool, template_id)
+    let steps = queries::get_job_template_steps_with_names(&state.pool, template_id)
         .await
         .map_err(|e| AppError::DatabaseError(e.to_string()))?;
 
@@ -532,7 +539,7 @@ pub async fn edit_template_step_form(
 ) -> Result<Html<String>, AppError> {
     info!(template_id, step_id, "Rendering edit template step form");
 
-    let step = queries::get_job_template_step(&state.pool, step_id)
+    let step = queries::get_job_template_step_with_names(&state.pool, step_id)
         .await
         .map_err(|e| {
             warn!(step_id, error = %e, "Template step not found");

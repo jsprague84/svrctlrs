@@ -51,11 +51,11 @@
                    id="schedule"
                    name="schedule"
                    value="{{ s.cron_expression }}"
-                   placeholder="0 2 * * 0"
+                   placeholder="0 0 2 * * *"
                    required>
             <small class="text-secondary">
-                Format: <code>minute hour day month weekday</code><br>
-                Examples: <code>0 2 * * *</code> (daily at 2am), <code>0 2 * * 0</code> (Sundays at 2am)
+                Format: <code>second minute hour day month weekday</code><br>
+                Examples: <code>0 0 2 * * *</code> (daily at 2am), <code>0 */5 * * * *</code> (every 5 min), <code>0 0 0 * * 1</code> (Mondays at midnight)
             </small>
         </div>
 
@@ -185,11 +185,11 @@
             <input type="text"
                    id="schedule"
                    name="schedule"
-                   placeholder="0 2 * * 0"
+                   placeholder="0 0 2 * * *"
                    required>
             <small class="text-secondary">
-                Format: <code>minute hour day month weekday</code><br>
-                Examples: <code>0 2 * * *</code> (daily at 2am), <code>0 2 * * 0</code> (Sundays at 2am)
+                Format: <code>second minute hour day month weekday</code><br>
+                Examples: <code>0 0 2 * * *</code> (daily at 2am), <code>0 */5 * * * *</code> (every 5 min), <code>0 0 0 * * 1</code> (Mondays at midnight)
             </small>
         </div>
 

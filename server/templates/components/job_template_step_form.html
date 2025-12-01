@@ -10,7 +10,7 @@
     {% match step %}
     {% when Some with (s) %}
     <form hx-put="/job-templates/{{ job_template_id }}/steps/{{ s.id }}"
-          hx-target="#job-template-steps"
+          hx-target="#job-template-steps-{{ job_template_id }}"
           hx-swap="innerHTML"
           x-data="{ selectedJobType: '{% match s.job_type_id %}{% when Some with (id) %}{{ id }}{% when None %}{% endmatch %}' }">
 
@@ -91,7 +91,7 @@
                 <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
             </button>
             <button type="button"
-                    onclick="document.getElementById('job-step-form-container').innerHTML = ''"
+                    onclick="document.getElementById('job-step-form-container-{{ job_template_id }}').innerHTML = ''"
                     class="btn btn-secondary">
                 Cancel
             </button>
@@ -99,7 +99,7 @@
     </form>
     {% when None %}
     <form hx-post="/job-templates/{{ job_template_id }}/steps"
-          hx-target="#job-template-steps"
+          hx-target="#job-template-steps-{{ job_template_id }}"
           hx-swap="innerHTML"
           x-data="{ selectedJobType: '' }">
 
@@ -176,7 +176,7 @@
                 <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
             </button>
             <button type="button"
-                    onclick="document.getElementById('job-step-form-container').innerHTML = ''"
+                    onclick="document.getElementById('job-step-form-container-{{ job_template_id }}').innerHTML = ''"
                     class="btn btn-secondary">
                 Cancel
             </button>

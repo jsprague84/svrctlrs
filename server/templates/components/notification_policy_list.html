@@ -19,7 +19,14 @@
             {{ d }}<br>
             {% when None %}
             {% endmatch %}
-            <strong>Channel:</strong> {{ policy.channel_name }}<br>
+            <strong>Channel{% if policy.policy_channels.len() > 1 %}s{% endif %}:</strong>
+            {% if policy.policy_channels.is_empty() %}
+            <span class="text-warning">None configured</span>
+            {% else %}
+            {% for channel in policy.policy_channels %}
+            {{ channel.channel_name }}{% if !loop.last %}, {% endif %}
+            {% endfor %}
+            {% endif %}<br>
             <strong>Scope:</strong>
             {% if policy.scope_type == "all_jobs" %}All Jobs
             {% else if policy.scope_type == "specific_job_templates" %}Specific Job Templates ({{ policy.job_template_count }})

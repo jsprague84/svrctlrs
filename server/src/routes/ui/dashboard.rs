@@ -21,7 +21,7 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
 
     // Get server count from database
     let db = state.db().await;
-    let servers = queries::servers::list_servers(db.pool()).await?;
+    let servers = queries::servers::list_servers_with_details(db.pool()).await?;
     let total_servers = servers.len();
 
     // Get job schedule counts
@@ -51,10 +51,11 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
     let mut recent_runs = Vec::new();
     for run in recent_job_runs {
         // Get server name
-        let server_name = match queries::servers::get_server(db.pool(), run.server_id).await {
-            Ok(server) => server.name,
-            Err(_) => format!("Server #{}", run.server_id),
-        };
+        let server_name =
+            match queries::servers::get_server_with_details(db.pool(), run.server_id).await {
+                Ok(server) => server.server.name,
+                Err(_) => format!("Server #{}", run.server_id),
+            };
 
         // Get job template name
         let job_name =

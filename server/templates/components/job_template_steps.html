@@ -1,10 +1,12 @@
 {% if steps.is_empty() %}
-<div class="alert alert-info">
+<div class="alert alert-info"
+     x-init="$el.closest('[x-data]').stepCount = 0">
     <i data-lucide="info" style="width: 16px; height: 16px;"></i>
     No steps defined for this composite job yet.
 </div>
 {% else %}
-<div class="card">
+<div class="card"
+     x-init="$el.closest('[x-data]').stepCount = {{ steps.len() }}">
     <h3>Job Steps</h3>
     <div class="mt-2">
         {% for step in steps %}
@@ -28,20 +30,20 @@
                 <div class="flex gap-1">
                     {% if step.order_index > 1 %}
                     <button hx-post="/job-templates/{{ job_template_id }}/steps/{{ step.id }}/move-up"
-                            hx-target="#job-template-steps"
+                            hx-target="#job-template-steps-{{ job_template_id }}"
                             hx-swap="innerHTML"
                             class="btn btn-sm btn-secondary">
                         <i data-lucide="arrow-up" style="width: 12px; height: 12px;"></i>
                     </button>
                     {% endif %}
                     <button hx-post="/job-templates/{{ job_template_id }}/steps/{{ step.id }}/move-down"
-                            hx-target="#job-template-steps"
+                            hx-target="#job-template-steps-{{ job_template_id }}"
                             hx-swap="innerHTML"
                             class="btn btn-sm btn-secondary">
                         <i data-lucide="arrow-down" style="width: 12px; height: 12px;"></i>
                     </button>
                     <button hx-get="/job-templates/{{ job_template_id }}/steps/{{ step.id }}/edit"
-                            hx-target="#job-step-form-container"
+                            hx-target="#job-step-form-container-{{ job_template_id }}"
                             hx-swap="innerHTML"
                             class="btn btn-sm btn-secondary">
                         <i data-lucide="pencil" style="width: 12px; height: 12px;"></i>
@@ -63,11 +65,11 @@
 
 <div class="mt-2">
     <button hx-get="/job-templates/{{ job_template_id }}/steps/new"
-            hx-target="#job-step-form-container"
+            hx-target="#job-step-form-container-{{ job_template_id }}"
             hx-swap="innerHTML"
             class="btn btn-sm btn-primary">
         <i data-lucide="plus" style="width: 14px; height: 14px;"></i> Add Step
     </button>
 </div>
 
-<div id="job-step-form-container" class="mt-2"></div>
+<div id="job-step-form-container-{{ job_template_id }}" class="mt-2"></div>

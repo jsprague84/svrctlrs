@@ -63,7 +63,7 @@ pub async fn list_job_templates_with_names(
 ) -> Result<Vec<JobTemplateWithNames>> {
     sqlx::query_as::<_, JobTemplateWithNames>(
         r#"
-        SELECT 
+        SELECT
             jt.id, jt.name, jt.display_name, jt.description, jt.job_type_id,
             jtype.name as job_type_name,
             jt.is_composite, jt.command_template_id,
@@ -83,6 +83,58 @@ pub async fn list_job_templates_with_names(
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
+/// Extended job template with counts for display
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct JobTemplateWithCounts {
+    pub id: i64,
+    pub name: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub job_type_id: i64,
+    pub job_type_name: String,
+    pub is_composite: bool,
+    pub command_template_id: Option<i64>,
+    pub variables: Option<String>,
+    pub timeout_seconds: i32,
+    pub retry_count: i32,
+    pub retry_delay_seconds: i32,
+    pub notify_on_success: bool,
+    pub notify_on_failure: bool,
+    pub notification_policy_id: Option<i64>,
+    pub metadata: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub step_count: i64,
+    pub schedule_count: i64,
+}
+
+/// List all job templates with names and counts (optimized for UI display)
+#[instrument(skip(pool))]
+pub async fn list_job_templates_with_counts(
+    pool: &Pool<Sqlite>,
+) -> Result<Vec<JobTemplateWithCounts>> {
+    sqlx::query_as::<_, JobTemplateWithCounts>(
+        r#"
+        SELECT
+            jt.id, jt.name, jt.display_name, jt.description, jt.job_type_id,
+            jtype.name as job_type_name,
+            jt.is_composite, jt.command_template_id,
+            jt.variables, jt.timeout_seconds, jt.retry_count, jt.retry_delay_seconds,
+            jt.notify_on_success, jt.notify_on_failure, jt.notification_policy_id,
+            jt.metadata, jt.created_at, jt.updated_at,
+            COALESCE((SELECT COUNT(*) FROM job_template_steps WHERE job_template_id = jt.id), 0) as step_count,
+            COALESCE((SELECT COUNT(*) FROM job_schedules WHERE job_template_id = jt.id), 0) as schedule_count
+        FROM job_templates jt
+        INNER JOIN job_types jtype ON jt.job_type_id = jtype.id
+        ORDER BY jt.name
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .context("Failed to list job templates with counts")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
 /// Get job template by ID with steps (if composite)
 #[instrument(skip(pool))]
 pub async fn get_job_template(pool: &Pool<Sqlite>, id: i64) -> Result<JobTemplate> {
@@ -99,6 +151,35 @@ pub async fn get_job_template(pool: &Pool<Sqlite>, id: i64) -> Result<JobTemplat
     .fetch_one(pool)
     .await
     .context("Failed to get job template")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Get job template by ID with joined names (optimized for display)
+#[instrument(skip(pool))]
+pub async fn get_job_template_with_names(
+    pool: &Pool<Sqlite>,
+    id: i64,
+) -> Result<JobTemplateWithNames> {
+    sqlx::query_as::<_, JobTemplateWithNames>(
+        r#"
+        SELECT
+            jt.id, jt.name, jt.display_name, jt.description, jt.job_type_id,
+            jtype.name as job_type_name,
+            jt.is_composite, jt.command_template_id,
+            ct.name as command_template_name,
+            jt.variables, jt.timeout_seconds, jt.retry_count, jt.retry_delay_seconds,
+            jt.notify_on_success, jt.notify_on_failure, jt.notification_policy_id,
+            jt.metadata, jt.created_at, jt.updated_at
+        FROM job_templates jt
+        INNER JOIN job_types jtype ON jt.job_type_id = jtype.id
+        LEFT JOIN command_templates ct ON jt.command_template_id = ct.id
+        WHERE jt.id = ?
+        "#,
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to get job template with names")
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
@@ -296,6 +377,80 @@ pub async fn get_job_template_step(pool: &Pool<Sqlite>, id: i64) -> Result<JobTe
     .fetch_one(pool)
     .await
     .context("Failed to get job template step")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Get a specific job template step by ID with joined names (optimized for display)
+#[instrument(skip(pool))]
+pub async fn get_job_template_step_with_names(
+    pool: &Pool<Sqlite>,
+    id: i64,
+) -> Result<JobTemplateStepWithNames> {
+    sqlx::query_as::<_, JobTemplateStepWithNames>(
+        r#"
+        SELECT
+            jts.id, jts.job_template_id, jts.step_order, jts.name,
+            jts.command_template_id,
+            ct.name as command_template_name,
+            ct.job_type_id,
+            jt.name as job_type_name,
+            jts.variables, jts.continue_on_failure, jts.timeout_seconds, jts.metadata
+        FROM job_template_steps jts
+        INNER JOIN command_templates ct ON jts.command_template_id = ct.id
+        LEFT JOIN job_types jt ON ct.job_type_id = jt.id
+        WHERE jts.id = ?
+        "#,
+    )
+    .bind(id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to get job template step with names")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Extended job template step with joined names for display
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct JobTemplateStepWithNames {
+    pub id: i64,
+    pub job_template_id: i64,
+    pub step_order: i32,
+    pub name: String,
+    pub command_template_id: i64,
+    pub command_template_name: String,
+    pub job_type_id: Option<i64>,
+    pub job_type_name: Option<String>,
+    pub variables: Option<String>,
+    pub continue_on_failure: bool,
+    pub timeout_seconds: Option<i32>,
+    pub metadata: Option<String>,
+}
+
+/// Get all steps for a job template with joined names (optimized for display)
+#[instrument(skip(pool))]
+pub async fn get_job_template_steps_with_names(
+    pool: &Pool<Sqlite>,
+    template_id: i64,
+) -> Result<Vec<JobTemplateStepWithNames>> {
+    sqlx::query_as::<_, JobTemplateStepWithNames>(
+        r#"
+        SELECT
+            jts.id, jts.job_template_id, jts.step_order, jts.name,
+            jts.command_template_id,
+            ct.name as command_template_name,
+            ct.job_type_id,
+            jt.name as job_type_name,
+            jts.variables, jts.continue_on_failure, jts.timeout_seconds, jts.metadata
+        FROM job_template_steps jts
+        INNER JOIN command_templates ct ON jts.command_template_id = ct.id
+        LEFT JOIN job_types jt ON ct.job_type_id = jt.id
+        WHERE jts.job_template_id = ?
+        ORDER BY jts.step_order
+        "#,
+    )
+    .bind(template_id)
+    .fetch_all(pool)
+    .await
+    .context("Failed to get job template steps with names")
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
