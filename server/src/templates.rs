@@ -52,7 +52,6 @@ pub struct DashboardStats {
     pub total_schedules: usize,
     pub active_jobs: usize,
     pub active_tasks: usize,
-    pub enabled_plugins: usize,
     pub total_tasks: usize,
     pub recent_runs: Vec<RecentJobRun>,
 }

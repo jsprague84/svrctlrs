@@ -16,9 +16,6 @@ pub fn routes() -> Router<AppState> {
 async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let user = get_user_from_session().await;
 
-    // Get stats
-    let enabled_plugins = 4; // Built-in features: ssh, docker, updates, health
-
     // Get server count from database
     let db = state.db().await;
     let servers = queries::servers::list_servers_with_details(db.pool()).await?;
@@ -79,7 +76,6 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
         total_schedules,
         active_jobs,
         active_tasks,
-        enabled_plugins,
         total_tasks: total_schedules, // Same as total_schedules for now
         recent_runs,
     };

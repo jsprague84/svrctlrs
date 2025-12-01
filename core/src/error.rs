@@ -8,9 +8,6 @@ pub type Result<T> = std::result::Result<T, Error>;
 /// Main error type
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Plugin error: {0}")]
-    PluginError(String),
-
     #[error("Database error: {0}")]
     DatabaseError(String),
 
