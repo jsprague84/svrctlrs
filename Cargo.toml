@@ -5,11 +5,6 @@ members = [
     "server",
     "scheduler",
     "database",
-    "plugins/docker",
-    "plugins/updates",
-    "plugins/health",
-    "plugins/weather",
-    "plugins/speedtest",
 ]
 
 [workspace.package]
@@ -66,11 +61,6 @@ clap = { version = "4", features = ["derive", "env"] }
 svrctlrs-core = { path = "core" }
 svrctlrs-scheduler = { path = "scheduler" }
 svrctlrs-database = { path = "database" }
-svrctlrs-plugin-docker = { path = "plugins/docker" }
-svrctlrs-plugin-updates = { path = "plugins/updates" }
-svrctlrs-plugin-health = { path = "plugins/health" }
-svrctlrs-plugin-weather = { path = "plugins/weather" }
-svrctlrs-plugin-speedtest = { path = "plugins/speedtest" }
 
 [profile.release]
 opt-level = 3

@@ -20,12 +20,11 @@ This file provides comprehensive guidance for AI assistants working with the Svr
 - ✅ **Database Query Patterns**: Specialized result structs (`*WithDetails`, `*WithNames`, `*WithCounts`) used consistently
 - ✅ **Template Updates**: All HTMX templates updated to use optimized data structures
 - ✅ **Deprecated Code Review**: Full codebase audit completed - no deprecated elements found
-- ✅ **Architecture Documentation**: Created comprehensive `ARCHITECTURE.md` (1,602 lines) documenting:
+- ✅ **Architecture Documentation**: Created comprehensive `ARCHITECTURE.md` documenting:
   - Application layer structure with dependency graphs
   - Frontend-backend communication patterns (HTMX examples)
   - Database architecture with optimized query patterns
   - Display model pattern with complete examples
-  - Plugin system architecture
   - Complete data flow diagrams
   - Deprecated elements review
 
@@ -127,13 +126,13 @@ This file provides comprehensive guidance for AI assistants working with the Svr
 
 ```
 svrctlrs/
-├── core/                       # Shared types, plugin system (legacy)
+├── core/                       # Shared types and utilities
 │   └── src/
 │       ├── lib.rs             # Public API exports
 │       ├── error.rs           # Error types
-│       ├── plugin.rs          # Plugin trait (DEPRECATED - for old plugins)
+│       ├── executor.rs        # Job execution engine
 │       ├── notifications.rs   # Notification backends (Gotify + ntfy.sh)
-│       ├── remote.rs          # SSH remote execution (DEPRECATED)
+│       ├── remote.rs          # SSH remote execution
 │       └── types.rs           # Shared types
 │
 ├── server/                     # Axum backend + HTMX UI
@@ -217,13 +216,6 @@ svrctlrs/
 │       ├── 000_initial_schema.sql
 │       ├── ...
 │       └── 011_complete_restructure.sql  # ← CURRENT SCHEMA
-│
-└── plugins/                   # OLD monitoring plugins (DEPRECATED)
-    ├── docker/                # Legacy - being replaced by job types
-    ├── updates/
-    ├── health/
-    ├── weather/
-    └── speedtest/
 ```
 
 ---
@@ -664,12 +656,11 @@ pub async fn my_function(id: &str, sensitive_data: &str) -> Result<()> {
 ## 📚 Key Files Reference
 
 ### Documentation
-- **`ARCHITECTURE.md`** - Comprehensive architecture documentation (1,602 lines)
+- **`ARCHITECTURE.md`** - Comprehensive architecture documentation
   - Application layer structure and dependency graphs
   - Frontend-backend communication patterns with HTMX examples
   - Database architecture with optimized query patterns
   - Display model pattern with complete implementation examples
-  - Plugin system architecture
   - Complete data flow diagrams
   - Code health audit (no deprecated elements)
 
@@ -1068,11 +1059,11 @@ impl From<CommandTemplate> for CommandTemplateDisplay {
 
 **IMPORTANT NOTES FOR AI ASSISTANTS**:
 
-1. **Architecture has been completely restructured** - Ignore old plugin-focused documentation
+1. **Architecture uses job-based system** - NO plugin system exists
 2. **Read migration 011** to understand current schema
 3. **Use Display models** for ALL complex types in Askama templates
 4. **Check server/src/routes/ui/** for current UI implementation patterns
-5. **Old plugins/** directory is deprecated** - Do not extend old plugin system
-6. **Use job types + command templates** instead of creating new plugins
+5. **NO plugins directory** - Plugin system completely removed
+6. **Use job types + command templates** for all automation tasks
 
 **Archive**: Previous documentation saved to `CLAUDE.archive.md` (not in repo)

@@ -6,7 +6,6 @@
 
 // Server-side modules
 mod config;
-mod features;
 mod filters; // Custom Askama template filters
 mod routes;
 mod ssh;

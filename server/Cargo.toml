@@ -19,15 +19,6 @@ svrctlrs-core = { workspace = true, optional = true }
 svrctlrs-scheduler = { workspace = true, optional = true }
 svrctlrs-database = { workspace = true, optional = true }
 
-# Core plugins (default)
-svrctlrs-plugin-docker = { workspace = true, optional = true }
-svrctlrs-plugin-updates = { workspace = true, optional = true }
-svrctlrs-plugin-health = { workspace = true, optional = true }
-
-# Add-on plugins (optional, not default)
-svrctlrs-plugin-weather = { workspace = true, optional = true }
-svrctlrs-plugin-speedtest = { workspace = true, optional = true }
-
 # Async (optional for server)
 tokio = { workspace = true, optional = true }
 
@@ -81,8 +72,8 @@ regex = "1.12.2"
 axum-extra = { version = "0.12.2", features = ["form"] }
 
 [features]
-# Default: Core plugins + server feature
-default = ["server", "plugin-docker", "plugin-updates", "plugin-health"]
+# Default: Server feature
+default = ["server"]
 
 # Server feature (default for binary)
 server = [
@@ -109,15 +100,3 @@ server = [
     "dep:subtle",
     "dep:which"
 ]
-
-# Core plugins (default enabled)
-plugin-docker = ["dep:svrctlrs-plugin-docker"]
-plugin-updates = ["dep:svrctlrs-plugin-updates"]
-plugin-health = ["dep:svrctlrs-plugin-health"]
-
-# Add-on plugins (optional, disabled by default)
-plugin-weather = ["dep:svrctlrs-plugin-weather"]
-plugin-speedtest = ["dep:svrctlrs-plugin-speedtest"]
-
-# Convenience: Enable all plugins (core + add-ons)
-all-plugins = ["plugin-docker", "plugin-updates", "plugin-health", "plugin-weather", "plugin-speedtest"]

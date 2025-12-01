@@ -12,15 +12,14 @@
 4. [Frontend-Backend Communication](#frontend-backend-communication)
 5. [Database Architecture](#database-architecture)
 6. [Display Model Pattern](#display-model-pattern)
-7. [Plugin System](#plugin-system)
-8. [Data Flow Diagrams](#data-flow-diagrams)
-9. [Deprecated Elements Review](#deprecated-elements-review)
+7. [Data Flow Diagrams](#data-flow-diagrams)
+8. [Deprecated Elements Review](#deprecated-elements-review)
 
 ---
 
 ## System Overview
 
-SvrCtlRS is a **plugin-based infrastructure monitoring and automation platform** built with:
+SvrCtlRS is an **infrastructure monitoring and automation platform** built with:
 
 - **Backend**: Axum 0.8 web framework
 - **Frontend**: HTMX 2.0.3 + Alpine.js 3.14.1 (HTML-over-the-wire)
@@ -34,7 +33,7 @@ SvrCtlRS is a **plugin-based infrastructure monitoring and automation platform**
 1. **Server-Driven UI**: HTMX enables rich interactivity without client-side state management
 2. **Optimized Queries**: JOINed database queries with specialized result structs
 3. **Display Models**: Separate database models from UI presentation models
-4. **Plugin Architecture**: All features implemented as plugins with standard interfaces
+4. **Job-Based Architecture**: Flexible job execution system with templates, schedules, and command types
 5. **Type Safety**: Compile-time SQL checking and strong typing throughout
 
 ---
@@ -47,7 +46,7 @@ svrctlrs/
 │   └── src/
 │       ├── lib.rs            # Public API exports
 │       ├── error.rs          # Unified error types
-│       ├── plugin.rs         # Plugin trait + registry
+│       ├── executor.rs       # Job execution engine
 │       ├── notifications.rs  # Gotify + ntfy.sh notification system
 │       ├── remote.rs         # SSH remote execution
 │       └── types.rs          # Shared domain types
@@ -65,21 +64,13 @@ svrctlrs/
 │   │       ├── job_templates.rs      # Job templates + step counts
 │   │       ├── job_schedules.rs      # Job schedules + names/counts
 │   │       ├── job_runs.rs           # Job execution history
-│   │       ├── notifications.rs      # Notification channels/policies
-│   │       └── plugin_tasks.rs       # Plugin task definitions
+│   │       └── notifications.rs      # Notification channels/policies
 │   └── migrations/            # SQL migration files
 │
 ├── scheduler/                 # Built-in cron scheduler
 │   └── src/
 │       ├── lib.rs            # Scheduler implementation
 │       └── cron.rs           # Cron expression parsing
-│
-├── plugins/                   # Monitoring and automation plugins
-│   ├── docker/               # Docker container monitoring
-│   ├── updates/              # OS package update monitoring
-│   ├── health/               # System health metrics
-│   ├── weather/              # Weather API integration (optional)
-│   └── speedtest/            # Network speed testing (optional)
 │
 └── server/                    # Web server and UI
     ├── src/
@@ -983,192 +974,6 @@ async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, App
 | `NotificationPolicyDisplay` | `NotificationPolicyWithDetails` | Populate policy_channels, format scope |
 | `CredentialDisplay` | `Credential` | (Minimal transformation) |
 | `TagDisplay` | `Tag` | (Minimal transformation) |
-
----
-
-## Plugin System
-
-### Plugin Architecture
-
-**Goal**: Extensible monitoring and automation without modifying core code.
-
-**Core Trait** (`core/src/plugin.rs`):
-```rust
-#[async_trait]
-pub trait Plugin: Send + Sync {
-    /// Plugin metadata (ID, name, version, etc.)
-    fn metadata(&self) -> PluginMetadata;
-
-    /// Tasks this plugin wants to schedule
-    fn scheduled_tasks(&self) -> Vec<ScheduledTask>;
-
-    /// Execute a task
-    async fn execute(&self, task_id: &str, context: &PluginContext) -> Result<PluginResult>;
-}
-```
-
----
-
-### Plugin Registration
-
-**Location**: `server/src/main.rs`
-
-```rust
-// Create plugin registry
-let mut registry = PluginRegistry::new();
-
-// Register built-in plugins
-registry.register(Arc::new(DockerPlugin::new()));
-registry.register(Arc::new(UpdatesPlugin::new()));
-registry.register(Arc::new(HealthPlugin::new()));
-
-// Optional plugins (based on config)
-if config.weather_enabled {
-    registry.register(Arc::new(WeatherPlugin::new(config.weather_api_key.clone())));
-}
-```
-
----
-
-### Task Scheduling Flow
-
-```
-Server Startup
-     |
-     v
-Plugin Registry
-     |
-     |-- For each plugin:
-     |       |
-     |       v
-     |   plugin.scheduled_tasks()
-     |       |
-     |       v
-     |   Register with Scheduler
-     |       |
-     |       v
-     |   scheduler.add_task(task)
-     |
-     v
-Scheduler Running
-     |
-     |-- Cron tick (every minute)
-     |       |
-     |       v
-     |   Check if any task is due
-     |       |
-     |       v
-     |   plugin_registry.execute_task(plugin_id, task_id, context)
-     |       |
-     |       v
-     |   plugin.execute(task_id, context)
-     |       |
-     |       v
-     |   Result (success/failure/notification)
-```
-
----
-
-### Plugin Example: Docker Monitoring
-
-**File**: `plugins/docker/src/lib.rs`
-
-```rust
-pub struct DockerPlugin {
-    client: Arc<Docker>,
-}
-
-#[async_trait]
-impl Plugin for DockerPlugin {
-    fn metadata(&self) -> PluginMetadata {
-        PluginMetadata {
-            id: "docker".to_string(),
-            name: "Docker Monitor".to_string(),
-            description: "Monitors Docker containers for health issues".to_string(),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            author: "SvrCtlRS".to_string(),
-        }
-    }
-
-    fn scheduled_tasks(&self) -> Vec<ScheduledTask> {
-        vec![
-            ScheduledTask {
-                id: "check_containers".to_string(),
-                schedule: "0 */5 * * * *".to_string(), // Every 5 minutes
-                description: "Check Docker container health".to_string(),
-                enabled: true,
-            },
-        ]
-    }
-
-    async fn execute(&self, task_id: &str, context: &PluginContext) -> Result<PluginResult> {
-        match task_id {
-            "check_containers" => self.check_containers(context).await,
-            _ => Ok(PluginResult::error(format!("Unknown task: {}", task_id))),
-        }
-    }
-}
-
-impl DockerPlugin {
-    async fn check_containers(&self, context: &PluginContext) -> Result<PluginResult> {
-        // Get all containers
-        let containers = self.client.list_containers(None).await?;
-
-        let mut issues = Vec::new();
-
-        for container in containers {
-            // Check health status
-            if let Some(health) = container.state.health {
-                if health.status == "unhealthy" {
-                    issues.push(format!("Container {} is unhealthy", container.name));
-                }
-            }
-
-            // Check if exited unexpectedly
-            if container.state.status == "exited" && container.state.exit_code != 0 {
-                issues.push(format!("Container {} exited with code {}",
-                    container.name, container.state.exit_code));
-            }
-        }
-
-        if !issues.is_empty() {
-            // Send notification
-            context.notification_manager.send_for_service(
-                "docker",
-                &NotificationMessage {
-                    title: "Docker Issues Detected".into(),
-                    body: issues.join("\n"),
-                    priority: 5,
-                    actions: vec![],
-                },
-            ).await?;
-
-            Ok(PluginResult::error(format!("{} issues found", issues.len())))
-        } else {
-            Ok(PluginResult::success("All containers healthy"))
-        }
-    }
-}
-```
-
----
-
-### Plugin Context
-
-Plugins receive a **context** with access to:
-
-```rust
-pub struct PluginContext {
-    pub db_pool: Pool<Sqlite>,
-    pub notification_manager: Arc<NotificationManager>,
-    pub config: Arc<Config>,
-}
-```
-
-This allows plugins to:
-- Query/update database
-- Send notifications
-- Access configuration
 
 ---
 
