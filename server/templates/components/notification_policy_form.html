@@ -146,29 +146,109 @@
                 <small class="text-secondary">Leave empty for default message</small>
             </div>
 
-            <!-- Example Templates Dropdown -->
-            <details style="margin-top: 0.5rem;">
+            <!-- Help Links -->
+            <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;">
+                <div class="flex gap-2 align-center" style="font-size: 0.875rem;">
+                    <i data-lucide="book-open" style="width: 14px; height: 14px; color: var(--primary);"></i>
+                    <a href="https://github.com/jsprague84/svrctlrs/blob/develop/docs/NOTIFICATIONS.md"
+                       target="_blank"
+                       style="color: var(--primary); text-decoration: none;">
+                        View Complete Notification Guide
+                    </a>
+                    <i data-lucide="external-link" style="width: 12px; height: 12px; color: var(--primary);"></i>
+                </div>
+            </div>
+
+            <!-- Pre-Built Templates -->
+            <details style="margin-top: 0.5rem;" open>
                 <summary style="cursor: pointer; color: var(--primary); font-size: 0.875rem;">
-                    <i data-lucide="lightbulb" style="width: 14px; height: 14px;"></i> View Example Templates
+                    <i data-lucide="lightbulb" style="width: 14px; height: 14px;"></i> Pre-Built Templates (Click to Use)
                 </summary>
                 <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px;">
-                    <p style="font-size: 0.875rem; margin-bottom: 0.5rem;"><strong>Success:</strong></p>
-                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
-                        Title: ✅ &#123;&#123;job_name&#125;&#125; completed<br>
-                        Body: Successfully ran on &#123;&#123;success_count&#125;&#125;/&#123;&#123;total_servers&#125;&#125; servers in &#123;&#123;duration&#125;&#125;s
-                    </code>
 
-                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>Failure:</strong></p>
-                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
-                        Title: ❌ &#123;&#123;job_name&#125;&#125; failed on &#123;&#123;server_name&#125;&#125;<br>
-                        Body: Job: &#123;&#123;job_name&#125;&#125;\nServer: &#123;&#123;server_name&#125;&#125;\nStarted: &#123;&#123;started_at&#125;&#125;\nStatus: &#123;&#123;status&#125;&#125;
-                    </code>
+                    <!-- Simple Success -->
+                    <div style="padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 0.5rem;">
+                        <div class="flex-between align-center mb-1">
+                            <strong style="font-size: 0.875rem;">Simple Success</strong>
+                            <button type="button"
+                                    onclick="document.getElementById('title_template').value='✓ {{job_name}} completed on {{server_name}}'; document.getElementById('body_template').value='Job completed successfully in {{duration_seconds}} seconds.';"
+                                    class="btn btn-sm btn-secondary">
+                                Use This
+                            </button>
+                        </div>
+                        <code style="display: block; font-size: 0.7rem; color: var(--text-secondary);">
+                            Title: ✓ &#123;&#123;job_name&#125;&#125; completed on &#123;&#123;server_name&#125;&#125;<br>
+                            Body: Job completed successfully in &#123;&#123;duration_seconds&#125;&#125; seconds.
+                        </code>
+                    </div>
 
-                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>Partial:</strong></p>
-                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
-                        Title: ⚠️  &#123;&#123;job_name&#125;&#125; partial success<br>
-                        Body: &#123;&#123;success_count&#125;&#125; succeeded, &#123;&#123;failed_count&#125;&#125; failed of &#123;&#123;total_servers&#125;&#125; servers
-                    </code>
+                    <!-- Detailed Failure -->
+                    <div style="padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 0.5rem;">
+                        <div class="flex-between align-center mb-1">
+                            <strong style="font-size: 0.875rem;">Detailed Failure</strong>
+                            <button type="button"
+                                    onclick="document.getElementById('title_template').value='✗ {{job_name}} failed on {{server_name}}'; document.getElementById('body_template').value='Job: {{job_name}}\nServer: {{server_name}}\nStatus: {{status}}\nStarted: {{started_at}}\nDuration: {{duration_seconds}}s\n\nCheck the job run details for error information.';"
+                                    class="btn btn-sm btn-secondary">
+                                Use This
+                            </button>
+                        </div>
+                        <code style="display: block; font-size: 0.7rem; color: var(--text-secondary);">
+                            Title: ✗ &#123;&#123;job_name&#125;&#125; failed on &#123;&#123;server_name&#125;&#125;<br>
+                            Body: Job: &#123;&#123;job_name&#125;&#125;\nServer: &#123;&#123;server_name&#125;&#125;...
+                        </code>
+                    </div>
+
+                    <!-- Multi-Server Summary -->
+                    <div style="padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 0.5rem;">
+                        <div class="flex-between align-center mb-1">
+                            <strong style="font-size: 0.875rem;">Multi-Server Summary</strong>
+                            <button type="button"
+                                    onclick="document.getElementById('title_template').value='[{{severity}}] {{job_name}}: {{success_count}}/{{total_servers}} succeeded'; document.getElementById('body_template').value='Job Summary:\n- Total Servers: {{total_servers}}\n- Successful: {{success_count}}\n- Failed: {{failure_count}}\n- Duration: {{duration_seconds}}s\n\nStarted: {{started_at}}\nFinished: {{finished_at}}';"
+                                    class="btn btn-sm btn-secondary">
+                                Use This
+                            </button>
+                        </div>
+                        <code style="display: block; font-size: 0.7rem; color: var(--text-secondary);">
+                            Title: [&#123;&#123;severity&#125;&#125;] &#123;&#123;job_name&#125;&#125;: &#123;&#123;success_count&#125;&#125;/&#123;&#123;total_servers&#125;&#125; succeeded<br>
+                            Body: Job Summary: Total, Success, Failures...
+                        </code>
+                    </div>
+
+                    <!-- Critical Alert -->
+                    <div style="padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 0.5rem;">
+                        <div class="flex-between align-center mb-1">
+                            <strong style="font-size: 0.875rem;">Critical Failure Alert</strong>
+                            <button type="button"
+                                    onclick="document.getElementById('title_template').value='🚨 CRITICAL: {{job_name}} failed on {{server_name}}'; document.getElementById('body_template').value='CRITICAL FAILURE DETECTED\n\nJob: {{job_name}}\nType: {{job_type}}\nServer: {{server_name}}\nTime: {{finished_at}}\n\nImmediate attention required!';"
+                                    class="btn btn-sm btn-secondary">
+                                Use This
+                            </button>
+                        </div>
+                        <code style="display: block; font-size: 0.7rem; color: var(--text-secondary);">
+                            Title: 🚨 CRITICAL: &#123;&#123;job_name&#125;&#125; failed...<br>
+                            Body: CRITICAL FAILURE DETECTED...
+                        </code>
+                    </div>
+
+                    <!-- Daily Summary -->
+                    <div style="padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px;">
+                        <div class="flex-between align-center mb-1">
+                            <strong style="font-size: 0.875rem;">Daily Report</strong>
+                            <button type="button"
+                                    onclick="document.getElementById('title_template').value='📊 Daily Report: {{job_name}}'; document.getElementById('body_template').value='Daily Job Summary\n\nServers Processed: {{total_servers}}\n✓ Successful: {{success_count}}\n✗ Failed: {{failure_count}}\n\nTotal Duration: {{duration_seconds}}s\nCompleted: {{finished_at}}';"
+                                    class="btn btn-sm btn-secondary">
+                                Use This
+                            </button>
+                        </div>
+                        <code style="display: block; font-size: 0.7rem; color: var(--text-secondary);">
+                            Title: 📊 Daily Report: &#123;&#123;job_name&#125;&#125;<br>
+                            Body: Daily Job Summary with stats...
+                        </code>
+                    </div>
+
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                        💡 More templates and advanced examples in the <a href="https://github.com/jsprague84/svrctlrs/blob/develop/docs/NOTIFICATIONS.md" target="_blank" style="color: var(--primary);">complete guide</a>
+                    </p>
                 </div>
             </details>
         </div>
@@ -412,29 +492,109 @@
                 <small class="text-secondary">Leave empty for default message</small>
             </div>
 
-            <!-- Example Templates Dropdown -->
-            <details style="margin-top: 0.5rem;">
+            <!-- Help Links -->
+            <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;">
+                <div class="flex gap-2 align-center" style="font-size: 0.875rem;">
+                    <i data-lucide="book-open" style="width: 14px; height: 14px; color: var(--primary);"></i>
+                    <a href="https://github.com/jsprague84/svrctlrs/blob/develop/docs/NOTIFICATIONS.md"
+                       target="_blank"
+                       style="color: var(--primary); text-decoration: none;">
+                        View Complete Notification Guide
+                    </a>
+                    <i data-lucide="external-link" style="width: 12px; height: 12px; color: var(--primary);"></i>
+                </div>
+            </div>
+
+            <!-- Pre-Built Templates -->
+            <details style="margin-top: 0.5rem;" open>
                 <summary style="cursor: pointer; color: var(--primary); font-size: 0.875rem;">
-                    <i data-lucide="lightbulb" style="width: 14px; height: 14px;"></i> View Example Templates
+                    <i data-lucide="lightbulb" style="width: 14px; height: 14px;"></i> Pre-Built Templates (Click to Use)
                 </summary>
                 <div style="margin-top: 0.5rem; padding: 0.5rem; background: var(--bg); border-radius: 4px;">
-                    <p style="font-size: 0.875rem; margin-bottom: 0.5rem;"><strong>Success:</strong></p>
-                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
-                        Title: ✅ &#123;&#123;job_name&#125;&#125; completed<br>
-                        Body: Successfully ran on &#123;&#123;success_count&#125;&#125;/&#123;&#123;total_servers&#125;&#125; servers in &#123;&#123;duration&#125;&#125;s
-                    </code>
 
-                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>Failure:</strong></p>
-                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
-                        Title: ❌ &#123;&#123;job_name&#125;&#125; failed on &#123;&#123;server_name&#125;&#125;<br>
-                        Body: Job: &#123;&#123;job_name&#125;&#125;\nServer: &#123;&#123;server_name&#125;&#125;\nStarted: &#123;&#123;started_at&#125;&#125;\nStatus: &#123;&#123;status&#125;&#125;
-                    </code>
+                    <!-- Simple Success -->
+                    <div style="padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 0.5rem;">
+                        <div class="flex-between align-center mb-1">
+                            <strong style="font-size: 0.875rem;">Simple Success</strong>
+                            <button type="button"
+                                    onclick="document.getElementById('title_template').value='✓ {{job_name}} completed on {{server_name}}'; document.getElementById('body_template').value='Job completed successfully in {{duration_seconds}} seconds.';"
+                                    class="btn btn-sm btn-secondary">
+                                Use This
+                            </button>
+                        </div>
+                        <code style="display: block; font-size: 0.7rem; color: var(--text-secondary);">
+                            Title: ✓ &#123;&#123;job_name&#125;&#125; completed on &#123;&#123;server_name&#125;&#125;<br>
+                            Body: Job completed successfully in &#123;&#123;duration_seconds&#125;&#125; seconds.
+                        </code>
+                    </div>
 
-                    <p style="font-size: 0.875rem; margin: 0.5rem 0;"><strong>Partial:</strong></p>
-                    <code style="display: block; padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; font-size: 0.75rem;">
-                        Title: ⚠️  &#123;&#123;job_name&#125;&#125; partial success<br>
-                        Body: &#123;&#123;success_count&#125;&#125; succeeded, &#123;&#123;failed_count&#125;&#125; failed of &#123;&#123;total_servers&#125;&#125; servers
-                    </code>
+                    <!-- Detailed Failure -->
+                    <div style="padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 0.5rem;">
+                        <div class="flex-between align-center mb-1">
+                            <strong style="font-size: 0.875rem;">Detailed Failure</strong>
+                            <button type="button"
+                                    onclick="document.getElementById('title_template').value='✗ {{job_name}} failed on {{server_name}}'; document.getElementById('body_template').value='Job: {{job_name}}\nServer: {{server_name}}\nStatus: {{status}}\nStarted: {{started_at}}\nDuration: {{duration_seconds}}s\n\nCheck the job run details for error information.';"
+                                    class="btn btn-sm btn-secondary">
+                                Use This
+                            </button>
+                        </div>
+                        <code style="display: block; font-size: 0.7rem; color: var(--text-secondary);">
+                            Title: ✗ &#123;&#123;job_name&#125;&#125; failed on &#123;&#123;server_name&#125;&#125;<br>
+                            Body: Job: &#123;&#123;job_name&#125;&#125;\nServer: &#123;&#123;server_name&#125;&#125;...
+                        </code>
+                    </div>
+
+                    <!-- Multi-Server Summary -->
+                    <div style="padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 0.5rem;">
+                        <div class="flex-between align-center mb-1">
+                            <strong style="font-size: 0.875rem;">Multi-Server Summary</strong>
+                            <button type="button"
+                                    onclick="document.getElementById('title_template').value='[{{severity}}] {{job_name}}: {{success_count}}/{{total_servers}} succeeded'; document.getElementById('body_template').value='Job Summary:\n- Total Servers: {{total_servers}}\n- Successful: {{success_count}}\n- Failed: {{failure_count}}\n- Duration: {{duration_seconds}}s\n\nStarted: {{started_at}}\nFinished: {{finished_at}}';"
+                                    class="btn btn-sm btn-secondary">
+                                Use This
+                            </button>
+                        </div>
+                        <code style="display: block; font-size: 0.7rem; color: var(--text-secondary);">
+                            Title: [&#123;&#123;severity&#125;&#125;] &#123;&#123;job_name&#125;&#125;: &#123;&#123;success_count&#125;&#125;/&#123;&#123;total_servers&#125;&#125; succeeded<br>
+                            Body: Job Summary: Total, Success, Failures...
+                        </code>
+                    </div>
+
+                    <!-- Critical Alert -->
+                    <div style="padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px; margin-bottom: 0.5rem;">
+                        <div class="flex-between align-center mb-1">
+                            <strong style="font-size: 0.875rem;">Critical Failure Alert</strong>
+                            <button type="button"
+                                    onclick="document.getElementById('title_template').value='🚨 CRITICAL: {{job_name}} failed on {{server_name}}'; document.getElementById('body_template').value='CRITICAL FAILURE DETECTED\n\nJob: {{job_name}}\nType: {{job_type}}\nServer: {{server_name}}\nTime: {{finished_at}}\n\nImmediate attention required!';"
+                                    class="btn btn-sm btn-secondary">
+                                Use This
+                            </button>
+                        </div>
+                        <code style="display: block; font-size: 0.7rem; color: var(--text-secondary);">
+                            Title: 🚨 CRITICAL: &#123;&#123;job_name&#125;&#125; failed...<br>
+                            Body: CRITICAL FAILURE DETECTED...
+                        </code>
+                    </div>
+
+                    <!-- Daily Summary -->
+                    <div style="padding: 0.5rem; background: var(--bg-tertiary); border-radius: 4px;">
+                        <div class="flex-between align-center mb-1">
+                            <strong style="font-size: 0.875rem;">Daily Report</strong>
+                            <button type="button"
+                                    onclick="document.getElementById('title_template').value='📊 Daily Report: {{job_name}}'; document.getElementById('body_template').value='Daily Job Summary\n\nServers Processed: {{total_servers}}\n✓ Successful: {{success_count}}\n✗ Failed: {{failure_count}}\n\nTotal Duration: {{duration_seconds}}s\nCompleted: {{finished_at}}';"
+                                    class="btn btn-sm btn-secondary">
+                                Use This
+                            </button>
+                        </div>
+                        <code style="display: block; font-size: 0.7rem; color: var(--text-secondary);">
+                            Title: 📊 Daily Report: &#123;&#123;job_name&#125;&#125;<br>
+                            Body: Daily Job Summary with stats...
+                        </code>
+                    </div>
+
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                        💡 More templates and advanced examples in the <a href="https://github.com/jsprague84/svrctlrs/blob/develop/docs/NOTIFICATIONS.md" target="_blank" style="color: var(--primary);">complete guide</a>
+                    </p>
                 </div>
             </details>
         </div>
