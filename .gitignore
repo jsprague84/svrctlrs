@@ -41,3 +41,6 @@ CLAUDE.archive.md
 # Archived documentation (not maintained)
 docs-archived/
 .deprecated
+
+# Terminal implementation working docs (will be excluded before merge to master)
+TerminalImpDocs/
