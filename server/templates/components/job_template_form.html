@@ -1,6 +1,20 @@
 <div class="card" x-data="{ selectedJobType: '{% match job_template %}{% when Some with (jt) %}{{ jt.job_type_id }}{% when None %}{% endmatch %}', isComposite: {% match job_template %}{% when Some with (jt) %}{{ jt.is_composite }}{% when None %}false{% endmatch %} }">
     <h2>{% match job_template %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Job Template</h2>
 
+    <!-- Help Link -->
+    <div style="margin-bottom: 1rem; padding: 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: 4px;">
+        <div class="flex gap-2 align-center" style="font-size: 0.875rem;">
+            <i data-lucide="book-open" style="width: 14px; height: 14px; color: var(--primary);"></i>
+            <span>Need help creating job templates?</span>
+            <a href="https://github.com/jsprague84/svrctlrs/blob/develop/docs/JOBS.md#creating-job-templates"
+               target="_blank"
+               style="color: var(--primary); text-decoration: none;">
+                View Jobs & Schedules Guide
+            </a>
+            <i data-lucide="external-link" style="width: 12px; height: 12px; color: var(--primary);"></i>
+        </div>
+    </div>
+
     {% match error %}
     {% when Some with (e) %}
     <div class="alert alert-error">{{ e }}</div>
