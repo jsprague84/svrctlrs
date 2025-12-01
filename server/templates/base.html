@@ -57,6 +57,65 @@
                 console.error('HTMX timeout:', evt.detail);
                 showToast('error', 'Request timed out. Please try again.');
             });
+
+            // Auto-dismiss alerts with 'alert-auto-dismiss' class
+            document.body.addEventListener('htmx:afterSwap', function(evt) {
+                const alerts = evt.detail.target.querySelectorAll('.alert-auto-dismiss');
+                alerts.forEach(function(alert) {
+                    // Store the parent container and target info for refresh
+                    const targetId = alert.dataset.refreshTarget;
+                    const refreshUrl = alert.dataset.refreshUrl;
+
+                    setTimeout(function() {
+                        // Fade out the alert
+                        alert.style.transition = 'opacity 0.3s ease-out';
+                        alert.style.opacity = '0';
+
+                        setTimeout(function() {
+                            // Remove the alert
+                            alert.remove();
+
+                            // Refresh the target if specified
+                            if (targetId && refreshUrl) {
+                                htmx.ajax('GET', refreshUrl, {
+                                    target: '#' + targetId,
+                                    swap: 'innerHTML'
+                                });
+                            }
+                        }, 300);
+                    }, 3000);
+                });
+            });
+
+            // Auto-close forms on successful save
+            document.body.addEventListener('htmx:afterSwap', function(evt) {
+                // Check if the swapped content contains a success message
+                const successAlert = evt.detail.target.querySelector('.alert-success');
+                if (successAlert) {
+                    // Find form containers to clear
+                    const formContainers = [
+                        'server-form-container',
+                        'credential-form-container',
+                        'tag-form-container',
+                        'job-template-form-container',
+                        'job-type-form-container',
+                        'command-template-form-container',
+                        'schedule-form-container',
+                        'notification-channel-form-container',
+                        'notification-policy-form-container'
+                    ];
+
+                    formContainers.forEach(function(containerId) {
+                        const container = document.getElementById(containerId);
+                        if (container && container.querySelector('form')) {
+                            // Clear the form after a short delay
+                            setTimeout(function() {
+                                container.innerHTML = '';
+                            }, 1500);
+                        }
+                    });
+                }
+            });
         });
 
         // Toast notification system

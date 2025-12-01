@@ -582,11 +582,11 @@ async fn server_test_by_id(
             let _ = servers_queries::update_server_status(db.pool(), id, None).await;
 
             Ok(Html(format!(
-                r#"<div x-data="{{ show: true }}" x-init="setTimeout(() => {{ show = false; setTimeout(() => {{ htmx.ajax('GET', '/servers/{}/capabilities/display', {{target: '#server-{}-capabilities', swap: 'innerHTML'}}); }}, 300); }}, 3000)">
-                    <div x-show="show" x-transition class="alert alert-success">
-                        ✅ Connection successful!
-                        <br><small class="text-secondary">{}</small>
-                    </div>
+                r#"<div class="alert alert-success alert-auto-dismiss"
+                        data-refresh-target="server-{}-capabilities"
+                        data-refresh-url="/servers/{}/capabilities/display">
+                    ✅ Connection successful!
+                    <br><small class="text-secondary">{}</small>
                 </div>"#,
                 id, id, output
             )))
@@ -602,11 +602,11 @@ async fn server_test_by_id(
             let _ = servers_queries::update_server_status(db.pool(), id, Some(e.to_string())).await;
 
             Ok(Html(format!(
-                r#"<div x-data="{{ show: true }}" x-init="setTimeout(() => {{ show = false; setTimeout(() => {{ htmx.ajax('GET', '/servers/{}/capabilities/display', {{target: '#server-{}-capabilities', swap: 'innerHTML'}}); }}, 300); }}, 3000)">
-                    <div x-show="show" x-transition class="alert alert-error">
-                        ❌ Connection failed: {}
-                        <br><small class="text-secondary">Check hostname, port, username, and SSH key</small>
-                    </div>
+                r#"<div class="alert alert-error alert-auto-dismiss"
+                        data-refresh-target="server-{}-capabilities"
+                        data-refresh-url="/servers/{}/capabilities/display">
+                    ❌ Connection failed: {}
+                    <br><small class="text-secondary">Check hostname, port, username, and SSH key</small>
                 </div>"#,
                 id, id, e
             )))
