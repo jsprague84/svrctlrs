@@ -2,13 +2,41 @@
 
 This file provides comprehensive guidance for AI assistants working with the SvrCtlRS codebase.
 
-**Last Updated**: 2025-11-30
+**Last Updated**: 2025-12-01
 **Architecture Version**: v2.0 (Job-Based System)
-**Status**: ✅ Production Ready - Command Template System Complete
+**Status**: ✅ Production Ready - Optimized Display Models & Architecture Documentation
 
 ---
 
 ## 📈 Recent Updates
+
+### Display Model Optimization - COMPLETE (2025-12-01)
+
+**All display models now use optimized JOINed queries** - No N+1 query patterns, no TODO comments, no deprecated code.
+
+**Key Improvements**:
+- ✅ **JobScheduleDisplay**: Now uses actual `success_count` and `failure_count` from database (previously hardcoded to 0)
+- ✅ **NotificationPolicyDisplay**: Updated to support multi-channel policies via `policy_channels` field
+- ✅ **Database Query Patterns**: Specialized result structs (`*WithDetails`, `*WithNames`, `*WithCounts`) used consistently
+- ✅ **Template Updates**: All HTMX templates updated to use optimized data structures
+- ✅ **Deprecated Code Review**: Full codebase audit completed - no deprecated elements found
+- ✅ **Architecture Documentation**: Created comprehensive `ARCHITECTURE.md` (1,602 lines) documenting:
+  - Application layer structure with dependency graphs
+  - Frontend-backend communication patterns (HTMX examples)
+  - Database architecture with optimized query patterns
+  - Display model pattern with complete examples
+  - Plugin system architecture
+  - Complete data flow diagrams
+  - Deprecated elements review
+
+**Files Updated**:
+- `server/src/templates.rs` - Fixed From implementations for JobScheduleDisplay, NotificationPolicyDisplay
+- `database/src/queries/notifications.rs` - Added `get_policy_channel_assignments()` query
+- `server/src/routes/ui/notifications.rs` - Updated to populate policy_channels
+- `server/templates/components/notification_policy_list.html` - Multi-channel display
+- **NEW**: `ARCHITECTURE.md` - Comprehensive architecture documentation
+
+**Result**: Clean, optimized codebase with full documentation. All Clippy warnings resolved.
 
 ### Command Template System - COMPLETE (2025-11-30)
 
@@ -365,16 +393,16 @@ async fn job_types_page(State(state): State<AppState>) -> Result<Html<String>, A
 
 #### Modules Using Display Pattern
 
-✅ **Completed**:
+✅ **Completed & Optimized**:
 - JobTypes → JobTypeDisplay
 - CommandTemplates → CommandTemplateDisplay
+- JobSchedules → JobScheduleDisplay (using `JobScheduleWithNames` with success/failure counts)
+- NotificationPolicies → NotificationPolicyDisplay (with multi-channel support)
+- Servers → ServerDisplay (using `ServerWithDetails`)
+- JobTemplates → JobTemplateDisplay (using `JobTemplateWithCounts`)
+- JobRuns → JobRunDisplay (with server/template name resolution)
 
-⏳ **In Progress** (models exist, templates need updates):
-- JobTemplates → JobTemplateDisplay
-- JobTemplateSteps → JobTemplateStepDisplay
-- JobSchedules → JobScheduleDisplay
-- JobRuns → JobRunDisplay
-- ServerJobResults → ServerJobResultDisplay
+All display models use optimized JOINed queries with specialized result structs (`*WithDetails`, `*WithNames`, `*WithCounts`).
 
 ---
 
@@ -635,10 +663,20 @@ pub async fn my_function(id: &str, sensitive_data: &str) -> Result<()> {
 
 ## 📚 Key Files Reference
 
+### Documentation
+- **`ARCHITECTURE.md`** - Comprehensive architecture documentation (1,602 lines)
+  - Application layer structure and dependency graphs
+  - Frontend-backend communication patterns with HTMX examples
+  - Database architecture with optimized query patterns
+  - Display model pattern with complete implementation examples
+  - Plugin system architecture
+  - Complete data flow diagrams
+  - Code health audit (no deprecated elements)
+
 ### Database
 - `database/migrations/011_complete_restructure.sql` - Current schema
 - `database/src/models/` - Database models (use for DB operations)
-- `database/src/queries/` - Query functions (use instead of raw SQL)
+- `database/src/queries/` - Query functions with optimized JOINed patterns
 
 ### Server
 - `server/src/main.rs` - Server entry point
