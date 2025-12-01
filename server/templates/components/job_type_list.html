@@ -38,9 +38,19 @@
         {% endif %}
 
         <!-- Command Templates Count -->
-        <p class="text-secondary">
-            <strong>Command Templates:</strong> {{ jt.command_template_count }}
-        </p>
+        <div class="flex-between mb-2" style="align-items: center;">
+            <span class="text-secondary">
+                <strong>Command Templates:</strong> {{ jt.command_template_count }}
+            </span>
+            <button hx-get="/job-types/{{ jt.id }}/command-templates/new"
+                    hx-target="#command-template-form-container"
+                    hx-swap="innerHTML"
+                    class="btn btn-xs btn-primary"
+                    style="padding: 2px 6px; font-size: 0.75rem;"
+                    title="Add Command Template">
+                <i data-lucide="plus" style="width: 12px; height: 12px;"></i>
+            </button>
+        </div>
 
         <div class="flex gap-2 mt-2">
             <button hx-get="/job-types/{{ jt.id }}"

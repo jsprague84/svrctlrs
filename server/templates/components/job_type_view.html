@@ -113,35 +113,16 @@
         </div>
     </div>
 
-    <!-- Command Templates List -->
-    {% if !command_templates.is_empty() %}
+    <!-- Command Templates Management -->
     <hr class="my-4">
     <h3>Command Templates</h3>
-    <div class="mt-2">
-        {% for ct in command_templates %}
-        <div class="card bg-base-200" style="margin-bottom: 0.5rem;">
-            <div class="flex-between">
-                <div class="flex-1">
-                    <strong>{{ ct.display_name }}</strong>
-                    <p class="text-secondary" style="font-size: 0.875rem;">{{ ct.name }}</p>
-                    {% match ct.description %}
-                    {% when Some with (d) %}
-                    <p class="text-secondary" style="font-size: 0.875rem;">{{ d }}</p>
-                    {% when None %}
-                    {% endmatch %}
-                    <code style="display: block; background: var(--bg); padding: 0.5rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.75rem;">{{ ct.command }}</code>
-
-                    {% if !ct.required_capabilities.is_empty() %}
-                    <div class="flex gap-1 flex-wrap mt-2">
-                        {% for cap in ct.required_capabilities %}
-                        <span class="badge badge-warning" style="font-size: 0.75rem;">{{ cap }}</span>
-                        {% endfor %}
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
+    <div id="command-template-list"
+         class="mt-2"
+         hx-get="/job-types/{{ job_type.id }}/command-templates"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="alert alert-info">
+            <i data-lucide="loader" style="width: 16px; height: 16px;"></i> Loading command templates...
         </div>
-        {% endfor %}
     </div>
-    {% endif %}
 </div>

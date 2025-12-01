@@ -20,9 +20,10 @@ use crate::{
     routes::ui::AppError,
     state::AppState,
     templates::{
-        CommandTemplateDisplay, CommandTemplateListTemplate, CommandTemplateTestResultTemplate,
-        CommandTemplateTestTemplate, JobTypeDisplay, JobTypeFormTemplate, JobTypeListTemplate,
-        JobTypeViewTemplate, JobTypesTemplate, ParameterDisplay, ValidationResult,
+        CommandTemplateDisplay, CommandTemplateFormTemplate, CommandTemplateListTemplate,
+        CommandTemplateTestResultTemplate, CommandTemplateTestTemplate, JobTypeDisplay,
+        JobTypeFormTemplate, JobTypeListTemplate, JobTypeViewTemplate, JobTypesTemplate,
+        ParameterDisplay, ValidationResult,
     },
 };
 
@@ -42,6 +43,10 @@ pub fn routes() -> Router<AppState> {
         .route(
             "/job-types/{job_type_id}/command-templates",
             get(get_command_templates).post(create_command_template),
+        )
+        .route(
+            "/job-types/{job_type_id}/command-templates/new",
+            get(new_command_template_form),
         )
         .route(
             "/job-types/{job_type_id}/command-templates/{id}",
@@ -496,6 +501,28 @@ pub async fn get_command_templates(
 
     let html = template.render().map_err(|e| {
         error!(error = %e, "Failed to render command template list");
+        AppError::TemplateError(e.to_string())
+    })?;
+
+    Ok(Html(html))
+}
+
+/// Show the new command template form (HTMX)
+#[instrument(skip(_state))]
+pub async fn new_command_template_form(
+    State(_state): State<AppState>,
+    Path(job_type_id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    info!(job_type_id, "Rendering new command template form");
+
+    let template = CommandTemplateFormTemplate {
+        job_type_id,
+        command_template: None,
+        error: None,
+    };
+
+    let html = template.render().map_err(|e| {
+        error!(error = %e, "Failed to render command template form");
         AppError::TemplateError(e.to_string())
     })?;
 

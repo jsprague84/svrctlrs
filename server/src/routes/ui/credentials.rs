@@ -296,7 +296,8 @@ async fn credential_update(
     if let Some(ref name) = input.name {
         if name.trim().is_empty() {
             return Ok(Html(
-                r#"<div class="alert alert-error alert-auto-dismiss">✗ Name cannot be empty</div>"#.to_string(),
+                r#"<div class="alert alert-error alert-auto-dismiss">✗ Name cannot be empty</div>"#
+                    .to_string(),
             ));
         }
     }

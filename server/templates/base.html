@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"
       x-data="{ sidebarOpen: false, theme: localStorage.getItem('theme') || 'tokyo' }"
-      x-init="$watch('theme', val => localStorage.setItem('theme', val))"
+      x-init="$watch('theme', val => { localStorage.setItem('theme', val); if (window.updateFavicon) window.updateFavicon(val); })"
       :data-theme="theme">
 <head>
     <meta charset="UTF-8">
@@ -16,6 +16,32 @@
         // Set theme on html element before page renders
         const theme = localStorage.getItem('theme') || 'tokyo';
         document.documentElement.setAttribute('data-theme', theme);
+
+        // Set theme-specific favicon
+        window.updateFavicon = function(theme) {
+            const faviconPath = theme === 'tokyo'
+                ? '/static/img/branding/tokyo/favicon/favicon.svg'
+                : '/static/img/branding/nord/favicon/favicon.svg';
+
+            let link = document.querySelector("link[rel='icon']");
+            if (!link) {
+                link = document.createElement('link');
+                link.rel = 'icon';
+                link.type = 'image/svg+xml';
+                document.head.appendChild(link);
+            }
+            link.href = faviconPath;
+        };
+
+        // Set initial favicon
+        window.updateFavicon(theme);
+
+        // Watch for theme changes
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'theme') {
+                updateFavicon(e.newValue);
+            }
+        });
     </script>
     
     <!-- Styles - Technical/Dense Theme (Professional) -->
@@ -172,8 +198,12 @@
                 <i data-lucide="menu" style="width: 20px; height: 20px;"></i>
             </button>
 
-            <a href="/" class="header-title" aria-label="SvrCtlRS Home">
-                <img src="/static/img/logo.svg" alt="SvrCtlRS" style="height: 32px; width: auto;">
+            <a href="/" class="header-title" aria-label="SvrCtlRS Home" style="display: flex; align-items: center; gap: 12px; text-decoration: none;">
+                <!-- Theme-specific header image -->
+                <img :src="theme === 'tokyo' ? '/static/img/branding/tokyo/header.svg' : '/static/img/branding/nord/header.svg'"
+                     alt="SvrCtlRS"
+                     style="height: 40px; width: auto;"
+                     x-transition>
             </a>
 
             <div class="header-spacer"></div>

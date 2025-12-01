@@ -219,7 +219,7 @@ pub async fn get_command_templates(
         r#"
         SELECT id, job_type_id, name, display_name, description, command, required_capabilities,
                os_filter, timeout_seconds, working_directory, environment, output_format,
-               parse_output, output_parser, notify_on_success, notify_on_failure, metadata,
+               parse_output, output_parser, notify_on_success, notify_on_failure, parameter_schema, metadata,
                created_at, updated_at
         FROM command_templates
         WHERE job_type_id = ?

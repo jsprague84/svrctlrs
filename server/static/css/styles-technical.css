@@ -22,6 +22,9 @@
    THEME COLORS - Multiple Palettes
    ============================================================================ */
 
+/* Tokyo GitHub logo: Svr: #79c0ff, Ctl: #58a6ff, RS: #cc8560, Background: #1a1b26
+   Nord logo:         Svr: #88c0d0, Ctl: #81a1c1, RS: #bf7a60, Background: #2e3440 */
+
 /* Light Theme - Nord */
 :root[data-theme="light"] {
     --bg-primary: #ffffff;
@@ -62,9 +65,12 @@
     --bg-secondary: #16161e;
     --bg-tertiary: #24283b;
     --text-primary: #c0caf5;
+     // #c0caf5;
     --text-secondary: #a9b1d6;
+     // #a9b1d6;
     --text-muted: #565f89;
     --accent-primary: #7aa2f7;
+     // #7aa2f7;
     --accent-success: #9ece6a;
     --accent-warning: #e0af68;
     --accent-error: #f7768e;

@@ -1,5 +1,13 @@
 <div class="card" x-data="commandTemplateForm()">
-    <h3>{% match command_template %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Command Template</h3>
+    <div class="flex-between mb-3">
+        <h3>{% match command_template %}{% when Some with (_) %}Edit{% when None %}Add{% endmatch %} Command Template</h3>
+        <a href="https://github.com/jsprague84/svrctlrs/blob/main/docs/COMMAND_TEMPLATES.md"
+           target="_blank"
+           class="btn btn-sm btn-secondary"
+           title="View Command Template Documentation">
+            <i data-lucide="help-circle" style="width: 14px; height: 14px;"></i> Help & Examples
+        </a>
+    </div>
 
     {% match error %}
     {% when Some with (e) %}

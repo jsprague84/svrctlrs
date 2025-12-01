@@ -900,7 +900,8 @@ async fn server_add_tag(
     tags::add_server_tag(db.pool(), id, input.tag_id).await?;
 
     Ok(Html(
-        r#"<div class="alert alert-success alert-auto-dismiss">Tag added successfully!</div>"#.to_string(),
+        r#"<div class="alert alert-success alert-auto-dismiss">Tag added successfully!</div>"#
+            .to_string(),
     ))
 }
 
@@ -920,7 +921,8 @@ async fn server_remove_tag(
     tags::remove_server_tag(db.pool(), id, input.tag_id).await?;
 
     Ok(Html(
-        r#"<div class="alert alert-success alert-auto-dismiss">Tag removed successfully!</div>"#.to_string(),
+        r#"<div class="alert alert-success alert-auto-dismiss">Tag removed successfully!</div>"#
+            .to_string(),
     ))
 }
 
