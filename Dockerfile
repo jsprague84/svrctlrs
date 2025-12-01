@@ -30,7 +30,6 @@ COPY core ./core
 COPY server ./server
 COPY scheduler ./scheduler
 COPY database ./database
-COPY plugins ./plugins
 
 # Generate recipe.json containing all workspace dependencies
 RUN cargo chef prepare --recipe-path recipe.json
@@ -62,13 +61,12 @@ COPY core ./core
 COPY server ./server
 COPY scheduler ./scheduler
 COPY database ./database
-COPY plugins ./plugins
 
-# Build server binary with HTMX + Askama and all plugins
+# Build server binary with HTMX + Askama
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
-    cargo build --release --package server --bin server --features "server,all-plugins"
+    cargo build --release --package server --bin server --features server
 
 # Build svrctl CLI
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
@@ -84,16 +82,13 @@ RUN sccache --show-stats || true
 # ============================================
 FROM debian:bookworm-slim
 
-# Install runtime dependencies and Ookla speedtest CLI
+# Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
     openssh-client \
     sqlite3 \
     curl \
-    gnupg \
-    && curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | bash \
-    && apt-get install -y speedtest \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user for security
