@@ -12,6 +12,8 @@ class TerminalManager {
         this.fitAddon = null;
         this.searchAddon = null;
         this.webLinksAddon = null;
+        this.serializeAddon = null;
+        this.unicode11Addon = null;
         this.connected = false;
         this.connecting = false;
         this.outputHistory = [];
@@ -19,6 +21,7 @@ class TerminalManager {
         this.historyIndex = -1;
         this.maxHistory = 50;
         this.initialized = false;
+        this.sessionStorageKey = 'svrctlrs-terminal-session';
 
         // Load command history from localStorage
         this.loadHistory();
@@ -74,6 +77,19 @@ class TerminalManager {
         if (typeof WebLinksAddon !== 'undefined') {
             this.webLinksAddon = new WebLinksAddon.WebLinksAddon();
             this.terminal.loadAddon(this.webLinksAddon);
+        }
+
+        // Load SerializeAddon for session persistence
+        if (typeof SerializeAddon !== 'undefined') {
+            this.serializeAddon = new SerializeAddon.SerializeAddon();
+            this.terminal.loadAddon(this.serializeAddon);
+        }
+
+        // Load Unicode11Addon for better emoji/character support
+        if (typeof Unicode11Addon !== 'undefined') {
+            this.unicode11Addon = new Unicode11Addon.Unicode11Addon();
+            this.terminal.loadAddon(this.unicode11Addon);
+            this.terminal.unicode.activeVersion = '11';
         }
 
         // Open terminal in container
@@ -488,6 +504,72 @@ class TerminalManager {
             }
         } catch (e) {
             console.warn('Failed to load terminal history:', e);
+        }
+    }
+
+    /**
+     * Serialize terminal content for session persistence
+     * @returns {string|null} Serialized terminal content or null if not available
+     */
+    serialize() {
+        if (!this.serializeAddon || !this.terminal) {
+            return null;
+        }
+        try {
+            return this.serializeAddon.serialize();
+        } catch (e) {
+            console.warn('Failed to serialize terminal:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Save terminal session to sessionStorage
+     * @param {string} key - Optional custom key for the session
+     */
+    saveSession(key = null) {
+        const storageKey = key || this.sessionStorageKey;
+        const content = this.serialize();
+        if (content) {
+            try {
+                sessionStorage.setItem(storageKey, content);
+                console.log('Terminal session saved');
+            } catch (e) {
+                console.warn('Failed to save terminal session:', e);
+            }
+        }
+    }
+
+    /**
+     * Restore terminal session from sessionStorage
+     * @param {string} key - Optional custom key for the session
+     * @returns {boolean} True if session was restored
+     */
+    restoreSession(key = null) {
+        const storageKey = key || this.sessionStorageKey;
+        try {
+            const content = sessionStorage.getItem(storageKey);
+            if (content && this.terminal) {
+                this.terminal.write(content);
+                console.log('Terminal session restored');
+                return true;
+            }
+        } catch (e) {
+            console.warn('Failed to restore terminal session:', e);
+        }
+        return false;
+    }
+
+    /**
+     * Clear saved terminal session
+     * @param {string} key - Optional custom key for the session
+     */
+    clearSession(key = null) {
+        const storageKey = key || this.sessionStorageKey;
+        try {
+            sessionStorage.removeItem(storageKey);
+        } catch (e) {
+            console.warn('Failed to clear terminal session:', e);
         }
     }
 
