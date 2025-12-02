@@ -486,6 +486,9 @@
                 <button @click="showSaveProfileModal = true" style="padding: 6px 10px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; border-radius: 4px; font-size: 12px;" title="Save current layout as profile">
                     <i data-lucide="save" style="width: 14px; height: 14px;"></i>
                 </button>
+                <button @click="showSettingsModal = true" style="padding: 6px 10px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; border-radius: 4px; font-size: 12px;" title="Terminal settings">
+                    <i data-lucide="settings" style="width: 14px; height: 14px;"></i>
+                </button>
                 <button @click="deleteProfile()" x-show="selectedProfileId" style="padding: 6px 10px; border: 1px solid var(--error-color); background: transparent; color: var(--error-color); cursor: pointer; border-radius: 4px; font-size: 12px;" title="Delete selected profile">
                     <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
                 </button>
@@ -513,26 +516,88 @@
          x-cloak
          style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;"
          @click.self="showSaveProfileModal = false">
-        <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; min-width: 300px;">
+        <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; min-width: 450px; max-width: 600px; max-height: 90vh; overflow-y: auto;">
             <h3 style="margin: 0 0 16px 0; font-size: 16px;">Save Terminal Profile</h3>
+
+            <!-- Basic Info -->
             <div style="margin-bottom: 12px;">
                 <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Profile Name</label>
                 <input type="text" x-model="newProfileName"
                        style="width: 100%; padding: 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);"
                        placeholder="My Profile">
             </div>
-            <div style="margin-bottom: 16px;">
+            <div style="margin-bottom: 12px;">
                 <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Description (optional)</label>
                 <input type="text" x-model="newProfileDescription"
                        style="width: 100%; padding: 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);"
                        placeholder="Description...">
             </div>
+
+            <!-- Quick Commands Section -->
+            <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-tertiary); border-radius: 6px;">
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">
+                    Quick Commands
+                    <span style="font-weight: normal; color: var(--text-muted);">(one per line)</span>
+                </label>
+                <textarea x-model="newProfileQuickCommands"
+                          rows="4"
+                          style="width: 100%; padding: 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 12px; resize: vertical;"
+                          placeholder="uptime&#10;df -h&#10;free -m&#10;docker ps"></textarea>
+                <p style="font-size: 11px; color: var(--text-muted); margin: 4px 0 0 0;">
+                    These commands will appear as quick-access buttons when the profile is loaded.
+                </p>
+            </div>
+
+            <!-- Terminal Settings Section -->
+            <div style="margin-bottom: 16px; padding: 12px; background: var(--bg-tertiary); border-radius: 6px;">
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500;">
+                    Terminal Settings
+                </label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <label style="display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Font Size</label>
+                        <select x-model="newProfileFontSize" style="width: 100%; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); font-size: 12px;">
+                            <option value="12">12px (Small)</option>
+                            <option value="13">13px</option>
+                            <option value="14">14px (Default)</option>
+                            <option value="15">15px</option>
+                            <option value="16">16px (Large)</option>
+                            <option value="18">18px (X-Large)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Cursor Style</label>
+                        <select x-model="newProfileCursorStyle" style="width: 100%; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); font-size: 12px;">
+                            <option value="block">Block</option>
+                            <option value="underline">Underline</option>
+                            <option value="bar">Bar</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Scrollback Lines</label>
+                        <select x-model="newProfileScrollback" style="width: 100%; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); font-size: 12px;">
+                            <option value="1000">1,000</option>
+                            <option value="5000">5,000 (Default)</option>
+                            <option value="10000">10,000</option>
+                            <option value="50000">50,000</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-top: 20px;">
+                            <input type="checkbox" x-model="newProfileCursorBlink">
+                            Cursor Blink
+                        </label>
+                    </div>
+                </div>
+            </div>
+
             <div style="margin-bottom: 16px;">
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary);">
                     <input type="checkbox" x-model="newProfileIsDefault">
                     Set as default profile
                 </label>
             </div>
+
             <div style="display: flex; gap: 8px; justify-content: flex-end;">
                 <button @click="showSaveProfileModal = false"
                         style="padding: 8px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-secondary); cursor: pointer;">
@@ -542,6 +607,66 @@
                         :disabled="!newProfileName.trim()"
                         style="padding: 8px 16px; background: var(--accent-color); border: none; border-radius: 4px; color: #ffffff; cursor: pointer;">
                     Save Profile
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terminal Settings Modal -->
+    <div x-show="showSettingsModal"
+         x-cloak
+         style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;"
+         @click.self="showSettingsModal = false">
+        <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; min-width: 400px;">
+            <h3 style="margin: 0 0 16px 0; font-size: 16px;">Terminal Settings</h3>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                <div>
+                    <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Font Size</label>
+                    <select x-model="terminalFontSize" @change="applyTerminalSettings()" style="width: 100%; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); font-size: 12px;">
+                        <option value="12">12px (Small)</option>
+                        <option value="13">13px</option>
+                        <option value="14">14px (Default)</option>
+                        <option value="15">15px</option>
+                        <option value="16">16px (Large)</option>
+                        <option value="18">18px (X-Large)</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Cursor Style</label>
+                    <select x-model="terminalCursorStyle" @change="applyTerminalSettings()" style="width: 100%; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); font-size: 12px;">
+                        <option value="block">Block</option>
+                        <option value="underline">Underline</option>
+                        <option value="bar">Bar</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Scrollback Lines</label>
+                    <select x-model="terminalScrollback" @change="applyTerminalSettings()" style="width: 100%; padding: 6px 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); font-size: 12px;">
+                        <option value="1000">1,000</option>
+                        <option value="5000">5,000 (Default)</option>
+                        <option value="10000">10,000</option>
+                        <option value="50000">50,000</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); margin-top: 20px;">
+                        <input type="checkbox" x-model="terminalCursorBlink" @change="applyTerminalSettings()">
+                        Cursor Blink
+                    </label>
+                </div>
+            </div>
+
+            <div style="padding: 12px; background: var(--bg-tertiary); border-radius: 6px; margin-bottom: 16px;">
+                <p style="font-size: 11px; color: var(--text-muted); margin: 0;">
+                    <strong>Tip:</strong> Use the <i data-lucide="save" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle;"></i> Save button to save these settings as part of a profile.
+                </p>
+            </div>
+
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button @click="showSettingsModal = false"
+                        style="padding: 8px 16px; background: var(--accent-color); border: none; border-radius: 4px; color: #ffffff; cursor: pointer;">
+                    Done
                 </button>
             </div>
         </div>
@@ -577,12 +702,28 @@
     <!-- Quick Commands -->
     <div class="quick-commands">
         <label>Quick Commands:</label>
-        <button @click="broadcastCommand('uptime')">uptime</button>
-        <button @click="broadcastCommand('df -h')">df -h</button>
-        <button @click="broadcastCommand('free -m')">free -m</button>
-        <button @click="broadcastCommand('hostname')">hostname</button>
-        <button @click="broadcastCommand('docker ps')">docker ps</button>
-        <button @click="broadcastCommand('systemctl status')">systemctl</button>
+        <!-- Default commands (shown when no custom commands loaded) -->
+        <template x-if="customQuickCommands.length === 0">
+            <div style="display: contents;">
+                <button @click="broadcastCommand('uptime')">uptime</button>
+                <button @click="broadcastCommand('df -h')">df -h</button>
+                <button @click="broadcastCommand('free -m')">free -m</button>
+                <button @click="broadcastCommand('hostname')">hostname</button>
+                <button @click="broadcastCommand('docker ps')">docker ps</button>
+                <button @click="broadcastCommand('systemctl status')">systemctl</button>
+            </div>
+        </template>
+        <!-- Custom commands from profile -->
+        <template x-if="customQuickCommands.length > 0">
+            <div style="display: contents;">
+                <template x-for="cmd in customQuickCommands" :key="cmd">
+                    <button @click="broadcastCommand(cmd)" x-text="cmd.length > 20 ? cmd.substring(0, 20) + '...' : cmd" :title="cmd"></button>
+                </template>
+                <button @click="customQuickCommands = []" style="background: var(--error-bg, rgba(255,100,100,0.2)); color: var(--error-color, #f7768e); margin-left: 8px;" title="Reset to default commands">
+                    <i data-lucide="x" style="width: 12px; height: 12px;"></i>
+                </button>
+            </div>
+        </template>
     </div>
 
     <!-- Terminal Grid -->
@@ -615,6 +756,12 @@
                     {% endfor %}
                 </select>
                 <div class="pane-actions">
+                    <button @click="toggleEnvVars(0)"
+                            :title="panes[0].showEnvVars ? 'Hide Env Vars' : 'Environment Variables'"
+                            :style="panes[0].envVars.length > 0 ? 'background: var(--warning-bg, rgba(224, 175, 104, 0.2)); border-color: var(--warning-color, #e0af68);' : ''">
+                        <i data-lucide="variable" style="width: 12px; height: 12px;"></i>
+                        <span x-show="panes[0].envVars.length > 0" x-text="panes[0].envVars.length" style="font-size: 9px; margin-left: 2px;"></span>
+                    </button>
                     <button @click="panes[0].interactiveMode ? stopInteractiveShell(0) : startInteractiveShell(0)"
                             :title="panes[0].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
                             :style="panes[0].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
@@ -626,17 +773,36 @@
                     </button>
                 </div>
             </div>
+            <!-- Environment Variables Editor -->
+            <div x-show="panes[0].showEnvVars" x-cloak style="padding: 8px 12px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">Environment Variables</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button @click="addEnvVar(0)" style="padding: 2px 6px; font-size: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-secondary); cursor: pointer;">+ Add</button>
+                        <button @click="clearEnvVars(0)" style="padding: 2px 6px; font-size: 10px; background: transparent; border: 1px solid var(--error-color); border-radius: 3px; color: var(--error-color); cursor: pointer;">Clear</button>
+                    </div>
+                </div>
+                <template x-for="(env, envIdx) in panes[0].envVars" :key="envIdx">
+                    <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+                        <input type="text" x-model="env.key" placeholder="KEY" style="flex: 1; padding: 4px 6px; font-size: 11px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-primary); font-family: monospace;">
+                        <span style="color: var(--text-muted); font-size: 11px; padding: 4px 0;">=</span>
+                        <input type="text" x-model="env.value" placeholder="value" style="flex: 2; padding: 4px 6px; font-size: 11px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-primary); font-family: monospace;">
+                        <button @click="removeEnvVar(0, envIdx)" style="padding: 2px 6px; background: transparent; border: none; color: var(--error-color); cursor: pointer; font-size: 14px;">&times;</button>
+                    </div>
+                </template>
+                <p style="font-size: 10px; color: var(--text-muted); margin: 4px 0 0 0;">These will be exported before running commands.</p>
+            </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-0"></div>
                 <div class="terminal-input-row" x-show="!panes[0].interactiveMode">
                     <input type="text"
                            x-model="panes[0].command"
-                           @keydown.enter="executePane(0)"
+                           @keydown.enter="executePaneWithEnv(0)"
                            @keydown.up="historyUp(0)"
                            @keydown.down="historyDown(0)"
                            placeholder="Enter command..."
                            :disabled="!panes[0].serverId">
-                    <button @click="executePane(0)" :disabled="!panes[0].serverId || !panes[0].command">
+                    <button @click="executePaneWithEnv(0)" :disabled="!panes[0].serverId || !panes[0].command">
                         Run
                     </button>
                 </div>
@@ -848,11 +1014,25 @@ function debugConsole() {
         newProfileName: '',
         newProfileDescription: '',
         newProfileIsDefault: false,
+        newProfileQuickCommands: '',
+        newProfileFontSize: '14',
+        newProfileCursorStyle: 'block',
+        newProfileScrollback: '5000',
+        newProfileCursorBlink: true,
+        // Terminal settings (current)
+        terminalFontSize: 14,
+        terminalCursorStyle: 'block',
+        terminalScrollback: 5000,
+        terminalCursorBlink: true,
+        // Custom quick commands
+        customQuickCommands: [],
+        // Settings modal
+        showSettingsModal: false,
         panes: [
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false },
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false },
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false },
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false }
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false, envVars: [], showEnvVars: false },
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false, envVars: [], showEnvVars: false },
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false, envVars: [], showEnvVars: false },
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false, envVars: [], showEnvVars: false }
         ],
 
         get visiblePanes() {
@@ -1013,6 +1193,30 @@ function debugConsole() {
             pane.command = '';
         },
 
+        executePaneWithEnv(index) {
+            const pane = this.panes[index];
+            if (!pane.serverId || !pane.command) return;
+
+            // Save to tab history
+            const tab = pane.tabs[pane.activeTab];
+            if (tab && pane.command.trim()) {
+                if (tab.history.length === 0 || tab.history[tab.history.length - 1] !== pane.command) {
+                    tab.history.push(pane.command);
+                    if (tab.history.length > 50) tab.history.shift();
+                }
+                pane.historyIndex = tab.history.length;
+            }
+
+            if (pane.terminal) {
+                // Filter out empty env vars and execute with environment variables
+                const envVars = pane.envVars.filter(e => e.key && e.key.trim());
+                pane.terminal.connect(pane.serverId, pane.command, envVars);
+            }
+
+            // Clear the command input
+            pane.command = '';
+        },
+
         historyUp(index) {
             const pane = this.panes[index];
             const tab = pane.tabs[pane.activeTab];
@@ -1041,6 +1245,27 @@ function debugConsole() {
             if (pane.terminal) {
                 pane.terminal.clear();
             }
+        },
+
+        // Environment variables methods
+        toggleEnvVars(index) {
+            this.panes[index].showEnvVars = !this.panes[index].showEnvVars;
+            if (this.panes[index].showEnvVars && this.panes[index].envVars.length === 0) {
+                this.addEnvVar(index);
+            }
+        },
+
+        addEnvVar(index) {
+            this.panes[index].envVars.push({ key: '', value: '' });
+        },
+
+        removeEnvVar(paneIndex, varIndex) {
+            this.panes[paneIndex].envVars.splice(varIndex, 1);
+        },
+
+        clearEnvVars(index) {
+            this.panes[index].envVars = [];
+            this.panes[index].showEnvVars = false;
         },
 
         // Start interactive shell session (PTY mode)
@@ -1173,23 +1398,72 @@ function debugConsole() {
                 });
             }
 
+            // Apply quick commands
+            if (profile.quickCommands && Array.isArray(profile.quickCommands) && profile.quickCommands.length > 0) {
+                this.customQuickCommands = profile.quickCommands;
+            }
+
+            // Apply terminal settings if stored in quickCommands as settings object
+            // (We're using a combined format for backward compatibility)
+            if (profile.paneConfigs && profile.paneConfigs[0] && profile.paneConfigs[0].terminal_settings) {
+                const settings = profile.paneConfigs[0].terminal_settings;
+                if (settings.fontSize) this.terminalFontSize = settings.fontSize;
+                if (settings.cursorStyle) this.terminalCursorStyle = settings.cursorStyle;
+                if (settings.scrollback) this.terminalScrollback = settings.scrollback;
+                if (settings.cursorBlink !== undefined) this.terminalCursorBlink = settings.cursorBlink;
+                this.applyTerminalSettings();
+            }
+
             console.log('Loaded profile:', profile.name);
+        },
+
+        // Apply terminal settings to all terminals
+        applyTerminalSettings() {
+            for (let i = 0; i < 4; i++) {
+                const terminal = this.panes[i].terminal;
+                if (terminal && terminal.terminal) {
+                    terminal.terminal.options.fontSize = this.terminalFontSize;
+                    terminal.terminal.options.cursorStyle = this.terminalCursorStyle;
+                    terminal.terminal.options.scrollback = this.terminalScrollback;
+                    terminal.terminal.options.cursorBlink = this.terminalCursorBlink;
+                    // Refit after font change
+                    terminal.fit();
+                }
+            }
         },
 
         async saveProfile() {
             if (!this.newProfileName.trim()) return;
 
-            // Collect current pane configurations
-            const paneConfigs = this.panes.slice(0, this.visiblePanes).map(pane => ({
-                server_id: pane.serverId ? parseInt(pane.serverId) : null
-            }));
+            // Collect current pane configurations with terminal settings in the first pane
+            const paneConfigs = this.panes.slice(0, this.visiblePanes).map((pane, index) => {
+                const config = {
+                    server_id: pane.serverId ? parseInt(pane.serverId) : null
+                };
+                // Store terminal settings in the first pane config
+                if (index === 0) {
+                    config.terminal_settings = {
+                        fontSize: parseInt(this.newProfileFontSize),
+                        cursorStyle: this.newProfileCursorStyle,
+                        scrollback: parseInt(this.newProfileScrollback),
+                        cursorBlink: this.newProfileCursorBlink
+                    };
+                }
+                return config;
+            });
+
+            // Parse quick commands from textarea (one per line)
+            const quickCommands = this.newProfileQuickCommands
+                .split('\n')
+                .map(cmd => cmd.trim())
+                .filter(cmd => cmd.length > 0);
 
             const profileData = {
                 name: this.newProfileName.trim(),
                 description: this.newProfileDescription.trim() || null,
                 layout: this.layout,
                 pane_configs: paneConfigs,
-                quick_commands: [],
+                quick_commands: quickCommands,
                 is_default: this.newProfileIsDefault
             };
 
