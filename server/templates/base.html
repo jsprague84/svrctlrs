@@ -228,11 +228,11 @@
                     time: '',
                     init() {
                         this.updateTime();
-                        setInterval(() => this.updateTime(), 1000);
+                        setInterval(() => this.updateTime(), 60000);
                     },
                     updateTime() {
                         const now = new Date();
-                        this.time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                        this.time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     }
                  }"
                  class="header-clock"
