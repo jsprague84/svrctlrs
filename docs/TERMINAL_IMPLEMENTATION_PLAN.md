@@ -1068,11 +1068,12 @@ curl -i -N \
 - ✅ Copy/download output works
 - ✅ Command history (up/down arrows) - Bonus: implemented early!
 
-**Week 2 (Enhanced)** - MOSTLY COMPLETE (2025-12-01):
+**Week 2 (Enhanced)** - COMPLETE (2025-12-01):
 - ✅ Command history (up/down arrows) - Done in Phase 1!
-- ⬜ Environment variable editing - Future
+- ✅ Environment variable editing - DONE
 - ✅ Multi-line command support (Shift+Enter) - DONE
 - ✅ Output search functionality (Ctrl+F) - DONE
+- ✅ Clickable URLs (WebLinksAddon) - DONE
 
 **Week 3+ (Multi-Terminal)** - FUTURE:
 - ⬜ Dedicated `/debug` page
@@ -1089,14 +1090,14 @@ curl -i -N \
 - Documentation updated (CLAUDE.md)
 - Committed to develop branch
 
-**Phase 2 Enhanced**: ✅ MOSTLY COMPLETE
+**Phase 2 Enhanced**: ✅ COMPLETE
 - ✅ Output search (Ctrl+F, incremental search, case-sensitive toggle)
 - ✅ Multi-line command support (Shift+Enter for newlines)
-- ⬜ Environment variable editing - Future enhancement
+- ✅ Clickable URLs (WebLinksAddon)
+- ✅ Environment variable editing (collapsible panel with add/remove)
 - ⬜ PTY allocation - Future enhancement (for interactive commands)
 
-**Next Steps**: Phase 3 or Remaining Phase 2
-- Environment variable editing UI
+**Next Steps**: Phase 3
 - PTY allocation for interactive commands (sudo, vim)
 - Dedicated `/debug` page with multiple terminals
 
