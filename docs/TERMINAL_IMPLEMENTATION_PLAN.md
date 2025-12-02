@@ -1075,11 +1075,11 @@ curl -i -N \
 - ✅ Output search functionality (Ctrl+F) - DONE
 - ✅ Clickable URLs (WebLinksAddon) - DONE
 
-**Week 3+ (Multi-Terminal)** - FUTURE:
-- ⬜ Dedicated `/debug` page
-- ⬜ 2-4 simultaneous terminals
-- ⬜ Broadcast mode
-- ⬜ Session persistence
+**Week 3+ (Multi-Terminal)** - COMPLETE (2025-12-01):
+- ✅ Dedicated `/debug` page
+- ✅ 2-4 simultaneous terminals (configurable layouts)
+- ✅ Broadcast mode (quick commands to all terminals)
+- ✅ Session persistence infrastructure (SerializeAddon)
 
 ---
 
@@ -1095,11 +1095,24 @@ curl -i -N \
 - ✅ Multi-line command support (Shift+Enter for newlines)
 - ✅ Clickable URLs (WebLinksAddon)
 - ✅ Environment variable editing (collapsible panel with add/remove)
+- ✅ SerializeAddon for session persistence
+- ✅ Unicode11Addon for better character support
 - ⬜ PTY allocation - Future enhancement (for interactive commands)
 
-**Next Steps**: Phase 3
+**Phase 3 Multi-Terminal Debug Page**: ✅ COMPLETE
+- ✅ Dedicated `/debug` route and page
+- ✅ Layout options: single, 2-horizontal, 2-vertical, 4-grid
+- ✅ Quick command buttons (uptime, df, free, hostname, docker ps, systemctl)
+- ✅ Broadcast commands to all connected terminals
+- ✅ Per-pane server selection and command input
+- ✅ Status indicators for connection state
+- ✅ Navigation link in sidebar under "Tools" section
+
+**Next Steps**: Phase 4 (Future)
 - PTY allocation for interactive commands (sudo, vim)
-- Dedicated `/debug` page with multiple terminals
+- Terminal tabs within the debug page
+- Server groups (run on all web servers, all DB servers, etc.)
+- Terminal profiles (saved configurations)
 
 **Known Limitation**: Non-interactive mode only
 - Commands requiring PTY (sudo with password, vim) will fail
