@@ -28,6 +28,7 @@ This file provides comprehensive guidance for AI assistants working with the Svr
 - ✅ **Output search** (Ctrl+F) with incremental search and case-sensitive toggle
 - ✅ **Multi-line commands** (Shift+Enter for newlines, Enter to execute)
 - ✅ **Auto-expanding textarea** for multi-line command editing
+- ✅ **Clickable URLs** - URLs in output are automatically detected and rendered as links
 
 **Files Created**:
 - `server/src/routes/terminal.rs` - WebSocket handler (~400 lines)
