@@ -1,7 +1,7 @@
 # SvrCtlRS Architecture Documentation
 
-**Version**: v2.1.0
-**Last Updated**: 2025-11-30
+**Version**: v2.2.0
+**Last Updated**: 2025-12-01
 **Status**: Production Ready
 
 ## Table of Contents
@@ -560,7 +560,123 @@ Browser                  Server (Axum)               Database
 
 ---
 
-#### Pattern 5: Inline Form (Edit in Place)
+#### Pattern 5: WebSocket Real-Time Updates (Job Runs)
+
+For true real-time updates without polling overhead, WebSocket connections are used. The Job Runs page uses WebSocket for instant status updates.
+
+```
+Browser                  Server (Axum)               Scheduler
+   |                          |                          |
+   |-- WS Connect ----------->|                          |
+   |   ws://host/ws/job-runs  |                          |
+   |                          |                          |
+   |<-- Initial HTML list ----|                          |
+   |                          |                          |
+   |   ... Job starts ...     |                          |
+   |                          |<-- JobRunEvent::Created -|
+   |                          |    (broadcast channel)   |
+   |                          |                          |
+   |<-- {"type":"list",...} --|                          |
+   |   (full HTML refresh)    |                          |
+   |                          |                          |
+   |   ... Job completes ...  |                          |
+   |                          |<-- JobRunEvent::Completed|
+   |                          |                          |
+   |<-- {"type":"status_.."}--|                          |
+   |   (status badge update)  |                          |
+```
+
+**Server Components**:
+
+1. **Broadcast Channel** (`state.rs`):
+   ```rust
+   pub enum JobRunUpdate {
+       StatusChanged { job_run_id: i64, status: String },
+       Created { job_run_id: i64 },
+       RefreshAll,
+   }
+
+   pub struct AppState {
+       pub job_run_tx: broadcast::Sender<JobRunUpdate>,
+       // ...
+   }
+   ```
+
+2. **WebSocket Handler** (`routes/job_runs_ws.rs`):
+   ```rust
+   async fn handle_job_runs_socket(socket: WebSocket, state: AppState) {
+       let mut rx = state.subscribe_job_run_updates();
+
+       loop {
+           tokio::select! {
+               update = rx.recv() => {
+                   // Send update to client
+               }
+               msg = ws_receiver.next() => {
+                   // Handle client messages (refresh, page)
+               }
+           }
+       }
+   }
+   ```
+
+3. **Scheduler Event Broadcasting** (`scheduler/src/lib.rs`):
+   ```rust
+   pub enum JobRunEvent {
+       Created { job_run_id: i64 },
+       Completed { job_run_id: i64, success: bool },
+   }
+
+   // In trigger_job_execution():
+   let _ = self.event_tx.send(JobRunEvent::Created { job_run_id });
+   ```
+
+**Client JavaScript** (`static/js/job-runs-ws.js`):
+```javascript
+class JobRunsWebSocket {
+    connect() {
+        this.ws = new WebSocket(`${protocol}//${host}/ws/job-runs`);
+        this.ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'list') {
+                this.targetElement.innerHTML = data.html;
+            } else if (data.type === 'status_changed') {
+                // Update badge for specific job run
+            }
+        };
+    }
+}
+```
+
+**HTML Template** (`pages/job_runs.html`):
+```html
+<div class="flex gap-2 align-center mb-3">
+    <h1>Job Run History</h1>
+    <span id="ws-status" class="badge badge-secondary">
+        <i data-lucide="wifi-off"></i> Connecting...
+    </span>
+</div>
+
+<div id="job-run-list" hx-get="/job-runs/list" hx-swap="innerHTML">
+    {% include "components/job_run_list.html" %}
+</div>
+
+<script>
+    jobRunsWs.init('job-run-list', function(connected) {
+        // Update status badge
+    });
+</script>
+```
+
+**Benefits over Polling**:
+- **~99% bandwidth reduction** - Updates only when changes occur
+- **Instant updates** - No 5-10 second delay
+- **Lower server load** - No constant polling requests
+- **Graceful fallback** - Falls back to HTMX polling after 10 failed reconnects
+
+---
+
+#### Pattern 6: Inline Form (Edit in Place)
 
 ```html
 <!-- Display mode -->
@@ -1395,9 +1511,10 @@ async fn servers_page(State(state): State<AppState>) -> Result<Html<String>, App
 |---------|----------|---------|
 | **Initial Page Load** | Full page render | Dashboard, server list |
 | **Form Submission** | Create/update entity | Add server, edit schedule |
-| **Partial Update** | Refresh component | Task list auto-refresh |
+| **Partial Update (HTMX)** | Refresh component via polling | Task list auto-refresh |
 | **Delete** | Remove entity | Delete server (with confirm) |
 | **Inline Edit** | Edit in place | Schedule name editing |
+| **WebSocket Real-Time** | Instant server-push updates | Job runs status, terminal |
 
 ---
 

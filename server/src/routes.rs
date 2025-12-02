@@ -1,6 +1,7 @@
 //! API routes
 
 mod api;
+pub mod job_runs_ws;
 mod servers;
 pub mod terminal;
 pub mod terminal_pty;

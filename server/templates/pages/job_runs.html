@@ -3,26 +3,52 @@
 {% block title %}Job Runs - SvrCtlRS{% endblock %}
 {% block nav_job_runs %}active{% endblock %}
 
+{% block head %}
+<!-- Job Runs WebSocket Manager -->
+<script src="/static/js/job-runs-ws.js"></script>
+{% endblock %}
+
 {% block content %}
-<div class="flex-between mb-3">
+<div class="flex gap-2 align-center mb-3">
     <h1>Job Run History</h1>
-    <button hx-get="/job-runs/list"
-            hx-target="#job-run-list"
-            hx-swap="innerHTML"
-            class="btn btn-secondary">
-        <i data-lucide="refresh-cw" style="width: 16px; height: 16px;"></i> Refresh
-    </button>
+    <span id="ws-status" class="badge badge-secondary" style="font-size: 0.75rem;">
+        <i data-lucide="wifi-off" style="width: 12px; height: 12px;"></i> Connecting...
+    </span>
 </div>
 
 <p class="text-secondary mb-3">
-    View execution history and results for all job runs.
+    View execution history and results for all job runs. Updates are pushed in real-time via WebSocket.
 </p>
 
-<!-- Job Run List (auto-refreshes) -->
+<!-- Job Run List (updated via WebSocket) -->
 <div id="job-run-list"
      hx-get="/job-runs/list"
-     hx-trigger="every 10s"
      hx-swap="innerHTML">
     {% include "components/job_run_list.html" %}
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize WebSocket connection
+        jobRunsWs.init('job-run-list', function(connected) {
+            const statusEl = document.getElementById('ws-status');
+            if (statusEl) {
+                if (connected) {
+                    statusEl.className = 'badge badge-success';
+                    statusEl.innerHTML = '<i data-lucide="wifi" style="width: 12px; height: 12px;"></i> Live';
+                } else {
+                    statusEl.className = 'badge badge-warning';
+                    statusEl.innerHTML = '<i data-lucide="wifi-off" style="width: 12px; height: 12px;"></i> Reconnecting...';
+                }
+                // Re-initialize Lucide icons for the status badge
+                lucide.createIcons({ nameAttr: 'data-lucide', el: statusEl });
+            }
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            jobRunsWs.disconnect();
+        });
+    });
+</script>
 {% endblock %}

@@ -23,6 +23,15 @@ use svrctlrs_core::{executor::JobExecutor, Error, Result};
 use svrctlrs_database::models::{JobSchedule, JobTemplate};
 use svrctlrs_database::NotificationService;
 
+/// Job run update event
+#[derive(Debug, Clone)]
+pub enum JobRunEvent {
+    /// A new job run was created
+    Created { job_run_id: i64 },
+    /// A job run completed (success or failure)
+    Completed { job_run_id: i64, success: bool },
+}
+
 /// Default poll interval for checking schedules
 const DEFAULT_POLL_INTERVAL_SECS: u64 = 60;
 
@@ -45,6 +54,9 @@ pub struct Scheduler {
 
     /// Notification service for job notifications
     notification_service: Option<Arc<NotificationService>>,
+
+    /// Job run event broadcast channel for WebSocket updates
+    event_tx: broadcast::Sender<JobRunEvent>,
 }
 
 impl Scheduler {
@@ -60,6 +72,9 @@ impl Scheduler {
         executor: Arc<JobExecutor>,
         notification_service: Option<Arc<NotificationService>>,
     ) -> Self {
+        // Create event broadcast channel (capacity of 100 events)
+        let (event_tx, _) = broadcast::channel(100);
+
         Self {
             db_pool,
             executor,
@@ -67,7 +82,23 @@ impl Scheduler {
             shutdown_tx: None,
             poll_interval: Duration::from_secs(DEFAULT_POLL_INTERVAL_SECS),
             notification_service,
+            event_tx,
         }
+    }
+
+    /// Subscribe to job run events
+    ///
+    /// Returns a receiver that can be used to receive job run events.
+    /// Useful for WebSocket real-time updates.
+    pub fn subscribe_events(&self) -> broadcast::Receiver<JobRunEvent> {
+        self.event_tx.subscribe()
+    }
+
+    /// Get the event sender for cloning
+    ///
+    /// Returns a clone of the event sender that can be passed to other components.
+    pub fn event_sender(&self) -> broadcast::Sender<JobRunEvent> {
+        self.event_tx.clone()
     }
 
     /// Set the poll interval
@@ -103,6 +134,7 @@ impl Scheduler {
         let running_jobs = self.running_jobs.clone();
         let poll_interval = self.poll_interval;
         let notification_service = self.notification_service.clone();
+        let event_tx = self.event_tx.clone();
 
         tokio::spawn(async move {
             loop {
@@ -119,6 +151,7 @@ impl Scheduler {
                             &executor,
                             &running_jobs,
                             &notification_service,
+                            &event_tx,
                         ).await {
                             error!(error = %e, "Error polling schedules");
                         }
@@ -176,12 +209,13 @@ impl Scheduler {
     }
 
     /// Poll for due schedules (internal implementation)
-    #[instrument(skip(db_pool, executor, running_jobs, notification_service))]
+    #[instrument(skip(db_pool, executor, running_jobs, notification_service, event_tx))]
     async fn poll_schedules_impl(
         db_pool: &Pool<Sqlite>,
         executor: &Arc<JobExecutor>,
         running_jobs: &Arc<Mutex<HashSet<i64>>>,
         notification_service: &Option<Arc<NotificationService>>,
+        event_tx: &broadcast::Sender<JobRunEvent>,
     ) -> Result<()> {
         debug!("Polling for due schedules");
 
@@ -216,6 +250,7 @@ impl Scheduler {
                 &schedule,
                 &template,
                 notification_service,
+                event_tx,
             )
             .await
             {
@@ -280,7 +315,8 @@ impl Scheduler {
         running_jobs,
         schedule,
         template,
-        notification_service
+        notification_service,
+        event_tx
     ))]
     async fn trigger_job_execution(
         db_pool: &Pool<Sqlite>,
@@ -289,6 +325,7 @@ impl Scheduler {
         schedule: &JobSchedule,
         template: &JobTemplate,
         notification_service: &Option<Arc<NotificationService>>,
+        event_tx: &broadcast::Sender<JobRunEvent>,
     ) -> Result<()> {
         info!(
             schedule_id = schedule.id,
@@ -309,6 +346,9 @@ impl Scheduler {
 
         info!(schedule_id = schedule.id, job_run_id, "Created job run");
 
+        // Broadcast job created event
+        let _ = event_tx.send(JobRunEvent::Created { job_run_id });
+
         // Add to running jobs set
         {
             let mut jobs = running_jobs.lock().await;
@@ -327,6 +367,7 @@ impl Scheduler {
         let db_pool_clone = db_pool.clone();
         let schedule_id = schedule.id;
         let notification_service_clone = notification_service.clone();
+        let event_tx_clone = event_tx.clone();
 
         tokio::spawn(async move {
             // Execute the job
@@ -349,6 +390,12 @@ impl Scheduler {
                     "Failed to update schedule statistics"
                 );
             }
+
+            // Broadcast job completed event
+            let _ = event_tx_clone.send(JobRunEvent::Completed {
+                job_run_id,
+                success,
+            });
 
             // Send notification if service is available
             if let Some(ref notif_service) = notification_service_clone {

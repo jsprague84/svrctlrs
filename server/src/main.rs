@@ -76,6 +76,9 @@ async fn main() -> anyhow::Result<()> {
     // Build interactive PTY terminal router
     let terminal_pty_router = routes::terminal_pty::routes().with_state(state.clone());
 
+    // Build job runs WebSocket router
+    let job_runs_ws_router = routes::job_runs_ws::routes().with_state(state.clone());
+
     // Build main router
     let app = Router::new()
         // API routes
@@ -84,6 +87,8 @@ async fn main() -> anyhow::Result<()> {
         .merge(terminal_router)
         // Interactive PTY terminal routes
         .merge(terminal_pty_router)
+        // Job runs WebSocket routes
+        .merge(job_runs_ws_router)
         // UI routes (HTMX + Askama)
         .merge(ui_router)
         // Middleware

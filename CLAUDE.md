@@ -3,12 +3,52 @@
 This file provides comprehensive guidance for AI assistants working with the SvrCtlRS codebase.
 
 **Last Updated**: 2025-12-01
-**Architecture Version**: v2.0 (Job-Based System)
-**Status**: ✅ Production Ready - Optimized Display Models & Architecture Documentation
+**Architecture Version**: v2.1 (Job-Based System + WebSocket Real-Time)
+**Status**: ✅ Production Ready - WebSocket Job Runs & Embedded Terminal
 
 ---
 
 ## 📈 Recent Updates
+
+### WebSocket Real-Time Job Runs - COMPLETE (2025-12-01)
+
+**Replaced HTMX polling with WebSocket for real-time job status updates**
+
+**Features**:
+- ✅ **WebSocket connection** at `/ws/job-runs` for real-time updates
+- ✅ **Broadcast channel** in AppState for pub/sub pattern
+- ✅ **Scheduler event integration** - jobs broadcast Created/Completed events
+- ✅ **Connection status badge** - Shows "Live" when connected, "Reconnecting..." on disconnect
+- ✅ **Graceful fallback** - Falls back to HTMX polling after 10 failed reconnects
+- ✅ **~99% bandwidth reduction** - Only sends updates when job status changes
+
+**Files Created**:
+- `server/src/routes/job_runs_ws.rs` - WebSocket handler
+- `server/static/js/job-runs-ws.js` - Client-side WebSocket manager
+
+**Files Modified**:
+- `server/src/state.rs` - Added `JobRunUpdate` enum and broadcast channel
+- `server/templates/pages/job_runs.html` - WebSocket integration with status badge
+- `scheduler/src/lib.rs` - Added `JobRunEvent` enum and event broadcasting
+- `server/src/routes.rs` - Added job_runs_ws module
+- `server/src/main.rs` - Added WebSocket router
+
+**Architecture**:
+```
+Scheduler (job execution)
+    │
+    ├─ JobRunEvent::Created / JobRunEvent::Completed
+    ▼
+AppState.job_run_tx (broadcast channel)
+    │
+    ▼
+WebSocket Handler (job_runs_ws.rs)
+    │
+    ▼
+Browser (job-runs-ws.js)
+```
+
+---
 
 ### Embedded Terminal - Phase 1 & 2 COMPLETE (2025-12-01)
 
