@@ -303,6 +303,26 @@
         scrollbar-color: var(--border-color, #3b4261) var(--bg-tertiary, #1a1b26);
     }
 
+    /* CRITICAL: Reset xterm.js internal helper textarea
+       The xterm-helper-textarea captures keyboard input and must not be
+       affected by global textarea styles from styles-technical.css */
+    .terminal-container .xterm-helper-textarea {
+        /* Reset problematic global styles */
+        width: auto !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        border: none !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        /* xterm.js positions this element, let it handle positioning */
+    }
+
+    .terminal-container .xterm-helper-textarea:focus {
+        outline: none !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
     /* Status indicators */
     .status-indicator {
         width: 8px;

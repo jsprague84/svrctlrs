@@ -380,7 +380,6 @@ class TerminalManager {
     connectPty(serverId) {
         this.connecting = true;
         this.connected = false;
-        this.ptyMode = true;
 
         // Initialize terminal if not already
         if (!this.initialized) {
@@ -391,8 +390,11 @@ class TerminalManager {
         this.terminal.clear();
         this.outputHistory = [];
 
-        // Disconnect existing connection
+        // Disconnect existing connection (this resets ptyMode to false)
         this.disconnect();
+
+        // Set ptyMode AFTER disconnect to ensure it stays true
+        this.ptyMode = true;
 
         // Show connecting message
         this.terminal.writeln('\x1b[33mConnecting to interactive shell...\x1b[0m');
