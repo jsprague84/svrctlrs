@@ -89,7 +89,14 @@ async fn handle_terminal_socket(socket: WebSocket, state: AppState) {
                             if let (Some(server_id), Some(command)) =
                                 (req.server_id, req.command.as_ref())
                             {
-                                execute_command(&state, server_id, command, req.env.as_ref(), &mut sender).await;
+                                execute_command(
+                                    &state,
+                                    server_id,
+                                    command,
+                                    req.env.as_ref(),
+                                    &mut sender,
+                                )
+                                .await;
                             } else {
                                 send_error(&mut sender, "Missing server_id or command").await;
                             }
@@ -157,7 +164,11 @@ async fn execute_command(
     let server = match queries::servers::get_server(&state.pool, server_id).await {
         Ok(s) => s,
         Err(e) => {
-            send_error(sender, &format!("Server not found or database error: {}", e)).await;
+            send_error(
+                sender,
+                &format!("Server not found or database error: {}", e),
+            )
+            .await;
             return;
         }
     };
@@ -173,10 +184,7 @@ async fn execute_command(
     if let Some(env_vars) = env {
         if !env_vars.is_empty() {
             let env_display: Vec<String> = env_vars.keys().cloned().collect();
-            let env_msg = format!(
-                "\x1b[90m  env: {}\x1b[0m\r\n",
-                env_display.join(", ")
-            );
+            let env_msg = format!("\x1b[90m  env: {}\x1b[0m\r\n", env_display.join(", "));
             send_output(sender, &env_msg).await;
         }
     }
@@ -306,10 +314,7 @@ async fn execute_ssh_command(
                 AuthMethod::with_password(&cred.value)
             }
             Some(other) => {
-                return Err(format!(
-                    "Unsupported credential type for SSH: {:?}",
-                    other
-                ));
+                return Err(format!("Unsupported credential type for SSH: {:?}", other));
             }
             None => {
                 return Err(format!(
@@ -413,10 +418,7 @@ fn shell_escape(s: &str) -> String {
 }
 
 /// Send output to the terminal
-async fn send_output(
-    sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
-    data: &str,
-) {
+async fn send_output(sender: &mut futures_util::stream::SplitSink<WebSocket, Message>, data: &str) {
     let response = TerminalResponse {
         response_type: "output".to_string(),
         data: data.to_string(),
@@ -457,10 +459,7 @@ async fn send_exit_code(
 }
 
 /// Send error message to the terminal
-async fn send_error(
-    sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
-    error: &str,
-) {
+async fn send_error(sender: &mut futures_util::stream::SplitSink<WebSocket, Message>, error: &str) {
     let error_msg = format!("\r\n\x1b[31m✗ Error: {}\x1b[0m\r\n", error);
     let response = TerminalResponse {
         response_type: "error".to_string(),
