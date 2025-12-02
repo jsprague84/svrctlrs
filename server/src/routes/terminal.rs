@@ -25,6 +25,8 @@ struct TerminalRequest {
     request_type: String,
     server_id: Option<i64>,
     command: Option<String>,
+    /// Environment variables to set before executing the command
+    env: Option<std::collections::HashMap<String, String>>,
     #[allow(dead_code)]
     cols: Option<u16>,
     #[allow(dead_code)]
@@ -87,7 +89,7 @@ async fn handle_terminal_socket(socket: WebSocket, state: AppState) {
                             if let (Some(server_id), Some(command)) =
                                 (req.server_id, req.command.as_ref())
                             {
-                                execute_command(&state, server_id, command, &mut sender).await;
+                                execute_command(&state, server_id, command, req.env.as_ref(), &mut sender).await;
                             } else {
                                 send_error(&mut sender, "Missing server_id or command").await;
                             }
@@ -146,6 +148,7 @@ async fn execute_command(
     state: &AppState,
     server_id: i64,
     command: &str,
+    env: Option<&std::collections::HashMap<String, String>>,
     sender: &mut futures_util::stream::SplitSink<WebSocket, Message>,
 ) {
     use svrctlrs_database::queries;
@@ -166,6 +169,18 @@ async fn execute_command(
     );
     send_output(sender, &executing_msg).await;
 
+    // Show environment variables if any
+    if let Some(env_vars) = env {
+        if !env_vars.is_empty() {
+            let env_display: Vec<String> = env_vars.keys().cloned().collect();
+            let env_msg = format!(
+                "\x1b[90m  env: {}\x1b[0m\r\n",
+                env_display.join(", ")
+            );
+            send_output(sender, &env_msg).await;
+        }
+    }
+
     // Get credential if assigned
     let credential = if let Some(cred_id) = server.credential_id {
         match queries::credentials::get_credential(&state.pool, cred_id).await {
@@ -185,10 +200,10 @@ async fn execute_command(
     // Execute command via SSH or locally
     let result = if server.is_local {
         // Local execution
-        execute_local_command(command).await
+        execute_local_command(command, env).await
     } else {
         // Remote execution via SSH
-        execute_ssh_command(&server, credential.as_ref(), command).await
+        execute_ssh_command(&server, credential.as_ref(), command, env).await
     };
 
     match result {
@@ -217,12 +232,23 @@ async fn execute_command(
 }
 
 /// Execute a command locally
-async fn execute_local_command(command: &str) -> Result<(String, String, i32), String> {
+async fn execute_local_command(
+    command: &str,
+    env: Option<&std::collections::HashMap<String, String>>,
+) -> Result<(String, String, i32), String> {
     use tokio::process::Command;
 
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(command)
+    let mut cmd = Command::new("sh");
+    cmd.arg("-c").arg(command);
+
+    // Add environment variables if provided
+    if let Some(env_vars) = env {
+        for (key, value) in env_vars {
+            cmd.env(key, value);
+        }
+    }
+
+    let output = cmd
         .output()
         .await
         .map_err(|e| format!("Failed to execute command: {}", e))?;
@@ -239,6 +265,7 @@ async fn execute_ssh_command(
     server: &svrctlrs_database::models::Server,
     credential: Option<&svrctlrs_database::models::Credential>,
     command: &str,
+    env: Option<&std::collections::HashMap<String, String>>,
 ) -> Result<(String, String, i32), String> {
     use async_ssh2_tokio::client::{AuthMethod, Client, ServerCheckMethod};
     use svrctlrs_database::models::CredentialType;
@@ -324,13 +351,65 @@ async fn execute_ssh_command(
     .await
     .map_err(|e| format!("SSH connection failed: {}", e))?;
 
+    // Build command with environment variables if provided
+    // SSH doesn't directly support env vars, so we prepend them to the command
+    let full_command = if let Some(env_vars) = env {
+        if !env_vars.is_empty() {
+            let env_prefix: Vec<String> = env_vars
+                .iter()
+                .map(|(k, v)| format!("{}={}", k, shell_escape(v)))
+                .collect();
+            format!("{} {}", env_prefix.join(" "), command)
+        } else {
+            command.to_string()
+        }
+    } else {
+        command.to_string()
+    };
+
     // Execute command
     let result = client
-        .execute(command)
+        .execute(&full_command)
         .await
         .map_err(|e| format!("SSH command execution failed: {}", e))?;
 
     Ok((result.stdout, result.stderr, result.exit_status as i32))
+}
+
+/// Escape a string for safe use in shell commands
+fn shell_escape(s: &str) -> String {
+    // If the string contains special characters, wrap in single quotes
+    // and escape any single quotes within
+    if s.chars().any(|c| {
+        matches!(
+            c,
+            ' ' | '"'
+                | '\''
+                | '\\'
+                | '$'
+                | '`'
+                | '!'
+                | '*'
+                | '?'
+                | '['
+                | ']'
+                | '('
+                | ')'
+                | '{'
+                | '}'
+                | '<'
+                | '>'
+                | '|'
+                | '&'
+                | ';'
+                | '\n'
+                | '\t'
+        )
+    }) {
+        format!("'{}'", s.replace('\'', "'\\''"))
+    } else {
+        s.to_string()
+    }
 }
 
 /// Send output to the terminal

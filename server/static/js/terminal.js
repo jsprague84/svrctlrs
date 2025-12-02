@@ -203,8 +203,11 @@ class TerminalManager {
 
     /**
      * Connect to WebSocket and execute command
+     * @param {number|string} serverId - The server ID to connect to
+     * @param {string} command - The command to execute
+     * @param {Array} envVars - Optional array of {key, value} environment variables
      */
-    connect(serverId, command) {
+    connect(serverId, command, envVars = []) {
         // Save command to history
         this.saveCommand(command);
 
@@ -243,12 +246,23 @@ class TerminalManager {
             this.connected = true;
             this.connecting = false;
 
+            // Build environment variables object (filter out empty entries)
+            const env = {};
+            if (envVars && Array.isArray(envVars)) {
+                envVars.forEach(({ key, value }) => {
+                    if (key && key.trim()) {
+                        env[key.trim()] = value || '';
+                    }
+                });
+            }
+
             // Send execute command
             const { cols, rows } = this.terminal;
             this.socket.send(JSON.stringify({
                 type: 'execute',
                 server_id: parseInt(serverId),
                 command: command,
+                env: Object.keys(env).length > 0 ? env : null,
                 cols: cols,
                 rows: rows
             }));
@@ -532,6 +546,9 @@ function terminalModal() {
         searchOpen: false,
         searchTerm: '',
         searchCaseSensitive: false,
+        // Environment variables state
+        envVars: [],
+        showEnvEditor: false,
 
         async init() {
             // Load servers list
@@ -603,7 +620,8 @@ function terminalModal() {
 
             window.terminalManager.connect(
                 parseInt(this.selectedServer),
-                this.command.trim()
+                this.command.trim(),
+                this.envVars
             );
 
             // Update state from terminal manager
@@ -618,6 +636,27 @@ function terminalModal() {
                 }
             };
             setTimeout(checkState, 100);
+        },
+
+        // Environment variable methods
+        addEnvVar() {
+            this.envVars.push({ key: '', value: '' });
+            this.showEnvEditor = true;
+        },
+
+        removeEnvVar(index) {
+            this.envVars.splice(index, 1);
+        },
+
+        clearEnvVars() {
+            this.envVars = [];
+        },
+
+        toggleEnvEditor() {
+            this.showEnvEditor = !this.showEnvEditor;
+            if (this.showEnvEditor && this.envVars.length === 0) {
+                this.addEnvVar();
+            }
         },
 
         clearTerminal() {
