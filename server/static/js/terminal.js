@@ -16,6 +16,7 @@ class TerminalManager {
         this.unicode11Addon = null;
         this.clipboardAddon = null;
         this.imageAddon = null;
+        this.webglAddon = null;
         this.connected = false;
         this.connecting = false;
         this.ptyMode = false;
@@ -125,6 +126,9 @@ class TerminalManager {
         if (container) {
             this.terminal.open(container);
             this.fit();
+
+            // Load WebGL addon for GPU-accelerated rendering (must be after terminal.open())
+            this.loadWebGLAddon();
         }
 
         // Handle window resize
@@ -139,6 +143,36 @@ class TerminalManager {
 
         this.initialized = true;
         return this;
+    }
+
+    /**
+     * Load WebGL addon for GPU-accelerated rendering
+     * Falls back to canvas renderer if WebGL is not available
+     */
+    loadWebGLAddon() {
+        if (typeof WebglAddon === 'undefined') {
+            console.log('WebGL addon not available, using canvas renderer');
+            return;
+        }
+
+        try {
+            this.webglAddon = new WebglAddon.WebglAddon();
+            this.terminal.loadAddon(this.webglAddon);
+            console.log('WebGL renderer enabled for GPU acceleration');
+
+            // Handle WebGL context loss (GPU crashes, driver updates, etc.)
+            this.webglAddon.onContextLoss(() => {
+                console.warn('WebGL context lost, falling back to canvas renderer');
+                this.webglAddon.dispose();
+                this.webglAddon = null;
+
+                // Attempt to restore WebGL after a delay
+                setTimeout(() => this.loadWebGLAddon(), 2000);
+            });
+        } catch (e) {
+            console.log('WebGL not supported, using canvas renderer:', e.message);
+            this.webglAddon = null;
+        }
     }
 
     /**
