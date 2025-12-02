@@ -1100,13 +1100,16 @@ curl -i -N \
 - ⬜ PTY allocation - Future enhancement (for interactive commands)
 
 **Phase 3 Multi-Terminal Debug Page**: ✅ COMPLETE
-- ✅ Dedicated `/debug` route and page
+- ✅ Dedicated `/terminal` route and page (renamed from `/debug`)
 - ✅ Layout options: single, 2-horizontal, 2-vertical, 4-grid
 - ✅ Quick command buttons (uptime, df, free, hostname, docker ps, systemctl)
 - ✅ Broadcast commands to all connected terminals
 - ✅ Per-pane server selection and command input
 - ✅ Status indicators for connection state
 - ✅ Navigation link in sidebar under "Tools" section
+- ✅ Fixed xterm.js output visibility issue (2025-12-02)
+  - CSS fix using absolute positioning for xterm element
+  - Ensures proper rendering in flexbox layouts
 
 **Next Steps**: Phase 4 (Future)
 - PTY allocation for interactive commands (sudo, vim)
