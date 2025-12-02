@@ -314,6 +314,12 @@
                 <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
             </button>
             <button type="button"
+                    class="btn btn-secondary"
+                    @click="$dispatch('open-terminal', { command: document.getElementById('command').value })"
+                    title="Test this command in a terminal">
+                <i data-lucide="terminal" style="width: 16px; height: 16px;"></i> Test
+            </button>
+            <button type="button"
                     onclick="document.getElementById('command-template-form-container').innerHTML = ''"
                     class="btn btn-secondary">
                 Cancel
@@ -608,6 +614,12 @@
         <div class="flex gap-2">
             <button type="submit" class="btn btn-primary">
                 <i data-lucide="save" style="width: 16px; height: 16px;"></i> Create
+            </button>
+            <button type="button"
+                    class="btn btn-secondary"
+                    @click="$dispatch('open-terminal', { command: document.getElementById('command').value })"
+                    title="Test this command in a terminal">
+                <i data-lucide="terminal" style="width: 16px; height: 16px;"></i> Test
             </button>
             <button type="button"
                     onclick="document.getElementById('command-template-form-container').innerHTML = ''"

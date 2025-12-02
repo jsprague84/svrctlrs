@@ -1,0 +1,336 @@
+<!-- Terminal Modal Component -->
+<!--
+    Global terminal modal that can be triggered from any page.
+    Usage: dispatch 'open-terminal' event with optional command and serverId
+    Example: $dispatch('open-terminal', { command: 'ls -la', serverId: 1 })
+-->
+<div id="terminal-modal"
+     class="modal-overlay"
+     x-data="terminalModal()"
+     x-show="open"
+     x-cloak
+     @open-terminal.window="openTerminal($event.detail)"
+     @keydown.escape.window="if(open) closeTerminal()"
+     style="display: none;">
+
+    <div class="modal-backdrop" @click="closeTerminal()"></div>
+
+    <div class="modal-dialog modal-terminal">
+        <div class="modal-content">
+            <!-- Modal Header -->
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i data-lucide="terminal" style="width: 20px; height: 20px;"></i>
+                    Terminal
+                </h3>
+                <div class="terminal-status">
+                    <span x-show="connected" class="status-badge status-connected">
+                        <i data-lucide="wifi" style="width: 12px; height: 12px;"></i>
+                        Connected
+                    </span>
+                    <span x-show="!connected && !connecting" class="status-badge status-disconnected">
+                        <i data-lucide="wifi-off" style="width: 12px; height: 12px;"></i>
+                        Disconnected
+                    </span>
+                    <span x-show="connecting" class="status-badge status-connecting">
+                        <i data-lucide="loader" style="width: 12px; height: 12px;" class="spin"></i>
+                        Connecting...
+                    </span>
+                </div>
+                <button type="button"
+                        class="btn-close"
+                        @click="closeTerminal()"
+                        aria-label="Close">
+                    <i data-lucide="x" style="width: 18px; height: 18px;"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body">
+                <!-- Server Selection & Command Input Row -->
+                <div class="terminal-controls">
+                    <div class="form-group terminal-server-select">
+                        <label for="terminal-server-select">
+                            <i data-lucide="server" style="width: 14px; height: 14px;"></i>
+                            Server
+                        </label>
+                        <select id="terminal-server-select"
+                                x-model="selectedServer"
+                                @change="serverChanged()"
+                                class="form-control">
+                            <option value="">Select server...</option>
+                            <template x-for="server in servers" :key="server.id">
+                                <option :value="server.id" x-text="server.name + (server.hostname ? ' (' + server.hostname + ')' : '')"></option>
+                            </template>
+                        </select>
+                    </div>
+
+                    <div class="form-group terminal-command-input">
+                        <label for="terminal-command-input">
+                            <i data-lucide="code" style="width: 14px; height: 14px;"></i>
+                            Command
+                        </label>
+                        <div class="input-group">
+                            <input type="text"
+                                   id="terminal-command-input"
+                                   class="form-control font-mono"
+                                   x-model="command"
+                                   @keydown.enter="executeCommand()"
+                                   @keydown.up="historyUp()"
+                                   @keydown.down="historyDown()"
+                                   placeholder="Enter command..."
+                                   :disabled="!selectedServer || executing">
+                            <button class="btn btn-primary"
+                                    @click="executeCommand()"
+                                    :disabled="!selectedServer || !command.trim() || executing">
+                                <template x-if="!executing">
+                                    <span><i data-lucide="play" style="width: 14px; height: 14px;"></i> Run</span>
+                                </template>
+                                <template x-if="executing">
+                                    <span><i data-lucide="loader" style="width: 14px; height: 14px;" class="spin"></i> Running</span>
+                                </template>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Terminal Container -->
+                <div class="terminal-container" id="terminal-container">
+                    <div id="terminal-output"></div>
+                </div>
+
+                <!-- Terminal Actions -->
+                <div class="terminal-actions">
+                    <button class="btn btn-sm btn-secondary"
+                            @click="clearTerminal()"
+                            title="Clear terminal output">
+                        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                        Clear
+                    </button>
+
+                    <button class="btn btn-sm btn-secondary"
+                            @click="copyOutput()"
+                            title="Copy output to clipboard">
+                        <i data-lucide="copy" style="width: 14px; height: 14px;"></i>
+                        Copy
+                    </button>
+
+                    <button class="btn btn-sm btn-secondary"
+                            @click="downloadOutput()"
+                            title="Download output as text file">
+                        <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                        Download
+                    </button>
+
+                    <button class="btn btn-sm btn-secondary"
+                            @click="reconnect()"
+                            :disabled="connected || connecting"
+                            title="Reconnect to server">
+                        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
+                        Reconnect
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Terminal Modal Styles */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: -1;
+}
+
+.modal-dialog.modal-terminal {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 1000px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-terminal .modal-content {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    max-height: 90vh;
+    overflow: hidden;
+}
+
+.modal-terminal .modal-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+}
+
+.modal-terminal .modal-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.modal-terminal .terminal-status {
+    margin-left: auto;
+}
+
+.modal-terminal .btn-close {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.modal-terminal .btn-close:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.modal-terminal .modal-body {
+    padding: 1rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow: hidden;
+    flex: 1;
+}
+
+/* Terminal Controls */
+.terminal-controls {
+    display: grid;
+    grid-template-columns: 250px 1fr;
+    gap: 1rem;
+}
+
+@media (max-width: 768px) {
+    .terminal-controls {
+        grid-template-columns: 1fr;
+    }
+}
+
+.terminal-controls .form-group {
+    margin: 0;
+}
+
+.terminal-controls label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.terminal-controls .input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.terminal-controls .input-group .form-control {
+    flex: 1;
+}
+
+/* Terminal Container */
+.terminal-container {
+    background: #1a1b26; /* Tokyo Night background */
+    border-radius: 6px;
+    padding: 0;
+    height: 400px;
+    min-height: 300px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+[data-theme="dark"] .terminal-container,
+[data-theme="nord"] .terminal-container {
+    background: #2e3440; /* Nord background */
+}
+
+#terminal-output {
+    height: 100%;
+    width: 100%;
+}
+
+/* Terminal Actions */
+.terminal-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Status Badges */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-connected {
+    background: rgba(163, 190, 140, 0.2);
+    color: #a3be8c;
+}
+
+.status-disconnected {
+    background: rgba(191, 97, 106, 0.2);
+    color: #bf616a;
+}
+
+.status-connecting {
+    background: rgba(235, 203, 139, 0.2);
+    color: #ebcb8b;
+}
+
+/* Spinning animation for loader icons */
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+/* Font mono utility */
+.font-mono {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Menlo, Monaco, 'Courier New', monospace;
+}
+
+/* Hide elements with x-cloak until Alpine initializes */
+[x-cloak] {
+    display: none !important;
+}
+</style>

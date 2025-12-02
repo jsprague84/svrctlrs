@@ -57,6 +57,15 @@
     <!-- HTMX -->
     <script defer src="/static/js/htmx.min.js"></script>
 
+    <!-- xterm.js for terminal emulation -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-search@0.13.0/lib/xterm-addon-search.js"></script>
+
+    <!-- Terminal Manager (must load before Alpine.js) -->
+    <script src="/static/js/terminal.js"></script>
+
     <!-- Initialize Lucide icons after DOM loads -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -303,6 +312,9 @@
         </div>
     </div>
     
+    <!-- Terminal Modal (Global) -->
+    {% include "components/terminal_modal.html" %}
+
     <!-- Toast notifications container -->
     <div id="toast-container" style="position: fixed; top: 80px; right: 20px; z-index: 1000;">
         <!-- Toasts will be injected here via HTMX -->
