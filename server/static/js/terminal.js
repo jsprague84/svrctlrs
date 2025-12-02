@@ -375,6 +375,58 @@ class TerminalManager {
     }
 
     /**
+     * Search terminal output
+     */
+    search(term, options = {}) {
+        if (!this.searchAddon || !term) {
+            return false;
+        }
+        return this.searchAddon.findNext(term, {
+            caseSensitive: options.caseSensitive || false,
+            wholeWord: options.wholeWord || false,
+            regex: options.regex || false,
+            incremental: true
+        });
+    }
+
+    /**
+     * Find next match
+     */
+    searchNext(term, options = {}) {
+        if (!this.searchAddon || !term) {
+            return false;
+        }
+        return this.searchAddon.findNext(term, {
+            caseSensitive: options.caseSensitive || false,
+            wholeWord: options.wholeWord || false,
+            regex: options.regex || false
+        });
+    }
+
+    /**
+     * Find previous match
+     */
+    searchPrevious(term, options = {}) {
+        if (!this.searchAddon || !term) {
+            return false;
+        }
+        return this.searchAddon.findPrevious(term, {
+            caseSensitive: options.caseSensitive || false,
+            wholeWord: options.wholeWord || false,
+            regex: options.regex || false
+        });
+    }
+
+    /**
+     * Clear search highlights
+     */
+    clearSearch() {
+        if (this.searchAddon) {
+            this.searchAddon.clearDecorations();
+        }
+    }
+
+    /**
      * Save command to history
      */
     saveCommand(command) {
@@ -469,6 +521,10 @@ function terminalModal() {
         connected: false,
         connecting: false,
         servers: [],
+        // Search state
+        searchOpen: false,
+        searchTerm: '',
+        searchCaseSensitive: false,
 
         async init() {
             // Load servers list
@@ -585,6 +641,48 @@ function terminalModal() {
         historyDown() {
             const cmd = window.terminalManager.getNextCommand();
             this.command = cmd;
+        },
+
+        // Search methods
+        toggleSearch() {
+            this.searchOpen = !this.searchOpen;
+            if (this.searchOpen) {
+                this.$nextTick(() => {
+                    const input = document.getElementById('terminal-search-input');
+                    if (input) input.focus();
+                });
+            } else {
+                this.clearSearch();
+            }
+        },
+
+        searchOutput() {
+            if (this.searchTerm) {
+                window.terminalManager.search(this.searchTerm, {
+                    caseSensitive: this.searchCaseSensitive
+                });
+            }
+        },
+
+        searchNext() {
+            if (this.searchTerm) {
+                window.terminalManager.searchNext(this.searchTerm, {
+                    caseSensitive: this.searchCaseSensitive
+                });
+            }
+        },
+
+        searchPrevious() {
+            if (this.searchTerm) {
+                window.terminalManager.searchPrevious(this.searchTerm, {
+                    caseSensitive: this.searchCaseSensitive
+                });
+            }
+        },
+
+        clearSearch() {
+            this.searchTerm = '';
+            window.terminalManager.clearSearch();
         }
     };
 }
