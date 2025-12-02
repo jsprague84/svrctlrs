@@ -226,6 +226,56 @@
                         <i data-lucide="refresh-cw" style="width: 14px; height: 14px;"></i>
                         Reconnect
                     </button>
+
+                    <!-- Settings Dropdown -->
+                    <div class="settings-dropdown-container">
+                        <button class="btn btn-sm btn-secondary"
+                                @click="toggleSettingsMenu()"
+                                :class="{ 'active': showSettingsMenu }"
+                                title="Terminal settings">
+                            <i data-lucide="settings" style="width: 14px; height: 14px;"></i>
+                            Settings
+                        </button>
+                        <div class="settings-dropdown" x-show="showSettingsMenu" x-transition @click.away="showSettingsMenu = false">
+                            <div class="settings-dropdown-header">
+                                <i data-lucide="terminal" style="width: 14px; height: 14px;"></i>
+                                Terminal Settings
+                            </div>
+
+                            <!-- Profile Selection -->
+                            <div class="settings-section">
+                                <label class="settings-label">Profile</label>
+                                <select class="form-control form-control-sm"
+                                        x-model="selectedProfileId"
+                                        @change="applyProfile(selectedProfileId)">
+                                    <option value="">Default</option>
+                                    <template x-for="profile in profiles" :key="profile.id">
+                                        <option :value="profile.id" x-text="profile.name"></option>
+                                    </template>
+                                </select>
+                            </div>
+
+                            <!-- Current Settings Display -->
+                            <div class="settings-current">
+                                <div class="settings-info">
+                                    <span class="settings-info-label">Font Size:</span>
+                                    <span class="settings-info-value" x-text="currentFontSize + 'px'"></span>
+                                </div>
+                                <div class="settings-info">
+                                    <span class="settings-info-label">Cursor:</span>
+                                    <span class="settings-info-value" x-text="currentCursorStyle"></span>
+                                </div>
+                            </div>
+
+                            <!-- Link to Full Terminal Page -->
+                            <div class="settings-footer">
+                                <a href="/terminal" class="btn btn-sm btn-secondary" style="width: 100%;">
+                                    <i data-lucide="external-link" style="width: 12px; height: 12px;"></i>
+                                    Open Full Terminal
+                                </a>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -617,5 +667,90 @@
 .btn-danger-ghost:hover {
     background: rgba(191, 97, 106, 0.15);
     color: #bf616a;
+}
+
+/* Settings Dropdown */
+.settings-dropdown-container {
+    position: relative;
+}
+
+.settings-dropdown {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    margin-bottom: 0.5rem;
+    min-width: 220px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    z-index: 100;
+    overflow: hidden;
+}
+
+.settings-dropdown-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-tertiary);
+    border-bottom: 1px solid var(--border-color);
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+}
+
+.settings-section {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.settings-label {
+    display: block;
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 0.375rem;
+}
+
+.settings-section .form-control-sm {
+    width: 100%;
+}
+
+.settings-current {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-tertiary);
+}
+
+.settings-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    padding: 0.25rem 0;
+}
+
+.settings-info-label {
+    color: var(--text-secondary);
+}
+
+.settings-info-value {
+    color: var(--text-primary);
+    font-weight: 500;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.settings-footer {
+    padding: 0.75rem 1rem;
+}
+
+.settings-footer .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 </style>

@@ -21,7 +21,10 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/terminal", get(terminal_page))
         // Terminal profile API endpoints
-        .route("/terminal/profiles", get(list_profiles).post(create_profile))
+        .route(
+            "/terminal/profiles",
+            get(list_profiles).post(create_profile),
+        )
         .route(
             "/terminal/profiles/{id}",
             get(get_profile).delete(delete_profile),

@@ -765,6 +765,48 @@ class TerminalManager {
     }
 
     /**
+     * Apply terminal settings
+     * @param {Object} settings - Terminal settings object
+     * @param {number} settings.fontSize - Font size in pixels
+     * @param {string} settings.cursorStyle - Cursor style: 'block', 'underline', or 'bar'
+     * @param {number} settings.scrollback - Number of scrollback lines
+     * @param {boolean} settings.cursorBlink - Whether cursor should blink
+     */
+    applySettings(settings) {
+        if (!this.terminal) return;
+
+        if (settings.fontSize !== undefined) {
+            this.terminal.options.fontSize = parseInt(settings.fontSize);
+        }
+        if (settings.cursorStyle !== undefined) {
+            this.terminal.options.cursorStyle = settings.cursorStyle;
+        }
+        if (settings.scrollback !== undefined) {
+            this.terminal.options.scrollback = parseInt(settings.scrollback);
+        }
+        if (settings.cursorBlink !== undefined) {
+            this.terminal.options.cursorBlink = !!settings.cursorBlink;
+        }
+
+        // Refit after settings change
+        this.fit();
+    }
+
+    /**
+     * Get current terminal settings
+     * @returns {Object} Current terminal settings
+     */
+    getSettings() {
+        if (!this.terminal) return null;
+        return {
+            fontSize: this.terminal.options.fontSize,
+            cursorStyle: this.terminal.options.cursorStyle,
+            scrollback: this.terminal.options.scrollback,
+            cursorBlink: this.terminal.options.cursorBlink
+        };
+    }
+
+    /**
      * Dispose terminal resources
      */
     dispose() {
@@ -799,10 +841,26 @@ function terminalModal() {
         // Environment variables state
         envVars: [],
         showEnvEditor: false,
+        // Profile/settings state
+        profiles: [],
+        selectedProfileId: '',
+        showSettingsMenu: false,
+        // Current settings display
+        currentFontSize: 14,
+        currentCursorStyle: 'block',
 
         async init() {
-            // Load servers list
-            await this.loadServers();
+            // Load servers and profiles
+            await Promise.all([
+                this.loadServers(),
+                this.loadProfiles()
+            ]);
+
+            // Load last-used profile from localStorage
+            const lastProfileId = localStorage.getItem('svrctlrs-terminal-profile');
+            if (lastProfileId) {
+                this.selectedProfileId = lastProfileId;
+            }
 
             // Watch terminal manager state
             this.$watch('executing', () => {
@@ -826,6 +884,60 @@ function terminalModal() {
             }
         },
 
+        async loadProfiles() {
+            try {
+                const response = await fetch('/terminal/profiles');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.profiles = data.profiles || [];
+                }
+            } catch (e) {
+                console.error('Failed to load terminal profiles:', e);
+                this.profiles = [];
+            }
+        },
+
+        applyProfile(profileId) {
+            if (!profileId) return;
+
+            const profile = this.profiles.find(p => p.id === parseInt(profileId));
+            if (!profile) return;
+
+            // Extract settings from profile's pane_configs (stored in first pane)
+            let settings = null;
+            if (profile.pane_configs && Array.isArray(profile.pane_configs) && profile.pane_configs[0]) {
+                settings = profile.pane_configs[0].terminal_settings;
+            }
+
+            if (settings && window.terminalManager) {
+                window.terminalManager.applySettings(settings);
+
+                // Update current settings display
+                this.currentFontSize = settings.fontSize || 14;
+                this.currentCursorStyle = settings.cursorStyle || 'block';
+
+                console.log('Applied terminal profile:', profile.name, settings);
+            }
+
+            // Save selection to localStorage
+            localStorage.setItem('svrctlrs-terminal-profile', profileId);
+            this.selectedProfileId = profileId;
+            this.showSettingsMenu = false;
+        },
+
+        toggleSettingsMenu() {
+            this.showSettingsMenu = !this.showSettingsMenu;
+
+            // Update current settings display when opening
+            if (this.showSettingsMenu && window.terminalManager) {
+                const settings = window.terminalManager.getSettings();
+                if (settings) {
+                    this.currentFontSize = settings.fontSize;
+                    this.currentCursorStyle = settings.cursorStyle;
+                }
+            }
+        },
+
         openTerminal(detail) {
             this.open = true;
             this.command = detail?.command || '';
@@ -840,6 +952,12 @@ function terminalModal() {
                 // Fit terminal after modal animation
                 setTimeout(() => {
                     window.terminalManager.fit();
+
+                    // Apply saved profile settings if available
+                    if (this.selectedProfileId) {
+                        this.applyProfile(this.selectedProfileId);
+                    }
+
                     // Re-initialize lucide icons
                     if (typeof lucide !== 'undefined') {
                         lucide.createIcons();

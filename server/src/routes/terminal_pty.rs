@@ -50,10 +50,7 @@ pub fn routes() -> Router<AppState> {
 }
 
 /// WebSocket upgrade handler for interactive PTY
-async fn pty_ws_handler(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> impl IntoResponse {
+async fn pty_ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
     info!("Interactive PTY WebSocket connection request");
     ws.on_upgrade(move |socket| handle_pty_socket(socket, state))
 }
@@ -168,7 +165,15 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState) {
                                     let cols = req.cols.unwrap_or(80);
                                     let rows = req.rows.unwrap_or(24);
 
-                                    match start_pty_session(&state, server_id, cols, rows, ssh_tx.clone()).await {
+                                    match start_pty_session(
+                                        &state,
+                                        server_id,
+                                        cols,
+                                        rows,
+                                        ssh_tx.clone(),
+                                    )
+                                    .await
+                                    {
                                         Ok(session) => {
                                             active_session = Some(session);
                                             let connected = PtyResponse {
@@ -195,7 +200,9 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState) {
                             }
                             "input" => {
                                 // Send input to PTY
-                                if let (Some(ref mut session), Some(data)) = (&mut active_session, req.data) {
+                                if let (Some(ref mut session), Some(data)) =
+                                    (&mut active_session, req.data)
+                                {
                                     if let Err(e) = session.send_data(data.as_bytes()).await {
                                         warn!("Failed to send data to PTY: {}", e);
                                     }
@@ -336,7 +343,10 @@ async fn start_pty_session(
 
     info!(
         "Attempting PTY connection to {}@{}:{} with {} potential keys",
-        username, hostname, port, key_paths_to_try.len()
+        username,
+        hostname,
+        port,
+        key_paths_to_try.len()
     );
 
     // Try each key until one works
@@ -433,8 +443,8 @@ async fn start_pty_session(
                         "xterm-256color",
                         cols,
                         rows,
-                        0, // pix width
-                        0, // pix height
+                        0,   // pix width
+                        0,   // pix height
                         &[], // terminal modes
                     )
                     .await
