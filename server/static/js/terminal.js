@@ -436,6 +436,8 @@ class TerminalManager {
 
                     case 'connected':
                         this.terminal.write(response.data);
+                        // Focus the terminal so it can receive keyboard input
+                        this.terminal.focus();
                         break;
 
                     case 'error':
