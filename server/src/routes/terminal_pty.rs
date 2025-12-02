@@ -296,147 +296,216 @@ async fn start_pty_session(
         None
     };
 
-    // Load SSH key
-    let key_path = if let Some(ref cred) = credential {
+    // Build list of SSH keys to try
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .unwrap_or_else(|_| "/home/svrctlrs".to_string());
+
+    let mut key_paths_to_try: Vec<String> = Vec::new();
+
+    // If credential is assigned and is an SSH key, try it first
+    if let Some(ref cred) = credential {
         if cred.credential_type_str == "ssh_key" {
-            cred.value.clone()
-        } else {
-            return Err("Only SSH key authentication is supported for interactive PTY".to_string());
+            key_paths_to_try.push(cred.value.clone());
         }
-    } else {
-        // Try default SSH key
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        let default_paths = vec![
-            format!("{}/.ssh/id_ed25519", home),
-            format!("{}/.ssh/id_rsa", home),
-        ];
+        // If it's a password credential, we could try keyboard-interactive auth
+        // but russh doesn't support it easily, so fall through to try default keys
+    }
 
-        default_paths
-            .into_iter()
-            .find(|p| std::path::Path::new(p).exists())
-            .ok_or_else(|| "No SSH key found for authentication".to_string())?
-    };
+    // Add default SSH key paths
+    let default_paths = vec![
+        format!("{}/.ssh/id_ed25519", home),
+        format!("{}/.ssh/id_rsa", home),
+        format!("{}/.ssh/id_ecdsa", home),
+        format!("{}/.ssh/id_dsa", home),
+    ];
 
-    // Load the private key
-    let key_content = tokio::fs::read_to_string(&key_path)
-        .await
-        .map_err(|e| format!("Failed to read SSH key: {}", e))?;
-
-    let key_pair = russh::keys::decode_secret_key(&key_content, None)
-        .map_err(|e| format!("Failed to decode SSH key: {}", e))?;
-
-    // Connect to SSH server
-    let config = Arc::new(russh::client::Config::default());
-    let handler = SshClientHandler;
-
-    let mut session = russh::client::connect(config, (hostname, port), handler)
-        .await
-        .map_err(|e| format!("SSH connection failed: {}", e))?;
-
-    // Authenticate with public key
-    let auth_result = session
-        .authenticate_publickey(
-            &username,
-            PrivateKeyWithHashAlg::new(Arc::new(key_pair), None),
-        )
-        .await
-        .map_err(|e| format!("SSH authentication failed: {}", e))?;
-
-    match auth_result {
-        russh::client::AuthResult::Success => {}
-        _ => {
-            return Err("SSH authentication failed: key rejected".to_string());
+    for path in default_paths {
+        if !key_paths_to_try.contains(&path) && std::path::Path::new(&path).exists() {
+            key_paths_to_try.push(path);
         }
     }
 
-    // Open a channel
-    let channel = session
-        .channel_open_session()
-        .await
-        .map_err(|e| format!("Failed to open channel: {}", e))?;
+    if key_paths_to_try.is_empty() {
+        return Err(format!(
+            "No SSH keys found in {}/.ssh/. Please configure an SSH key credential or ensure keys are available.",
+            home
+        ));
+    }
 
-    // Request PTY
-    channel
-        .request_pty(
-            false, // want_reply
-            "xterm-256color",
-            cols,
-            rows,
-            0, // pix width
-            0, // pix height
-            &[], // terminal modes
-        )
-        .await
-        .map_err(|e| format!("Failed to request PTY: {}", e))?;
+    info!(
+        "Attempting PTY connection to {}@{}:{} with {} potential keys",
+        username, hostname, port, key_paths_to_try.len()
+    );
 
-    // Start shell
-    channel
-        .request_shell(false)
-        .await
-        .map_err(|e| format!("Failed to start shell: {}", e))?;
+    // Try each key until one works
+    let mut last_error = String::new();
+    let mut tried_keys: Vec<String> = Vec::new();
 
-    // Create command channel for sending data/commands to the PTY
-    let (command_tx, mut command_rx) = mpsc::channel::<PtyCommand>(256);
+    for key_path in &key_paths_to_try {
+        if !std::path::Path::new(key_path).exists() {
+            debug!("SSH key not found, skipping: {}", key_path);
+            continue;
+        }
 
-    // Spawn task to handle channel I/O - owns the channel
-    tokio::spawn(async move {
-        let mut channel = channel;
-        loop {
-            tokio::select! {
-                // Handle commands from WebSocket
-                cmd = command_rx.recv() => {
-                    match cmd {
-                        Some(PtyCommand::Data(data)) => {
-                            if channel.data(&data[..]).await.is_err() {
-                                break;
+        tried_keys.push(key_path.clone());
+        info!("Trying SSH key: {}", key_path);
+
+        // Load the private key
+        let key_content = match tokio::fs::read_to_string(key_path).await {
+            Ok(content) => content,
+            Err(e) => {
+                debug!("Failed to read SSH key {}: {}", key_path, e);
+                last_error = format!("Failed to read key {}: {}", key_path, e);
+                continue;
+            }
+        };
+
+        let key_pair = match russh::keys::decode_secret_key(&key_content, None) {
+            Ok(kp) => kp,
+            Err(e) => {
+                debug!("Failed to decode SSH key {}: {}", key_path, e);
+                last_error = format!("Failed to decode key {}: {}", key_path, e);
+                continue;
+            }
+        };
+
+        // Connect to SSH server (new connection for each attempt)
+        let config = Arc::new(russh::client::Config::default());
+        let handler = SshClientHandler;
+
+        let mut session = match russh::client::connect(config, (hostname, port), handler).await {
+            Ok(s) => s,
+            Err(e) => {
+                last_error = format!("SSH connection failed: {}", e);
+                // Connection failure means we can't try other keys on this server
+                return Err(last_error);
+            }
+        };
+
+        // Authenticate with public key
+        let auth_result = match session
+            .authenticate_publickey(
+                &username,
+                PrivateKeyWithHashAlg::new(Arc::new(key_pair), None),
+            )
+            .await
+        {
+            Ok(result) => result,
+            Err(e) => {
+                debug!("Authentication error with key {}: {}", key_path, e);
+                last_error = format!("Authentication error with {}: {}", key_path, e);
+                continue;
+            }
+        };
+
+        match auth_result {
+            russh::client::AuthResult::Success => {
+                info!("Successfully authenticated with key: {}", key_path);
+
+                // Open a channel
+                let channel = session
+                    .channel_open_session()
+                    .await
+                    .map_err(|e| format!("Failed to open channel: {}", e))?;
+
+                // Request PTY
+                channel
+                    .request_pty(
+                        false, // want_reply
+                        "xterm-256color",
+                        cols,
+                        rows,
+                        0, // pix width
+                        0, // pix height
+                        &[], // terminal modes
+                    )
+                    .await
+                    .map_err(|e| format!("Failed to request PTY: {}", e))?;
+
+                // Start shell
+                channel
+                    .request_shell(false)
+                    .await
+                    .map_err(|e| format!("Failed to start shell: {}", e))?;
+
+                // Create command channel for sending data/commands to the PTY
+                let (command_tx, mut command_rx) = mpsc::channel::<PtyCommand>(256);
+
+                // Spawn task to handle channel I/O - owns the channel
+                tokio::spawn(async move {
+                    let mut channel = channel;
+                    loop {
+                        tokio::select! {
+                            // Handle commands from WebSocket
+                            cmd = command_rx.recv() => {
+                                match cmd {
+                                    Some(PtyCommand::Data(data)) => {
+                                        if channel.data(&data[..]).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Some(PtyCommand::Resize { cols, rows }) => {
+                                        if channel.window_change(cols, rows, 0, 0).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Some(PtyCommand::Close) | None => {
+                                        let _ = channel.eof().await;
+                                        let _ = channel.close().await;
+                                        break;
+                                    }
+                                }
                             }
-                        }
-                        Some(PtyCommand::Resize { cols, rows }) => {
-                            if channel.window_change(cols, rows, 0, 0).await.is_err() {
-                                break;
+                            // Handle output from SSH
+                            msg = channel.wait() => {
+                                match msg {
+                                    Some(russh::ChannelMsg::Data { data }) => {
+                                        let text = String::from_utf8_lossy(&data).to_string();
+                                        if output_tx.send(text).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Some(russh::ChannelMsg::ExtendedData { data, .. }) => {
+                                        // Extended data (usually stderr)
+                                        let text = String::from_utf8_lossy(&data).to_string();
+                                        if output_tx.send(text).await.is_err() {
+                                            break;
+                                        }
+                                    }
+                                    Some(russh::ChannelMsg::Eof) => {
+                                        output_tx.send("\r\n\x1b[33m[Session ended]\x1b[0m\r\n".to_string()).await.ok();
+                                        break;
+                                    }
+                                    Some(russh::ChannelMsg::Close) => {
+                                        break;
+                                    }
+                                    Some(russh::ChannelMsg::ExitStatus { exit_status }) => {
+                                        let msg = format!("\r\n\x1b[90m[Exit status: {}]\x1b[0m\r\n", exit_status);
+                                        output_tx.send(msg).await.ok();
+                                    }
+                                    None => break,
+                                    _ => {}
+                                }
                             }
-                        }
-                        Some(PtyCommand::Close) | None => {
-                            let _ = channel.eof().await;
-                            let _ = channel.close().await;
-                            break;
                         }
                     }
-                }
-                // Handle output from SSH
-                msg = channel.wait() => {
-                    match msg {
-                        Some(russh::ChannelMsg::Data { data }) => {
-                            let text = String::from_utf8_lossy(&data).to_string();
-                            if output_tx.send(text).await.is_err() {
-                                break;
-                            }
-                        }
-                        Some(russh::ChannelMsg::ExtendedData { data, .. }) => {
-                            // Extended data (usually stderr)
-                            let text = String::from_utf8_lossy(&data).to_string();
-                            if output_tx.send(text).await.is_err() {
-                                break;
-                            }
-                        }
-                        Some(russh::ChannelMsg::Eof) => {
-                            output_tx.send("\r\n\x1b[33m[Session ended]\x1b[0m\r\n".to_string()).await.ok();
-                            break;
-                        }
-                        Some(russh::ChannelMsg::Close) => {
-                            break;
-                        }
-                        Some(russh::ChannelMsg::ExitStatus { exit_status }) => {
-                            let msg = format!("\r\n\x1b[90m[Exit status: {}]\x1b[0m\r\n", exit_status);
-                            output_tx.send(msg).await.ok();
-                        }
-                        None => break,
-                        _ => {}
-                    }
-                }
+                });
+
+                return Ok(PtySession { command_tx });
+            }
+            _ => {
+                debug!("Key rejected by server: {}", key_path);
+                last_error = format!("Key rejected: {}", key_path);
+                continue;
             }
         }
-    });
+    }
 
-    Ok(PtySession { command_tx })
+    // All keys failed
+    Err(format!(
+        "SSH authentication failed. Tried keys: {}. Last error: {}",
+        tried_keys.join(", "),
+        last_error
+    ))
 }
