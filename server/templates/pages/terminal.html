@@ -473,7 +473,13 @@
      x-init="init()">
 
     <div class="flex-between">
-        <h1>Terminal</h1>
+        <div class="flex gap-2 align-center">
+            <h1>Terminal</h1>
+            <span id="ws-status" class="badge badge-secondary" style="font-size: 0.75rem;"
+                  x-text="getActiveConnectionCount() > 0 ? getActiveConnectionCount() + ' active' : 'No connections'"
+                  :class="getActiveConnectionCount() > 0 ? 'badge-success' : 'badge-secondary'">
+            </span>
+        </div>
         <div style="display: flex; gap: 16px; align-items: center;">
             <!-- Profiles -->
             <div style="display: flex; gap: 8px; align-items: center;">
@@ -1414,6 +1420,10 @@ function debugConsole() {
             return serverData.filter(s =>
                 s.tagIds.some(tagId => this.selectedTags.includes(tagId))
             ).length;
+        },
+
+        getActiveConnectionCount() {
+            return this.panes.filter(p => p.status === 'connected').length;
         },
 
         getServersForSelectedTags() {
