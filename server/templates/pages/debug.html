@@ -1,0 +1,520 @@
+{% extends "base.html" %}
+
+{% block title %}Debug Console - SvrCtlRS{% endblock %}
+{% block nav_debug %}active{% endblock %}
+
+{% block head %}
+<style>
+    .debug-container {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 100px);
+        gap: 12px;
+    }
+
+    .debug-toolbar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .debug-layout-btns {
+        display: flex;
+        gap: 4px;
+    }
+
+    .debug-layout-btns button {
+        padding: 6px 10px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 12px;
+    }
+
+    .debug-layout-btns button.active {
+        background: var(--accent-color);
+        color: var(--bg-primary);
+        border-color: var(--accent-color);
+    }
+
+    .terminals-grid {
+        display: grid;
+        gap: 12px;
+        flex: 1;
+        min-height: 0;
+    }
+
+    .terminals-grid.layout-1 {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+    }
+
+    .terminals-grid.layout-2h {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr;
+    }
+
+    .terminals-grid.layout-2v {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr 1fr;
+    }
+
+    .terminals-grid.layout-4 {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+    }
+
+    .terminal-pane {
+        display: flex;
+        flex-direction: column;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        overflow: hidden;
+        min-height: 0;
+    }
+
+    .terminal-pane-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 12px;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border-color);
+        flex-shrink: 0;
+    }
+
+    .terminal-pane-header .pane-title {
+        font-weight: 500;
+        font-size: 12px;
+        color: var(--text-secondary);
+    }
+
+    .terminal-pane-header select {
+        padding: 4px 8px;
+        font-size: 12px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-primary);
+        min-width: 150px;
+    }
+
+    .terminal-pane-header .pane-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 4px;
+    }
+
+    .terminal-pane-header .pane-actions button {
+        padding: 4px 8px;
+        font-size: 11px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-secondary);
+        cursor: pointer;
+    }
+
+    .terminal-pane-header .pane-actions button:hover {
+        background: var(--bg-secondary);
+    }
+
+    .terminal-pane-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        padding: 4px;
+    }
+
+    .terminal-pane-body .terminal-container {
+        flex: 1;
+        min-height: 0;
+    }
+
+    .terminal-pane-body .terminal-input-row {
+        display: flex;
+        gap: 8px;
+        padding: 8px 0 4px;
+        flex-shrink: 0;
+    }
+
+    .terminal-pane-body .terminal-input-row input {
+        flex: 1;
+        padding: 6px 10px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-primary);
+        font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+        font-size: 13px;
+    }
+
+    .terminal-pane-body .terminal-input-row button {
+        padding: 6px 12px;
+        background: var(--accent-color);
+        border: none;
+        border-radius: 4px;
+        color: var(--bg-primary);
+        cursor: pointer;
+        font-size: 12px;
+    }
+
+    .terminal-pane-body .terminal-input-row button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    /* Status indicators */
+    .status-indicator {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--text-muted);
+    }
+
+    .status-indicator.connected {
+        background: var(--success-color);
+    }
+
+    .status-indicator.disconnected {
+        background: var(--text-muted);
+    }
+
+    .status-indicator.error {
+        background: var(--error-color);
+    }
+
+    /* Quick commands panel */
+    .quick-commands {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 8px 12px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .quick-commands label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-right: 8px;
+    }
+
+    .quick-commands button {
+        padding: 4px 10px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-primary);
+        font-size: 11px;
+        cursor: pointer;
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    .quick-commands button:hover {
+        background: var(--bg-primary);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="debug-container"
+     x-data="debugConsole()"
+     x-init="init()">
+
+    <div class="flex-between">
+        <h1>Debug Console</h1>
+        <div class="debug-layout-btns">
+            <button @click="setLayout('1')" :class="{ active: layout === '1' }" title="Single terminal">
+                <i data-lucide="square" style="width: 14px; height: 14px;"></i>
+            </button>
+            <button @click="setLayout('2h')" :class="{ active: layout === '2h' }" title="Two horizontal">
+                <i data-lucide="columns-2" style="width: 14px; height: 14px;"></i>
+            </button>
+            <button @click="setLayout('2v')" :class="{ active: layout === '2v' }" title="Two vertical">
+                <i data-lucide="rows-2" style="width: 14px; height: 14px;"></i>
+            </button>
+            <button @click="setLayout('4')" :class="{ active: layout === '4' }" title="Four terminals">
+                <i data-lucide="layout-grid" style="width: 14px; height: 14px;"></i>
+            </button>
+        </div>
+    </div>
+
+    <p class="text-secondary mb-2" style="font-size: 13px;">
+        Multi-terminal interface for debugging and testing commands across servers.
+    </p>
+
+    <!-- Quick Commands -->
+    <div class="quick-commands">
+        <label>Quick Commands:</label>
+        <button @click="broadcastCommand('uptime')">uptime</button>
+        <button @click="broadcastCommand('df -h')">df -h</button>
+        <button @click="broadcastCommand('free -m')">free -m</button>
+        <button @click="broadcastCommand('hostname')">hostname</button>
+        <button @click="broadcastCommand('docker ps')">docker ps</button>
+        <button @click="broadcastCommand('systemctl status')">systemctl</button>
+    </div>
+
+    <!-- Terminal Grid -->
+    <div class="terminals-grid" :class="'layout-' + layout">
+        <!-- Pane 1 -->
+        <div class="terminal-pane" x-show="visiblePanes >= 1">
+            <div class="terminal-pane-header">
+                <span class="status-indicator" :class="panes[0].status"></span>
+                <span class="pane-title">Terminal 1</span>
+                <select x-model="panes[0].serverId" @change="connectPane(0)">
+                    <option value="">Select server...</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}">{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="pane-actions">
+                    <button @click="clearPane(0)" title="Clear">
+                        <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="terminal-pane-body">
+                <div class="terminal-container" :id="'terminal-pane-0'"></div>
+                <div class="terminal-input-row">
+                    <input type="text"
+                           x-model="panes[0].command"
+                           @keydown.enter="executePane(0)"
+                           placeholder="Enter command..."
+                           :disabled="!panes[0].serverId">
+                    <button @click="executePane(0)" :disabled="!panes[0].serverId || !panes[0].command">
+                        Run
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pane 2 -->
+        <div class="terminal-pane" x-show="visiblePanes >= 2">
+            <div class="terminal-pane-header">
+                <span class="status-indicator" :class="panes[1].status"></span>
+                <span class="pane-title">Terminal 2</span>
+                <select x-model="panes[1].serverId" @change="connectPane(1)">
+                    <option value="">Select server...</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}">{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="pane-actions">
+                    <button @click="clearPane(1)" title="Clear">
+                        <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="terminal-pane-body">
+                <div class="terminal-container" :id="'terminal-pane-1'"></div>
+                <div class="terminal-input-row">
+                    <input type="text"
+                           x-model="panes[1].command"
+                           @keydown.enter="executePane(1)"
+                           placeholder="Enter command..."
+                           :disabled="!panes[1].serverId">
+                    <button @click="executePane(1)" :disabled="!panes[1].serverId || !panes[1].command">
+                        Run
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pane 3 -->
+        <div class="terminal-pane" x-show="visiblePanes >= 3">
+            <div class="terminal-pane-header">
+                <span class="status-indicator" :class="panes[2].status"></span>
+                <span class="pane-title">Terminal 3</span>
+                <select x-model="panes[2].serverId" @change="connectPane(2)">
+                    <option value="">Select server...</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}">{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="pane-actions">
+                    <button @click="clearPane(2)" title="Clear">
+                        <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="terminal-pane-body">
+                <div class="terminal-container" :id="'terminal-pane-2'"></div>
+                <div class="terminal-input-row">
+                    <input type="text"
+                           x-model="panes[2].command"
+                           @keydown.enter="executePane(2)"
+                           placeholder="Enter command..."
+                           :disabled="!panes[2].serverId">
+                    <button @click="executePane(2)" :disabled="!panes[2].serverId || !panes[2].command">
+                        Run
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pane 4 -->
+        <div class="terminal-pane" x-show="visiblePanes >= 4">
+            <div class="terminal-pane-header">
+                <span class="status-indicator" :class="panes[3].status"></span>
+                <span class="pane-title">Terminal 4</span>
+                <select x-model="panes[3].serverId" @change="connectPane(3)">
+                    <option value="">Select server...</option>
+                    {% for server in servers %}
+                    <option value="{{ server.id }}">{{ server.name }}</option>
+                    {% endfor %}
+                </select>
+                <div class="pane-actions">
+                    <button @click="clearPane(3)" title="Clear">
+                        <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="terminal-pane-body">
+                <div class="terminal-container" :id="'terminal-pane-3'"></div>
+                <div class="terminal-input-row">
+                    <input type="text"
+                           x-model="panes[3].command"
+                           @keydown.enter="executePane(3)"
+                           placeholder="Enter command..."
+                           :disabled="!panes[3].serverId">
+                    <button @click="executePane(3)" :disabled="!panes[3].serverId || !panes[3].command">
+                        Run
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function debugConsole() {
+    return {
+        layout: '2h',
+        terminals: [],
+        panes: [
+            { serverId: '', command: '', status: 'disconnected', terminal: null },
+            { serverId: '', command: '', status: 'disconnected', terminal: null },
+            { serverId: '', command: '', status: 'disconnected', terminal: null },
+            { serverId: '', command: '', status: 'disconnected', terminal: null }
+        ],
+
+        get visiblePanes() {
+            switch(this.layout) {
+                case '1': return 1;
+                case '2h':
+                case '2v': return 2;
+                case '4': return 4;
+                default: return 2;
+            }
+        },
+
+        init() {
+            // Initialize terminals for each pane
+            this.$nextTick(() => {
+                for (let i = 0; i < 4; i++) {
+                    this.initPane(i);
+                }
+
+                // Re-init icons after Alpine renders
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            });
+        },
+
+        initPane(index) {
+            const container = document.getElementById(`terminal-pane-${index}`);
+            if (!container) return;
+
+            // Create terminal manager instance
+            const terminal = new TerminalManager();
+            terminal.init(container);
+            this.panes[index].terminal = terminal;
+            this.terminals[index] = terminal;
+        },
+
+        setLayout(newLayout) {
+            this.layout = newLayout;
+            // Fit terminals to new size after layout change
+            this.$nextTick(() => {
+                for (let i = 0; i < this.visiblePanes; i++) {
+                    if (this.panes[i].terminal) {
+                        this.panes[i].terminal.fit();
+                    }
+                }
+            });
+        },
+
+        connectPane(index) {
+            const pane = this.panes[index];
+            if (!pane.serverId) {
+                pane.status = 'disconnected';
+                return;
+            }
+
+            // Create new WebSocket connection for this pane
+            if (pane.terminal && pane.terminal.socket) {
+                pane.terminal.disconnect();
+            }
+
+            pane.status = 'connected';
+
+            // Write a prompt message
+            if (pane.terminal) {
+                const serverName = document.querySelector(
+                    `[x-model="panes[${index}].serverId"] option[value="${pane.serverId}"]`
+                )?.textContent || 'Unknown';
+                pane.terminal.terminal.write(`\r\n\x1b[36m--- Connected to ${serverName} ---\x1b[0m\r\n\r\n`);
+            }
+        },
+
+        executePane(index) {
+            const pane = this.panes[index];
+            if (!pane.serverId || !pane.command) return;
+
+            if (pane.terminal) {
+                // Execute command using the terminal manager
+                pane.terminal.connect(pane.serverId, pane.command);
+            }
+
+            // Clear the command input
+            pane.command = '';
+        },
+
+        clearPane(index) {
+            const pane = this.panes[index];
+            if (pane.terminal) {
+                pane.terminal.clear();
+            }
+        },
+
+        broadcastCommand(cmd) {
+            // Execute command on all panes that have a server selected
+            for (let i = 0; i < this.visiblePanes; i++) {
+                if (this.panes[i].serverId) {
+                    this.panes[i].command = cmd;
+                    this.executePane(i);
+                }
+            }
+        },
+
+        destroy() {
+            // Clean up all terminals
+            for (let i = 0; i < 4; i++) {
+                if (this.panes[i].terminal) {
+                    this.panes[i].terminal.destroy();
+                }
+            }
+        }
+    }
+}
+</script>
+{% endblock %}

@@ -10,6 +10,7 @@ use crate::templates::User;
 pub mod auth;
 pub mod credentials;
 pub mod dashboard;
+pub mod debug;
 pub mod job_runs;
 pub mod job_schedules;
 pub mod job_templates;
@@ -24,6 +25,8 @@ pub fn ui_routes() -> Router<AppState> {
     Router::new()
         // Dashboard
         .merge(dashboard::routes())
+        // Debug (Multi-Terminal)
+        .merge(debug::routes())
         // Infrastructure
         .merge(servers::routes())
         .merge(credentials::routes())
