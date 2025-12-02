@@ -15,6 +15,7 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use russh::client;
 use russh::keys::key::PrivateKeyWithHashAlg;
+use russh::keys::{Algorithm, HashAlg};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -383,11 +384,27 @@ async fn start_pty_session(
             }
         };
 
+        // Determine the hash algorithm based on key type
+        // RSA keys on modern SSH servers require rsa-sha2-256 or rsa-sha2-512
+        // instead of the legacy ssh-rsa (SHA-1)
+        let hash_alg = match key_pair.algorithm() {
+            Algorithm::Rsa { .. } => {
+                // RSA key - use SHA-256 signature algorithm
+                debug!("Detected RSA key, using SHA-256 signature algorithm");
+                Some(HashAlg::Sha256)
+            }
+            _ => {
+                // Ed25519, ECDSA, and other keys have built-in signature algorithms
+                debug!("Non-RSA key detected (Ed25519/ECDSA), using default signature algorithm");
+                None
+            }
+        };
+
         // Authenticate with public key
         let auth_result = match session
             .authenticate_publickey(
                 &username,
-                PrivateKeyWithHashAlg::new(Arc::new(key_pair), None),
+                PrivateKeyWithHashAlg::new(Arc::new(key_pair), hash_alg),
             )
             .await
         {
