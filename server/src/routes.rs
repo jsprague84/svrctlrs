@@ -3,6 +3,7 @@
 mod api;
 mod servers;
 pub mod terminal;
+pub mod terminal_pty;
 pub mod ui;
 
 use axum::Router;

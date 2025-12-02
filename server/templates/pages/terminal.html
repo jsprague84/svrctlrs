@@ -77,6 +77,69 @@
         min-height: 300px;
     }
 
+    /* Terminal tabs bar */
+    .terminal-tabs-bar {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 4px 8px;
+        background: var(--bg-tertiary);
+        border-bottom: 1px solid var(--border-color);
+        overflow-x: auto;
+        flex-shrink: 0;
+    }
+
+    .terminal-tab {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        color: var(--text-secondary);
+        font-size: 11px;
+        cursor: pointer;
+        white-space: nowrap;
+    }
+
+    .terminal-tab:hover {
+        background: var(--bg-secondary);
+    }
+
+    .terminal-tab.active {
+        background: var(--bg-primary);
+        border-color: var(--border-color);
+        color: var(--text-primary);
+    }
+
+    .terminal-tab .tab-close {
+        padding: 2px;
+        border-radius: 3px;
+        opacity: 0.6;
+    }
+
+    .terminal-tab .tab-close:hover {
+        opacity: 1;
+        background: var(--error-bg, rgba(255,100,100,0.2));
+    }
+
+    .terminal-tab-add {
+        padding: 4px 8px;
+        background: transparent;
+        border: 1px dashed var(--border-color);
+        border-radius: 4px;
+        color: var(--text-muted);
+        font-size: 11px;
+        cursor: pointer;
+    }
+
+    .terminal-tab-add:hover {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border-color: var(--text-muted);
+    }
+
     .terminal-pane-header {
         display: flex;
         align-items: center;
@@ -292,6 +355,95 @@
     .quick-commands button:hover {
         background: var(--bg-primary);
     }
+
+    /* Server groups panel */
+    .server-groups {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        padding: 8px 12px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .server-groups label {
+        font-size: 12px;
+        color: var(--text-secondary);
+        margin-right: 4px;
+    }
+
+    .server-groups .tag-btn {
+        padding: 4px 10px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-primary);
+        font-size: 11px;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .server-groups .tag-btn:hover {
+        background: var(--bg-primary);
+    }
+
+    .server-groups .tag-btn.selected {
+        background: var(--accent-color);
+        border-color: var(--accent-color);
+        color: #ffffff;
+    }
+
+    .server-groups .tag-color {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+    }
+
+    .server-groups .group-input {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-left: auto;
+    }
+
+    .server-groups .group-input input {
+        padding: 4px 8px;
+        font-size: 12px;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        color: var(--text-primary);
+        font-family: 'JetBrains Mono', 'Fira Code', monospace;
+        width: 200px;
+    }
+
+    .server-groups .group-input button {
+        padding: 4px 12px;
+        background: var(--accent-color);
+        border: none;
+        border-radius: 4px;
+        color: #ffffff;
+        font-size: 11px;
+        cursor: pointer;
+        font-weight: 500;
+    }
+
+    .server-groups .group-input button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .server-groups .server-count {
+        font-size: 11px;
+        color: var(--text-muted);
+        padding: 2px 6px;
+        background: var(--bg-tertiary);
+        border-radius: 10px;
+    }
 </style>
 {% endblock %}
 
@@ -302,25 +454,105 @@
 
     <div class="flex-between">
         <h1>Terminal</h1>
-        <div class="debug-layout-btns">
-            <button @click="setLayout('1')" :class="{ active: layout === '1' }" title="Single terminal">
-                <i data-lucide="square" style="width: 14px; height: 14px;"></i>
-            </button>
-            <button @click="setLayout('2h')" :class="{ active: layout === '2h' }" title="Two horizontal">
-                <i data-lucide="columns-2" style="width: 14px; height: 14px;"></i>
-            </button>
-            <button @click="setLayout('2v')" :class="{ active: layout === '2v' }" title="Two vertical">
-                <i data-lucide="rows-2" style="width: 14px; height: 14px;"></i>
-            </button>
-            <button @click="setLayout('4')" :class="{ active: layout === '4' }" title="Four terminals">
-                <i data-lucide="layout-grid" style="width: 14px; height: 14px;"></i>
-            </button>
+        <div style="display: flex; gap: 16px; align-items: center;">
+            <!-- Profiles -->
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <select x-model="selectedProfileId" @change="loadProfile()" style="padding: 6px 10px; font-size: 12px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary); min-width: 150px;">
+                    <option value="">-- Select Profile --</option>
+                    {% for profile in profiles %}
+                    <option value="{{ profile.id }}">{{ profile.name }}{% if profile.is_default %} (default){% endif %}</option>
+                    {% endfor %}
+                </select>
+                <button @click="showSaveProfileModal = true" style="padding: 6px 10px; border: 1px solid var(--border-color); background: var(--bg-secondary); color: var(--text-secondary); cursor: pointer; border-radius: 4px; font-size: 12px;" title="Save current layout as profile">
+                    <i data-lucide="save" style="width: 14px; height: 14px;"></i>
+                </button>
+                <button @click="deleteProfile()" x-show="selectedProfileId" style="padding: 6px 10px; border: 1px solid var(--error-color); background: transparent; color: var(--error-color); cursor: pointer; border-radius: 4px; font-size: 12px;" title="Delete selected profile">
+                    <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i>
+                </button>
+            </div>
+            <!-- Layout buttons -->
+            <div class="debug-layout-btns">
+                <button @click="setLayout('1')" :class="{ active: layout === '1' }" title="Single terminal">
+                    <i data-lucide="square" style="width: 14px; height: 14px;"></i>
+                </button>
+                <button @click="setLayout('2h')" :class="{ active: layout === '2h' }" title="Two horizontal">
+                    <i data-lucide="columns-2" style="width: 14px; height: 14px;"></i>
+                </button>
+                <button @click="setLayout('2v')" :class="{ active: layout === '2v' }" title="Two vertical">
+                    <i data-lucide="rows-2" style="width: 14px; height: 14px;"></i>
+                </button>
+                <button @click="setLayout('4')" :class="{ active: layout === '4' }" title="Four terminals">
+                    <i data-lucide="layout-grid" style="width: 14px; height: 14px;"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Profile Modal -->
+    <div x-show="showSaveProfileModal"
+         x-cloak
+         style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000;"
+         @click.self="showSaveProfileModal = false">
+        <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; min-width: 300px;">
+            <h3 style="margin: 0 0 16px 0; font-size: 16px;">Save Terminal Profile</h3>
+            <div style="margin-bottom: 12px;">
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Profile Name</label>
+                <input type="text" x-model="newProfileName"
+                       style="width: 100%; padding: 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);"
+                       placeholder="My Profile">
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 4px;">Description (optional)</label>
+                <input type="text" x-model="newProfileDescription"
+                       style="width: 100%; padding: 8px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-primary);"
+                       placeholder="Description...">
+            </div>
+            <div style="margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary);">
+                    <input type="checkbox" x-model="newProfileIsDefault">
+                    Set as default profile
+                </label>
+            </div>
+            <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                <button @click="showSaveProfileModal = false"
+                        style="padding: 8px 16px; background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-secondary); cursor: pointer;">
+                    Cancel
+                </button>
+                <button @click="saveProfile()"
+                        :disabled="!newProfileName.trim()"
+                        style="padding: 8px 16px; background: var(--accent-color); border: none; border-radius: 4px; color: #ffffff; cursor: pointer;">
+                    Save Profile
+                </button>
+            </div>
         </div>
     </div>
 
     <p class="text-secondary mb-2" style="font-size: 13px;">
         Multi-terminal interface for debugging and testing commands across servers.
     </p>
+
+    <!-- Server Groups -->
+    <div class="server-groups">
+        <label>Server Groups:</label>
+        {% for tag in tags %}
+        <button class="tag-btn"
+                :class="{ selected: selectedTags.includes({{ tag.id }}) }"
+                @click="toggleTag({{ tag.id }})">
+            <span class="tag-color" style="background: {{ tag.color }};"></span>
+            {{ tag.name }}
+        </button>
+        {% endfor %}
+        <span class="server-count" x-text="getSelectedServerCount() + ' servers selected'"></span>
+        <div class="group-input">
+            <input type="text"
+                   x-model="groupCommand"
+                   @keydown.enter="executeOnGroup()"
+                   placeholder="Command for selected servers...">
+            <button @click="executeOnGroup()" :disabled="!groupCommand || selectedTags.length === 0">
+                Run on Group
+            </button>
+        </div>
+    </div>
 
     <!-- Quick Commands -->
     <div class="quick-commands">
@@ -337,9 +569,25 @@
     <div class="terminals-grid" :class="'layout-' + layout">
         <!-- Pane 1 -->
         <div class="terminal-pane" x-show="visiblePanes >= 1">
+            <!-- Terminal Tabs -->
+            <div class="terminal-tabs-bar">
+                <template x-for="(tab, tabIdx) in panes[0].tabs" :key="tab.id">
+                    <button class="terminal-tab"
+                            :class="{ active: panes[0].activeTab === tabIdx }"
+                            @click="switchTab(0, tabIdx)">
+                        <span x-text="tab.name"></span>
+                        <span class="tab-close" @click.stop="closeTab(0, tabIdx)" x-show="panes[0].tabs.length > 1">
+                            <i data-lucide="x" style="width: 10px; height: 10px;"></i>
+                        </span>
+                    </button>
+                </template>
+                <button class="terminal-tab-add" @click="addTab(0)" title="New tab">
+                    <i data-lucide="plus" style="width: 12px; height: 12px;"></i>
+                </button>
+            </div>
             <div class="terminal-pane-header">
                 <span class="status-indicator" :class="panes[0].status"></span>
-                <span class="pane-title">Terminal 1</span>
+                <span class="pane-title" x-text="'Terminal 1 - Tab ' + (panes[0].activeTab + 1)"></span>
                 <select x-model="panes[0].serverId" @change="connectPane(0)">
                     <option value="">Select server...</option>
                     {% for server in servers %}
@@ -358,6 +606,8 @@
                     <input type="text"
                            x-model="panes[0].command"
                            @keydown.enter="executePane(0)"
+                           @keydown.up="historyUp(0)"
+                           @keydown.down="historyDown(0)"
                            placeholder="Enter command..."
                            :disabled="!panes[0].serverId">
                     <button @click="executePane(0)" :disabled="!panes[0].serverId || !panes[0].command">
@@ -369,9 +619,25 @@
 
         <!-- Pane 2 -->
         <div class="terminal-pane" x-show="visiblePanes >= 2">
+            <!-- Terminal Tabs -->
+            <div class="terminal-tabs-bar">
+                <template x-for="(tab, tabIdx) in panes[1].tabs" :key="tab.id">
+                    <button class="terminal-tab"
+                            :class="{ active: panes[1].activeTab === tabIdx }"
+                            @click="switchTab(1, tabIdx)">
+                        <span x-text="tab.name"></span>
+                        <span class="tab-close" @click.stop="closeTab(1, tabIdx)" x-show="panes[1].tabs.length > 1">
+                            <i data-lucide="x" style="width: 10px; height: 10px;"></i>
+                        </span>
+                    </button>
+                </template>
+                <button class="terminal-tab-add" @click="addTab(1)" title="New tab">
+                    <i data-lucide="plus" style="width: 12px; height: 12px;"></i>
+                </button>
+            </div>
             <div class="terminal-pane-header">
                 <span class="status-indicator" :class="panes[1].status"></span>
-                <span class="pane-title">Terminal 2</span>
+                <span class="pane-title" x-text="'Terminal 2 - Tab ' + (panes[1].activeTab + 1)"></span>
                 <select x-model="panes[1].serverId" @change="connectPane(1)">
                     <option value="">Select server...</option>
                     {% for server in servers %}
@@ -390,6 +656,8 @@
                     <input type="text"
                            x-model="panes[1].command"
                            @keydown.enter="executePane(1)"
+                           @keydown.up="historyUp(1)"
+                           @keydown.down="historyDown(1)"
                            placeholder="Enter command..."
                            :disabled="!panes[1].serverId">
                     <button @click="executePane(1)" :disabled="!panes[1].serverId || !panes[1].command">
@@ -401,9 +669,25 @@
 
         <!-- Pane 3 -->
         <div class="terminal-pane" x-show="visiblePanes >= 3">
+            <!-- Terminal Tabs -->
+            <div class="terminal-tabs-bar">
+                <template x-for="(tab, tabIdx) in panes[2].tabs" :key="tab.id">
+                    <button class="terminal-tab"
+                            :class="{ active: panes[2].activeTab === tabIdx }"
+                            @click="switchTab(2, tabIdx)">
+                        <span x-text="tab.name"></span>
+                        <span class="tab-close" @click.stop="closeTab(2, tabIdx)" x-show="panes[2].tabs.length > 1">
+                            <i data-lucide="x" style="width: 10px; height: 10px;"></i>
+                        </span>
+                    </button>
+                </template>
+                <button class="terminal-tab-add" @click="addTab(2)" title="New tab">
+                    <i data-lucide="plus" style="width: 12px; height: 12px;"></i>
+                </button>
+            </div>
             <div class="terminal-pane-header">
                 <span class="status-indicator" :class="panes[2].status"></span>
-                <span class="pane-title">Terminal 3</span>
+                <span class="pane-title" x-text="'Terminal 3 - Tab ' + (panes[2].activeTab + 1)"></span>
                 <select x-model="panes[2].serverId" @change="connectPane(2)">
                     <option value="">Select server...</option>
                     {% for server in servers %}
@@ -422,6 +706,8 @@
                     <input type="text"
                            x-model="panes[2].command"
                            @keydown.enter="executePane(2)"
+                           @keydown.up="historyUp(2)"
+                           @keydown.down="historyDown(2)"
                            placeholder="Enter command..."
                            :disabled="!panes[2].serverId">
                     <button @click="executePane(2)" :disabled="!panes[2].serverId || !panes[2].command">
@@ -433,9 +719,25 @@
 
         <!-- Pane 4 -->
         <div class="terminal-pane" x-show="visiblePanes >= 4">
+            <!-- Terminal Tabs -->
+            <div class="terminal-tabs-bar">
+                <template x-for="(tab, tabIdx) in panes[3].tabs" :key="tab.id">
+                    <button class="terminal-tab"
+                            :class="{ active: panes[3].activeTab === tabIdx }"
+                            @click="switchTab(3, tabIdx)">
+                        <span x-text="tab.name"></span>
+                        <span class="tab-close" @click.stop="closeTab(3, tabIdx)" x-show="panes[3].tabs.length > 1">
+                            <i data-lucide="x" style="width: 10px; height: 10px;"></i>
+                        </span>
+                    </button>
+                </template>
+                <button class="terminal-tab-add" @click="addTab(3)" title="New tab">
+                    <i data-lucide="plus" style="width: 12px; height: 12px;"></i>
+                </button>
+            </div>
             <div class="terminal-pane-header">
                 <span class="status-indicator" :class="panes[3].status"></span>
-                <span class="pane-title">Terminal 4</span>
+                <span class="pane-title" x-text="'Terminal 4 - Tab ' + (panes[3].activeTab + 1)"></span>
                 <select x-model="panes[3].serverId" @change="connectPane(3)">
                     <option value="">Select server...</option>
                     {% for server in servers %}
@@ -454,6 +756,8 @@
                     <input type="text"
                            x-model="panes[3].command"
                            @keydown.enter="executePane(3)"
+                           @keydown.up="historyUp(3)"
+                           @keydown.down="historyDown(3)"
                            placeholder="Enter command..."
                            :disabled="!panes[3].serverId">
                     <button @click="executePane(3)" :disabled="!panes[3].serverId || !panes[3].command">
@@ -466,15 +770,45 @@
 </div>
 
 <script>
+// Server data from backend for server groups feature
+const serverData = [
+    {% for server in servers %}
+    { id: {{ server.id }}, name: "{{ server.name }}", tagIds: [{% for tag_id in server.tag_ids %}{{ tag_id }}{% if !loop.last %},{% endif %}{% endfor %}] },
+    {% endfor %}
+];
+
+// Profile data from backend
+const profileData = [
+    {% for profile in profiles %}
+    {
+        id: {{ profile.id }},
+        name: "{{ profile.name }}",
+        layout: "{{ profile.layout }}",
+        paneConfigs: {{ profile.pane_configs_json|safe }},
+        quickCommands: {{ profile.quick_commands_json|safe }},
+        isDefault: {{ profile.is_default }}
+    },
+    {% endfor %}
+];
+
 function debugConsole() {
     return {
         layout: '2h',
         terminals: [],
+        tabCounter: 0,
+        selectedTags: [],
+        groupCommand: '',
+        // Profile management
+        selectedProfileId: '',
+        showSaveProfileModal: false,
+        newProfileName: '',
+        newProfileDescription: '',
+        newProfileIsDefault: false,
         panes: [
-            { serverId: '', command: '', status: 'disconnected', terminal: null },
-            { serverId: '', command: '', status: 'disconnected', terminal: null },
-            { serverId: '', command: '', status: 'disconnected', terminal: null },
-            { serverId: '', command: '', status: 'disconnected', terminal: null }
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1 },
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1 },
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1 },
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1 }
         ],
 
         get visiblePanes() {
@@ -488,6 +822,8 @@ function debugConsole() {
         },
 
         init() {
+            this.tabCounter = 4; // Start counter after initial tabs
+
             // Initialize terminals for each pane
             this.$nextTick(() => {
                 for (let i = 0; i < 4; i++) {
@@ -551,6 +887,42 @@ function debugConsole() {
             });
         },
 
+        // Tab management
+        addTab(paneIndex) {
+            this.tabCounter++;
+            const newTab = {
+                id: this.tabCounter,
+                name: `Tab ${this.panes[paneIndex].tabs.length + 1}`,
+                history: []
+            };
+            this.panes[paneIndex].tabs.push(newTab);
+            this.panes[paneIndex].activeTab = this.panes[paneIndex].tabs.length - 1;
+            this.clearPane(paneIndex);
+
+            // Re-init icons for new close button
+            this.$nextTick(() => {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            });
+        },
+
+        closeTab(paneIndex, tabIdx) {
+            if (this.panes[paneIndex].tabs.length <= 1) return;
+
+            this.panes[paneIndex].tabs.splice(tabIdx, 1);
+            if (this.panes[paneIndex].activeTab >= this.panes[paneIndex].tabs.length) {
+                this.panes[paneIndex].activeTab = this.panes[paneIndex].tabs.length - 1;
+            }
+            this.clearPane(paneIndex);
+        },
+
+        switchTab(paneIndex, tabIdx) {
+            this.panes[paneIndex].activeTab = tabIdx;
+            // Clear terminal and show tab-specific content (could restore history here)
+            this.clearPane(paneIndex);
+        },
+
         connectPane(index) {
             const pane = this.panes[index];
             if (!pane.serverId) {
@@ -578,6 +950,16 @@ function debugConsole() {
             const pane = this.panes[index];
             if (!pane.serverId || !pane.command) return;
 
+            // Save to tab history
+            const tab = pane.tabs[pane.activeTab];
+            if (tab && pane.command.trim()) {
+                if (tab.history.length === 0 || tab.history[tab.history.length - 1] !== pane.command) {
+                    tab.history.push(pane.command);
+                    if (tab.history.length > 50) tab.history.shift();
+                }
+                pane.historyIndex = tab.history.length;
+            }
+
             if (pane.terminal) {
                 // Execute command using the terminal manager
                 pane.terminal.connect(pane.serverId, pane.command);
@@ -585,6 +967,29 @@ function debugConsole() {
 
             // Clear the command input
             pane.command = '';
+        },
+
+        historyUp(index) {
+            const pane = this.panes[index];
+            const tab = pane.tabs[pane.activeTab];
+            if (tab && tab.history.length > 0 && pane.historyIndex > 0) {
+                pane.historyIndex--;
+                pane.command = tab.history[pane.historyIndex];
+            }
+        },
+
+        historyDown(index) {
+            const pane = this.panes[index];
+            const tab = pane.tabs[pane.activeTab];
+            if (tab && tab.history.length > 0) {
+                if (pane.historyIndex < tab.history.length - 1) {
+                    pane.historyIndex++;
+                    pane.command = tab.history[pane.historyIndex];
+                } else {
+                    pane.historyIndex = tab.history.length;
+                    pane.command = '';
+                }
+            }
         },
 
         clearPane(index) {
@@ -601,6 +1006,150 @@ function debugConsole() {
                     this.panes[i].command = cmd;
                     this.executePane(i);
                 }
+            }
+        },
+
+        // Server groups methods
+        toggleTag(tagId) {
+            const idx = this.selectedTags.indexOf(tagId);
+            if (idx >= 0) {
+                this.selectedTags.splice(idx, 1);
+            } else {
+                this.selectedTags.push(tagId);
+            }
+        },
+
+        getSelectedServerCount() {
+            if (this.selectedTags.length === 0) return 0;
+            return serverData.filter(s =>
+                s.tagIds.some(tagId => this.selectedTags.includes(tagId))
+            ).length;
+        },
+
+        getServersForSelectedTags() {
+            if (this.selectedTags.length === 0) return [];
+            return serverData.filter(s =>
+                s.tagIds.some(tagId => this.selectedTags.includes(tagId))
+            );
+        },
+
+        executeOnGroup() {
+            if (!this.groupCommand || this.selectedTags.length === 0) return;
+
+            const servers = this.getServersForSelectedTags();
+            if (servers.length === 0) return;
+
+            // Assign servers to available panes and execute
+            const panesNeeded = Math.min(servers.length, this.visiblePanes);
+
+            for (let i = 0; i < panesNeeded; i++) {
+                const server = servers[i];
+                this.panes[i].serverId = String(server.id);
+                this.connectPane(i);
+
+                // Small delay to ensure connection is established
+                setTimeout(() => {
+                    this.panes[i].command = this.groupCommand;
+                    this.executePane(i);
+                }, 100 * (i + 1));
+            }
+
+            // Show message if there are more servers than panes
+            if (servers.length > this.visiblePanes) {
+                console.log(`Note: ${servers.length - this.visiblePanes} servers couldn't be assigned (not enough panes visible)`);
+            }
+
+            // Clear group command
+            this.groupCommand = '';
+        },
+
+        // Profile management methods
+        loadProfile() {
+            if (!this.selectedProfileId) return;
+
+            const profile = profileData.find(p => p.id === parseInt(this.selectedProfileId));
+            if (!profile) return;
+
+            // Apply layout
+            this.setLayout(profile.layout);
+
+            // Apply pane configs (server assignments)
+            if (profile.paneConfigs && Array.isArray(profile.paneConfigs)) {
+                profile.paneConfigs.forEach((config, index) => {
+                    if (index < 4 && config.server_id) {
+                        this.panes[index].serverId = String(config.server_id);
+                        this.connectPane(index);
+                    }
+                });
+            }
+
+            console.log('Loaded profile:', profile.name);
+        },
+
+        async saveProfile() {
+            if (!this.newProfileName.trim()) return;
+
+            // Collect current pane configurations
+            const paneConfigs = this.panes.slice(0, this.visiblePanes).map(pane => ({
+                server_id: pane.serverId ? parseInt(pane.serverId) : null
+            }));
+
+            const profileData = {
+                name: this.newProfileName.trim(),
+                description: this.newProfileDescription.trim() || null,
+                layout: this.layout,
+                pane_configs: paneConfigs,
+                quick_commands: [],
+                is_default: this.newProfileIsDefault
+            };
+
+            try {
+                const response = await fetch('/terminal/profiles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(profileData)
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    // Close modal and reload page to get updated profile list
+                    this.showSaveProfileModal = false;
+                    this.newProfileName = '';
+                    this.newProfileDescription = '';
+                    this.newProfileIsDefault = false;
+                    window.location.reload();
+                } else {
+                    alert('Failed to save profile: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error saving profile:', error);
+                alert('Error saving profile');
+            }
+        },
+
+        async deleteProfile() {
+            if (!this.selectedProfileId) return;
+
+            const profile = profileData.find(p => p.id === parseInt(this.selectedProfileId));
+            if (!profile) return;
+
+            if (!confirm(`Delete profile "${profile.name}"?`)) return;
+
+            try {
+                const response = await fetch(`/terminal/profiles/${this.selectedProfileId}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    this.selectedProfileId = '';
+                    window.location.reload();
+                } else {
+                    alert('Failed to delete profile: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error deleting profile:', error);
+                alert('Error deleting profile');
             }
         },
 

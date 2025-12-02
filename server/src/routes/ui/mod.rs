@@ -151,3 +151,9 @@ impl From<svrctlrs_core::Error> for AppError {
         AppError::InternalError(err.to_string())
     }
 }
+
+impl From<anyhow::Error> for AppError {
+    fn from(err: anyhow::Error) -> Self {
+        AppError::InternalError(err.to_string())
+    }
+}

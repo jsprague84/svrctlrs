@@ -58,6 +58,9 @@ reqwest = { workspace = true, optional = true }
 
 # SSH client (server-only)
 async-ssh2-tokio = { workspace = true, optional = true }
+# SSH with PTY support for interactive sessions
+russh = { workspace = true, optional = true }
+russh-keys = { workspace = true, optional = true }
 
 # Date/time (server-only)
 chrono = { workspace = true, optional = true }
@@ -98,6 +101,8 @@ server = [
     "dep:clap",
     "dep:reqwest",
     "dep:async-ssh2-tokio",
+    "dep:russh",
+    "dep:russh-keys",
     "dep:chrono",
     "dep:cron",
     "dep:subtle",

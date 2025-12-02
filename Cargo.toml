@@ -50,6 +50,9 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 
 # SSH for remote execution
 async-ssh2-tokio = "0.8"
+# SSH with PTY support for interactive sessions
+russh = "0.51"
+russh-keys = "0.48"
 
 # WebSocket support
 futures-util = "0.3"

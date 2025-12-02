@@ -14,8 +14,13 @@ class TerminalManager {
         this.webLinksAddon = null;
         this.serializeAddon = null;
         this.unicode11Addon = null;
+        this.clipboardAddon = null;
+        this.imageAddon = null;
         this.connected = false;
         this.connecting = false;
+        this.ptyMode = false;
+        this.ptyInputDisposable = null;
+        this.ptyResizeDisposable = null;
         this.outputHistory = [];
         this.commandHistory = [];
         this.historyIndex = -1;
@@ -90,6 +95,29 @@ class TerminalManager {
             this.unicode11Addon = new Unicode11Addon.Unicode11Addon();
             this.terminal.loadAddon(this.unicode11Addon);
             this.terminal.unicode.activeVersion = '11';
+        }
+
+        // Load ClipboardAddon for OSC 52 clipboard operations
+        if (typeof ClipboardAddon !== 'undefined') {
+            this.clipboardAddon = new ClipboardAddon.ClipboardAddon();
+            this.terminal.loadAddon(this.clipboardAddon);
+        }
+
+        // Load ImageAddon for inline image display (SIXEL/iTerm protocol)
+        if (typeof ImageAddon !== 'undefined') {
+            this.imageAddon = new ImageAddon.ImageAddon({
+                enableSizeReports: true,
+                pixelLimit: 16777216, // 16 megapixels
+                sixelSupport: true,
+                sixelScrolling: true,
+                sixelPaletteLimit: 256,
+                sixelSizeLimit: 25000000,
+                storageLimit: 128, // MB
+                showPlaceholder: true,
+                iipSupport: true, // iTerm Inline Images Protocol
+                iipSizeLimit: 20000000
+            });
+            this.terminal.loadAddon(this.imageAddon);
         }
 
         // Open terminal in container
@@ -346,15 +374,151 @@ class TerminalManager {
     }
 
     /**
+     * Connect to PTY WebSocket for interactive shell session
+     * @param {number|string} serverId - The server ID to connect to
+     */
+    connectPty(serverId) {
+        this.connecting = true;
+        this.connected = false;
+        this.ptyMode = true;
+
+        // Initialize terminal if not already
+        if (!this.initialized) {
+            this.init('terminal-output');
+        }
+
+        // Clear terminal for new session
+        this.terminal.clear();
+        this.outputHistory = [];
+
+        // Disconnect existing connection
+        this.disconnect();
+
+        // Show connecting message
+        this.terminal.writeln('\x1b[33mConnecting to interactive shell...\x1b[0m');
+
+        // Determine WebSocket protocol
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/terminal/pty`;
+
+        try {
+            this.socket = new WebSocket(wsUrl);
+        } catch (e) {
+            this.terminal.writeln(`\r\n\x1b[31mFailed to create WebSocket: ${e.message}\x1b[0m`);
+            this.connecting = false;
+            return;
+        }
+
+        this.socket.onopen = () => {
+            console.log('PTY WebSocket connected');
+            this.connected = true;
+            this.connecting = false;
+
+            // Send shell request
+            const { cols, rows } = this.terminal;
+            this.socket.send(JSON.stringify({
+                type: 'shell',
+                server_id: parseInt(serverId),
+                cols: cols,
+                rows: rows
+            }));
+        };
+
+        this.socket.onmessage = (event) => {
+            try {
+                const response = JSON.parse(event.data);
+
+                switch (response.type) {
+                    case 'output':
+                        this.terminal.write(response.data);
+                        this.outputHistory.push(response.data);
+                        break;
+
+                    case 'connected':
+                        this.terminal.write(response.data);
+                        break;
+
+                    case 'error':
+                        this.terminal.write(response.data);
+                        break;
+
+                    case 'pong':
+                        // Keep-alive response, ignore
+                        break;
+
+                    default:
+                        console.warn('Unknown PTY response type:', response.type);
+                }
+            } catch (e) {
+                console.error('Failed to parse WebSocket message:', e);
+                this.terminal.writeln(`\r\n\x1b[31mError parsing server response\x1b[0m`);
+            }
+        };
+
+        this.socket.onerror = (error) => {
+            console.error('WebSocket error:', error);
+            this.terminal.writeln('\r\n\x1b[31m✗ Connection error\x1b[0m');
+            this.connected = false;
+            this.connecting = false;
+        };
+
+        this.socket.onclose = (event) => {
+            console.log('WebSocket closed:', event.code, event.reason);
+            if (this.connected) {
+                this.terminal.writeln('\r\n\x1b[33m[Connection closed]\x1b[0m');
+            }
+            this.connected = false;
+            this.connecting = false;
+            this.ptyMode = false;
+        };
+
+        // Handle terminal input - send directly to PTY
+        this.ptyInputDisposable = this.terminal.onData((data) => {
+            if (this.socket && this.socket.readyState === WebSocket.OPEN && this.ptyMode) {
+                this.socket.send(JSON.stringify({
+                    type: 'input',
+                    data: data
+                }));
+            }
+        });
+
+        // Handle terminal resize
+        this.ptyResizeDisposable = this.terminal.onResize(({ cols, rows }) => {
+            if (this.socket && this.socket.readyState === WebSocket.OPEN && this.ptyMode) {
+                this.socket.send(JSON.stringify({
+                    type: 'resize',
+                    cols: cols,
+                    rows: rows
+                }));
+            }
+        });
+    }
+
+    /**
      * Disconnect WebSocket
      */
     disconnect() {
+        // Clean up PTY event handlers
+        if (this.ptyInputDisposable) {
+            this.ptyInputDisposable.dispose();
+            this.ptyInputDisposable = null;
+        }
+        if (this.ptyResizeDisposable) {
+            this.ptyResizeDisposable.dispose();
+            this.ptyResizeDisposable = null;
+        }
+
         if (this.socket) {
+            // Send close message for PTY mode
+            if (this.ptyMode && this.socket.readyState === WebSocket.OPEN) {
+                this.socket.send(JSON.stringify({ type: 'close' }));
+            }
             this.socket.close();
             this.socket = null;
         }
         this.connected = false;
         this.connecting = false;
+        this.ptyMode = false;
     }
 
     /**
@@ -811,6 +975,40 @@ function terminalModal() {
         clearSearch() {
             this.searchTerm = '';
             window.terminalManager.clearSearch();
+        },
+
+        /**
+         * Start interactive shell session (PTY mode)
+         */
+        startInteractiveShell() {
+            if (!this.selectedServer) {
+                return;
+            }
+
+            this.executing = true;
+            this.connecting = true;
+
+            window.terminalManager.connectPty(parseInt(this.selectedServer));
+
+            // Update state from terminal manager
+            const checkState = () => {
+                this.connected = window.terminalManager.connected;
+                this.connecting = window.terminalManager.connecting;
+
+                if (!this.connecting) {
+                    this.executing = false;
+                } else {
+                    setTimeout(checkState, 100);
+                }
+            };
+            setTimeout(checkState, 100);
+        },
+
+        /**
+         * Check if currently in PTY mode
+         */
+        get isPtyMode() {
+            return window.terminalManager && window.terminalManager.ptyMode;
         }
     };
 }

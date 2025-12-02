@@ -61,9 +61,63 @@
                       name="command"
                       rows="4"
                       class="font-mono"
+                      x-model="commandText"
                       placeholder="docker ps --filter 'status=&#123;&#123;status&#125;&#125;'"
                       required>{{ ct.command }}</textarea>
             <small class="text-secondary">Use &#123;&#123;variable&#125;&#125; syntax for substitution</small>
+
+            <!-- Inline Command Preview & Test Panel -->
+            <div x-show="extractVariables().length > 0"
+                 x-transition
+                 class="card bg-base-200 mt-3"
+                 style="padding: 0.75rem;">
+                <div class="flex-between mb-2">
+                    <h5 style="margin: 0; font-size: 0.9rem;">
+                        <i data-lucide="play-circle" style="width: 14px; height: 14px;"></i>
+                        Quick Test
+                    </h5>
+                    <button type="button"
+                            @click="showPreview = !showPreview"
+                            class="btn btn-sm btn-secondary">
+                        <span x-text="showPreview ? 'Hide Preview' : 'Show Preview'"></span>
+                    </button>
+                </div>
+
+                <!-- Detected Variables with Test Inputs -->
+                <div class="grid gap-2 mb-2" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));">
+                    <template x-for="varName in extractVariables()" :key="varName">
+                        <div>
+                            <label class="text-sm" x-text="varName"></label>
+                            <input type="text"
+                                   x-model="testValues[varName]"
+                                   :placeholder="'Test value for ' + varName"
+                                   class="w-full text-sm">
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Live Preview -->
+                <div x-show="showPreview" x-transition class="mb-2">
+                    <label class="text-sm text-secondary">Rendered Command:</label>
+                    <pre class="font-mono text-sm"
+                         style="background: var(--bg-tertiary); padding: 0.5rem; border-radius: 4px; margin: 0.25rem 0; white-space: pre-wrap; word-break: break-all;"
+                         x-text="getRenderedPreview()"></pre>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="flex gap-2">
+                    <button type="button"
+                            class="btn btn-sm btn-primary"
+                            :disabled="!hasAllTestValues()"
+                            @click="$dispatch('open-terminal', { command: getRenderedPreview() })"
+                            title="Run this command in a terminal">
+                        <i data-lucide="terminal" style="width: 14px; height: 14px;"></i> Run Test
+                    </button>
+                    <span x-show="!hasAllTestValues()" class="text-secondary text-sm" style="line-height: 28px;">
+                        Fill in all test values to enable
+                    </span>
+                </div>
+            </div>
 
             <!-- Example Templates Dropdown -->
             <details style="margin-top: 0.5rem;">
@@ -314,12 +368,6 @@
                 <i data-lucide="save" style="width: 16px; height: 16px;"></i> Save
             </button>
             <button type="button"
-                    class="btn btn-secondary"
-                    @click="$dispatch('open-terminal', { command: document.getElementById('command').value })"
-                    title="Test this command in a terminal">
-                <i data-lucide="terminal" style="width: 16px; height: 16px;"></i> Test
-            </button>
-            <button type="button"
                     onclick="document.getElementById('command-template-form-container').innerHTML = ''"
                     class="btn btn-secondary">
                 Cancel
@@ -370,9 +418,63 @@
                       name="command"
                       rows="4"
                       class="font-mono"
+                      x-model="commandText"
                       placeholder="docker ps --filter 'status=&#123;&#123;status&#125;&#125;'"
                       required></textarea>
             <small class="text-secondary">Use &#123;&#123;variable&#125;&#125; syntax for substitution</small>
+
+            <!-- Inline Command Preview & Test Panel -->
+            <div x-show="extractVariables().length > 0"
+                 x-transition
+                 class="card bg-base-200 mt-3"
+                 style="padding: 0.75rem;">
+                <div class="flex-between mb-2">
+                    <h5 style="margin: 0; font-size: 0.9rem;">
+                        <i data-lucide="play-circle" style="width: 14px; height: 14px;"></i>
+                        Quick Test
+                    </h5>
+                    <button type="button"
+                            @click="showPreview = !showPreview"
+                            class="btn btn-sm btn-secondary">
+                        <span x-text="showPreview ? 'Hide Preview' : 'Show Preview'"></span>
+                    </button>
+                </div>
+
+                <!-- Detected Variables with Test Inputs -->
+                <div class="grid gap-2 mb-2" style="grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));">
+                    <template x-for="varName in extractVariables()" :key="varName">
+                        <div>
+                            <label class="text-sm" x-text="varName"></label>
+                            <input type="text"
+                                   x-model="testValues[varName]"
+                                   :placeholder="'Test value for ' + varName"
+                                   class="w-full text-sm">
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Live Preview -->
+                <div x-show="showPreview" x-transition class="mb-2">
+                    <label class="text-sm text-secondary">Rendered Command:</label>
+                    <pre class="font-mono text-sm"
+                         style="background: var(--bg-tertiary); padding: 0.5rem; border-radius: 4px; margin: 0.25rem 0; white-space: pre-wrap; word-break: break-all;"
+                         x-text="getRenderedPreview()"></pre>
+                </div>
+
+                <!-- Quick Actions -->
+                <div class="flex gap-2">
+                    <button type="button"
+                            class="btn btn-sm btn-primary"
+                            :disabled="!hasAllTestValues()"
+                            @click="$dispatch('open-terminal', { command: getRenderedPreview() })"
+                            title="Run this command in a terminal">
+                        <i data-lucide="terminal" style="width: 14px; height: 14px;"></i> Run Test
+                    </button>
+                    <span x-show="!hasAllTestValues()" class="text-secondary text-sm" style="line-height: 28px;">
+                        Fill in all test values to enable
+                    </span>
+                </div>
+            </div>
 
             <!-- Example Templates Dropdown -->
             <details style="margin-top: 0.5rem;">
@@ -616,12 +718,6 @@
                 <i data-lucide="save" style="width: 16px; height: 16px;"></i> Create
             </button>
             <button type="button"
-                    class="btn btn-secondary"
-                    @click="$dispatch('open-terminal', { command: document.getElementById('command').value })"
-                    title="Test this command in a terminal">
-                <i data-lucide="terminal" style="width: 16px; height: 16px;"></i> Test
-            </button>
-            <button type="button"
                     onclick="document.getElementById('command-template-form-container').innerHTML = ''"
                     class="btn btn-secondary">
                 Cancel
@@ -655,8 +751,70 @@ function commandTemplateForm() {
         metadataText: {% match command_template %}{% when Some with (ct) %}'{{ ct.get_metadata()|json|safe }}'{% when None %}'{}'{% endmatch %},
         metadataJson: '',
 
+        // Inline testing properties
+        commandText: {% match command_template %}{% when Some with (ct) %}'{{ ct.command|escape }}'{% when None %}''{% endmatch %},
+        testValues: {},
+        showPreview: false,
+        validationResult: null,
+        validating: false,
+
         init() {
             this.serializeAllFields();
+            // Initialize test values from parameters with defaults
+            this.initTestValues();
+        },
+
+        // Extract variables from command using double-brace pattern
+        extractVariables() {
+            const regex = /\{\{([^}]+)\}\}/g;
+            const variables = [];
+            let match;
+            while ((match = regex.exec(this.commandText)) !== null) {
+                const varName = match[1].trim();
+                if (!variables.includes(varName)) {
+                    variables.push(varName);
+                }
+            }
+            return variables;
+        },
+
+        // Initialize test values from parameter schema defaults
+        initTestValues() {
+            this.parameters.forEach(param => {
+                if (param.default !== undefined && param.default !== null) {
+                    this.testValues[param.name] = param.default;
+                }
+            });
+        },
+
+        // Get rendered preview with variable substitution
+        getRenderedPreview() {
+            let rendered = this.commandText;
+            const variables = this.extractVariables();
+            variables.forEach(varName => {
+                const value = this.testValues[varName] || '';
+                // Use string concat to avoid Askama template parsing
+                const regex = new RegExp('\\{\\{\\s*' + varName + '\\s*\\}\\}', 'g');
+                rendered = rendered.replace(regex, value || ('{' + '{' + varName + '}' + '}'));
+            });
+            return rendered;
+        },
+
+        // Check if all required variables have test values
+        hasAllTestValues() {
+            const variables = this.extractVariables();
+            return variables.every(varName => {
+                const value = this.testValues[varName];
+                return value !== undefined && value !== null && value !== '';
+            });
+        },
+
+        // Build validation request data
+        getValidationData() {
+            return {
+                command: this.commandText,
+                variables: JSON.stringify(this.testValues)
+            };
         },
 
         addCapability() {

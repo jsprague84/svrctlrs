@@ -75,6 +75,34 @@ pub struct RecentJobRun {
 pub struct TerminalPageTemplate {
     pub user: Option<User>,
     pub servers: Vec<ServerDisplay>,
+    pub tags: Vec<TagDisplay>,
+    pub profiles: Vec<TerminalProfileDisplay>,
+}
+
+/// Terminal profile display model
+#[derive(Debug, Clone)]
+pub struct TerminalProfileDisplay {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub layout: String,
+    pub pane_configs_json: String,
+    pub quick_commands_json: String,
+    pub is_default: bool,
+}
+
+impl From<svrctlrs_database::models::TerminalProfile> for TerminalProfileDisplay {
+    fn from(p: svrctlrs_database::models::TerminalProfile) -> Self {
+        Self {
+            id: p.id,
+            name: p.name,
+            description: p.description,
+            layout: p.layout,
+            pane_configs_json: p.pane_configs.unwrap_or_else(|| "[]".to_string()),
+            quick_commands_json: p.quick_commands.unwrap_or_else(|| "[]".to_string()),
+            is_default: p.is_default,
+        }
+    }
 }
 
 // ============================================================================
