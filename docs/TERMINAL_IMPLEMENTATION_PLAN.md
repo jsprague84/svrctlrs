@@ -1049,37 +1049,54 @@ curl -i -N \
 
 ## Deployment Checklist
 
-- [ ] Add terminal route to main router
-- [ ] Include terminal modal in base template
-- [ ] Add xterm.js CDN links
-- [ ] Test on Chrome, Firefox, Safari
+- [x] Add terminal route to main router ✅ (2025-12-01)
+- [x] Include terminal modal in base template ✅ (2025-12-01)
+- [x] Add xterm.js CDN links ✅ (2025-12-01)
+- [x] Test on Chrome ✅ (2025-12-01)
+- [ ] Test on Firefox, Safari
 - [ ] Test on mobile (responsive terminal)
-- [ ] Update documentation
-- [ ] Add to CLAUDE.md
+- [x] Update documentation ✅ (2025-12-01)
+- [x] Add to CLAUDE.md ✅ (2025-12-01)
 
 ## Success Metrics
 
-**Week 1 (MVP)**:
+**Week 1 (MVP)** - COMPLETE (2025-12-01):
 - ✅ Terminal modal opens from command template form
 - ✅ Can select server and execute command
 - ✅ Real-time output streaming works
 - ✅ ANSI colors render correctly
 - ✅ Copy/download output works
+- ✅ Command history (up/down arrows) - Bonus: implemented early!
 
 **Week 2 (Enhanced)**:
-- ✅ Command history (up/down arrows)
-- ✅ Environment variable editing
-- ✅ Multi-line command support
-- ✅ Output search functionality
+- ✅ Command history (up/down arrows) - Done in Phase 1!
+- ⬜ Environment variable editing
+- ⬜ Multi-line command support (Shift+Enter)
+- ⬜ Output search functionality (addon loaded, UI not implemented)
 
-**Week 3+ (Multi-Terminal)**:
-- ✅ Dedicated `/debug` page
-- ✅ 2-4 simultaneous terminals
-- ✅ Broadcast mode
-- ✅ Session persistence
+**Week 3+ (Multi-Terminal)** - FUTURE:
+- ⬜ Dedicated `/debug` page
+- ⬜ 2-4 simultaneous terminals
+- ⬜ Broadcast mode
+- ⬜ Session persistence
 
 ---
 
-**Next Steps**: Begin Phase 1 implementation
-**Estimated Time**: 3-5 days for MVP
-**Priority**: High (enables command template testing)
+## Status Update (2025-12-01)
+
+**Phase 1 MVP**: ✅ COMPLETE
+- All core features implemented and tested
+- Documentation updated (CLAUDE.md)
+- Committed to develop branch
+
+**Next Steps**: Phase 2 Enhanced Features
+- Environment variable editing
+- Multi-line command support
+- Output search UI
+- PTY allocation for interactive commands
+
+**Known Limitation**: Non-interactive mode only (Phase 1)
+- Commands requiring PTY (sudo with password, vim) will fail
+- PTY allocation planned for Phase 2
+
+**Priority**: Normal (MVP complete, enhancements can be incremental)
