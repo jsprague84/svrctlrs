@@ -1068,11 +1068,11 @@ curl -i -N \
 - ✅ Copy/download output works
 - ✅ Command history (up/down arrows) - Bonus: implemented early!
 
-**Week 2 (Enhanced)**:
+**Week 2 (Enhanced)** - MOSTLY COMPLETE (2025-12-01):
 - ✅ Command history (up/down arrows) - Done in Phase 1!
-- ⬜ Environment variable editing
-- ⬜ Multi-line command support (Shift+Enter)
-- ⬜ Output search functionality (addon loaded, UI not implemented)
+- ⬜ Environment variable editing - Future
+- ✅ Multi-line command support (Shift+Enter) - DONE
+- ✅ Output search functionality (Ctrl+F) - DONE
 
 **Week 3+ (Multi-Terminal)** - FUTURE:
 - ⬜ Dedicated `/debug` page
@@ -1089,14 +1089,19 @@ curl -i -N \
 - Documentation updated (CLAUDE.md)
 - Committed to develop branch
 
-**Next Steps**: Phase 2 Enhanced Features
-- Environment variable editing
-- Multi-line command support
-- Output search UI
-- PTY allocation for interactive commands
+**Phase 2 Enhanced**: ✅ MOSTLY COMPLETE
+- ✅ Output search (Ctrl+F, incremental search, case-sensitive toggle)
+- ✅ Multi-line command support (Shift+Enter for newlines)
+- ⬜ Environment variable editing - Future enhancement
+- ⬜ PTY allocation - Future enhancement (for interactive commands)
 
-**Known Limitation**: Non-interactive mode only (Phase 1)
+**Next Steps**: Phase 3 or Remaining Phase 2
+- Environment variable editing UI
+- PTY allocation for interactive commands (sudo, vim)
+- Dedicated `/debug` page with multiple terminals
+
+**Known Limitation**: Non-interactive mode only
 - Commands requiring PTY (sudo with password, vim) will fail
-- PTY allocation planned for Phase 2
+- PTY allocation planned for future phase
 
-**Priority**: Normal (MVP complete, enhancements can be incremental)
+**Priority**: Low (core features complete, remaining are nice-to-have)

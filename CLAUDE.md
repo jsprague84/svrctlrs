@@ -10,11 +10,11 @@ This file provides comprehensive guidance for AI assistants working with the Svr
 
 ## 📈 Recent Updates
 
-### Embedded Terminal - Phase 1 MVP COMPLETE (2025-12-01)
+### Embedded Terminal - Phase 1 & 2 COMPLETE (2025-12-01)
 
 **Real-time terminal for testing commands on remote servers via SSH**
 
-**Features Implemented**:
+**Phase 1 Features**:
 - ✅ **WebSocket-based terminal** using xterm.js for real-time output streaming
 - ✅ **Server selection** dropdown with all configured servers
 - ✅ **Command execution** via SSH or local shell
@@ -23,6 +23,11 @@ This file provides comprehensive guidance for AI assistants working with the Svr
 - ✅ **Copy/download output** functionality
 - ✅ **Command history** with up/down arrow navigation (persisted to localStorage)
 - ✅ **Test button** on command template forms to quickly test commands
+
+**Phase 2 Features**:
+- ✅ **Output search** (Ctrl+F) with incremental search and case-sensitive toggle
+- ✅ **Multi-line commands** (Shift+Enter for newlines, Enter to execute)
+- ✅ **Auto-expanding textarea** for multi-line command editing
 
 **Files Created**:
 - `server/src/routes/terminal.rs` - WebSocket handler (~400 lines)
