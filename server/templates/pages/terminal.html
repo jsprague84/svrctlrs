@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}Debug Console - SvrCtlRS{% endblock %}
-{% block nav_debug %}active{% endblock %}
+{% block title %}Terminal - SvrCtlRS{% endblock %}
+{% block nav_terminal %}active{% endblock %}
 
 {% block head %}
 <style>
@@ -230,7 +230,7 @@
      x-init="init()">
 
     <div class="flex-between">
-        <h1>Debug Console</h1>
+        <h1>Terminal</h1>
         <div class="debug-layout-btns">
             <button @click="setLayout('1')" :class="{ active: layout === '1' }" title="Single terminal">
                 <i data-lucide="square" style="width: 14px; height: 14px;"></i>
@@ -282,7 +282,7 @@
                 </div>
             </div>
             <div class="terminal-pane-body">
-                <div class="terminal-container" :id="'terminal-pane-0'"></div>
+                <div class="terminal-container" id="terminal-pane-0"></div>
                 <div class="terminal-input-row">
                     <input type="text"
                            x-model="panes[0].command"
@@ -314,7 +314,7 @@
                 </div>
             </div>
             <div class="terminal-pane-body">
-                <div class="terminal-container" :id="'terminal-pane-1'"></div>
+                <div class="terminal-container" id="terminal-pane-1"></div>
                 <div class="terminal-input-row">
                     <input type="text"
                            x-model="panes[1].command"
@@ -346,7 +346,7 @@
                 </div>
             </div>
             <div class="terminal-pane-body">
-                <div class="terminal-container" :id="'terminal-pane-2'"></div>
+                <div class="terminal-container" id="terminal-pane-2"></div>
                 <div class="terminal-input-row">
                     <input type="text"
                            x-model="panes[2].command"
@@ -378,7 +378,7 @@
                 </div>
             </div>
             <div class="terminal-pane-body">
-                <div class="terminal-container" :id="'terminal-pane-3'"></div>
+                <div class="terminal-container" id="terminal-pane-3"></div>
                 <div class="terminal-input-row">
                     <input type="text"
                            x-model="panes[3].command"
@@ -431,12 +431,13 @@ function debugConsole() {
         },
 
         initPane(index) {
-            const container = document.getElementById(`terminal-pane-${index}`);
+            const containerId = `terminal-pane-${index}`;
+            const container = document.getElementById(containerId);
             if (!container) return;
 
             // Create terminal manager instance
             const terminal = new TerminalManager();
-            terminal.init(container);
+            terminal.init(containerId);
             this.panes[index].terminal = terminal;
             this.terminals[index] = terminal;
         },

@@ -67,12 +67,12 @@ pub struct RecentJobRun {
 }
 
 // ============================================================================
-// Debug (Multi-Terminal)
+// Terminal (Multi-Terminal Page)
 // ============================================================================
 
 #[derive(Template)]
-#[template(path = "pages/debug.html")]
-pub struct DebugTemplate {
+#[template(path = "pages/terminal.html")]
+pub struct TerminalPageTemplate {
     pub user: Option<User>,
     pub servers: Vec<ServerDisplay>,
 }

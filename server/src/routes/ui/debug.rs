@@ -1,7 +1,7 @@
-//! Debug page routes - Multi-terminal server debugging interface
+//! Terminal page routes - Multi-terminal server interface
 //!
 //! Provides a page with multiple terminal panes for simultaneously
-//! debugging and testing commands across multiple servers.
+//! executing commands across multiple servers.
 
 use askama::Template;
 use axum::{extract::State, response::Html, routing::get, Router};
@@ -10,13 +10,13 @@ use svrctlrs_database::queries;
 use super::{get_user_from_session, AppError};
 use crate::{state::AppState, templates::*};
 
-/// Create debug router
+/// Create terminal router
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/debug", get(debug_page))
+    Router::new().route("/terminal", get(terminal_page))
 }
 
-/// Debug page handler - provides multi-terminal interface
-async fn debug_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+/// Terminal page handler - provides multi-terminal interface
+async fn terminal_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let user = get_user_from_session().await;
 
     // Get all enabled servers for the terminal dropdowns
@@ -30,6 +30,6 @@ async fn debug_page(State(state): State<AppState>) -> Result<Html<String>, AppEr
         .map(Into::into)
         .collect();
 
-    let template = DebugTemplate { user, servers };
+    let template = TerminalPageTemplate { user, servers };
     Ok(Html(template.render()?))
 }
