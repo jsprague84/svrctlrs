@@ -595,6 +595,12 @@
                     {% endfor %}
                 </select>
                 <div class="pane-actions">
+                    <button @click="panes[0].interactiveMode ? stopInteractiveShell(0) : startInteractiveShell(0)"
+                            :title="panes[0].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
+                            :style="panes[0].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
+                        <i data-lucide="terminal" style="width: 12px; height: 12px;"></i>
+                        <span x-text="panes[0].interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
+                    </button>
                     <button @click="clearPane(0)" title="Clear">
                         <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                     </button>
@@ -602,7 +608,7 @@
             </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-0"></div>
-                <div class="terminal-input-row">
+                <div class="terminal-input-row" x-show="!panes[0].interactiveMode">
                     <input type="text"
                            x-model="panes[0].command"
                            @keydown.enter="executePane(0)"
@@ -645,6 +651,12 @@
                     {% endfor %}
                 </select>
                 <div class="pane-actions">
+                    <button @click="panes[1].interactiveMode ? stopInteractiveShell(1) : startInteractiveShell(1)"
+                            :title="panes[1].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
+                            :style="panes[1].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
+                        <i data-lucide="terminal" style="width: 12px; height: 12px;"></i>
+                        <span x-text="panes[1].interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
+                    </button>
                     <button @click="clearPane(1)" title="Clear">
                         <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                     </button>
@@ -652,7 +664,7 @@
             </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-1"></div>
-                <div class="terminal-input-row">
+                <div class="terminal-input-row" x-show="!panes[1].interactiveMode">
                     <input type="text"
                            x-model="panes[1].command"
                            @keydown.enter="executePane(1)"
@@ -695,6 +707,12 @@
                     {% endfor %}
                 </select>
                 <div class="pane-actions">
+                    <button @click="panes[2].interactiveMode ? stopInteractiveShell(2) : startInteractiveShell(2)"
+                            :title="panes[2].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
+                            :style="panes[2].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
+                        <i data-lucide="terminal" style="width: 12px; height: 12px;"></i>
+                        <span x-text="panes[2].interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
+                    </button>
                     <button @click="clearPane(2)" title="Clear">
                         <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                     </button>
@@ -702,7 +720,7 @@
             </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-2"></div>
-                <div class="terminal-input-row">
+                <div class="terminal-input-row" x-show="!panes[2].interactiveMode">
                     <input type="text"
                            x-model="panes[2].command"
                            @keydown.enter="executePane(2)"
@@ -745,6 +763,12 @@
                     {% endfor %}
                 </select>
                 <div class="pane-actions">
+                    <button @click="panes[3].interactiveMode ? stopInteractiveShell(3) : startInteractiveShell(3)"
+                            :title="panes[3].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
+                            :style="panes[3].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
+                        <i data-lucide="terminal" style="width: 12px; height: 12px;"></i>
+                        <span x-text="panes[3].interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
+                    </button>
                     <button @click="clearPane(3)" title="Clear">
                         <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                     </button>
@@ -752,7 +776,7 @@
             </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-3"></div>
-                <div class="terminal-input-row">
+                <div class="terminal-input-row" x-show="!panes[3].interactiveMode">
                     <input type="text"
                            x-model="panes[3].command"
                            @keydown.enter="executePane(3)"
@@ -805,10 +829,10 @@ function debugConsole() {
         newProfileDescription: '',
         newProfileIsDefault: false,
         panes: [
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1 },
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1 },
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1 },
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1 }
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false },
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false },
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false },
+            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false }
         ],
 
         get visiblePanes() {
@@ -996,6 +1020,52 @@ function debugConsole() {
             const pane = this.panes[index];
             if (pane.terminal) {
                 pane.terminal.clear();
+            }
+        },
+
+        // Start interactive shell session (PTY mode)
+        startInteractiveShell(index) {
+            const pane = this.panes[index];
+            if (!pane.serverId) {
+                alert('Please select a server first');
+                return;
+            }
+
+            // Disconnect existing connection if any
+            if (pane.terminal && pane.terminal.socket) {
+                pane.terminal.disconnect();
+            }
+
+            // Clear the terminal
+            this.clearPane(index);
+
+            // Set interactive mode
+            pane.interactiveMode = true;
+            pane.status = 'connected';
+
+            // Connect using PTY
+            if (pane.terminal) {
+                pane.terminal.connectPty(parseInt(pane.serverId));
+            }
+        },
+
+        // Stop interactive shell session
+        stopInteractiveShell(index) {
+            const pane = this.panes[index];
+
+            // Disconnect PTY
+            if (pane.terminal) {
+                pane.terminal.disconnect();
+            }
+
+            // Exit interactive mode
+            pane.interactiveMode = false;
+            pane.status = 'disconnected';
+
+            // Write message
+            if (pane.terminal && pane.terminal.terminal) {
+                pane.terminal.terminal.writeln('\r\n\x1b[33m[Interactive shell closed]\x1b[0m');
+                pane.terminal.terminal.writeln('\x1b[90mSelect a server and enter a command.\x1b[0m\r\n');
             }
         },
 
