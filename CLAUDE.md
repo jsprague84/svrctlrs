@@ -10,6 +10,52 @@ This file provides comprehensive guidance for AI assistants working with the Svr
 
 ## 📈 Recent Updates
 
+### Embedded Terminal - Phase 1 MVP COMPLETE (2025-12-01)
+
+**Real-time terminal for testing commands on remote servers via SSH**
+
+**Features Implemented**:
+- ✅ **WebSocket-based terminal** using xterm.js for real-time output streaming
+- ✅ **Server selection** dropdown with all configured servers
+- ✅ **Command execution** via SSH or local shell
+- ✅ **ANSI color support** for rich terminal output
+- ✅ **Theme integration** (Tokyo Night, Nord Dark, Light themes)
+- ✅ **Copy/download output** functionality
+- ✅ **Command history** with up/down arrow navigation (persisted to localStorage)
+- ✅ **Test button** on command template forms to quickly test commands
+
+**Files Created**:
+- `server/src/routes/terminal.rs` - WebSocket handler (~400 lines)
+- `server/static/js/terminal.js` - TerminalManager class + Alpine.js component (~590 lines)
+- `server/templates/components/terminal_modal.html` - Modal UI component (~340 lines)
+
+**Files Modified**:
+- `server/templates/base.html` - Added xterm.js CDN + terminal modal include
+- `server/templates/components/command_template_form.html` - Added Test button
+- `server/src/routes.rs` - Added terminal module
+- `server/src/main.rs` - Added terminal routes
+- `server/Cargo.toml` - Added `futures-util` dependency
+
+**Architecture**:
+```
+Frontend (xterm.js + Alpine.js)
+    │
+    ├─ WebSocket: ws://host/ws/terminal
+    │
+    ▼
+Backend (Axum WebSocket Handler)
+    │
+    ├─ Local execution: tokio::process::Command
+    │
+    └─ Remote execution: async_ssh2_tokio
+```
+
+**Known Limitation (Phase 1)**: Non-interactive mode only. Commands requiring PTY (sudo with password, interactive editors) will fail. This is expected - PTY allocation is planned for Phase 2.
+
+**Usage**: Click "Test" button on any command template form, or dispatch `open-terminal` event from Alpine.js.
+
+---
+
 ### Display Model Optimization - COMPLETE (2025-12-01)
 
 **All display models now use optimized JOINed queries** - No N+1 query patterns, no TODO comments, no deprecated code.
@@ -258,10 +304,11 @@ svrctlrs/
 |-----------|-----------|---------|
 | Backend | Axum | 0.8 |
 | Frontend | HTMX + Alpine.js | 2.0.3 + 3.14.1 |
+| Terminal | xterm.js | 5.3.0 (CDN) |
 | Templates | Askama | 0.14 |
 | Database | SQLite + sqlx | Latest |
 | Runtime | Tokio | Latest |
-| SSH | openssh_sftp_client | Latest |
+| SSH | async_ssh2_tokio | Latest |
 | Container | Docker | Latest |
 
 ---
@@ -674,8 +721,10 @@ pub async fn my_function(id: &str, sensitive_data: &str) -> Result<()> {
 - `server/src/state.rs` - Application state (DB pool, SSH pool)
 - `server/src/ssh.rs` - SSH connection management
 - `server/src/templates.rs` - Display models (use for templates)
+- `server/src/routes/terminal.rs` - WebSocket terminal handler
 - `server/src/routes/ui/` - HTMX UI route handlers
 - `server/templates/` - Askama HTML templates
+- `server/static/js/terminal.js` - Terminal manager (xterm.js)
 
 ### Configuration
 - `config/example.toml` - Example configuration
@@ -1044,6 +1093,224 @@ impl From<CommandTemplate> for CommandTemplateDisplay {
 5. Fields injected into `#command-parameters` container
 6. Form submission includes all `var_*` fields
 7. Backend extracts variables and stores as JSON
+
+---
+
+## 🖥️ Embedded Terminal System
+
+### Overview
+
+The **Embedded Terminal System** provides a real-time WebSocket-based terminal for testing and debugging commands on remote servers. It integrates with the command template system to allow quick testing before deploying jobs.
+
+### Architecture Components
+
+**1. WebSocket Handler** (`server/src/routes/terminal.rs`)
+- Axum WebSocket upgrade handler
+- JSON message protocol for commands and responses
+- Supports local and SSH remote execution
+
+**2. Terminal Manager** (`server/static/js/terminal.js`)
+- xterm.js terminal instance management
+- Theme-aware (Tokyo Night, Nord, Light)
+- Command history with localStorage persistence
+- Output capture for copy/download
+
+**3. Modal Component** (`server/templates/components/terminal_modal.html`)
+- Alpine.js-based modal with server selection
+- Connection status indicators
+- Action buttons (Clear, Copy, Download, Reconnect)
+
+### WebSocket Protocol
+
+**Request Messages** (Client → Server):
+```json
+// Execute command
+{
+  "type": "execute",
+  "server_id": 1,
+  "command": "ls -la",
+  "cols": 80,
+  "rows": 24
+}
+
+// Resize terminal
+{
+  "type": "resize",
+  "cols": 120,
+  "rows": 40
+}
+
+// Keep-alive ping
+{
+  "type": "ping"
+}
+```
+
+**Response Messages** (Server → Client):
+```json
+// Command output
+{
+  "type": "output",
+  "data": "file1.txt\nfile2.txt\n"
+}
+
+// Command completed
+{
+  "type": "exit",
+  "data": "✓ Process exited with code: 0",
+  "exit_code": 0
+}
+
+// Error occurred
+{
+  "type": "error",
+  "data": "✗ Error: SSH connection failed",
+  "exit_code": -1
+}
+
+// Keep-alive response
+{
+  "type": "pong"
+}
+```
+
+### SSH Execution Flow
+
+```
+1. WebSocket receives "execute" message
+   └─ server_id, command
+
+2. Load server from database
+   └─ queries::servers::get_server()
+
+3. Load credential if assigned
+   └─ queries::credentials::get_credential()
+
+4. Determine auth method
+   ├─ SSH Key: Read from cred.value (file path)
+   │           Passphrase from cred.metadata["passphrase"]
+   ├─ Password: Use cred.value directly
+   └─ Default: Try ~/.ssh/id_rsa or ~/.ssh/id_ed25519
+
+5. Connect via async_ssh2_tokio
+   └─ Client::connect((hostname, port), username, auth_method, NoCheck)
+
+6. Execute command
+   └─ client.execute(command)
+
+7. Stream output back via WebSocket
+   └─ stdout (plain), stderr (red), exit code (green/red)
+```
+
+### Key Implementation Details
+
+**Credential Handling** (Important for AI Assistants):
+```rust
+// Credentials store SSH keys as FILE PATHS, not raw key content
+let auth_method = if let Some(cred) = credential {
+    match cred.credential_type() {  // Method call, not field access
+        Some(CredentialType::SshKey) => {
+            let key_path = &cred.value;  // Path to key file
+            let key_content = tokio::fs::read_to_string(key_path).await?;
+
+            // Passphrase stored in metadata JSON
+            let metadata = cred.get_metadata();
+            let passphrase = metadata.get("passphrase")
+                .and_then(|v| v.as_str())
+                .filter(|s| !s.is_empty());
+
+            AuthMethod::with_key(&key_content, passphrase)
+        }
+        Some(CredentialType::Password) => {
+            AuthMethod::with_password(&cred.value)
+        }
+    }
+};
+```
+
+**Local vs Remote Execution**:
+```rust
+let result = if server.is_local {
+    // Local: Use tokio::process::Command
+    execute_local_command(command).await
+} else {
+    // Remote: Use async_ssh2_tokio
+    execute_ssh_command(&server, credential.as_ref(), command).await
+};
+```
+
+### Theme Integration
+
+Terminal colors automatically match the application theme:
+
+```javascript
+// terminal.js - Theme detection
+const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+this.terminal.options.theme = isDark ? this.getDarkTheme() : this.getLightTheme();
+
+// Watch for theme changes
+const observer = new MutationObserver(() => {
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    this.terminal.options.theme = isDark ? this.getDarkTheme() : this.getLightTheme();
+});
+observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+```
+
+### Opening the Terminal
+
+**From Command Template Form**:
+```html
+<button type="button"
+        @click="$dispatch('open-terminal', { command: document.getElementById('command').value })">
+    <i data-lucide="terminal"></i> Test
+</button>
+```
+
+**From Any Alpine.js Component**:
+```javascript
+// Open with pre-filled command
+$dispatch('open-terminal', { command: 'docker ps', serverId: 1 })
+
+// Open empty
+$dispatch('open-terminal')
+```
+
+**From JavaScript**:
+```javascript
+// Dispatch custom event
+window.dispatchEvent(new CustomEvent('open-terminal', {
+    detail: { command: 'hostname', serverId: 2 }
+}));
+```
+
+### Key Files Reference
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| WebSocket Handler | `server/src/routes/terminal.rs` | Backend WebSocket logic |
+| Terminal Manager | `server/static/js/terminal.js` | xterm.js wrapper + Alpine component |
+| Modal Template | `server/templates/components/terminal_modal.html` | UI with styles |
+| Base Template | `server/templates/base.html` | CDN includes + modal injection |
+| Command Form | `server/templates/components/command_template_form.html` | Test button integration |
+
+### External Dependencies (CDN)
+
+```html
+<!-- xterm.js core -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+
+<!-- xterm.js addons -->
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-search@0.13.0/lib/xterm-addon-search.js"></script>
+```
+
+### Phase 2 Roadmap (Future)
+
+- **PTY Allocation**: Enable interactive commands (sudo, vim, etc.)
+- **Session Persistence**: Keep terminal sessions alive across page reloads
+- **Multiple Terminals**: Tab support for concurrent sessions
+- **Real-time Streaming**: Stream output during long-running commands
 
 ---
 
