@@ -11,6 +11,7 @@ class TerminalManager {
         this.socket = null;
         this.fitAddon = null;
         this.searchAddon = null;
+        this.webLinksAddon = null;
         this.connected = false;
         this.connecting = false;
         this.outputHistory = [];
@@ -67,6 +68,12 @@ class TerminalManager {
         if (typeof SearchAddon !== 'undefined') {
             this.searchAddon = new SearchAddon.SearchAddon();
             this.terminal.loadAddon(this.searchAddon);
+        }
+
+        // Load WebLinksAddon for clickable URLs
+        if (typeof WebLinksAddon !== 'undefined') {
+            this.webLinksAddon = new WebLinksAddon.WebLinksAddon();
+            this.terminal.loadAddon(this.webLinksAddon);
         }
 
         // Open terminal in container
