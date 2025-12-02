@@ -223,6 +223,25 @@
 
             <div class="header-spacer"></div>
 
+            <!-- Live Clock -->
+            <div x-data="{
+                    time: '',
+                    init() {
+                        this.updateTime();
+                        setInterval(() => this.updateTime(), 1000);
+                    },
+                    updateTime() {
+                        const now = new Date();
+                        this.time = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    }
+                 }"
+                 class="header-clock"
+                 aria-live="polite"
+                 aria-label="Current time">
+                <i data-lucide="clock" style="width: 14px; height: 14px; opacity: 0.7;" aria-hidden="true"></i>
+                <span x-text="time" style="font-variant-numeric: tabular-nums;"></span>
+            </div>
+
             <!-- Theme toggle: Tokyo Night → Nord Dark → Light → Tokyo -->
             <button @click="theme = theme === 'tokyo' ? 'dark' : (theme === 'dark' ? 'light' : 'tokyo')"
                     class="btn btn-secondary"

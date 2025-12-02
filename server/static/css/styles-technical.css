@@ -192,6 +192,19 @@ h3 {
     flex: 1;
 }
 
+.header-clock {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-secondary);
+    font-size: 0.8125rem;
+    font-family: var(--font-mono);
+    padding: 4px 10px;
+    background: var(--bg-primary);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+}
+
 /* Main layout container */
 .main-layout {
     display: flex;
