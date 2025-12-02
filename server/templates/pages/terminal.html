@@ -837,6 +837,12 @@
                     {% endfor %}
                 </select>
                 <div class="pane-actions">
+                    <button @click="toggleEnvVars(1)"
+                            :title="panes[1].showEnvVars ? 'Hide Env Vars' : 'Environment Variables'"
+                            :style="panes[1].envVars.length > 0 ? 'background: var(--warning-bg, rgba(224, 175, 104, 0.2)); border-color: var(--warning-color, #e0af68);' : ''">
+                        <i data-lucide="variable" style="width: 12px; height: 12px;"></i>
+                        <span x-show="panes[1].envVars.length > 0" x-text="panes[1].envVars.length" style="font-size: 9px; margin-left: 2px;"></span>
+                    </button>
                     <button @click="panes[1].interactiveMode ? stopInteractiveShell(1) : startInteractiveShell(1)"
                             :title="panes[1].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
                             :style="panes[1].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
@@ -848,17 +854,36 @@
                     </button>
                 </div>
             </div>
+            <!-- Environment Variables Editor -->
+            <div x-show="panes[1].showEnvVars" x-cloak style="padding: 8px 12px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">Environment Variables</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button @click="addEnvVar(1)" style="padding: 2px 6px; font-size: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-secondary); cursor: pointer;">+ Add</button>
+                        <button @click="clearEnvVars(1)" style="padding: 2px 6px; font-size: 10px; background: transparent; border: 1px solid var(--error-color); border-radius: 3px; color: var(--error-color); cursor: pointer;">Clear</button>
+                    </div>
+                </div>
+                <template x-for="(env, envIdx) in panes[1].envVars" :key="envIdx">
+                    <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+                        <input type="text" x-model="env.key" placeholder="KEY" style="flex: 1; padding: 4px 6px; font-size: 11px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-primary); font-family: monospace;">
+                        <span style="color: var(--text-muted); font-size: 11px; padding: 4px 0;">=</span>
+                        <input type="text" x-model="env.value" placeholder="value" style="flex: 2; padding: 4px 6px; font-size: 11px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-primary); font-family: monospace;">
+                        <button @click="removeEnvVar(1, envIdx)" style="padding: 2px 6px; background: transparent; border: none; color: var(--error-color); cursor: pointer; font-size: 14px;">&times;</button>
+                    </div>
+                </template>
+                <p style="font-size: 10px; color: var(--text-muted); margin: 4px 0 0 0;">These will be exported before running commands.</p>
+            </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-1"></div>
                 <div class="terminal-input-row" x-show="!panes[1].interactiveMode">
                     <input type="text"
                            x-model="panes[1].command"
-                           @keydown.enter="executePane(1)"
+                           @keydown.enter="executePaneWithEnv(1)"
                            @keydown.up="historyUp(1)"
                            @keydown.down="historyDown(1)"
                            placeholder="Enter command..."
                            :disabled="!panes[1].serverId">
-                    <button @click="executePane(1)" :disabled="!panes[1].serverId || !panes[1].command">
+                    <button @click="executePaneWithEnv(1)" :disabled="!panes[1].serverId || !panes[1].command">
                         Run
                     </button>
                 </div>
@@ -893,6 +918,12 @@
                     {% endfor %}
                 </select>
                 <div class="pane-actions">
+                    <button @click="toggleEnvVars(2)"
+                            :title="panes[2].showEnvVars ? 'Hide Env Vars' : 'Environment Variables'"
+                            :style="panes[2].envVars.length > 0 ? 'background: var(--warning-bg, rgba(224, 175, 104, 0.2)); border-color: var(--warning-color, #e0af68);' : ''">
+                        <i data-lucide="variable" style="width: 12px; height: 12px;"></i>
+                        <span x-show="panes[2].envVars.length > 0" x-text="panes[2].envVars.length" style="font-size: 9px; margin-left: 2px;"></span>
+                    </button>
                     <button @click="panes[2].interactiveMode ? stopInteractiveShell(2) : startInteractiveShell(2)"
                             :title="panes[2].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
                             :style="panes[2].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
@@ -904,17 +935,36 @@
                     </button>
                 </div>
             </div>
+            <!-- Environment Variables Editor -->
+            <div x-show="panes[2].showEnvVars" x-cloak style="padding: 8px 12px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">Environment Variables</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button @click="addEnvVar(2)" style="padding: 2px 6px; font-size: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-secondary); cursor: pointer;">+ Add</button>
+                        <button @click="clearEnvVars(2)" style="padding: 2px 6px; font-size: 10px; background: transparent; border: 1px solid var(--error-color); border-radius: 3px; color: var(--error-color); cursor: pointer;">Clear</button>
+                    </div>
+                </div>
+                <template x-for="(env, envIdx) in panes[2].envVars" :key="envIdx">
+                    <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+                        <input type="text" x-model="env.key" placeholder="KEY" style="flex: 1; padding: 4px 6px; font-size: 11px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-primary); font-family: monospace;">
+                        <span style="color: var(--text-muted); font-size: 11px; padding: 4px 0;">=</span>
+                        <input type="text" x-model="env.value" placeholder="value" style="flex: 2; padding: 4px 6px; font-size: 11px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-primary); font-family: monospace;">
+                        <button @click="removeEnvVar(2, envIdx)" style="padding: 2px 6px; background: transparent; border: none; color: var(--error-color); cursor: pointer; font-size: 14px;">&times;</button>
+                    </div>
+                </template>
+                <p style="font-size: 10px; color: var(--text-muted); margin: 4px 0 0 0;">These will be exported before running commands.</p>
+            </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-2"></div>
                 <div class="terminal-input-row" x-show="!panes[2].interactiveMode">
                     <input type="text"
                            x-model="panes[2].command"
-                           @keydown.enter="executePane(2)"
+                           @keydown.enter="executePaneWithEnv(2)"
                            @keydown.up="historyUp(2)"
                            @keydown.down="historyDown(2)"
                            placeholder="Enter command..."
                            :disabled="!panes[2].serverId">
-                    <button @click="executePane(2)" :disabled="!panes[2].serverId || !panes[2].command">
+                    <button @click="executePaneWithEnv(2)" :disabled="!panes[2].serverId || !panes[2].command">
                         Run
                     </button>
                 </div>
@@ -949,6 +999,12 @@
                     {% endfor %}
                 </select>
                 <div class="pane-actions">
+                    <button @click="toggleEnvVars(3)"
+                            :title="panes[3].showEnvVars ? 'Hide Env Vars' : 'Environment Variables'"
+                            :style="panes[3].envVars.length > 0 ? 'background: var(--warning-bg, rgba(224, 175, 104, 0.2)); border-color: var(--warning-color, #e0af68);' : ''">
+                        <i data-lucide="variable" style="width: 12px; height: 12px;"></i>
+                        <span x-show="panes[3].envVars.length > 0" x-text="panes[3].envVars.length" style="font-size: 9px; margin-left: 2px;"></span>
+                    </button>
                     <button @click="panes[3].interactiveMode ? stopInteractiveShell(3) : startInteractiveShell(3)"
                             :title="panes[3].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
                             :style="panes[3].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
@@ -960,17 +1016,36 @@
                     </button>
                 </div>
             </div>
+            <!-- Environment Variables Editor -->
+            <div x-show="panes[3].showEnvVars" x-cloak style="padding: 8px 12px; background: var(--bg-tertiary); border-bottom: 1px solid var(--border-color);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">Environment Variables</span>
+                    <div style="display: flex; gap: 4px;">
+                        <button @click="addEnvVar(3)" style="padding: 2px 6px; font-size: 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-secondary); cursor: pointer;">+ Add</button>
+                        <button @click="clearEnvVars(3)" style="padding: 2px 6px; font-size: 10px; background: transparent; border: 1px solid var(--error-color); border-radius: 3px; color: var(--error-color); cursor: pointer;">Clear</button>
+                    </div>
+                </div>
+                <template x-for="(env, envIdx) in panes[3].envVars" :key="envIdx">
+                    <div style="display: flex; gap: 4px; margin-bottom: 4px;">
+                        <input type="text" x-model="env.key" placeholder="KEY" style="flex: 1; padding: 4px 6px; font-size: 11px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-primary); font-family: monospace;">
+                        <span style="color: var(--text-muted); font-size: 11px; padding: 4px 0;">=</span>
+                        <input type="text" x-model="env.value" placeholder="value" style="flex: 2; padding: 4px 6px; font-size: 11px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 3px; color: var(--text-primary); font-family: monospace;">
+                        <button @click="removeEnvVar(3, envIdx)" style="padding: 2px 6px; background: transparent; border: none; color: var(--error-color); cursor: pointer; font-size: 14px;">&times;</button>
+                    </div>
+                </template>
+                <p style="font-size: 10px; color: var(--text-muted); margin: 4px 0 0 0;">These will be exported before running commands.</p>
+            </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-3"></div>
                 <div class="terminal-input-row" x-show="!panes[3].interactiveMode">
                     <input type="text"
                            x-model="panes[3].command"
-                           @keydown.enter="executePane(3)"
+                           @keydown.enter="executePaneWithEnv(3)"
                            @keydown.up="historyUp(3)"
                            @keydown.down="historyDown(3)"
                            placeholder="Enter command..."
                            :disabled="!panes[3].serverId">
-                    <button @click="executePane(3)" :disabled="!panes[3].serverId || !panes[3].command">
+                    <button @click="executePaneWithEnv(3)" :disabled="!panes[3].serverId || !panes[3].command">
                         Run
                     </button>
                 </div>
