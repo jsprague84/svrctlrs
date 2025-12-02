@@ -74,7 +74,7 @@
         border: 1px solid var(--border-color);
         border-radius: 6px;
         overflow: hidden;
-        min-height: 0;
+        min-height: 300px;
     }
 
     .terminal-pane-header {
@@ -128,22 +128,40 @@
         display: flex;
         flex-direction: column;
         min-height: 0;
+        height: 0; /* Force flex to calculate actual height */
         padding: 4px;
     }
 
+    /* Terminal container - must have explicit dimensions for xterm.js */
     .terminal-pane-body .terminal-container {
+        background: #1a1b26; /* Tokyo Night background */
+        border-radius: 6px;
+        padding: 0;
         flex: 1;
         min-height: 200px;
-        height: 100%;
-        background-color: var(--bg-tertiary, #1a1b26);
-        border-radius: 4px;
         overflow: hidden;
+        border: 1px solid var(--border-color);
+        position: relative; /* Establish positioning context */
     }
 
-    /* Ensure xterm fills container */
+    [data-theme="dark"] .terminal-pane-body .terminal-container {
+        background: #2e3440; /* Nord background */
+    }
+
+    /* xterm must be absolutely positioned to fill container reliably */
     .terminal-pane-body .terminal-container .xterm {
-        height: 100%;
-        padding: 8px;
+        position: absolute !important;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+    }
+
+    /* Ensure xterm screen and viewport also fill properly */
+    .terminal-pane-body .terminal-container .xterm-screen,
+    .terminal-pane-body .terminal-container .xterm-viewport {
+        height: 100% !important;
+        width: 100% !important;
     }
 
     .terminal-pane-body .terminal-input-row {
@@ -486,13 +504,39 @@ function debugConsole() {
         initPane(index) {
             const containerId = `terminal-pane-${index}`;
             const container = document.getElementById(containerId);
-            if (!container) return;
+            if (!container) {
+                console.error(`Container not found: ${containerId}`);
+                return;
+            }
 
             // Create terminal manager instance
             const terminal = new TerminalManager();
             terminal.init(containerId);
             this.panes[index].terminal = terminal;
             this.terminals[index] = terminal;
+
+            // Use ResizeObserver to fit terminal when container changes size
+            const resizeObserver = new ResizeObserver(() => {
+                if (terminal.fitAddon) {
+                    terminal.fit();
+                }
+            });
+            resizeObserver.observe(container);
+
+            // Write welcome message and aggressively fit terminal
+            if (terminal.terminal) {
+                terminal.terminal.writeln('\x1b[90m--- Terminal ' + (index + 1) + ' ready ---\x1b[0m');
+                terminal.terminal.writeln('\x1b[90mSelect a server and enter a command.\x1b[0m');
+
+                // Multiple delayed fits to handle layout timing
+                setTimeout(() => terminal.fit(), 50);
+                setTimeout(() => terminal.fit(), 150);
+                setTimeout(() => {
+                    terminal.fit();
+                    // Scroll to top after fits complete
+                    terminal.terminal.scrollToTop();
+                }, 300);
+            }
         },
 
         setLayout(newLayout) {
