@@ -1,8 +1,21 @@
 # Rust
 /target/
 **/*.rs.bk
-*.pdb
-# Note: Cargo.lock should be committed for applications (not libraries)
+Cargo.lock
+
+# Database
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+server.log
 
 # IDE
 .vscode/
@@ -11,36 +24,17 @@
 *.swo
 *~
 
-# Environment
-.env
-.env.local
-
-# Configuration (user-specific)
-config.toml
-
-# Database
-*.db
-*.db-shm
-*.db-wal
-
-# Logs
-*.log
-
 # OS
 .DS_Store
 Thumbs.db
 
-# Build outputs
-dist/
+# Node/Playwright
+node_modules/
+test-results/
+playwright-report/
+playwright/.cache/
 
-# Test coverage
-*.profraw
-*.profdata
-CLAUDE.archive.md
-
-# Archived documentation (not maintained)
-docs-archived/
-.deprecated
-
-# Terminal implementation working docs (will be excluded before merge to master)
-TerminalImpDocs/
+# Test database
+data/test.db
+data/test.db-shm
+data/test.db-wal

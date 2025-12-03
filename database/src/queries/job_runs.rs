@@ -34,7 +34,7 @@ pub async fn list_job_runs(pool: &Pool<Sqlite>, limit: i64, offset: i64) -> Resu
 }
 
 /// Extended job run with joined names for display
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
 pub struct JobRunWithNames {
     pub id: i64,
     pub job_schedule_id: Option<i64>,
