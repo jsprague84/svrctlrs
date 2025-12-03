@@ -48,22 +48,6 @@ use tracing::{debug, error, info, instrument};
 
 use crate::state::AppState;
 
-/// Standard API response wrapper for successful responses
-#[derive(Debug, Serialize)]
-pub struct ApiResponse<T: Serialize> {
-    pub success: bool,
-    pub data: T,
-}
-
-impl<T: Serialize> ApiResponse<T> {
-    pub fn new(data: T) -> Self {
-        Self {
-            success: true,
-            data,
-        }
-    }
-}
-
 /// Standard API error response
 #[derive(Debug, Serialize)]
 pub struct ApiError {
