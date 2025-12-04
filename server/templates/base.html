@@ -129,10 +129,32 @@
             });
 
             // Auto-close forms on successful save
+            // Only triggers when swap target is a list container (actual form submission),
+            // not when it's a sub-element like test-connection-result or test result areas
             document.body.addEventListener('htmx:afterSwap', function(evt) {
                 // Check if the swapped content contains a success message
                 const successAlert = evt.detail.target.querySelector('.alert-success');
                 if (successAlert) {
+                    // Only auto-close if the swap target is a list container
+                    // This prevents test/preview actions from closing forms
+                    const listContainers = [
+                        'server-list',
+                        'credential-list',
+                        'tag-list',
+                        'job-template-list',
+                        'job-type-list',
+                        'command-template-list',
+                        'schedule-list',
+                        'notification-channel-list',
+                        'notification-policy-list'
+                    ];
+
+                    const targetId = evt.detail.target.id;
+                    if (!listContainers.includes(targetId)) {
+                        // Not a list container - don't auto-close forms
+                        return;
+                    }
+
                     // Find form containers to clear
                     const formContainers = [
                         'server-form-container',
