@@ -235,7 +235,9 @@ async fn connect_with_key_content(config: &SshConfig, key_content: &str) -> Resu
     temp_file
         .write_all(key_content.as_bytes())
         .context("Failed to write key content to temporary file")?;
-    temp_file.flush().context("Failed to flush temporary key file")?;
+    temp_file
+        .flush()
+        .context("Failed to flush temporary key file")?;
 
     // Get the path to the temp file
     let temp_path = temp_file.path().to_string_lossy().to_string();
