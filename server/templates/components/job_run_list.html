@@ -3,52 +3,66 @@
     <p class="text-secondary">No job runs yet. Schedules will appear here once they execute.</p>
 </div>
 {% else %}
-<div class="card">
-    {% for run in job_runs %}
-    <div class="card mb-2" id="job-run-{{ run.id }}" style="background: var(--bg);">
-        <div class="flex-between mb-2">
-            <div>
-                <strong>{{ run.job_template_name }}</strong>
-                <span class="text-secondary" style="font-size: 0.875rem;">{{ run.started_at }}</span>
-            </div>
-            <div class="flex gap-2">
-                <span class="badge {% if run.status == "success" %}badge-success{% elif run.status == "failed" %}badge-error{% elif run.status == "partial_success" %}badge-warning{% elif run.status == "running" %}badge-info{% else %}badge-secondary{% endif %}">
-                    {% if run.status == "success" %}Success
-                    {% elif run.status == "failed" %}Failed
-                    {% elif run.status == "partial_success" %}Partial Success
-                    {% elif run.status == "running" %}Running
-                    {% else %}Pending
-                    {% endif %}
-                </span>
-                <button hx-get="/job-runs/{{ run.id }}"
-                        hx-target="#job-run-detail-{{ run.id }}"
-                        hx-swap="innerHTML"
-                        class="btn btn-sm btn-secondary">
-                    <i data-lucide="chevron-down" style="width: 12px; height: 12px;"></i> Details
-                </button>
-            </div>
-        </div>
-
-        <div class="text-secondary" style="font-size: 0.875rem;">
-            <strong>Trigger:</strong> {% if run.trigger_type == "schedule" %}Scheduled
-                {% else if run.trigger_type == "manual" %}Manual
-                {% else if run.trigger_type == "webhook" %}Webhook
-                {% endif %}<br>
-            <strong>Servers:</strong> {{ run.success_count }} succeeded, {{ run.failed_count }} failed of {{ run.total_servers }}<br>
-            {% match run.completed_at %}
-            {% when Some with (ca) %}
-            <strong>Duration:</strong> {{ run.duration_seconds }}s<br>
-            {% when None %}
-            {% if run.status == "running" %}
-            <span class="text-info">Job is currently running...</span>
-            {% endif %}
-            {% endmatch %}
-        </div>
-
-        <!-- Expandable details -->
-        <div id="job-run-detail-{{ run.id }}" class="mt-2"></div>
-    </div>
-    {% endfor %}
+<div class="card" style="padding: 0; overflow: hidden;">
+    <table class="table" style="margin: 0;">
+        <thead>
+            <tr>
+                <th style="width: 40px;"></th>
+                <th>Job Template</th>
+                <th>Started</th>
+                <th>Duration</th>
+                <th>Servers</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for run in job_runs %}
+            <tr id="job-run-row-{{ run.id }}" class="job-run-row">
+                <td style="text-align: center; padding: 0.5rem;">
+                    <button class="btn btn-sm" style="padding: 0.25rem 0.5rem; background: transparent; border: none;"
+                            onclick="toggleJobRunDetail({{ run.id }})"
+                            title="Toggle details">
+                        <i data-lucide="chevron-right" id="chevron-{{ run.id }}" style="width: 14px; height: 14px; transition: transform 0.2s;"></i>
+                    </button>
+                </td>
+                <td>
+                    <strong>{{ run.job_template_name }}</strong>
+                    <span class="text-secondary" style="font-size: 0.75rem; margin-left: 0.5rem;">
+                        {% if run.trigger_type == "schedule" %}⏰{% else if run.trigger_type == "manual" %}👆{% else if run.trigger_type == "webhook" %}🔗{% endif %}
+                    </span>
+                </td>
+                <td style="font-size: 0.875rem;">{{ run.started_at }}</td>
+                <td style="font-size: 0.875rem;">
+                    {% match run.completed_at %}
+                    {% when Some with (_) %}{{ run.duration_seconds }}s
+                    {% when None %}
+                    {% if run.status == "running" %}<span class="text-info">...</span>{% else %}-{% endif %}
+                    {% endmatch %}
+                </td>
+                <td style="font-size: 0.875rem;">
+                    <span class="{% if run.success_count > 0 %}text-success{% endif %}">{{ run.success_count }}✓</span>
+                    {% if run.failed_count > 0 %}<span class="text-error"> {{ run.failed_count }}✗</span>{% endif %}
+                    <span class="text-secondary">/{{ run.total_servers }}</span>
+                </td>
+                <td>
+                    <span class="badge {% if run.status == "success" %}badge-success{% elif run.status == "failed" %}badge-error{% elif run.status == "partial_success" %}badge-warning{% elif run.status == "running" %}badge-info{% else %}badge-secondary{% endif %}">
+                        {% if run.status == "success" %}Success
+                        {% elif run.status == "failed" %}Failed
+                        {% elif run.status == "partial_success" %}Partial
+                        {% elif run.status == "running" %}Running
+                        {% else %}Pending
+                        {% endif %}
+                    </span>
+                </td>
+            </tr>
+            <tr id="job-run-detail-row-{{ run.id }}" class="job-run-detail-row" style="display: none;">
+                <td colspan="6" style="padding: 0; background: var(--bg);">
+                    <div id="job-run-detail-{{ run.id }}" style="padding: 1rem;"></div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 
 <!-- Pagination -->
@@ -58,19 +72,84 @@
             hx-get="/job-runs/list?page={{ current_page - 1 }}"
             hx-target="#job-run-list"
             hx-swap="innerHTML"
-            class="btn btn-secondary">
-        <i data-lucide="chevron-left" style="width: 16px; height: 16px;"></i> Previous
+            class="btn btn-secondary btn-sm">
+        <i data-lucide="chevron-left" style="width: 14px; height: 14px;"></i> Previous
     </button>
 
-    <span class="text-secondary">Page {{ current_page }} of {{ total_pages }}</span>
+    <span class="text-secondary" style="font-size: 0.875rem;">Page {{ current_page }} of {{ total_pages }}</span>
 
     <button {% if current_page == total_pages %}disabled{% endif %}
             hx-get="/job-runs/list?page={{ current_page + 1 }}"
             hx-target="#job-run-list"
             hx-swap="innerHTML"
-            class="btn btn-secondary">
-        Next <i data-lucide="chevron-right" style="width: 16px; height: 16px;"></i>
+            class="btn btn-secondary btn-sm">
+        Next <i data-lucide="chevron-right" style="width: 14px; height: 14px;"></i>
     </button>
 </div>
 {% endif %}
+
+<script>
+// Track which job runs have open details
+window.openJobRunDetails = window.openJobRunDetails || new Set();
+
+function toggleJobRunDetail(runId) {
+    const detailRow = document.getElementById('job-run-detail-row-' + runId);
+    const detailDiv = document.getElementById('job-run-detail-' + runId);
+    const chevron = document.getElementById('chevron-' + runId);
+
+    if (!detailRow) return;
+
+    const isOpen = detailRow.style.display !== 'none';
+
+    if (isOpen) {
+        // Close
+        detailRow.style.display = 'none';
+        chevron.style.transform = 'rotate(0deg)';
+        window.openJobRunDetails.delete(runId);
+    } else {
+        // Open and load content if not already loaded
+        detailRow.style.display = 'table-row';
+        chevron.style.transform = 'rotate(90deg)';
+        window.openJobRunDetails.add(runId);
+
+        if (!detailDiv.innerHTML.trim()) {
+            // Load details via HTMX
+            htmx.ajax('GET', '/job-runs/' + runId, {target: detailDiv, swap: 'innerHTML'}).then(function() {
+                // Re-initialize Lucide icons after content loads
+                if (window.lucide) {
+                    lucide.createIcons({ nameAttr: 'data-lucide', el: detailDiv });
+                }
+            });
+        }
+    }
+}
+
+// Restore open details after WebSocket update
+function restoreOpenDetails() {
+    window.openJobRunDetails.forEach(function(runId) {
+        const detailRow = document.getElementById('job-run-detail-row-' + runId);
+        const chevron = document.getElementById('chevron-' + runId);
+        if (detailRow) {
+            detailRow.style.display = 'table-row';
+            if (chevron) chevron.style.transform = 'rotate(90deg)';
+            // Re-fetch the detail content since it was cleared
+            const detailDiv = document.getElementById('job-run-detail-' + runId);
+            if (detailDiv) {
+                htmx.ajax('GET', '/job-runs/' + runId, {target: detailDiv, swap: 'innerHTML'}).then(function() {
+                    if (window.lucide) {
+                        lucide.createIcons({ nameAttr: 'data-lucide', el: detailDiv });
+                    }
+                });
+            }
+        }
+    });
+}
+
+// Hook into after-swap to restore details
+document.body.addEventListener('htmx:afterSwap', function(event) {
+    if (event.detail.target && event.detail.target.id === 'job-run-list') {
+        restoreOpenDetails();
+    }
+});
+</script>
 {% endif %}

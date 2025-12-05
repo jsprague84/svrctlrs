@@ -117,6 +117,10 @@ class JobRunsWebSocket {
                     if (window.lucide) {
                         lucide.createIcons({ nameAttr: 'data-lucide', el: this.targetElement });
                     }
+                    // Restore any open detail panels
+                    if (typeof restoreOpenDetails === 'function') {
+                        restoreOpenDetails();
+                    }
                 }
                 break;
 
