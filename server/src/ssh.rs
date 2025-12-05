@@ -129,14 +129,21 @@ pub fn list_available_keys() -> Vec<String> {
 /// Connect to SSH server
 pub async fn connect_ssh(config: &SshConfig) -> Result<Client> {
     // Determine authentication method
-    if let Some(key_path) = &config.key_path {
-        // Use SSH key authentication
-        info!("Using SSH key authentication: {}", key_path);
-        if !std::path::Path::new(key_path).exists() {
-            return Err(anyhow::anyhow!("SSH key not found: {}", key_path));
+    if let Some(key_value) = &config.key_path {
+        // Check if this is key content (starts with -----BEGIN) or a file path
+        if key_value.trim().starts_with("-----BEGIN") {
+            // This is SSH key content - write to temp file and use it
+            info!("Using SSH key content (inline key)");
+            return connect_with_key_content(config, key_value).await;
+        } else {
+            // This is a file path
+            info!("Using SSH key file: {}", key_value);
+            if !std::path::Path::new(key_value).exists() {
+                return Err(anyhow::anyhow!("SSH key file not found: {}", key_value));
+            }
+            let auth_method = AuthMethod::with_key_file(key_value, None);
+            return connect_with_auth(config, auth_method).await;
         }
-        let auth_method = AuthMethod::with_key_file(key_path, None);
-        return connect_with_auth(config, auth_method).await;
     }
 
     // Try default SSH keys - check multiple possible locations
@@ -216,4 +223,42 @@ async fn connect_with_auth(config: &SshConfig, auth_method: AuthMethod) -> Resul
     .context("Failed to connect to SSH server")?;
 
     Ok(client)
+}
+
+/// Connect using SSH key content (writes to temp file)
+async fn connect_with_key_content(config: &SshConfig, key_content: &str) -> Result<Client> {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a temporary file with the key content
+    let mut temp_file = NamedTempFile::new().context("Failed to create temporary key file")?;
+    temp_file
+        .write_all(key_content.as_bytes())
+        .context("Failed to write key content to temporary file")?;
+    temp_file.flush().context("Failed to flush temporary key file")?;
+
+    // Get the path to the temp file
+    let temp_path = temp_file.path().to_string_lossy().to_string();
+    debug!("Created temporary key file at: {}", temp_path);
+
+    // Set proper permissions (SSH requires 600)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let permissions = std::fs::Permissions::from_mode(0o600);
+        std::fs::set_permissions(temp_file.path(), permissions)
+            .context("Failed to set key file permissions")?;
+    }
+
+    // Create auth method with the temp file
+    let auth_method = AuthMethod::with_key_file(&temp_path, None);
+
+    // Connect
+    let result = connect_with_auth(config, auth_method).await;
+
+    // Note: temp_file is automatically deleted when dropped
+    // We need to keep it alive until connection is established
+    // The Client holds the connection, so key is no longer needed after connect
+
+    result
 }

@@ -473,11 +473,12 @@ struct TestConnectionInput {
     hostname: String,
     port: Option<i32>,
     username: Option<String>,
+    credential_id: Option<String>, // Can be empty string or numeric ID
 }
 
 /// Test SSH connection handler
 async fn server_test_connection(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Form(input): Form<TestConnectionInput>,
 ) -> Result<Html<String>, AppError> {
     use crate::ssh::{test_connection, SshConfig};
@@ -493,11 +494,33 @@ async fn server_test_connection(
         port
     );
 
+    // Load credential if specified
+    let db = state.db().await;
+    let key_path = match input.credential_id.as_deref() {
+        Some(id_str) if !id_str.is_empty() => {
+            if let Ok(cred_id) = id_str.parse::<i64>() {
+                match credentials::get_credential(db.pool(), cred_id).await {
+                    Ok(cred) => {
+                        tracing::info!("Using credential '{}' for test connection", cred.name);
+                        Some(cred.value)
+                    }
+                    Err(e) => {
+                        tracing::warn!("Failed to load credential {}: {}", cred_id, e);
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
+
     let config = SshConfig {
         host: input.hostname.clone(),
         port: port as u16,
         username: username.clone(),
-        key_path: None, // Will use default keys
+        key_path,
         timeout: Duration::from_secs(10),
     };
 
