@@ -21,7 +21,7 @@
         <div id="test-result-{{ notification.id }}" class="mb-2"></div>
 
         <!-- Test notification form -->
-        <form hx-post="/api/v1/notifications/channels/{{ notification.id }}/test"
+        <form hx-post="/settings/notifications/channels/{{ notification.id }}/test"
               hx-target="#test-result-{{ notification.id }}"
               hx-swap="innerHTML"
               class="flex gap-2 mb-2 align-items-end">

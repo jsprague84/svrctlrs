@@ -869,8 +869,10 @@ pub async fn test_channel(
     // Send test notification based on channel type
     let result = match channel_type {
         ChannelType::Gotify => {
-            let endpoint = config["endpoint"]
+            // Config may have "url" (from settings form) or "endpoint" (legacy)
+            let endpoint = config["url"]
                 .as_str()
+                .or_else(|| config["endpoint"].as_str())
                 .unwrap_or("http://localhost:8080");
             let token = config["token"].as_str().unwrap_or("");
 
@@ -908,7 +910,11 @@ pub async fn test_channel(
             }
         }
         ChannelType::Ntfy => {
-            let endpoint = config["endpoint"].as_str().unwrap_or("https://ntfy.sh");
+            // Config may have "url" (from settings form) or "endpoint" (legacy)
+            let endpoint = config["url"]
+                .as_str()
+                .or_else(|| config["endpoint"].as_str())
+                .unwrap_or("https://ntfy.sh");
             let topic = config["topic"].as_str().unwrap_or("");
 
             if topic.is_empty() {
