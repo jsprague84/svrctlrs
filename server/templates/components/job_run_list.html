@@ -27,8 +27,8 @@
                 </td>
                 <td>
                     <strong>{{ run.job_template_name }}</strong>
-                    <span class="text-secondary" style="font-size: 0.75rem; margin-left: 0.5rem;">
-                        {% if run.trigger_type == "schedule" %}⏰{% else if run.trigger_type == "manual" %}👆{% else if run.trigger_type == "webhook" %}🔗{% endif %}
+                    <span class="text-secondary" style="font-size: 0.75rem; margin-left: 0.5rem;" title="{% if run.trigger_type == "schedule" %}Scheduled{% else if run.trigger_type == "manual" %}Manual{% else if run.trigger_type == "webhook" %}Webhook{% endif %}">
+                        {% if run.trigger_type == "schedule" %}<i data-lucide="clock" style="width: 12px; height: 12px;"></i>{% else if run.trigger_type == "manual" %}<i data-lucide="hand" style="width: 12px; height: 12px;"></i>{% else if run.trigger_type == "webhook" %}<i data-lucide="link" style="width: 12px; height: 12px;"></i>{% endif %}
                     </span>
                 </td>
                 <td style="font-size: 0.875rem;">{{ run.started_at }}</td>

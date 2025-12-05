@@ -9,11 +9,20 @@
 {% endblock %}
 
 {% block content %}
-<div class="flex gap-2 align-center mb-3">
-    <h1>Job Run History</h1>
-    <span id="ws-status" class="badge badge-secondary" style="font-size: 0.75rem;">
-        <i data-lucide="wifi-off" style="width: 12px; height: 12px;"></i> Connecting...
-    </span>
+<div class="flex-between mb-3">
+    <div class="flex gap-2 align-center">
+        <h1>Job Run History</h1>
+        <span id="ws-status" class="badge badge-secondary" style="font-size: 0.75rem;">
+            <i data-lucide="wifi-off" style="width: 12px; height: 12px;"></i> Connecting...
+        </span>
+    </div>
+    <button class="btn btn-danger btn-sm"
+            hx-delete="/job-runs/clear"
+            hx-target="#job-run-list"
+            hx-swap="innerHTML"
+            hx-confirm="Clear all completed job run history? Running jobs will not be affected.">
+        <i data-lucide="trash-2" style="width: 14px; height: 14px;"></i> Clear History
+    </button>
 </div>
 
 <p class="text-secondary mb-3">

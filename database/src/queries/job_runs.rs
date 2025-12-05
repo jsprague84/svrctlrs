@@ -552,3 +552,116 @@ pub async fn count_job_runs(pool: &Pool<Sqlite>) -> Result<i64> {
 
     Ok(count.0)
 }
+
+// ============================================================================
+// Delete Queries
+// ============================================================================
+
+/// Delete a single job run and its related results
+#[instrument(skip(pool))]
+pub async fn delete_job_run(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
+    // Delete related step execution results first
+    sqlx::query("DELETE FROM step_execution_results WHERE job_run_id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("Failed to delete step execution results")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    // Delete related server job results
+    sqlx::query("DELETE FROM server_job_results WHERE job_run_id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("Failed to delete server job results")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    // Delete the job run
+    sqlx::query("DELETE FROM job_runs WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("Failed to delete job run")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(())
+}
+
+/// Delete all completed job runs (excludes running jobs)
+#[instrument(skip(pool))]
+pub async fn delete_completed_job_runs(pool: &Pool<Sqlite>) -> Result<i64> {
+    // Get IDs of completed job runs
+    let completed_ids: Vec<(i64,)> = sqlx::query_as(
+        r#"
+        SELECT id FROM job_runs WHERE status != 'running'
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .context("Failed to get completed job run IDs")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    let count = completed_ids.len() as i64;
+
+    // Delete related step execution results
+    sqlx::query(
+        r#"
+        DELETE FROM step_execution_results
+        WHERE job_run_id IN (SELECT id FROM job_runs WHERE status != 'running')
+        "#,
+    )
+    .execute(pool)
+    .await
+    .context("Failed to delete step execution results")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    // Delete related server job results
+    sqlx::query(
+        r#"
+        DELETE FROM server_job_results
+        WHERE job_run_id IN (SELECT id FROM job_runs WHERE status != 'running')
+        "#,
+    )
+    .execute(pool)
+    .await
+    .context("Failed to delete server job results")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    // Delete the completed job runs
+    sqlx::query("DELETE FROM job_runs WHERE status != 'running'")
+        .execute(pool)
+        .await
+        .context("Failed to delete completed job runs")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(count)
+}
+
+/// Delete all job runs (including running - use with caution)
+#[instrument(skip(pool))]
+pub async fn delete_all_job_runs(pool: &Pool<Sqlite>) -> Result<i64> {
+    let count = count_job_runs(pool).await?;
+
+    // Delete all step execution results
+    sqlx::query("DELETE FROM step_execution_results")
+        .execute(pool)
+        .await
+        .context("Failed to delete all step execution results")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    // Delete all server job results
+    sqlx::query("DELETE FROM server_job_results")
+        .execute(pool)
+        .await
+        .context("Failed to delete all server job results")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    // Delete all job runs
+    sqlx::query("DELETE FROM job_runs")
+        .execute(pool)
+        .await
+        .context("Failed to delete all job runs")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(count)
+}

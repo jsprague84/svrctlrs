@@ -2,7 +2,7 @@ use askama::Template;
 use axum::{
     extract::{Path, Query, State},
     response::Html,
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use serde::Deserialize;
@@ -29,6 +29,9 @@ pub fn routes() -> Router<AppState> {
         .route("/job-runs/{id}/results", get(get_job_run_results))
         // Action endpoints
         .route("/job-runs/{id}/cancel", post(cancel_job_run))
+        // Delete endpoints
+        .route("/job-runs/{id}", delete(delete_job_run))
+        .route("/job-runs/clear", delete(clear_job_runs))
 }
 
 // ============================================================================
@@ -305,4 +308,50 @@ pub async fn cancel_job_run(
 
     // Return updated job run detail
     get_job_run_detail(State(state), Path(id)).await
+}
+
+/// Delete a single job run
+#[instrument(skip(state))]
+pub async fn delete_job_run(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Html<String>, AppError> {
+    info!(job_run_id = id, "Deleting job run");
+
+    // Delete the job run and related results
+    queries::delete_job_run(&state.pool, id).await.map_err(|e| {
+        error!(job_run_id = id, error = %e, "Failed to delete job run");
+        AppError::DatabaseError(e.to_string())
+    })?;
+
+    info!(job_run_id = id, "Job run deleted successfully");
+
+    // Return empty response (element will be removed by HTMX hx-swap="delete")
+    Ok(Html(String::new()))
+}
+
+/// Clear all completed job runs (not currently running)
+#[instrument(skip(state))]
+pub async fn clear_job_runs(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+    info!("Clearing completed job runs");
+
+    // Delete all completed job runs
+    let count = queries::delete_completed_job_runs(&state.pool)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to clear job runs");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    info!(deleted_count = count, "Cleared completed job runs");
+
+    // Return refreshed job run list
+    get_job_runs_list(
+        State(state),
+        Query(PaginationParams {
+            page: 1,
+            per_page: 50,
+        }),
+    )
+    .await
 }
