@@ -20,8 +20,12 @@
             <strong>Endpoint:</strong> {{ channel.endpoint }}
         </p>
 
+        <div id="test-result-channel-{{ channel.id }}" class="mb-2"></div>
+
         <div class="flex gap-2 mt-2">
             <button hx-post="/settings/notifications/channels/{{ channel.id }}/test"
+                    hx-target="#test-result-channel-{{ channel.id }}"
+                    hx-swap="innerHTML"
                     class="btn btn-sm btn-secondary">
                 <i data-lucide="send" style="width: 14px; height: 14px;"></i> Test
             </button>
