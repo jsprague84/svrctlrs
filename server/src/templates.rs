@@ -183,7 +183,9 @@ pub struct ServerCapabilitiesTemplate {
     pub server_id: i64,
     pub server: ServerDisplay, // Full server info for display
     pub capabilities: Vec<ServerCapabilityDisplay>,
-    pub should_expand: bool, // Whether to show expanded view initially
+    pub should_expand: bool,    // Whether to show expanded view initially
+    pub is_containerized: bool, // Whether svrctlrs is running in a container
+    pub is_local_server: bool,  // Whether this is the localhost server
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
