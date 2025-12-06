@@ -2,6 +2,7 @@
 
 // Re-export all query functions
 pub mod credentials;
+pub mod job_catalog;
 pub mod job_runs;
 pub mod job_schedules;
 pub mod job_templates;
@@ -14,6 +15,7 @@ pub mod terminal_profiles;
 
 // Re-export commonly used functions for convenience
 pub use credentials::*;
+pub use job_catalog::*;
 pub use job_runs::*;
 pub use job_schedules::*;
 pub use job_templates::*;

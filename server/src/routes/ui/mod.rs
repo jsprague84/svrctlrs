@@ -19,6 +19,7 @@ pub mod notifications;
 pub mod servers;
 pub mod settings;
 pub mod tags;
+pub mod wizard;
 
 /// Create UI router with all page and component routes
 pub fn ui_routes() -> Router<AppState> {
@@ -36,6 +37,8 @@ pub fn ui_routes() -> Router<AppState> {
         .merge(job_templates::routes())
         .merge(job_schedules::routes())
         .merge(job_runs::routes())
+        // Job Wizard (Basic Mode)
+        .merge(wizard::routes())
         // Notifications
         .merge(notifications::routes())
         // Settings

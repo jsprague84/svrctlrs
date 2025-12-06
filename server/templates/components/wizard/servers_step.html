@@ -1,0 +1,95 @@
+<!-- Servers Step - Select target server -->
+<div class="card">
+    <div class="card-header">
+        <h3>Select Target Server</h3>
+        <p class="text-secondary" style="margin: 0;">Choose which server to run this job on</p>
+    </div>
+    <div class="card-body">
+        {% if !catalog_item.required_capabilities.is_empty() %}
+        <div class="alert alert-info mb-3">
+            <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+            This job requires:
+            {% for cap in catalog_item.required_capabilities %}
+            <span class="badge badge-secondary">{{ cap }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if compatible_servers.is_empty() && incompatible_servers.is_empty() %}
+        <div class="empty-state">
+            <i data-lucide="server-off"></i>
+            <h4>No servers available</h4>
+            <p>Add a server first to run jobs.</p>
+            <a href="/servers" class="btn btn-primary mt-2">
+                <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Add Server
+            </a>
+        </div>
+        {% else %}
+
+        <!-- Compatible Servers -->
+        {% if !compatible_servers.is_empty() %}
+        <h4 class="text-secondary mb-2" style="font-size: 0.875rem;">
+            <i data-lucide="check-circle" style="width: 14px; height: 14px; color: var(--success-color);"></i>
+            Compatible Servers ({{ compatible_servers.len() }})
+            <span class="text-muted" style="font-weight: normal; font-size: 0.75rem;"> - Select one or more</span>
+        </h4>
+        <div class="server-grid mb-4">
+            {% for server in compatible_servers %}
+            <div class="server-card"
+                 @click="toggleServer({{ server.id }}, '{{ server.name }}')"
+                 :class="{ selected: isServerSelected({{ server.id }}) }">
+                <div class="server-card-header">
+                    <input type="checkbox"
+                           :checked="isServerSelected({{ server.id }})"
+                           @click.stop="toggleServer({{ server.id }}, '{{ server.name }}')"
+                           style="margin-right: 0.5rem;">
+                    <span class="server-status {% if server.enabled %}online{% else %}offline{% endif %}"></span>
+                    <strong>{{ server.name }}</strong>
+                </div>
+                <p class="text-secondary" style="margin: 0; font-size: 0.8125rem;">
+                    {{ server.hostname }}{% if server.port != 22 %}:{{ server.port }}{% endif %}
+                </p>
+                {% if !server.tags.is_empty() %}
+                <div class="mt-2" style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                    {% for tag in server.tags %}
+                    <span class="badge badge-secondary" style="font-size: 0.6875rem;">{{ tag.name }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <!-- Selection summary -->
+        <div x-show="selectedServerIds.length > 0" class="alert alert-info mb-3">
+            <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+            Selected <strong x-text="selectedServerIds.length"></strong> server(s)
+        </div>
+        {% endif %}
+
+        <!-- Incompatible Servers -->
+        {% if !incompatible_servers.is_empty() %}
+        <h4 class="text-secondary mb-2" style="font-size: 0.875rem;">
+            <i data-lucide="x-circle" style="width: 14px; height: 14px; color: var(--danger-color);"></i>
+            Incompatible Servers ({{ incompatible_servers.len() }})
+        </h4>
+        <div class="server-grid">
+            {% for server in incompatible_servers %}
+            <div class="server-card disabled" title="Missing required capabilities">
+                <div class="server-card-header">
+                    <span class="server-status {% if server.enabled %}online{% else %}offline{% endif %}"></span>
+                    <strong>{{ server.name }}</strong>
+                </div>
+                <p class="text-secondary" style="margin: 0; font-size: 0.8125rem;">
+                    {{ server.hostname }}{% if server.port != 22 %}:{{ server.port }}{% endif %}
+                </p>
+                <small class="text-danger mt-1" style="display: block;">
+                    <i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i>
+                    Missing required capabilities
+                </small>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>

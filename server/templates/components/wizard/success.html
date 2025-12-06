@@ -1,0 +1,44 @@
+<!-- Success Modal - Job created successfully -->
+<div class="modal" style="max-width: 500px;">
+    <div class="modal-header">
+        <h3 style="display: flex; align-items: center; gap: 0.5rem;">
+            <i data-lucide="check-circle" style="width: 24px; height: 24px; color: var(--success-color);"></i>
+            Job Created Successfully!
+        </h3>
+    </div>
+    <div class="modal-body">
+        <p style="font-size: 1rem; margin-bottom: 1.5rem;">
+            <strong>{{ job_name }}</strong> has been created{% if ran_immediately %} and is now running{% endif %}.
+        </p>
+
+        {% if ran_immediately %}
+        <div class="alert alert-info">
+            <i data-lucide="play" style="width: 16px; height: 16px;"></i>
+            The job has been queued for immediate execution.
+        </div>
+        {% else %}
+        <div class="alert alert-success">
+            <i data-lucide="calendar" style="width: 16px; height: 16px;"></i>
+            The job has been scheduled and will run according to the cron expression.
+        </div>
+        {% endif %}
+
+        <div class="mt-4" style="display: flex; gap: 1rem; justify-content: center;">
+            {% if let Some(run_id) = job_run_id %}
+            <a href="/job-runs#run-{{ run_id }}" class="btn btn-primary">
+                <i data-lucide="eye" style="width: 16px; height: 16px;"></i> View Job Run
+            </a>
+            {% endif %}
+
+            {% if let Some(sched_id) = schedule_id %}
+            <a href="/job-schedules#schedule-{{ sched_id }}" class="btn btn-secondary">
+                <i data-lucide="calendar" style="width: 16px; height: 16px;"></i> View Schedule
+            </a>
+            {% endif %}
+
+            <a href="/wizard" class="btn btn-secondary" @click="showSuccess = false; step = 1; selectedJobId = null; selectedServerId = null;">
+                <i data-lucide="plus" style="width: 16px; height: 16px;"></i> Create Another
+            </a>
+        </div>
+    </div>
+</div>

@@ -47,6 +47,15 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
         .map(Into::into)
         .collect();
 
+    // Get favorite jobs from catalog for Quick Actions
+    let favorite_jobs: Vec<JobCatalogItemDisplay> =
+        queries::job_catalog::list_catalog_favorites(db.pool())
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .map(|item| JobCatalogItemDisplay::from(item).with_favorite(true))
+            .collect();
+
     let stats = DashboardStats {
         total_servers,
         total_schedules,
@@ -54,6 +63,7 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
         active_tasks,
         total_tasks: total_schedules,
         schedules_with_runs,
+        favorite_jobs,
     };
 
     let template = DashboardTemplate { user, stats };

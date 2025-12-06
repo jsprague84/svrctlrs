@@ -1,0 +1,43 @@
+<!-- Catalog Grid - Job cards for selection -->
+{% if items.is_empty() %}
+<div class="empty-state">
+    <i data-lucide="search-x"></i>
+    <h4>No jobs found</h4>
+    <p>Try adjusting your search or filter criteria</p>
+</div>
+{% else %}
+<div class="job-grid">
+    {% for item in items %}
+    <div class="job-card"
+         @click="selectJob({{ item.id }}, '{{ item.display_name }}', '{{ item.icon }}')"
+         :class="{ selected: selectedJobId === {{ item.id }} }">
+        <div class="job-card-header">
+            <div class="job-card-icon">
+                <i data-lucide="{{ item.icon }}"></i>
+            </div>
+            <div class="job-card-content">
+                <h4>{{ item.display_name }}</h4>
+                <p>{{ item.description }}</p>
+            </div>
+        </div>
+        <div class="job-card-footer">
+            <div>
+                <span class="badge badge-{{ item.difficulty }}">{{ item.difficulty }}</span>
+                {% if !item.required_capabilities.is_empty() %}
+                <span class="badge badge-secondary" style="margin-left: 0.25rem;">
+                    {% for cap in item.required_capabilities %}{{ cap }}{% if !loop.last %}, {% endif %}{% endfor %}
+                </span>
+                {% endif %}
+            </div>
+            <button class="btn-favorite {% if item.is_favorite %}active{% endif %}"
+                    hx-post="/wizard/toggle-favorite/{{ item.id }}"
+                    hx-swap="outerHTML"
+                    @click.stop
+                    title="{% if item.is_favorite %}Remove from favorites{% else %}Add to favorites{% endif %}">
+                <i data-lucide="{% if item.is_favorite %}star{% else %}star{% endif %}"></i>
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

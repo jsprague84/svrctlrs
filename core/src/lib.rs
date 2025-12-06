@@ -15,8 +15,8 @@ pub use error::{Error, Result};
 #[cfg(feature = "executor")]
 pub use executor::{JobExecutor, DEFAULT_MAX_CONCURRENT_JOBS, DEFAULT_TIMEOUT_SECONDS};
 pub use notifications::{
-    mask_token, GotifyBackend, NotificationAction, NotificationBackend, NotificationManager,
-    NotificationMessage, NtfyBackend,
+    mask_token, GotifyBackend, NotificationAction, NotificationBackend, NotificationContext,
+    NotificationManager, NotificationMessage, NtfyBackend,
 };
 pub use remote::RemoteExecutor;
 pub use types::{MetricValue, Server, ServerStatus};

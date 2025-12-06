@@ -1,0 +1,46 @@
+<!-- Notify Step - Configure notifications -->
+<div class="card">
+    <div class="card-header">
+        <h3>Notification Settings</h3>
+        <p class="text-secondary" style="margin: 0;">Configure how you'll be notified about job results</p>
+    </div>
+    <div class="card-body">
+        {% if channels.is_empty() %}
+        <div class="alert alert-warning">
+            <i data-lucide="alert-triangle" style="width: 16px; height: 16px;"></i>
+            No notification channels configured.
+            <a href="/settings/notifications/channels">Add a channel</a> to receive notifications.
+        </div>
+        {% else %}
+        <div class="form-group">
+            <label>Notification Channel</label>
+            <select class="form-select" x-model="channelId" style="max-width: 400px;">
+                <option value="">-- Select a channel --</option>
+                {% for channel in channels %}
+                <option value="{{ channel.id }}">
+                    {{ channel.name }} ({{ channel.channel_type }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-row mt-4" style="display: flex; gap: 2rem; flex-wrap: wrap;">
+            <label class="form-check">
+                <input type="checkbox" class="form-check-input" x-model="notifySuccess">
+                <span class="form-check-label">
+                    <i data-lucide="check-circle" style="width: 14px; height: 14px; color: var(--success-color);"></i>
+                    Notify on success
+                </span>
+            </label>
+
+            <label class="form-check">
+                <input type="checkbox" class="form-check-input" x-model="notifyFailure" checked>
+                <span class="form-check-label">
+                    <i data-lucide="x-circle" style="width: 14px; height: 14px; color: var(--danger-color);"></i>
+                    Notify on failure
+                </span>
+            </label>
+        </div>
+        {% endif %}
+    </div>
+</div>

@@ -33,20 +33,45 @@
 <div class="card">
     <div class="card-header">
         <h2 class="card-title">Quick Actions</h2>
+        <a href="/wizard" class="btn btn-sm btn-primary">
+            <i data-lucide="wand-2" style="width: 14px; height: 14px;"></i> New Job
+        </a>
     </div>
-    
+
+    <!-- Favorite Jobs for Quick Run -->
+    {% if !stats.favorite_jobs.is_empty() %}
+    <div class="mb-3">
+        <h4 class="text-secondary mb-2" style="font-size: 0.75rem; text-transform: uppercase;">
+            <i data-lucide="star" style="width: 12px; height: 12px; color: var(--warning-color);"></i>
+            Favorite Jobs
+        </h4>
+        <div class="flex gap-2 flex-wrap">
+            {% for job in stats.favorite_jobs %}
+            <a href="/wizard/configure/{{ job.id }}" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                <i data-lucide="{{ job.icon }}" style="width: 16px; height: 16px;"></i>
+                {{ job.display_name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Navigation Links -->
     <div class="flex gap-2 flex-wrap">
-        <a href="/servers" class="btn btn-primary">
-            <i data-lucide="server" style="width: 16px; height: 16px;"></i> Manage Servers
+        <a href="/wizard" class="btn btn-primary">
+            <i data-lucide="wand-2" style="width: 16px; height: 16px;"></i> Job Wizard
         </a>
-        <a href="/job-templates" class="btn btn-primary">
-            <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> Job Templates
+        <a href="/servers" class="btn btn-secondary">
+            <i data-lucide="server" style="width: 16px; height: 16px;"></i> Servers
         </a>
-        <a href="/job-schedules" class="btn btn-primary">
+        <a href="/job-templates" class="btn btn-secondary">
+            <i data-lucide="file-text" style="width: 16px; height: 16px;"></i> Templates
+        </a>
+        <a href="/job-schedules" class="btn btn-secondary">
             <i data-lucide="calendar-clock" style="width: 16px; height: 16px;"></i> Schedules
         </a>
-        <a href="/job-runs" class="btn btn-primary">
-            <i data-lucide="activity" style="width: 16px; height: 16px;"></i> Job History
+        <a href="/job-runs" class="btn btn-secondary">
+            <i data-lucide="activity" style="width: 16px; height: 16px;"></i> History
         </a>
     </div>
 </div>

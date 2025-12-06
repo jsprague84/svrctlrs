@@ -1,0 +1,94 @@
+<!-- Review Step - Summary before creation -->
+<div class="card">
+    <div class="card-header">
+        <h3>Review Your Job</h3>
+        <p class="text-secondary" style="margin: 0;">Confirm the details before creating</p>
+    </div>
+    <div class="card-body">
+        <div class="review-grid" style="display: grid; gap: 1.5rem;">
+            <!-- Job Info -->
+            <div class="review-section">
+                <h4 class="text-secondary mb-2" style="font-size: 0.75rem; text-transform: uppercase;">Job</h4>
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div class="job-card-icon">
+                        <i data-lucide="{{ catalog_item.icon }}"></i>
+                    </div>
+                    <div>
+                        <strong>{{ catalog_item.display_name }}</strong>
+                        <p class="text-secondary" style="margin: 0; font-size: 0.875rem;">{{ catalog_item.description }}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Server Info -->
+            <div class="review-section">
+                <h4 class="text-secondary mb-2" style="font-size: 0.75rem; text-transform: uppercase;">
+                    Target Server{% if servers.len() > 1 %}s{% endif %} ({{ servers.len() }})
+                </h4>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    {% for server in servers %}
+                    <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--bg-tertiary); border-radius: 6px;">
+                        <i data-lucide="server" style="width: 16px; height: 16px;"></i>
+                        <strong>{{ server.name }}</strong>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Parameters -->
+            {% if parameters_json.len() > 2 %}
+            <div class="review-section">
+                <h4 class="text-secondary mb-2" style="font-size: 0.75rem; text-transform: uppercase;">Parameters</h4>
+                <pre class="code-block" style="padding: 0.75rem; background: var(--bg-tertiary); border-radius: 6px; font-size: 0.8125rem; overflow-x: auto;"><code>{{ parameters_json }}</code></pre>
+            </div>
+            {% endif %}
+
+            <!-- Schedule Info -->
+            <div class="review-section">
+                <h4 class="text-secondary mb-2" style="font-size: 0.75rem; text-transform: uppercase;">Schedule</h4>
+                {% if schedule_type == "now" %}
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="zap" style="width: 16px; height: 16px; color: var(--warning-color);"></i>
+                    <span>Run immediately</span>
+                </div>
+                {% else %}
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <i data-lucide="calendar" style="width: 16px; height: 16px; color: var(--accent-color);"></i>
+                    <span>Scheduled: <code>{% if let Some(cron) = cron_expression %}{{ cron }}{% else %}0 * * * *{% endif %}</code></span>
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Notifications -->
+            <div class="review-section">
+                <h4 class="text-secondary mb-2" style="font-size: 0.75rem; text-transform: uppercase;">Notifications</h4>
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                    {% if notify_success %}
+                    <span class="badge badge-success">
+                        <i data-lucide="check" style="width: 12px; height: 12px;"></i> Success
+                    </span>
+                    {% endif %}
+                    {% if notify_failure %}
+                    <span class="badge badge-danger">
+                        <i data-lucide="x" style="width: 12px; height: 12px;"></i> Failure
+                    </span>
+                    {% endif %}
+                    {% if !notify_success && !notify_failure %}
+                    <span class="text-secondary">No notifications configured</span>
+                    {% endif %}
+                </div>
+                {% if !channel_ids.is_empty() %}
+                <p class="text-secondary mt-1" style="font-size: 0.8125rem;">
+                    {{ channel_ids.len() }} notification channel{% if channel_ids.len() > 1 %}s{% endif %} selected
+                </p>
+                {% endif %}
+            </div>
+
+            <!-- Command Preview -->
+            <div class="review-section">
+                <h4 class="text-secondary mb-2" style="font-size: 0.75rem; text-transform: uppercase;">Command</h4>
+                <pre class="code-block" style="padding: 0.75rem; background: var(--bg-tertiary); border-radius: 6px; font-size: 0.8125rem; overflow-x: auto;"><code>{{ catalog_item.command }}</code></pre>
+            </div>
+        </div>
+    </div>
+</div>

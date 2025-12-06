@@ -54,6 +54,7 @@ pub struct DashboardStats {
     pub active_tasks: usize,
     pub total_tasks: usize,
     pub schedules_with_runs: Vec<ScheduleWithLastRunDisplay>,
+    pub favorite_jobs: Vec<JobCatalogItemDisplay>,
 }
 
 /// Display struct for schedule with its most recent job run
@@ -1850,6 +1851,209 @@ impl From<svrctlrs_database::models::Setting> for SettingDisplay {
             updated_at,
         }
     }
+}
+
+// ============================================================================
+// Job Catalog (Basic Mode)
+// ============================================================================
+
+/// Display model for job catalog category
+#[derive(Debug, Clone)]
+pub struct JobCatalogCategoryDisplay {
+    pub id: i64,
+    pub name: String,
+    pub display_name: String,
+    pub description: String,
+    pub icon: String,
+    pub color: String,
+    pub sort_order: i64,
+    pub item_count: i64,
+}
+
+impl From<svrctlrs_database::models::JobCatalogCategory> for JobCatalogCategoryDisplay {
+    fn from(c: svrctlrs_database::models::JobCatalogCategory) -> Self {
+        Self {
+            id: c.id,
+            name: c.name,
+            display_name: c.display_name,
+            description: c.description.unwrap_or_default(),
+            icon: c.icon,
+            color: c.color.unwrap_or_else(|| "#5E81AC".to_string()),
+            sort_order: c.sort_order,
+            item_count: 0, // Set separately from query with counts
+        }
+    }
+}
+
+impl From<svrctlrs_database::models::JobCatalogCategoryWithCount> for JobCatalogCategoryDisplay {
+    fn from(c: svrctlrs_database::models::JobCatalogCategoryWithCount) -> Self {
+        Self {
+            id: c.id,
+            name: c.name,
+            display_name: c.display_name,
+            description: c.description.unwrap_or_default(),
+            icon: c.icon,
+            color: c.color.unwrap_or_else(|| "#5E81AC".to_string()),
+            sort_order: c.sort_order,
+            item_count: c.item_count,
+        }
+    }
+}
+
+/// Display model for catalog parameter (for UI rendering)
+#[derive(Debug, Clone)]
+pub struct CatalogParameterDisplay {
+    pub name: String,
+    pub param_type: String,
+    pub label: String,
+    pub description: Option<String>,
+    pub required: bool,
+    pub default_value: String,
+    pub placeholder: Option<String>,
+    pub warning: Option<String>,
+    pub options_json: String, // Pre-serialized for Alpine.js
+    pub validation_json: String,
+}
+
+impl From<svrctlrs_database::models::CatalogParameter> for CatalogParameterDisplay {
+    fn from(p: svrctlrs_database::models::CatalogParameter) -> Self {
+        // Extract computed values before moving fields
+        let default_value = p.get_default_string();
+        let options_json = p
+            .options
+            .as_ref()
+            .map(|o| serde_json::to_string(o).unwrap_or_else(|_| "[]".to_string()))
+            .unwrap_or_else(|| "[]".to_string());
+        let validation_json = p
+            .validation
+            .as_ref()
+            .map(|v| serde_json::to_string(v).unwrap_or_else(|_| "{}".to_string()))
+            .unwrap_or_else(|| "{}".to_string());
+
+        Self {
+            name: p.name,
+            param_type: p.param_type,
+            label: p.label,
+            description: p.description,
+            required: p.required,
+            default_value,
+            placeholder: p.placeholder,
+            warning: p.warning,
+            options_json,
+            validation_json,
+        }
+    }
+}
+
+/// Display model for job catalog item
+#[derive(Debug, Clone)]
+pub struct JobCatalogItemDisplay {
+    pub id: i64,
+    pub name: String,
+    pub display_name: String,
+    pub description: String,
+    pub category: String,
+    pub subcategory: Option<String>,
+    pub icon: String,
+    pub difficulty: String,
+    pub difficulty_badge_class: String,
+    pub command: String,
+    pub parameters: Vec<CatalogParameterDisplay>,
+    pub parameters_json: String, // Pre-serialized for Alpine.js
+    pub required_capabilities: Vec<String>,
+    pub required_capabilities_json: String,
+    pub default_timeout: i64,
+    pub default_retry_count: i64,
+    pub working_directory: Option<String>,
+    pub success_title_template: Option<String>,
+    pub success_body_template: Option<String>,
+    pub failure_title_template: Option<String>,
+    pub failure_body_template: Option<String>,
+    pub ntfy_success_tags: Vec<String>,
+    pub ntfy_failure_tags: Vec<String>,
+    pub tags: Vec<String>,
+    pub is_system: bool,
+    pub enabled: bool,
+    pub is_favorite: bool,
+    pub created_at: String,
+}
+
+impl From<svrctlrs_database::models::JobCatalogItem> for JobCatalogItemDisplay {
+    fn from(item: svrctlrs_database::models::JobCatalogItem) -> Self {
+        use chrono::Local;
+
+        // Extract values before moving
+        let parameters = item.get_parameters();
+        let required_capabilities = item.get_required_capabilities();
+        let tags = item.get_tags();
+        let ntfy_success_tags = item.get_ntfy_success_tags();
+        let ntfy_failure_tags = item.get_ntfy_failure_tags();
+
+        let parameters_json =
+            serde_json::to_string(&parameters).unwrap_or_else(|_| "[]".to_string());
+        let required_capabilities_json =
+            serde_json::to_string(&required_capabilities).unwrap_or_else(|_| "[]".to_string());
+
+        let difficulty_badge_class = match item.difficulty.as_str() {
+            "basic" => "badge-success",
+            "intermediate" => "badge-warning",
+            "advanced" => "badge-danger",
+            _ => "badge-secondary",
+        }
+        .to_string();
+
+        let created_at = item
+            .created_at
+            .with_timezone(&Local)
+            .format("%Y-%m-%d %H:%M:%S")
+            .to_string();
+
+        Self {
+            id: item.id,
+            name: item.name,
+            display_name: item.display_name,
+            description: item.description,
+            category: item.category,
+            subcategory: item.subcategory,
+            icon: item.icon,
+            difficulty: item.difficulty,
+            difficulty_badge_class,
+            command: item.command,
+            parameters: parameters.into_iter().map(Into::into).collect(),
+            parameters_json,
+            required_capabilities,
+            required_capabilities_json,
+            default_timeout: item.default_timeout,
+            default_retry_count: item.default_retry_count,
+            working_directory: item.working_directory,
+            success_title_template: item.success_title_template,
+            success_body_template: item.success_body_template,
+            failure_title_template: item.failure_title_template,
+            failure_body_template: item.failure_body_template,
+            ntfy_success_tags,
+            ntfy_failure_tags,
+            tags,
+            is_system: item.is_system,
+            enabled: item.enabled,
+            is_favorite: false, // Set separately
+            created_at,
+        }
+    }
+}
+
+impl JobCatalogItemDisplay {
+    /// Create with favorite status
+    pub fn with_favorite(mut self, is_favorite: bool) -> Self {
+        self.is_favorite = is_favorite;
+        self
+    }
+}
+
+/// Display model for catalog item with favorite status
+#[derive(Debug, Clone)]
+pub struct JobCatalogItemWithFavoriteDisplay {
+    pub item: JobCatalogItemDisplay,
+    pub is_favorite: bool,
 }
 
 // ============================================================================

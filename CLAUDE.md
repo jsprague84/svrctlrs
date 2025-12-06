@@ -2,13 +2,44 @@
 
 This file provides comprehensive guidance for AI assistants working with the SvrCtlRS codebase.
 
-**Last Updated**: 2025-12-01
-**Architecture Version**: v2.1 (Job-Based System + WebSocket Real-Time)
-**Status**: ✅ Production Ready - WebSocket Job Runs & Embedded Terminal
+**Last Updated**: 2025-12-06
+**Architecture Version**: v2.2 (Job-Based System + WebSocket Real-Time + Workflow Optimization)
+**Status**: ✅ Production Ready - Planning Phase for Workflow Optimization
 
 ---
 
 ## 📈 Recent Updates
+
+### Workflow Optimization Plan - PLANNING (2025-12-06)
+
+**Comprehensive plan for simplified job creation with two-tier system (Basic/Advanced modes)**
+
+**Plan Document**: `docs/WORKFLOW_OPTIMIZATION_PLAN.md`
+
+**Session Continuation**: To resume implementation, tell Claude:
+```
+Continue implementing the Workflow Optimization Plan from docs/WORKFLOW_OPTIMIZATION_PLAN.md.
+Current phase: Phase 1 (Job Catalog System)
+Last completed task: Planning document created
+```
+
+**Key Features Planned**:
+- **Job Catalog System**: Pre-built jobs with one-click configuration
+- **Job Wizard UI**: Single-page wizard for common operations (HTMX + Alpine.js)
+- **Enhanced Notifications**: Separate success/failure templates, ntfy.sh tags, preview
+- **Quick Actions Dashboard**: Favorites, run-again, pinned jobs
+- **Two-Tier Architecture**: Basic Mode (wizard) / Advanced Mode (full access)
+
+**Similar Applications Researched**: Rundeck, AWX (Ansible Tower), Cronicle
+
+**Implementation Phases**:
+1. **Phase 1**: Job Catalog System (database, models, queries)
+2. **Phase 2**: Job Wizard UI (routes, templates, Alpine.js)
+3. **Phase 3**: Notification Enhancements (templates, ntfy tags, preview)
+4. **Phase 4**: Dashboard Quick Actions
+5. **Phase 5**: Documentation & Polish
+
+---
 
 ### WebSocket Real-Time Job Runs - COMPLETE (2025-12-01)
 

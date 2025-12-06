@@ -1,6 +1,7 @@
 //! Notification system with Gotify and ntfy.sh backends
 
 use async_trait::async_trait;
+use chrono::{DateTime, Local, Utc};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -8,6 +9,294 @@ use std::env;
 use tracing::{debug, warn};
 
 use crate::{Error, Result};
+
+// ============================================================================
+// Notification Context (Template Variables)
+// ============================================================================
+
+/// All available template variables for notifications
+///
+/// This struct provides context for rendering notification templates with
+/// variable substitution. Use `render_template()` to replace `{{variable}}`
+/// placeholders with actual values.
+#[derive(Debug, Clone)]
+pub struct NotificationContext {
+    // Job info
+    pub job_name: String,
+    pub job_display_name: String,
+    pub job_type: String,
+
+    // Server info
+    pub server_name: String,
+    pub server_hostname: String,
+
+    // Execution info
+    pub status: String,
+    pub status_emoji: String, // For ntfy: checkmark or X
+    pub exit_code: Option<i32>,
+    pub duration_seconds: i64,
+    pub duration_human: String, // "2m 34s"
+
+    // Output
+    pub output: Option<String>,
+    pub output_snippet: Option<String>, // First N lines
+    pub output_tail: Option<String>,    // Last N lines
+    pub error: Option<String>,
+    pub error_summary: Option<String>, // Extracted error lines
+
+    // Multi-server (future)
+    pub server_count: i64,
+    pub success_count: i64,
+    pub failure_count: i64,
+
+    // Trigger info
+    pub triggered_by: String, // "schedule", "manual", "webhook"
+    pub schedule_name: Option<String>,
+    pub run_id: i64,
+    pub run_url: String, // Direct link to job run
+
+    // Timestamps
+    pub started_at: String,
+    pub finished_at: String,
+}
+
+impl NotificationContext {
+    /// Create a NotificationContext from job run data
+    ///
+    /// This is a simplified builder that accepts pre-resolved names
+    /// (e.g., from `JobRunWithNames` query result).
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        run_id: i64,
+        job_template_name: &str,
+        job_display_name: &str,
+        job_type: &str,
+        server_name: &str,
+        server_hostname: Option<&str>,
+        schedule_name: Option<&str>,
+        status: &str,
+        exit_code: Option<i32>,
+        duration_ms: Option<i64>,
+        output: Option<&str>,
+        error: Option<&str>,
+        started_at: DateTime<Utc>,
+        finished_at: Option<DateTime<Utc>>,
+        base_url: &str,
+    ) -> Self {
+        let duration = duration_ms.unwrap_or(0);
+        let duration_human = format_duration(duration);
+
+        let output_owned = output.map(|s| s.to_string());
+        let output_snippet = output.map(|o| o.lines().take(10).collect::<Vec<_>>().join("\n"));
+        let output_tail = output.map(|o| {
+            let lines: Vec<_> = o.lines().collect();
+            lines
+                .iter()
+                .rev()
+                .take(10)
+                .rev()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
+
+        let error_summary = error.map(|e| {
+            // Extract lines containing "error", "fail", "exception"
+            e.lines()
+                .filter(|l| {
+                    let lower = l.to_lowercase();
+                    lower.contains("error") || lower.contains("fail") || lower.contains("exception")
+                })
+                .take(5)
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
+
+        let status_emoji = match status {
+            "success" => "white_check_mark",
+            "failure" | "failed" => "x",
+            "timeout" => "hourglass",
+            "cancelled" => "stop_sign",
+            "running" => "arrow_forward",
+            "partial_success" => "warning",
+            _ => "question",
+        };
+
+        Self {
+            job_name: job_template_name.to_string(),
+            job_display_name: job_display_name.to_string(),
+            job_type: job_type.to_string(),
+            server_name: server_name.to_string(),
+            server_hostname: server_hostname.unwrap_or_default().to_string(),
+            status: status.to_string(),
+            status_emoji: status_emoji.to_string(),
+            exit_code,
+            duration_seconds: duration / 1000,
+            duration_human,
+            output: output_owned,
+            output_snippet,
+            output_tail,
+            error: error.map(|s| s.to_string()),
+            error_summary,
+            server_count: 1,
+            success_count: if status == "success" { 1 } else { 0 },
+            failure_count: if status == "failure" || status == "failed" {
+                1
+            } else {
+                0
+            },
+            triggered_by: if schedule_name.is_some() {
+                "schedule"
+            } else {
+                "manual"
+            }
+            .to_string(),
+            schedule_name: schedule_name.map(|s| s.to_string()),
+            run_id,
+            run_url: format!("{}/job-runs/{}", base_url.trim_end_matches('/'), run_id),
+            started_at: started_at
+                .with_timezone(&Local)
+                .format("%Y-%m-%d %H:%M:%S")
+                .to_string(),
+            finished_at: finished_at
+                .map(|t| {
+                    t.with_timezone(&Local)
+                        .format("%Y-%m-%d %H:%M:%S")
+                        .to_string()
+                })
+                .unwrap_or_default(),
+        }
+    }
+
+    /// Render a template string with this context
+    ///
+    /// Replaces `{{variable}}` placeholders with actual values.
+    ///
+    /// # Supported Variables
+    ///
+    /// - `{{job_name}}` - Job template name
+    /// - `{{job_display_name}}` - Job display name
+    /// - `{{job_type}}` - Job type name
+    /// - `{{server_name}}` - Target server name
+    /// - `{{server_hostname}}` - Target server hostname
+    /// - `{{status}}` - Execution status (success, failure, etc.)
+    /// - `{{status_emoji}}` - ntfy emoji tag for status
+    /// - `{{exit_code}}` - Process exit code (if available)
+    /// - `{{duration_seconds}}` - Duration in seconds
+    /// - `{{duration_human}}` - Human-readable duration (e.g., "2m 34s")
+    /// - `{{output_snippet}}` - First 10 lines of output
+    /// - `{{output_tail}}` - Last 10 lines of output
+    /// - `{{error_summary}}` - Lines containing error/fail/exception
+    /// - `{{triggered_by}}` - "schedule", "manual", or "webhook"
+    /// - `{{schedule_name}}` - Schedule name (if triggered by schedule)
+    /// - `{{run_id}}` - Job run ID
+    /// - `{{run_url}}` - Direct URL to job run details
+    /// - `{{started_at}}` - Start timestamp
+    /// - `{{finished_at}}` - End timestamp
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let template = "Job {{job_name}} on {{server_name}}: {{status}}";
+    /// let rendered = context.render_template(template);
+    /// // Result: "Job backup-job on server-01: success"
+    /// ```
+    pub fn render_template(&self, template: &str) -> String {
+        let mut result = template.to_string();
+
+        // Simple {{variable}} replacement
+        let replacements = [
+            ("{{job_name}}", &self.job_name),
+            ("{{job_display_name}}", &self.job_display_name),
+            ("{{job_type}}", &self.job_type),
+            ("{{server_name}}", &self.server_name),
+            ("{{server_hostname}}", &self.server_hostname),
+            ("{{status}}", &self.status),
+            ("{{status_emoji}}", &self.status_emoji),
+            ("{{duration_human}}", &self.duration_human),
+            ("{{triggered_by}}", &self.triggered_by),
+            ("{{run_url}}", &self.run_url),
+            ("{{started_at}}", &self.started_at),
+            ("{{finished_at}}", &self.finished_at),
+        ];
+
+        for (placeholder, value) in replacements {
+            result = result.replace(placeholder, value);
+        }
+
+        // Numeric fields
+        result = result.replace("{{run_id}}", &self.run_id.to_string());
+        result = result.replace("{{duration_seconds}}", &self.duration_seconds.to_string());
+        result = result.replace("{{server_count}}", &self.server_count.to_string());
+        result = result.replace("{{success_count}}", &self.success_count.to_string());
+        result = result.replace("{{failure_count}}", &self.failure_count.to_string());
+
+        // Optional fields
+        if let Some(ref exit_code) = self.exit_code {
+            result = result.replace("{{exit_code}}", &exit_code.to_string());
+        } else {
+            result = result.replace("{{exit_code}}", "-");
+        }
+
+        if let Some(ref output) = self.output_snippet {
+            result = result.replace("{{output_snippet}}", output);
+        } else {
+            result = result.replace("{{output_snippet}}", "");
+        }
+
+        if let Some(ref output) = self.output_tail {
+            result = result.replace("{{output_tail}}", output);
+        } else {
+            result = result.replace("{{output_tail}}", "");
+        }
+
+        if let Some(ref error) = self.error_summary {
+            result = result.replace("{{error_summary}}", error);
+        } else {
+            result = result.replace("{{error_summary}}", "");
+        }
+
+        if let Some(ref schedule) = self.schedule_name {
+            result = result.replace("{{schedule_name}}", schedule);
+        } else {
+            result = result.replace("{{schedule_name}}", "");
+        }
+
+        result
+    }
+
+    /// Get default success notification title template
+    pub fn default_success_title() -> &'static str {
+        "✅ {{job_display_name}} succeeded"
+    }
+
+    /// Get default success notification body template
+    pub fn default_success_body() -> &'static str {
+        "Job completed on {{server_name}} in {{duration_human}}\n\nRun: {{run_url}}"
+    }
+
+    /// Get default failure notification title template
+    pub fn default_failure_title() -> &'static str {
+        "❌ {{job_display_name}} failed"
+    }
+
+    /// Get default failure notification body template
+    pub fn default_failure_body() -> &'static str {
+        "Job failed on {{server_name}}\nExit code: {{exit_code}}\n\n{{error_summary}}\n\nRun: {{run_url}}"
+    }
+}
+
+/// Format duration in human-readable form
+fn format_duration(ms: i64) -> String {
+    let seconds = ms / 1000;
+    if seconds < 60 {
+        format!("{}s", seconds)
+    } else if seconds < 3600 {
+        format!("{}m {}s", seconds / 60, seconds % 60)
+    } else {
+        format!("{}h {}m", seconds / 3600, (seconds % 3600) / 60)
+    }
+}
 
 /// Notification message
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -644,5 +933,145 @@ mod tests {
         let token = "";
         let masked = mask_token(token);
         assert_eq!(masked, "***");
+    }
+
+    #[test]
+    fn test_format_duration_seconds() {
+        assert_eq!(format_duration(5000), "5s");
+        assert_eq!(format_duration(45000), "45s");
+        assert_eq!(format_duration(0), "0s");
+    }
+
+    #[test]
+    fn test_format_duration_minutes() {
+        assert_eq!(format_duration(60000), "1m 0s");
+        assert_eq!(format_duration(90000), "1m 30s");
+        assert_eq!(format_duration(154000), "2m 34s");
+    }
+
+    #[test]
+    fn test_format_duration_hours() {
+        assert_eq!(format_duration(3600000), "1h 0m");
+        assert_eq!(format_duration(5400000), "1h 30m");
+        assert_eq!(format_duration(7380000), "2h 3m");
+    }
+
+    #[test]
+    fn test_notification_context_render_template() {
+        let started_at = Utc::now();
+        let finished_at = Some(started_at + chrono::Duration::seconds(154));
+
+        let ctx = NotificationContext::new(
+            42,
+            "backup-job",
+            "Daily Backup",
+            "backup",
+            "server-01",
+            Some("192.168.1.10"),
+            Some("nightly-backup"),
+            "success",
+            Some(0),
+            Some(154000),
+            Some("Backup completed successfully\nTotal files: 1234"),
+            None,
+            started_at,
+            finished_at,
+            "http://localhost:8080",
+        );
+
+        // Test basic substitution
+        let rendered = ctx.render_template("Job {{job_name}} on {{server_name}}: {{status}}");
+        assert_eq!(rendered, "Job backup-job on server-01: success");
+
+        // Test multiple variables
+        let rendered = ctx.render_template("{{job_display_name}} completed in {{duration_human}}");
+        assert_eq!(rendered, "Daily Backup completed in 2m 34s");
+
+        // Test run URL
+        let rendered = ctx.render_template("Details: {{run_url}}");
+        assert_eq!(rendered, "Details: http://localhost:8080/job-runs/42");
+    }
+
+    #[test]
+    fn test_notification_context_status_emoji() {
+        let started_at = Utc::now();
+
+        let success_ctx = NotificationContext::new(
+            1,
+            "test",
+            "Test",
+            "test",
+            "srv",
+            None,
+            None,
+            "success",
+            Some(0),
+            None,
+            None,
+            None,
+            started_at,
+            None,
+            "http://localhost",
+        );
+        assert_eq!(success_ctx.status_emoji, "white_check_mark");
+
+        let failure_ctx = NotificationContext::new(
+            1,
+            "test",
+            "Test",
+            "test",
+            "srv",
+            None,
+            None,
+            "failure",
+            Some(1),
+            None,
+            None,
+            None,
+            started_at,
+            None,
+            "http://localhost",
+        );
+        assert_eq!(failure_ctx.status_emoji, "x");
+    }
+
+    #[test]
+    fn test_notification_context_error_summary() {
+        let started_at = Utc::now();
+        let error_output = "Starting backup...\nERROR: Connection failed\nRetrying...\nFailed to connect\nException in thread main";
+
+        let ctx = NotificationContext::new(
+            1,
+            "test",
+            "Test",
+            "test",
+            "srv",
+            None,
+            None,
+            "failure",
+            Some(1),
+            None,
+            None,
+            Some(error_output),
+            started_at,
+            None,
+            "http://localhost",
+        );
+
+        // Should extract lines containing error/fail/exception
+        let summary = ctx.error_summary.as_ref().unwrap();
+        assert!(summary.contains("ERROR: Connection failed"));
+        assert!(summary.contains("Failed to connect"));
+        assert!(summary.contains("Exception in thread main"));
+        assert!(!summary.contains("Starting backup"));
+        assert!(!summary.contains("Retrying"));
+    }
+
+    #[test]
+    fn test_notification_context_default_templates() {
+        assert!(NotificationContext::default_success_title().contains("{{job_display_name}}"));
+        assert!(NotificationContext::default_failure_title().contains("{{job_display_name}}"));
+        assert!(NotificationContext::default_success_body().contains("{{server_name}}"));
+        assert!(NotificationContext::default_failure_body().contains("{{error_summary}}"));
     }
 }

@@ -1,0 +1,130 @@
+<!-- Configure Step - Parameter form for the selected catalog item -->
+<div class="card">
+    <div class="card-header">
+        <div class="flex-between">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div class="job-card-icon">
+                    <i data-lucide="{{ catalog_item.icon }}"></i>
+                </div>
+                <div>
+                    <h3 style="margin: 0;">Configure: {{ catalog_item.display_name }}</h3>
+                    <p class="text-secondary" style="margin: 0.25rem 0 0 0; font-size: 0.875rem;">{{ catalog_item.description }}</p>
+                </div>
+            </div>
+            <span class="badge badge-{{ catalog_item.difficulty }}">{{ catalog_item.difficulty }}</span>
+        </div>
+    </div>
+    <div class="card-body">
+        <form id="configure-form">
+            {% if catalog_item.parameters.is_empty() %}
+            <div class="alert alert-info">
+                <i data-lucide="info" style="width: 16px; height: 16px;"></i>
+                This job doesn't require any configuration. Click "Next" to continue.
+            </div>
+            {% else %}
+            <div class="form-grid">
+                {% for param in catalog_item.parameters %}
+                <div class="form-group">
+                    <label for="param_{{ param.name }}">
+                        {{ param.label }}
+                        {% if param.required %}<span class="text-danger">*</span>{% endif %}
+                    </label>
+
+                    {% if param.param_type == "string" %}
+                    <input type="text"
+                           id="param_{{ param.name }}"
+                           name="param_{{ param.name }}"
+                           class="form-control"
+                           {% if param.required %}required{% endif %}
+                           {% if let Some(placeholder) = param.placeholder %}placeholder="{{ placeholder }}"{% endif %}
+                           {% if !param.default_value.is_empty() %}value="{{ param.default_value }}"{% endif %}>
+
+                    {% else if param.param_type == "number" %}
+                    <input type="number"
+                           id="param_{{ param.name }}"
+                           name="param_{{ param.name }}"
+                           class="form-control"
+                           {% if param.required %}required{% endif %}
+                           {% if !param.default_value.is_empty() %}value="{{ param.default_value }}"{% endif %}>
+
+                    {% else if param.param_type == "boolean" %}
+                    <div class="form-check">
+                        <input type="checkbox"
+                               id="param_{{ param.name }}"
+                               name="param_{{ param.name }}"
+                               value="true"
+                               class="form-check-input"
+                               {% if param.default_value == "true" %}checked{% endif %}>
+                        <label for="param_{{ param.name }}" class="form-check-label">Enable</label>
+                    </div>
+
+                    {% else if param.param_type == "select" %}
+                    <select id="param_{{ param.name }}"
+                            name="param_{{ param.name }}"
+                            class="form-select"
+                            {% if param.required %}required{% endif %}
+                            x-init="$el.value = '{{ param.default_value }}'">
+                        <!-- Options will be populated from options_json -->
+                    </select>
+                    <script>
+                        (function() {
+                            const select = document.getElementById('param_{{ param.name }}');
+                            const options = {{ param.options_json|safe }};
+                            const defaultValue = '{{ param.default_value }}';
+                            options.forEach(opt => {
+                                const option = document.createElement('option');
+                                option.value = opt.value;
+                                option.textContent = opt.label;
+                                if (opt.value === defaultValue) {
+                                    option.selected = true;
+                                }
+                                select.appendChild(option);
+                            });
+                        })();
+                    </script>
+
+                    {% else if param.param_type == "multiselect" %}
+                    <select id="param_{{ param.name }}"
+                            name="param_{{ param.name }}"
+                            class="form-select"
+                            multiple
+                            {% if param.required %}required{% endif %}>
+                        <!-- Options will be populated from options_json -->
+                    </select>
+                    <script>
+                        (function() {
+                            const select = document.getElementById('param_{{ param.name }}');
+                            const options = {{ param.options_json|safe }};
+                            options.forEach(opt => {
+                                const option = document.createElement('option');
+                                option.value = opt.value;
+                                option.textContent = opt.label;
+                                select.appendChild(option);
+                            });
+                        })();
+                    </script>
+                    {% endif %}
+
+                    {% if let Some(desc) = param.description %}
+                    <small class="form-text text-secondary">{{ desc }}</small>
+                    {% endif %}
+
+                    {% if let Some(warning) = param.warning %}
+                    <small class="form-text text-warning">
+                        <i data-lucide="alert-triangle" style="width: 12px; height: 12px;"></i>
+                        {{ warning }}
+                    </small>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </form>
+
+        <!-- Command Preview -->
+        <div class="mt-4">
+            <h4 class="text-secondary mb-2" style="font-size: 0.875rem;">Command Preview</h4>
+            <pre class="code-block" style="padding: 1rem; background: var(--bg-tertiary); border-radius: 6px; overflow-x: auto;"><code>{{ catalog_item.command }}</code></pre>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,855 @@
+{% extends "base.html" %}
+
+{% block title %}Job Wizard - SvrCtlRS{% endblock %}
+{% block nav_job_templates %}active{% endblock %}
+
+{% block head %}
+<style>
+    /* Wizard step indicators */
+    .wizard-steps {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0;
+        margin-bottom: 2rem;
+    }
+
+    .wizard-step {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .wizard-step .step-number {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: var(--bg-tertiary);
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        font-size: 0.875rem;
+        border: 2px solid var(--border-color);
+        transition: all 0.2s;
+    }
+
+    .wizard-step.active .step-number {
+        background: var(--accent-color);
+        color: white;
+        border-color: var(--accent-color);
+    }
+
+    .wizard-step.completed .step-number {
+        background: var(--success-color);
+        color: white;
+        border-color: var(--success-color);
+    }
+
+    .wizard-step .step-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        white-space: nowrap;
+    }
+
+    .wizard-step.active .step-label {
+        color: var(--text-primary);
+        font-weight: 600;
+    }
+
+    .step-connector {
+        width: 60px;
+        height: 2px;
+        background: var(--border-color);
+        margin: 0 0.5rem;
+        margin-bottom: 1.5rem;
+        transition: background 0.2s;
+    }
+
+    .step-connector.active {
+        background: var(--success-color);
+    }
+
+    /* Job card grid */
+    .job-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+    }
+
+    .job-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .job-card:hover {
+        border-color: var(--accent-color);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+
+    .job-card.selected {
+        border-color: var(--accent-color);
+        background: color-mix(in srgb, var(--accent-color) 10%, var(--bg-secondary));
+    }
+
+    .job-card-header {
+        display: flex;
+        align-items: flex-start;
+        gap: 0.75rem;
+    }
+
+    .job-card-icon {
+        width: 40px;
+        height: 40px;
+        background: var(--bg-tertiary);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+    .job-card-icon i {
+        width: 20px;
+        height: 20px;
+        color: var(--accent-color);
+    }
+
+    .job-card-content {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .job-card-content h4 {
+        margin: 0;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .job-card-content p {
+        margin: 0.25rem 0 0 0;
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+        line-height: 1.4;
+    }
+
+    .job-card-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    /* Category tabs */
+    .category-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .category-tab {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.375rem;
+        padding: 0.5rem 0.75rem;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        color: var(--text-secondary);
+        font-size: 0.8125rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .category-tab:hover {
+        border-color: var(--accent-color);
+        color: var(--text-primary);
+    }
+
+    .category-tab.active {
+        background: var(--accent-color);
+        border-color: var(--accent-color);
+        color: white;
+    }
+
+    .category-tab i {
+        width: 14px;
+        height: 14px;
+    }
+
+    .category-tab .count {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 0.125rem 0.375rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+    }
+
+    .category-tab:not(.active) .count {
+        background: var(--bg-primary);
+    }
+
+    /* Server selection */
+    .server-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 1rem;
+    }
+
+    .server-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .server-card:hover:not(.disabled) {
+        border-color: var(--accent-color);
+    }
+
+    .server-card.selected {
+        border-color: var(--accent-color);
+        background: color-mix(in srgb, var(--accent-color) 10%, var(--bg-secondary));
+    }
+
+    .server-card.disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .server-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .server-status {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+    }
+
+    .server-status.online {
+        background: var(--success-color);
+    }
+
+    .server-status.offline {
+        background: var(--danger-color);
+    }
+
+    /* Schedule options */
+    .schedule-options {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+
+    .schedule-option {
+        background: var(--bg-secondary);
+        border: 2px solid var(--border-color);
+        border-radius: 8px;
+        padding: 1.5rem;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .schedule-option:hover {
+        border-color: var(--accent-color);
+    }
+
+    .schedule-option.selected {
+        border-color: var(--accent-color);
+        background: color-mix(in srgb, var(--accent-color) 10%, var(--bg-secondary));
+    }
+
+    .schedule-option i {
+        width: 32px;
+        height: 32px;
+        color: var(--accent-color);
+        margin-bottom: 0.75rem;
+    }
+
+    .schedule-option h4 {
+        margin: 0;
+        font-size: 1rem;
+    }
+
+    .schedule-option p {
+        margin: 0.25rem 0 0 0;
+        font-size: 0.8125rem;
+        color: var(--text-secondary);
+    }
+
+    /* Wizard actions */
+    .wizard-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 1.5rem;
+        border-top: 1px solid var(--border-color);
+        margin-top: 1.5rem;
+    }
+
+    /* Difficulty badges */
+    .badge-basic {
+        background: var(--success-color);
+        color: white;
+    }
+
+    .badge-intermediate {
+        background: var(--warning-color);
+        color: black;
+    }
+
+    .badge-advanced {
+        background: var(--danger-color);
+        color: white;
+    }
+
+    /* Favorite button */
+    .btn-favorite {
+        padding: 0.25rem;
+        background: transparent;
+        border: none;
+        cursor: pointer;
+        color: var(--text-secondary);
+        transition: color 0.2s;
+    }
+
+    .btn-favorite:hover,
+    .btn-favorite.active {
+        color: var(--warning-color);
+    }
+
+    /* Search and filters */
+    .wizard-filters {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .wizard-filters .form-control,
+    .wizard-filters .form-select {
+        max-width: 200px;
+    }
+
+    /* Empty state */
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state i {
+        width: 48px;
+        height: 48px;
+        opacity: 0.5;
+        margin-bottom: 1rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="jobWizard()" x-init="init()">
+    <!-- Header -->
+    <div class="flex-between mb-3">
+        <div>
+            <h1><i data-lucide="wand-2" style="width: 24px; height: 24px;"></i> Job Wizard</h1>
+            <p class="text-secondary">Create and schedule a job in a few simple steps</p>
+        </div>
+        <a href="/job-templates" class="btn btn-secondary">
+            <i data-lucide="settings" style="width: 16px; height: 16px;"></i> Advanced Mode
+        </a>
+    </div>
+
+    <!-- Step Indicators -->
+    <div class="wizard-steps">
+        <div class="wizard-step" :class="{ active: step === 1, completed: step > 1 }">
+            <span class="step-number">
+                <template x-if="step > 1"><i data-lucide="check" style="width: 16px; height: 16px;"></i></template>
+                <template x-if="step <= 1">1</template>
+            </span>
+            <span class="step-label">Select Job</span>
+        </div>
+        <div class="step-connector" :class="{ active: step > 1 }"></div>
+        <div class="wizard-step" :class="{ active: step === 2, completed: step > 2 }">
+            <span class="step-number">
+                <template x-if="step > 2"><i data-lucide="check" style="width: 16px; height: 16px;"></i></template>
+                <template x-if="step <= 2">2</template>
+            </span>
+            <span class="step-label">Configure</span>
+        </div>
+        <div class="step-connector" :class="{ active: step > 2 }"></div>
+        <div class="wizard-step" :class="{ active: step === 3, completed: step > 3 }">
+            <span class="step-number">
+                <template x-if="step > 3"><i data-lucide="check" style="width: 16px; height: 16px;"></i></template>
+                <template x-if="step <= 3">3</template>
+            </span>
+            <span class="step-label">Server</span>
+        </div>
+        <div class="step-connector" :class="{ active: step > 3 }"></div>
+        <div class="wizard-step" :class="{ active: step === 4, completed: step > 4 }">
+            <span class="step-number">
+                <template x-if="step > 4"><i data-lucide="check" style="width: 16px; height: 16px;"></i></template>
+                <template x-if="step <= 4">4</template>
+            </span>
+            <span class="step-label">Schedule</span>
+        </div>
+        <div class="step-connector" :class="{ active: step > 4 }"></div>
+        <div class="wizard-step" :class="{ active: step === 5, completed: step > 5 }">
+            <span class="step-number">
+                <template x-if="step > 5"><i data-lucide="check" style="width: 16px; height: 16px;"></i></template>
+                <template x-if="step <= 5">5</template>
+            </span>
+            <span class="step-label">Review</span>
+        </div>
+    </div>
+
+    <!-- Step 1: Select Job -->
+    <div x-show="step === 1" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 transform translate-x-4" x-transition:enter-end="opacity-100 transform translate-x-0">
+        <div class="card">
+            <div class="card-header">
+                <h3>What would you like to do?</h3>
+            </div>
+            <div class="card-body">
+                <!-- Favorites Section -->
+                {% if !favorites.is_empty() %}
+                <div class="mb-4">
+                    <h4 class="text-secondary mb-2" style="font-size: 0.875rem;">
+                        <i data-lucide="star" style="width: 14px; height: 14px;"></i> Favorites
+                    </h4>
+                    <div class="job-grid">
+                        {% for item in favorites %}
+                        <div class="job-card"
+                             :class="{ selected: selectedJobId === {{ item.id }} }"
+                             @click="selectJob({{ item.id }}, '{{ item.display_name }}', '{{ item.icon }}')">
+                            <div class="job-card-header">
+                                <div class="job-card-icon">
+                                    <i data-lucide="{{ item.icon }}"></i>
+                                </div>
+                                <div class="job-card-content">
+                                    <h4>{{ item.display_name }}</h4>
+                                    <p>{{ item.description }}</p>
+                                </div>
+                            </div>
+                            <div class="job-card-footer">
+                                <span class="badge badge-{{ item.difficulty }}">{{ item.difficulty }}</span>
+                                <button class="btn-favorite active"
+                                        hx-post="/wizard/toggle-favorite/{{ item.id }}"
+                                        hx-swap="outerHTML"
+                                        @click.stop
+                                        title="Remove from favorites">
+                                    <i data-lucide="star"></i>
+                                </button>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Filters -->
+                <div class="wizard-filters">
+                    <input type="text"
+                           class="form-control"
+                           placeholder="Search jobs..."
+                           x-model="searchQuery"
+                           @input.debounce.300ms="loadCatalog()">
+                    <select class="form-select" x-model="difficultyFilter" @change="loadCatalog()">
+                        <option value="all">All Levels</option>
+                        <option value="basic">Basic</option>
+                        <option value="intermediate">Intermediate</option>
+                        <option value="advanced">Advanced</option>
+                    </select>
+                </div>
+
+                <!-- Category Tabs -->
+                <div class="category-tabs">
+                    <button class="category-tab"
+                            :class="{ active: selectedCategory === 'all' }"
+                            @click="selectCategory('all')">
+                        All Jobs
+                    </button>
+                    {% for cat in categories %}
+                    <button class="category-tab"
+                            :class="{ active: selectedCategory === '{{ cat.name }}' }"
+                            @click="selectCategory('{{ cat.name }}')"
+                            style="{% if cat.color.len() > 0 %}--cat-color: {{ cat.color }};{% endif %}">
+                        <i data-lucide="{{ cat.icon }}"></i>
+                        {{ cat.display_name }}
+                        <span class="count">{{ cat.item_count }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+
+                <!-- Catalog Grid (HTMX loaded) -->
+                <div id="catalog-grid"
+                     hx-get="/wizard/catalog"
+                     hx-trigger="load"
+                     hx-swap="innerHTML">
+                    <div class="empty-state">
+                        <i data-lucide="loader" class="spin"></i>
+                        <p>Loading jobs...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="wizard-actions">
+            <div></div>
+            <button class="btn btn-primary"
+                    :disabled="!selectedJobId"
+                    @click="nextStep()">
+                Next: Configure <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 2: Configure Parameters -->
+    <div x-show="step === 2" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 transform translate-x-4" x-transition:enter-end="opacity-100 transform translate-x-0">
+        <div id="configure-step">
+            <!-- Loaded via HTMX when step 2 is shown -->
+        </div>
+
+        <div class="wizard-actions">
+            <button class="btn btn-secondary" @click="prevStep()">
+                <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i> Back
+            </button>
+            <button class="btn btn-primary" @click="nextStep()">
+                Next: Select Server <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 3: Select Server -->
+    <div x-show="step === 3" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 transform translate-x-4" x-transition:enter-end="opacity-100 transform translate-x-0">
+        <div id="servers-step">
+            <!-- Loaded via HTMX when step 3 is shown -->
+        </div>
+
+        <div class="wizard-actions">
+            <button class="btn btn-secondary" @click="prevStep()">
+                <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i> Back
+            </button>
+            <button class="btn btn-primary"
+                    :disabled="selectedServerIds.length === 0"
+                    @click="nextStep()">
+                Next: Schedule <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 4: Schedule -->
+    <div x-show="step === 4" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 transform translate-x-4" x-transition:enter-end="opacity-100 transform translate-x-0">
+        <div id="schedule-step">
+            <!-- Loaded via HTMX when step 4 is shown -->
+        </div>
+
+        <div class="wizard-actions">
+            <button class="btn btn-secondary" @click="prevStep()">
+                <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i> Back
+            </button>
+            <button class="btn btn-primary" @click="nextStep()">
+                Next: Review <i data-lucide="arrow-right" style="width: 16px; height: 16px;"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Step 5: Review & Create -->
+    <div x-show="step === 5" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 transform translate-x-4" x-transition:enter-end="opacity-100 transform translate-x-0">
+        <div id="review-step">
+            <!-- Loaded via HTMX when step 5 is shown -->
+        </div>
+
+        <div class="wizard-actions">
+            <button class="btn btn-secondary" @click="prevStep()">
+                <i data-lucide="arrow-left" style="width: 16px; height: 16px;"></i> Back
+            </button>
+            <button class="btn btn-success" @click="createJob()">
+                <i data-lucide="check" style="width: 16px; height: 16px;"></i> Create Job
+            </button>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div x-show="showSuccess" x-transition class="modal-backdrop" style="display: none;">
+        <div id="success-result">
+            <!-- Success content loaded via HTMX -->
+        </div>
+    </div>
+</div>
+
+<script>
+function jobWizard() {
+    return {
+        step: 1,
+        selectedJobId: null,
+        selectedJobName: '',
+        selectedJobIcon: '',
+        selectedCategory: 'all',
+        searchQuery: '',
+        difficultyFilter: 'all',
+        // Multi-server selection
+        selectedServerIds: [],
+        selectedServerNames: {},
+        scheduleType: 'now',
+        cronExpression: '0 * * * *',
+        // Cron builder variables
+        scheduleFreq: 'daily',
+        scheduleTime: '02:00',
+        scheduleDow: '0',
+        scheduleDom: '1',
+        // Notifications
+        notifySuccess: false,
+        notifyFailure: true,
+        channelIds: [],
+        availableChannels: [],
+        parameters: {},
+        showSuccess: false,
+
+        init() {
+            // Watch for step changes to load HTMX content
+            this.$watch('step', (newStep) => {
+                if (newStep === 2 && this.selectedJobId) {
+                    htmx.ajax('GET', '/wizard/configure/' + this.selectedJobId, {
+                        target: '#configure-step',
+                        swap: 'innerHTML'
+                    });
+                } else if (newStep === 3 && this.selectedJobId) {
+                    htmx.ajax('GET', '/wizard/servers/' + this.selectedJobId, {
+                        target: '#servers-step',
+                        swap: 'innerHTML'
+                    });
+                } else if (newStep === 4) {
+                    htmx.ajax('GET', '/wizard/schedule', {
+                        target: '#schedule-step',
+                        swap: 'innerHTML'
+                    });
+                } else if (newStep === 5) {
+                    this.loadReview();
+                }
+            });
+
+            // Initialize cron expression
+            this.updateCron();
+        },
+
+        selectJob(id, name, icon) {
+            this.selectedJobId = id;
+            this.selectedJobName = name;
+            this.selectedJobIcon = icon;
+        },
+
+        selectCategory(category) {
+            this.selectedCategory = category;
+            this.loadCatalog();
+        },
+
+        loadCatalog() {
+            let url = '/wizard/catalog';
+            const params = new URLSearchParams();
+
+            if (this.selectedCategory !== 'all') {
+                params.append('category', this.selectedCategory);
+            }
+            if (this.searchQuery) {
+                params.append('search', this.searchQuery);
+            }
+            if (this.difficultyFilter !== 'all') {
+                params.append('difficulty', this.difficultyFilter);
+            }
+
+            if (params.toString()) {
+                url += '?' + params.toString();
+            }
+
+            htmx.ajax('GET', url, {
+                target: '#catalog-grid',
+                swap: 'innerHTML'
+            });
+        },
+
+        // Multi-server selection toggle
+        toggleServer(id, name) {
+            const idx = this.selectedServerIds.indexOf(id);
+            if (idx === -1) {
+                this.selectedServerIds.push(id);
+                this.selectedServerNames[id] = name;
+            } else {
+                this.selectedServerIds.splice(idx, 1);
+                delete this.selectedServerNames[id];
+            }
+        },
+
+        isServerSelected(id) {
+            return this.selectedServerIds.includes(id);
+        },
+
+        // Toggle notification channel selection
+        toggleChannel(id) {
+            const idx = this.channelIds.indexOf(id);
+            if (idx === -1) {
+                this.channelIds.push(id);
+            } else {
+                this.channelIds.splice(idx, 1);
+            }
+        },
+
+        isChannelSelected(id) {
+            return this.channelIds.includes(id);
+        },
+
+        // Cron expression builder
+        updateCron() {
+            const time = this.scheduleTime || '02:00';
+            const [hour, minute] = time.split(':').map(Number);
+
+            switch (this.scheduleFreq) {
+                case 'hourly':
+                    this.cronExpression = '0 * * * *';
+                    break;
+                case 'daily':
+                    this.cronExpression = `${minute} ${hour} * * *`;
+                    break;
+                case 'weekly':
+                    this.cronExpression = `${minute} ${hour} * * ${this.scheduleDow}`;
+                    break;
+                case 'monthly':
+                    this.cronExpression = `${minute} ${hour} ${this.scheduleDom} * *`;
+                    break;
+                case 'custom':
+                    // Keep current cronExpression for manual editing
+                    break;
+            }
+        },
+
+        nextStep() {
+            if (this.step < 5) {
+                this.step++;
+            }
+        },
+
+        prevStep() {
+            if (this.step > 1) {
+                this.step--;
+            }
+        },
+
+        collectParameters() {
+            // Collect form values from configure step
+            const form = document.querySelector('#configure-step form');
+            if (form) {
+                const formData = new FormData(form);
+                const params = {};
+                for (const [key, value] of formData.entries()) {
+                    if (key.startsWith('param_')) {
+                        params[key.replace('param_', '')] = value;
+                    }
+                }
+                this.parameters = params;
+            }
+        },
+
+        loadReview() {
+            this.collectParameters();
+
+            // Use URLSearchParams for proper Content-Type
+            const params = new URLSearchParams();
+            params.append('catalog_item_id', this.selectedJobId);
+            // Send server_ids as JSON array for multi-server support
+            params.append('server_ids', JSON.stringify(this.selectedServerIds));
+            params.append('server_names', JSON.stringify(this.selectedServerNames));
+            params.append('parameters', JSON.stringify(this.parameters));
+            params.append('schedule_type', this.scheduleType);
+            if (this.cronExpression) {
+                params.append('cron_expression', this.cronExpression);
+            }
+            if (this.notifySuccess) {
+                params.append('notify_success', 'true');
+            }
+            if (this.notifyFailure) {
+                params.append('notify_failure', 'true');
+            }
+            if (this.channelIds.length > 0) {
+                params.append('channel_ids', JSON.stringify(this.channelIds));
+            }
+
+            fetch('/wizard/review', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: params.toString()
+            })
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('review-step').innerHTML = html;
+                lucide.createIcons({ nameAttr: 'data-lucide', el: document.getElementById('review-step') });
+            })
+            .catch(error => {
+                console.error('Review load error:', error);
+                document.getElementById('review-step').innerHTML = '<div class="alert alert-danger">Failed to load review. Please try again.</div>';
+            });
+        },
+
+        createJob() {
+            this.collectParameters();
+
+            // Use URLSearchParams for proper Content-Type
+            const params = new URLSearchParams();
+            params.append('catalog_item_id', this.selectedJobId);
+            params.append('server_ids', JSON.stringify(this.selectedServerIds));
+            params.append('parameters', JSON.stringify(this.parameters));
+            params.append('schedule_type', this.scheduleType);
+            if (this.cronExpression) {
+                params.append('cron_expression', this.cronExpression);
+            }
+            if (this.notifySuccess) {
+                params.append('notify_success', 'true');
+            }
+            if (this.notifyFailure) {
+                params.append('notify_failure', 'true');
+            }
+            if (this.channelIds.length > 0) {
+                params.append('channel_ids', JSON.stringify(this.channelIds));
+            }
+
+            fetch('/wizard/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: params.toString()
+            })
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('success-result').innerHTML = html;
+                lucide.createIcons({ nameAttr: 'data-lucide', el: document.getElementById('success-result') });
+                this.showSuccess = true;
+            })
+            .catch(error => {
+                console.error('Create job error:', error);
+                alert('Failed to create job. Please try again.');
+            });
+        }
+    };
+}
+</script>
+{% endblock %}
