@@ -1,10 +1,3 @@
-{% if is_containerized && is_local_server %}
-<div class="alert alert-warning" style="margin-bottom: 0.75rem;">
-    <i data-lucide="container" style="width: 16px; height: 16px;"></i>
-    <strong>Running in Container:</strong> Localhost detection shows capabilities of the <em>container</em>, not the Docker host.
-    To manage the host, add it as a remote server with SSH credentials.
-</div>
-{% endif %}
 {% if capabilities.is_empty() %}
 <div class="alert alert-info">
     <i data-lucide="info" style="width: 16px; height: 16px;"></i>

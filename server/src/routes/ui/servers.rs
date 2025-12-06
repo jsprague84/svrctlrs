@@ -18,25 +18,6 @@ use svrctlrs_database::{
 use super::{get_user_from_session, AppError};
 use crate::{state::AppState, templates::*};
 
-/// Detect if we're running inside a Docker/container environment
-fn is_containerized() -> bool {
-    // Check for /.dockerenv file (Docker-specific)
-    if std::path::Path::new("/.dockerenv").exists() {
-        return true;
-    }
-    // Check for container runtime markers in /proc/1/cgroup
-    if let Ok(cgroup) = std::fs::read_to_string("/proc/1/cgroup") {
-        if cgroup.contains("docker") || cgroup.contains("containerd") || cgroup.contains("lxc") {
-            return true;
-        }
-    }
-    // Check for container environment variable
-    if std::env::var("container").is_ok() {
-        return true;
-    }
-    false
-}
-
 /// Create servers router
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -822,8 +803,6 @@ fi
                 })
                 .collect(),
             should_expand: true, // Detect clicked - show expanded and auto-collapse
-            is_containerized: is_containerized(),
-            is_local_server: server.server.is_local,
         };
         return Ok(Html(template.render()?));
     }
@@ -987,8 +966,6 @@ fi
                     })
                     .collect(),
                 should_expand: true, // Detect clicked - show expanded and auto-collapse
-                is_containerized: is_containerized(),
-                is_local_server: server.server.is_local,
             };
             Ok(Html(template.render()?))
         }
@@ -1037,8 +1014,6 @@ async fn server_capabilities_display(
             })
             .collect(),
         should_expand: false, // Page load - start collapsed
-        is_containerized: is_containerized(),
-        is_local_server: server.server.is_local,
     };
     Ok(Html(template.render()?))
 }
