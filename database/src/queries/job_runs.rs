@@ -694,6 +694,89 @@ pub async fn delete_completed_job_runs(pool: &Pool<Sqlite>) -> Result<i64> {
     Ok(count)
 }
 
+/// Fail stale running jobs that have been running longer than the specified hours
+/// This is useful for cleanup at server startup or periodic maintenance
+#[instrument(skip(pool))]
+pub async fn fail_stale_running_jobs(pool: &Pool<Sqlite>, max_hours: i64) -> Result<i64> {
+    let now = Utc::now();
+    // Calculate the cutoff time in Rust, then use it in the query
+    let cutoff = now - chrono::Duration::hours(max_hours);
+
+    // Find all stale running jobs
+    let stale_jobs: Vec<(i64,)> = sqlx::query_as(
+        r#"
+        SELECT id FROM job_runs
+        WHERE status = 'running'
+        AND started_at < ?
+        "#,
+    )
+    .bind(cutoff)
+    .fetch_all(pool)
+    .await
+    .context("Failed to find stale running jobs")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    let count = stale_jobs.len() as i64;
+
+    if count > 0 {
+        // Update stale jobs to failure status (note: schema uses 'failure' not 'failed')
+        sqlx::query(
+            r#"
+            UPDATE job_runs
+            SET status = 'failure',
+                finished_at = ?,
+                error = 'Job marked as failed: exceeded maximum running time (stale job cleanup)'
+            WHERE status = 'running'
+            AND started_at < ?
+            "#,
+        )
+        .bind(now)
+        .bind(cutoff)
+        .execute(pool)
+        .await
+        .context("Failed to update stale running jobs")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+        // Also update any stale server job results
+        sqlx::query(
+            r#"
+            UPDATE server_job_results
+            SET status = 'failure',
+                finished_at = ?,
+                error = 'Job marked as failed: exceeded maximum running time (stale job cleanup)'
+            WHERE status = 'running'
+            AND started_at < ?
+            "#,
+        )
+        .bind(now)
+        .bind(cutoff)
+        .execute(pool)
+        .await
+        .context("Failed to update stale server job results")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+        // Also update any stale step execution results
+        sqlx::query(
+            r#"
+            UPDATE step_execution_results
+            SET status = 'failure',
+                finished_at = ?,
+                error = 'Step marked as failed: exceeded maximum running time (stale job cleanup)'
+            WHERE status = 'running'
+            AND started_at < ?
+            "#,
+        )
+        .bind(now)
+        .bind(cutoff)
+        .execute(pool)
+        .await
+        .context("Failed to update stale step execution results")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    }
+
+    Ok(count)
+}
+
 /// Delete all job runs (including running - use with caution)
 #[instrument(skip(pool))]
 pub async fn delete_all_job_runs(pool: &Pool<Sqlite>) -> Result<i64> {

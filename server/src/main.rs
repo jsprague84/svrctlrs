@@ -60,6 +60,17 @@ async fn main() -> anyhow::Result<()> {
     let database = svrctlrs_database::Database::new(&database_url).await?;
     database.migrate().await?;
 
+    // Clean up stale running jobs (jobs stuck in 'running' status for more than 1 hour)
+    // This handles cases where the server crashed or was restarted while jobs were running
+    let stale_jobs_count = svrctlrs_database::queries::job_runs::fail_stale_running_jobs(
+        database.pool(),
+        1, // Mark jobs as failed if running for more than 1 hour
+    )
+    .await?;
+    if stale_jobs_count > 0 {
+        tracing::warn!(count = stale_jobs_count, "Marked stale running jobs as failed on startup");
+    }
+
     // Initialize application state
     let state = AppState::new(config, database).await?;
 
