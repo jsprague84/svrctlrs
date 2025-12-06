@@ -44,6 +44,8 @@ pub struct PaginationParams {
     pub page: usize,
     #[serde(default = "default_per_page")]
     pub per_page: usize,
+    /// Optional schedule ID to filter job runs
+    pub schedule_id: Option<i64>,
 }
 
 fn default_page() -> usize {
@@ -60,26 +62,46 @@ pub async fn job_runs_page(
     State(state): State<AppState>,
     Query(params): Query<PaginationParams>,
 ) -> Result<Html<String>, AppError> {
-    info!(page = params.page, "Rendering job runs page");
+    info!(page = params.page, schedule_id = ?params.schedule_id, "Rendering job runs page");
 
     let per_page = params.per_page.min(100); // Cap at 100
     let offset = ((params.page.max(1) - 1) * per_page) as i64;
 
-    // Get total count for pagination
-    let total_count = queries::count_job_runs(&state.pool).await.map_err(|e| {
-        error!(error = %e, "Failed to count job runs");
-        AppError::DatabaseError(e.to_string())
-    })? as usize;
+    // Get total count and job runs based on schedule filter
+    let (total_count, job_runs) = if let Some(schedule_id) = params.schedule_id {
+        let count = queries::count_job_runs_by_schedule(&state.pool, schedule_id)
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to count job runs by schedule");
+                AppError::DatabaseError(e.to_string())
+            })? as usize;
+
+        let runs =
+            queries::list_job_runs_by_schedule_with_names(&state.pool, schedule_id, per_page as i64, offset)
+                .await
+                .map_err(|e| {
+                    error!(error = %e, "Failed to fetch job runs by schedule");
+                    AppError::DatabaseError(e.to_string())
+                })?;
+
+        (count, runs)
+    } else {
+        let count = queries::count_job_runs(&state.pool).await.map_err(|e| {
+            error!(error = %e, "Failed to count job runs");
+            AppError::DatabaseError(e.to_string())
+        })? as usize;
+
+        let runs = queries::list_job_runs_with_names(&state.pool, per_page as i64, offset)
+            .await
+            .map_err(|e| {
+                error!(error = %e, "Failed to fetch job runs");
+                AppError::DatabaseError(e.to_string())
+            })?;
+
+        (count, runs)
+    };
 
     let total_pages = total_count.div_ceil(per_page);
-
-    // Get job runs with names (JOIN query)
-    let job_runs = queries::list_job_runs_with_names(&state.pool, per_page as i64, offset)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to fetch job runs");
-            AppError::DatabaseError(e.to_string())
-        })?;
 
     let template = JobRunsTemplate {
         user: None, // TODO: Add authentication
@@ -87,6 +109,7 @@ pub async fn job_runs_page(
         current_page: params.page.max(1),
         total_pages: total_pages.max(1),
         per_page,
+        schedule_id: params.schedule_id,
     };
 
     let html = template.render().map_err(|e| {
@@ -351,6 +374,7 @@ pub async fn clear_job_runs(State(state): State<AppState>) -> Result<Html<String
         Query(PaginationParams {
             page: 1,
             per_page: 50,
+            schedule_id: None,
         }),
     )
     .await

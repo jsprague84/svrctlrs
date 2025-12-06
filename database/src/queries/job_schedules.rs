@@ -430,3 +430,63 @@ pub async fn count_enabled_schedules(pool: &Pool<Sqlite>) -> Result<i64> {
 
     Ok(count.0)
 }
+
+/// Job schedule with most recent run info for dashboard display
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct JobScheduleWithLastRun {
+    // Schedule fields
+    pub schedule_id: i64,
+    pub schedule_name: String,
+    pub job_template_name: String,
+    pub server_name: Option<String>,
+    pub cron_expression: String,
+    pub schedule_enabled: bool,
+    pub next_run_at: Option<DateTime<Utc>>,
+    pub success_count: i64,
+    pub failure_count: i64,
+    // Most recent run fields (nullable if no runs yet)
+    pub last_run_id: Option<i64>,
+    pub last_run_status: Option<String>,
+    pub last_run_started_at: Option<DateTime<Utc>>,
+    pub last_run_finished_at: Option<DateTime<Utc>>,
+    pub last_run_duration_ms: Option<i64>,
+}
+
+/// Get all job schedules with their most recent job run
+#[instrument(skip(pool))]
+pub async fn list_schedules_with_last_run(pool: &Pool<Sqlite>) -> Result<Vec<JobScheduleWithLastRun>> {
+    sqlx::query_as::<_, JobScheduleWithLastRun>(
+        r#"
+        SELECT
+            js.id as schedule_id,
+            js.name as schedule_name,
+            jt.name as job_template_name,
+            s.name as server_name,
+            js.schedule as cron_expression,
+            js.enabled as schedule_enabled,
+            js.next_run_at,
+            js.success_count,
+            js.failure_count,
+            jr.id as last_run_id,
+            jr.status as last_run_status,
+            jr.started_at as last_run_started_at,
+            jr.finished_at as last_run_finished_at,
+            jr.duration_ms as last_run_duration_ms
+        FROM job_schedules js
+        INNER JOIN job_templates jt ON js.job_template_id = jt.id
+        LEFT JOIN servers s ON js.server_id = s.id
+        LEFT JOIN job_runs jr ON jr.id = (
+            SELECT jr2.id
+            FROM job_runs jr2
+            WHERE jr2.job_schedule_id = js.id
+            ORDER BY jr2.started_at DESC
+            LIMIT 1
+        )
+        ORDER BY js.name
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+    .context("Failed to list schedules with last run")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}

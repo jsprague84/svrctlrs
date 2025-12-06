@@ -12,6 +12,16 @@
 <div class="flex-between mb-3">
     <div class="flex gap-2 align-center">
         <h1>Job Run History</h1>
+        {% match schedule_id %}
+        {% when Some with (id) %}
+        <span class="badge badge-info" style="font-size: 0.75rem;">
+            <i data-lucide="filter" style="width: 12px; height: 12px;"></i> Schedule #{{ id }}
+        </span>
+        <a href="/job-runs" class="btn btn-sm btn-secondary" style="padding: 0.25rem 0.5rem;">
+            <i data-lucide="x" style="width: 12px; height: 12px;"></i> Clear Filter
+        </a>
+        {% when None %}
+        {% endmatch %}
         <span id="ws-status" class="badge badge-secondary" style="font-size: 0.75rem;">
             <i data-lucide="wifi-off" style="width: 12px; height: 12px;"></i> Connecting...
         </span>
@@ -26,7 +36,12 @@
 </div>
 
 <p class="text-secondary mb-3">
+    {% match schedule_id %}
+    {% when Some with (_) %}
+    Showing job runs for the selected schedule. <a href="/job-runs">View all runs</a>
+    {% when None %}
     View execution history and results for all job runs. Updates are pushed in real-time via WebSocket.
+    {% endmatch %}
 </p>
 
 <!-- Job Run List (updated via WebSocket) -->

@@ -51,34 +51,66 @@
     </div>
 </div>
 
-<!-- Recent Job Runs -->
-<div class="card">
-    <div class="card-header">
-        <h2 class="card-title">Recent Job Runs</h2>
-        <a href="/job-runs" class="btn btn-sm btn-secondary">View All</a>
+<!-- Job Schedules with Last Run -->
+<div class="card" style="padding: 0; overflow: hidden;">
+    <div class="card-header" style="padding: 1rem;">
+        <h2 class="card-title">Job Schedules</h2>
+        <a href="/job-runs" class="btn btn-sm btn-secondary">View All Runs</a>
     </div>
 
-    {% if stats.recent_runs.is_empty() %}
-    <p class="text-secondary">No recent job runs to display.</p>
+    {% if stats.schedules_with_runs.is_empty() %}
+    <p class="text-secondary" style="padding: 1rem;">No job schedules configured. Create schedules to automate job execution.</p>
     {% else %}
-    <div class="grid grid-1">
-        {% for run in stats.recent_runs %}
-        <div class="card" style="background: var(--bg); margin-bottom: 0.5rem;">
-            <div class="flex-between">
-                <div>
-                    <strong>{{ run.job_name }}</strong> on <span class="text-secondary">{{ run.server_name }}</span>
-                </div>
-                <span class="badge {% if run.status == "success" %}badge-success{% else if run.status == "failed" %}badge-error{% else if run.status == "running" %}badge-info{% else %}badge-secondary{% endif %}">
-                    {{ run.status }}
-                </span>
-            </div>
-            <div class="text-secondary" style="font-size: 0.875rem; margin-top: 0.25rem;">
-                {{ run.started_at }}
-                {% if run.duration_seconds.is_some() %} &middot; {% match run.duration_seconds %}{% when Some with (d) %}{{ d }}s{% when None %}{% endmatch %}{% endif %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
+    <table class="table" style="margin: 0;">
+        <thead>
+            <tr>
+                <th>Schedule</th>
+                <th>Server</th>
+                <th>Cron</th>
+                <th>Next Run</th>
+                <th>Last Run</th>
+                <th>Status</th>
+                <th style="text-align: center;">Runs</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for sched in stats.schedules_with_runs %}
+            <tr style="cursor: pointer;" onclick="window.location.href='/job-runs?schedule_id={{ sched.schedule_id }}'">
+                <td>
+                    <strong>{{ sched.schedule_name }}</strong>
+                    <span class="text-secondary" style="font-size: 0.75rem; display: block;">{{ sched.job_template_name }}</span>
+                </td>
+                <td style="font-size: 0.875rem;">{{ sched.server_name }}</td>
+                <td style="font-size: 0.75rem; font-family: monospace;">{{ sched.cron_expression }}</td>
+                <td style="font-size: 0.875rem;">
+                    {% match sched.next_run_at %}
+                    {% when Some with (dt) %}{{ dt }}{% when None %}<span class="text-secondary">-</span>{% endmatch %}
+                </td>
+                <td style="font-size: 0.875rem;">
+                    {% match sched.last_run_started_at %}
+                    {% when Some with (dt) %}
+                        {{ dt }}
+                        {% match sched.last_run_duration %}
+                        {% when Some with (d) %}<span class="text-secondary"> ({{ d }})</span>{% when None %}{% endmatch %}
+                    {% when None %}<span class="text-secondary">Never</span>{% endmatch %}
+                </td>
+                <td>
+                    {% match sched.last_run_status %}
+                    {% when Some with (status) %}
+                    <span class="badge {% if status == "success" %}badge-success{% elif status == "failed" %}badge-error{% elif status == "partial_success" %}badge-warning{% elif status == "running" %}badge-info{% else %}badge-secondary{% endif %}">
+                        {% if status == "success" %}OK{% elif status == "failed" %}Fail{% elif status == "running" %}Run{% else %}{{ status }}{% endif %}
+                    </span>
+                    {% when None %}
+                    <span class="badge badge-secondary">-</span>
+                    {% endmatch %}
+                </td>
+                <td style="text-align: center; font-size: 0.875rem;">
+                    <span class="text-success">{{ sched.success_count }}</span>/<span class="text-error">{{ sched.failure_count }}</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
     {% endif %}
 </div>
 {% endblock %}

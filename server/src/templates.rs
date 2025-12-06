@@ -46,24 +46,61 @@ pub struct DashboardTemplate {
     pub stats: DashboardStats,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct DashboardStats {
     pub total_servers: usize,
     pub total_schedules: usize,
     pub active_jobs: usize,
     pub active_tasks: usize,
     pub total_tasks: usize,
-    pub recent_runs: Vec<RecentJobRun>,
+    pub schedules_with_runs: Vec<ScheduleWithLastRunDisplay>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RecentJobRun {
-    pub id: i64,
-    pub job_name: String,
+/// Display struct for schedule with its most recent job run
+#[derive(Debug, Clone)]
+pub struct ScheduleWithLastRunDisplay {
+    pub schedule_id: i64,
+    pub schedule_name: String,
+    pub job_template_name: String,
     pub server_name: String,
-    pub status: String,
-    pub started_at: String,
-    pub duration_seconds: Option<f64>,
+    pub cron_expression: String,
+    pub enabled: bool,
+    pub next_run_at: Option<String>,
+    pub success_count: i64,
+    pub failure_count: i64,
+    // Last run info
+    pub last_run_id: Option<i64>,
+    pub last_run_status: Option<String>,
+    pub last_run_started_at: Option<String>,
+    pub last_run_duration: Option<String>,
+}
+
+impl From<svrctlrs_database::queries::job_schedules::JobScheduleWithLastRun> for ScheduleWithLastRunDisplay {
+    fn from(s: svrctlrs_database::queries::job_schedules::JobScheduleWithLastRun) -> Self {
+        use chrono::Local;
+
+        Self {
+            schedule_id: s.schedule_id,
+            schedule_name: s.schedule_name,
+            job_template_name: s.job_template_name,
+            server_name: s.server_name.unwrap_or_else(|| "N/A".to_string()),
+            cron_expression: s.cron_expression,
+            enabled: s.schedule_enabled,
+            next_run_at: s.next_run_at.map(|dt| dt.with_timezone(&Local).format("%m-%d %H:%M").to_string()),
+            success_count: s.success_count,
+            failure_count: s.failure_count,
+            last_run_id: s.last_run_id,
+            last_run_status: s.last_run_status,
+            last_run_started_at: s.last_run_started_at.map(|dt| dt.with_timezone(&Local).format("%m-%d %H:%M").to_string()),
+            last_run_duration: s.last_run_duration_ms.map(|ms| {
+                if ms < 1000 {
+                    format!("{}ms", ms)
+                } else {
+                    format!("{:.1}s", ms as f64 / 1000.0)
+                }
+            }),
+        }
+    }
 }
 
 // ============================================================================
@@ -934,6 +971,8 @@ pub struct JobRunsTemplate {
     pub current_page: usize,
     pub total_pages: usize,
     pub per_page: usize,
+    /// Optional schedule filter (shows only runs for this schedule)
+    pub schedule_id: Option<i64>,
 }
 
 #[derive(Template)]

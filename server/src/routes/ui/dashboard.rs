@@ -39,45 +39,24 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
         0
     };
 
-    // Get recent job runs (last 10)
-    let recent_job_runs = queries::job_runs::list_job_runs(db.pool(), 10, 0)
+    // Get schedules with their most recent job run
+    let schedules_with_last_run = queries::job_schedules::list_schedules_with_last_run(db.pool())
         .await
         .unwrap_or_default();
 
-    // Convert to display format with server/template names
-    let mut recent_runs = Vec::new();
-    for run in recent_job_runs {
-        // Get server name
-        let server_name =
-            match queries::servers::get_server_with_details(db.pool(), run.server_id).await {
-                Ok(server) => server.server.name,
-                Err(_) => format!("Server #{}", run.server_id),
-            };
-
-        // Get job template name
-        let job_name =
-            match queries::job_templates::get_job_template(db.pool(), run.job_template_id).await {
-                Ok(template) => template.display_name,
-                Err(_) => format!("Job #{}", run.job_template_id),
-            };
-
-        recent_runs.push(crate::templates::RecentJobRun {
-            id: run.id,
-            job_name,
-            server_name,
-            status: run.status_str.clone(),
-            started_at: run.started_at.format("%Y-%m-%d %H:%M:%S").to_string(),
-            duration_seconds: run.duration_ms.map(|ms| ms as f64 / 1000.0),
-        });
-    }
+    // Convert to display format
+    let schedules_with_runs: Vec<ScheduleWithLastRunDisplay> = schedules_with_last_run
+        .into_iter()
+        .map(Into::into)
+        .collect();
 
     let stats = DashboardStats {
         total_servers,
         total_schedules,
         active_jobs,
         active_tasks,
-        total_tasks: total_schedules, // Same as total_schedules for now
-        recent_runs,
+        total_tasks: total_schedules,
+        schedules_with_runs,
     };
 
     let template = DashboardTemplate { user, stats };

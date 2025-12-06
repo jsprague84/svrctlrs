@@ -167,6 +167,63 @@ pub async fn get_job_runs_by_schedule(
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
+/// List job runs for a specific schedule with joined names (paginated)
+#[instrument(skip(pool))]
+pub async fn list_job_runs_by_schedule_with_names(
+    pool: &Pool<Sqlite>,
+    schedule_id: i64,
+    limit: i64,
+    offset: i64,
+) -> Result<Vec<JobRunWithNames>> {
+    sqlx::query_as::<_, JobRunWithNames>(
+        r#"
+        SELECT
+            jr.id, jr.job_schedule_id,
+            js.name as job_schedule_name,
+            jr.job_template_id,
+            jt.name as job_template_name,
+            jr.server_id,
+            s.name as server_name,
+            jr.status, jr.started_at, jr.finished_at, jr.duration_ms, jr.exit_code,
+            jr.output, jr.error, jr.rendered_command, jr.retry_attempt, jr.is_retry,
+            jr.notification_sent, jr.notification_error, jr.metadata
+        FROM job_runs jr
+        INNER JOIN job_templates jt ON jr.job_template_id = jt.id
+        LEFT JOIN job_schedules js ON jr.job_schedule_id = js.id
+        LEFT JOIN servers s ON jr.server_id = s.id
+        WHERE jr.job_schedule_id = ?
+        ORDER BY jr.started_at DESC
+        LIMIT ? OFFSET ?
+        "#,
+    )
+    .bind(schedule_id)
+    .bind(limit)
+    .bind(offset)
+    .fetch_all(pool)
+    .await
+    .context("Failed to list job runs by schedule with names")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Count job runs for a specific schedule
+#[instrument(skip(pool))]
+pub async fn count_job_runs_by_schedule(pool: &Pool<Sqlite>, schedule_id: i64) -> Result<i64> {
+    let count: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) as count
+        FROM job_runs
+        WHERE job_schedule_id = ?
+        "#,
+    )
+    .bind(schedule_id)
+    .fetch_one(pool)
+    .await
+    .context("Failed to count job runs by schedule")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(count.0)
+}
+
 /// Create a new job run
 #[instrument(skip(pool, metadata))]
 pub async fn create_job_run(
