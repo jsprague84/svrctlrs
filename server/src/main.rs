@@ -68,7 +68,10 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
     if stale_jobs_count > 0 {
-        tracing::warn!(count = stale_jobs_count, "Marked stale running jobs as failed on startup");
+        tracing::warn!(
+            count = stale_jobs_count,
+            "Marked stale running jobs as failed on startup"
+        );
     }
 
     // Initialize application state

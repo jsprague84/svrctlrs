@@ -454,7 +454,9 @@ pub struct JobScheduleWithLastRun {
 
 /// Get all job schedules with their most recent job run
 #[instrument(skip(pool))]
-pub async fn list_schedules_with_last_run(pool: &Pool<Sqlite>) -> Result<Vec<JobScheduleWithLastRun>> {
+pub async fn list_schedules_with_last_run(
+    pool: &Pool<Sqlite>,
+) -> Result<Vec<JobScheduleWithLastRun>> {
     sqlx::query_as::<_, JobScheduleWithLastRun>(
         r#"
         SELECT

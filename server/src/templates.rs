@@ -75,7 +75,9 @@ pub struct ScheduleWithLastRunDisplay {
     pub last_run_duration: Option<String>,
 }
 
-impl From<svrctlrs_database::queries::job_schedules::JobScheduleWithLastRun> for ScheduleWithLastRunDisplay {
+impl From<svrctlrs_database::queries::job_schedules::JobScheduleWithLastRun>
+    for ScheduleWithLastRunDisplay
+{
     fn from(s: svrctlrs_database::queries::job_schedules::JobScheduleWithLastRun) -> Self {
         use chrono::Local;
 
@@ -86,12 +88,16 @@ impl From<svrctlrs_database::queries::job_schedules::JobScheduleWithLastRun> for
             server_name: s.server_name.unwrap_or_else(|| "N/A".to_string()),
             cron_expression: s.cron_expression,
             enabled: s.schedule_enabled,
-            next_run_at: s.next_run_at.map(|dt| dt.with_timezone(&Local).format("%m-%d %H:%M").to_string()),
+            next_run_at: s
+                .next_run_at
+                .map(|dt| dt.with_timezone(&Local).format("%m-%d %H:%M").to_string()),
             success_count: s.success_count,
             failure_count: s.failure_count,
             last_run_id: s.last_run_id,
             last_run_status: s.last_run_status,
-            last_run_started_at: s.last_run_started_at.map(|dt| dt.with_timezone(&Local).format("%m-%d %H:%M").to_string()),
+            last_run_started_at: s
+                .last_run_started_at
+                .map(|dt| dt.with_timezone(&Local).format("%m-%d %H:%M").to_string()),
             last_run_duration: s.last_run_duration_ms.map(|ms| {
                 if ms < 1000 {
                     format!("{}ms", ms)

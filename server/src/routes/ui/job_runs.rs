@@ -76,13 +76,17 @@ pub async fn job_runs_page(
                 AppError::DatabaseError(e.to_string())
             })? as usize;
 
-        let runs =
-            queries::list_job_runs_by_schedule_with_names(&state.pool, schedule_id, per_page as i64, offset)
-                .await
-                .map_err(|e| {
-                    error!(error = %e, "Failed to fetch job runs by schedule");
-                    AppError::DatabaseError(e.to_string())
-                })?;
+        let runs = queries::list_job_runs_by_schedule_with_names(
+            &state.pool,
+            schedule_id,
+            per_page as i64,
+            offset,
+        )
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to fetch job runs by schedule");
+            AppError::DatabaseError(e.to_string())
+        })?;
 
         (count, runs)
     } else {
@@ -342,10 +346,12 @@ pub async fn delete_job_run(
     info!(job_run_id = id, "Deleting job run");
 
     // Delete the job run and related results
-    queries::delete_job_run(&state.pool, id).await.map_err(|e| {
-        error!(job_run_id = id, error = %e, "Failed to delete job run");
-        AppError::DatabaseError(e.to_string())
-    })?;
+    queries::delete_job_run(&state.pool, id)
+        .await
+        .map_err(|e| {
+            error!(job_run_id = id, error = %e, "Failed to delete job run");
+            AppError::DatabaseError(e.to_string())
+        })?;
 
     info!(job_run_id = id, "Job run deleted successfully");
 
