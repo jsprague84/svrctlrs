@@ -31,13 +31,10 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
         .await
         .unwrap_or(0) as usize;
 
-    // Get active tasks count from scheduler
-    let scheduler = state.scheduler.read().await;
-    let active_tasks = if let Some(ref sched) = *scheduler {
-        sched.task_count().await
-    } else {
-        0
-    };
+    // Get active (enabled) schedules count from database
+    let active_tasks = queries::job_schedules::count_enabled_schedules(db.pool())
+        .await
+        .unwrap_or(0) as usize;
 
     // Get schedules with their most recent job run
     let schedules_with_last_run = queries::job_schedules::list_schedules_with_last_run(db.pool())
