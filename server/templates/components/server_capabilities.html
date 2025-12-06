@@ -14,7 +14,7 @@
             {% for cap in capabilities %}
             <span class="badge {% if cap.available %}badge-success{% else %}badge-secondary{% endif %}"
                   style="font-size: 0.75rem;"
-                  title="{% if cap.capability == "docker" %}Docker{% else if cap.capability == "podman" %}Podman{% else if cap.capability == "systemd" %}systemd{% else if cap.capability == "apt" %}apt{% else if cap.capability == "apt_get" %}apt{% else if cap.capability == "dnf" %}dnf{% else if cap.capability == "yum" %}yum{% else if cap.capability == "pacman" %}pacman{% else if cap.capability == "snap" %}Snap{% else if cap.capability == "flatpak" %}Flatpak{% else if cap.capability == "python3" %}Python 3{% else if cap.capability == "node" %}Node.js{% else if cap.capability == "git" %}Git{% else if cap.capability == "zfs" %}ZFS{% else if cap.capability == "lvm" %}LVM{% else %}{{ cap.capability }}{% endif %}{% match cap.version %}{% when Some with (v) %} {{ v }}{% when None %}{% endmatch %} - {% if cap.available %}Available{% else %}Unavailable{% endif %}">
+                  title="{% if cap.capability == "docker" %}Docker{% else if cap.capability == "podman" %}Podman{% else if cap.capability == "systemd" %}systemd{% else if cap.capability == "apt" %}apt{% else if cap.capability == "apt_get" %}apt{% else if cap.capability == "dnf" %}dnf{% else if cap.capability == "yum" %}yum{% else if cap.capability == "pacman" %}pacman{% else if cap.capability == "snap" %}Snap{% else if cap.capability == "flatpak" %}Flatpak{% else if cap.capability == "python3" %}Python 3{% else if cap.capability == "node" %}Node.js{% else if cap.capability == "git" %}Git{% else if cap.capability == "zfs" %}ZFS{% else if cap.capability == "lvm" %}LVM{% else if cap.capability == "proxmox" %}Proxmox VE{% else %}{{ cap.capability }}{% endif %}{% match cap.version %}{% when Some with (v) %} {{ v }}{% when None %}{% endmatch %} - {% if cap.available %}Available{% else %}Unavailable{% endif %}">
                 {% if cap.capability == "docker" %}<i data-lucide="container" style="width: 12px; height: 12px;"></i> Docker
                 {% else if cap.capability == "podman" %}<i data-lucide="container" style="width: 12px; height: 12px;"></i> Podman
                 {% else if cap.capability == "systemd" %}<i data-lucide="activity" style="width: 12px; height: 12px;"></i> systemd
@@ -30,6 +30,7 @@
                 {% else if cap.capability == "git" %}<i data-lucide="git-branch" style="width: 12px; height: 12px;"></i> Git
                 {% else if cap.capability == "zfs" %}<i data-lucide="hard-drive" style="width: 12px; height: 12px;"></i> ZFS
                 {% else if cap.capability == "lvm" %}<i data-lucide="hard-drive" style="width: 12px; height: 12px;"></i> LVM
+                {% else if cap.capability == "proxmox" %}<i data-lucide="server" style="width: 12px; height: 12px;"></i> Proxmox VE
                 {% else %}<i data-lucide="check-circle" style="width: 12px; height: 12px;"></i> {{ cap.capability }}
                 {% endif %}
             </span>
@@ -73,6 +74,7 @@
                             {% else if cap.capability == "git" %}<i data-lucide="git-branch" style="width: 16px; height: 16px;"></i>
                             {% else if cap.capability == "zfs" %}<i data-lucide="hard-drive" style="width: 16px; height: 16px;"></i>
                             {% else if cap.capability == "lvm" %}<i data-lucide="hard-drive" style="width: 16px; height: 16px;"></i>
+                            {% else if cap.capability == "proxmox" %}<i data-lucide="server" style="width: 16px; height: 16px;"></i>
                             {% else %}<i data-lucide="check-circle" style="width: 16px; height: 16px;"></i>
                             {% endif %}
                             <strong>{% if cap.capability == "docker" %}Docker
@@ -90,6 +92,7 @@
                             {% else if cap.capability == "git" %}Git
                             {% else if cap.capability == "zfs" %}ZFS
                             {% else if cap.capability == "lvm" %}LVM
+                            {% else if cap.capability == "proxmox" %}Proxmox VE
                             {% else %}{{ cap.capability }}
                             {% endif %}</strong>
                         </div>

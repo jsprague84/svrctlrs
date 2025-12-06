@@ -670,6 +670,11 @@ echo "GIT=$(command -v git >/dev/null 2>&1 && echo '1' || echo '0')"
 echo "PODMAN=$(command -v podman >/dev/null 2>&1 && echo '1' || echo '0')"
 echo "SNAP=$(command -v snap >/dev/null 2>&1 && echo '1' || echo '0')"
 echo "FLATPAK=$(command -v flatpak >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "PROXMOX=$(command -v pveversion >/dev/null 2>&1 && echo '1' || echo '0')"
+if command -v pveversion >/dev/null 2>&1; then
+    PROXMOX_VER=$(pveversion 2>/dev/null | head -1 | sed 's/pve-manager\///' | cut -d'/' -f1)
+    echo "PROXMOX_VERSION=$PROXMOX_VER"
+fi
 "#;
 
     // Handle local server - use tokio::process::Command
@@ -693,41 +698,58 @@ echo "FLATPAK=$(command -v flatpak >/dev/null 2>&1 && echo '1' || echo '0')"
 
         // Parse capabilities from output
         let mut detected_caps = Vec::new();
+        let mut proxmox_version: Option<String> = None;
 
+        // First pass: collect Proxmox version if present
         for line in stdout.lines() {
-            let (cap_name, cap_available) = if line.starts_with("DOCKER=1") {
-                ("docker", true)
+            if line.starts_with("PROXMOX_VERSION=") {
+                proxmox_version = Some(line.trim_start_matches("PROXMOX_VERSION=").to_string());
+            }
+        }
+
+        // Second pass: detect capabilities
+        for line in stdout.lines() {
+            let (cap_name, cap_available, version) = if line.starts_with("DOCKER=1") {
+                ("docker", true, None)
             } else if line.starts_with("SYSTEMD=1") {
-                ("systemd", true)
+                ("systemd", true, None)
             } else if line.starts_with("APT=1") {
-                ("apt", true)
+                ("apt", true, None)
             } else if line.starts_with("DNF=1") {
-                ("dnf", true)
+                ("dnf", true, None)
             } else if line.starts_with("PACMAN=1") {
-                ("pacman", true)
+                ("pacman", true, None)
             } else if line.starts_with("ZFS=1") {
-                ("zfs", true)
+                ("zfs", true, None)
             } else if line.starts_with("LVM=1") {
-                ("lvm", true)
+                ("lvm", true, None)
             } else if line.starts_with("PYTHON3=1") {
-                ("python3", true)
+                ("python3", true, None)
             } else if line.starts_with("NODE=1") {
-                ("node", true)
+                ("node", true, None)
             } else if line.starts_with("GIT=1") {
-                ("git", true)
+                ("git", true, None)
             } else if line.starts_with("PODMAN=1") {
-                ("podman", true)
+                ("podman", true, None)
             } else if line.starts_with("SNAP=1") {
-                ("snap", true)
+                ("snap", true, None)
             } else if line.starts_with("FLATPAK=1") {
-                ("flatpak", true)
+                ("flatpak", true, None)
+            } else if line.starts_with("PROXMOX=1") {
+                ("proxmox", true, proxmox_version.clone())
             } else {
                 continue;
             };
 
             detected_caps.push(cap_name);
-            servers_queries::set_server_capability(db.pool(), id, cap_name, cap_available, None)
-                .await?;
+            servers_queries::set_server_capability(
+                db.pool(),
+                id,
+                cap_name,
+                cap_available,
+                version.as_deref(),
+            )
+            .await?;
         }
 
         // Parse OS info - prefer PRETTY_NAME for fuller version string
@@ -835,34 +857,45 @@ echo "FLATPAK=$(command -v flatpak >/dev/null 2>&1 && echo '1' || echo '0')"
 
             // Parse capabilities from output
             let mut detected_caps = Vec::new();
+            let mut proxmox_version: Option<String> = None;
 
+            // First pass: collect Proxmox version if present
             for line in output.lines() {
-                let (cap_name, cap_available) = if line.starts_with("DOCKER=1") {
-                    ("docker", true)
+                if line.starts_with("PROXMOX_VERSION=") {
+                    proxmox_version = Some(line.trim_start_matches("PROXMOX_VERSION=").to_string());
+                }
+            }
+
+            // Second pass: detect capabilities
+            for line in output.lines() {
+                let (cap_name, cap_available, version) = if line.starts_with("DOCKER=1") {
+                    ("docker", true, None)
                 } else if line.starts_with("SYSTEMD=1") {
-                    ("systemd", true)
+                    ("systemd", true, None)
                 } else if line.starts_with("APT=1") {
-                    ("apt", true)
+                    ("apt", true, None)
                 } else if line.starts_with("DNF=1") {
-                    ("dnf", true)
+                    ("dnf", true, None)
                 } else if line.starts_with("PACMAN=1") {
-                    ("pacman", true)
+                    ("pacman", true, None)
                 } else if line.starts_with("ZFS=1") {
-                    ("zfs", true)
+                    ("zfs", true, None)
                 } else if line.starts_with("LVM=1") {
-                    ("lvm", true)
+                    ("lvm", true, None)
                 } else if line.starts_with("PYTHON3=1") {
-                    ("python3", true)
+                    ("python3", true, None)
                 } else if line.starts_with("NODE=1") {
-                    ("node", true)
+                    ("node", true, None)
                 } else if line.starts_with("GIT=1") {
-                    ("git", true)
+                    ("git", true, None)
                 } else if line.starts_with("PODMAN=1") {
-                    ("podman", true)
+                    ("podman", true, None)
                 } else if line.starts_with("SNAP=1") {
-                    ("snap", true)
+                    ("snap", true, None)
                 } else if line.starts_with("FLATPAK=1") {
-                    ("flatpak", true)
+                    ("flatpak", true, None)
+                } else if line.starts_with("PROXMOX=1") {
+                    ("proxmox", true, proxmox_version.clone())
                 } else {
                     continue;
                 };
@@ -873,7 +906,7 @@ echo "FLATPAK=$(command -v flatpak >/dev/null 2>&1 && echo '1' || echo '0')"
                     id,
                     cap_name,
                     cap_available,
-                    None,
+                    version.as_deref(),
                 )
                 .await?;
             }
