@@ -650,48 +650,118 @@ async fn server_capabilities(
 
     tracing::info!("Detecting capabilities for server: {}", server.server.name);
 
-    // Handle local server
+    // Detection script - used for both local and remote servers
+    let detection_script = r#"
+#!/bin/bash
+echo "OS_RELEASE_START"
+cat /etc/os-release 2>/dev/null || echo "unknown"
+echo "OS_RELEASE_END"
+
+echo "DOCKER=$(command -v docker >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "SYSTEMD=$(command -v systemctl >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "APT=$(command -v apt >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "DNF=$(command -v dnf >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "PACMAN=$(command -v pacman >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "ZFS=$(command -v zpool >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "LVM=$(command -v lvm >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "PYTHON3=$(command -v python3 >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "NODE=$(command -v node >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "GIT=$(command -v git >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "PODMAN=$(command -v podman >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "SNAP=$(command -v snap >/dev/null 2>&1 && echo '1' || echo '0')"
+echo "FLATPAK=$(command -v flatpak >/dev/null 2>&1 && echo '1' || echo '0')"
+"#;
+
+    // Handle local server - use tokio::process::Command
     if server.server.is_local {
-        // Detect local capabilities
+        use tokio::process::Command;
+
+        tracing::debug!("Running local capability detection script");
+
+        let output = Command::new("bash")
+            .arg("-c")
+            .arg(detection_script)
+            .output()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to execute local detection script: {}", e);
+                AppError::InternalError(format!("Failed to run detection script: {}", e))
+            })?;
+
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        tracing::debug!("Local capability detection output: {}", stdout);
+
+        // Parse capabilities from output
         let mut detected_caps = Vec::new();
 
-        // Check for Docker
-        if which::which("docker").is_ok() {
-            detected_caps.push(("docker", true));
-            servers_queries::set_server_capability(db.pool(), id, "docker", true, None).await?;
+        for line in stdout.lines() {
+            let (cap_name, cap_available) = if line.starts_with("DOCKER=1") {
+                ("docker", true)
+            } else if line.starts_with("SYSTEMD=1") {
+                ("systemd", true)
+            } else if line.starts_with("APT=1") {
+                ("apt", true)
+            } else if line.starts_with("DNF=1") {
+                ("dnf", true)
+            } else if line.starts_with("PACMAN=1") {
+                ("pacman", true)
+            } else if line.starts_with("ZFS=1") {
+                ("zfs", true)
+            } else if line.starts_with("LVM=1") {
+                ("lvm", true)
+            } else if line.starts_with("PYTHON3=1") {
+                ("python3", true)
+            } else if line.starts_with("NODE=1") {
+                ("node", true)
+            } else if line.starts_with("GIT=1") {
+                ("git", true)
+            } else if line.starts_with("PODMAN=1") {
+                ("podman", true)
+            } else if line.starts_with("SNAP=1") {
+                ("snap", true)
+            } else if line.starts_with("FLATPAK=1") {
+                ("flatpak", true)
+            } else {
+                continue;
+            };
+
+            detected_caps.push(cap_name);
+            servers_queries::set_server_capability(db.pool(), id, cap_name, cap_available, None)
+                .await?;
         }
 
-        // Check for systemd
-        if which::which("systemctl").is_ok() {
-            detected_caps.push(("systemd", true));
-            servers_queries::set_server_capability(db.pool(), id, "systemd", true, None).await?;
-        }
+        // Parse OS info - prefer PRETTY_NAME for fuller version string
+        if let Some(os_start) = stdout.find("OS_RELEASE_START") {
+            if let Some(os_end) = stdout.find("OS_RELEASE_END") {
+                let os_info = &stdout[os_start + 16..os_end];
+                // Try PRETTY_NAME first (e.g., "Ubuntu 24.04 LTS")
+                let os_distro = os_info
+                    .lines()
+                    .find(|l| l.starts_with("PRETTY_NAME="))
+                    .map(|l| l.trim_start_matches("PRETTY_NAME=").trim_matches('"'))
+                    // Fall back to ID if PRETTY_NAME not found
+                    .or_else(|| {
+                        os_info
+                            .lines()
+                            .find(|l| l.starts_with("ID="))
+                            .map(|l| l.trim_start_matches("ID=").trim_matches('"'))
+                    });
 
-        // Check for package managers
-        if which::which("apt").is_ok() {
-            detected_caps.push(("apt", true));
-            servers_queries::set_server_capability(db.pool(), id, "apt", true, None).await?;
-        }
-        if which::which("dnf").is_ok() {
-            detected_caps.push(("dnf", true));
-            servers_queries::set_server_capability(db.pool(), id, "dnf", true, None).await?;
-        }
-        if which::which("pacman").is_ok() {
-            detected_caps.push(("pacman", true));
-            servers_queries::set_server_capability(db.pool(), id, "pacman", true, None).await?;
-        }
-
-        // Update server metadata with OS info
-        if let Ok(os_info) = std::fs::read_to_string("/etc/os-release") {
-            if let Some(os_name) = os_info.lines().find(|l| l.starts_with("ID=")) {
-                let os_distro = os_name.trim_start_matches("ID=").trim_matches('"');
-                let update = UpdateServer {
-                    os_distro: Some(os_distro.to_string()),
-                    ..Default::default()
-                };
-                let _ = servers_queries::update_server(db.pool(), id, &update).await;
+                if let Some(distro) = os_distro {
+                    let update = UpdateServer {
+                        os_distro: Some(distro.to_string()),
+                        ..Default::default()
+                    };
+                    let _ = servers_queries::update_server(db.pool(), id, &update).await;
+                }
             }
         }
+
+        tracing::info!(
+            "Detected {} capabilities for local server '{}'",
+            detected_caps.len(),
+            server.server.name
+        );
 
         let capabilities = servers_queries::get_server_capabilities(db.pool(), id).await?;
         let template = ServerCapabilitiesTemplate {
@@ -756,70 +826,78 @@ async fn server_capabilities(
         timeout: Duration::from_secs(30),
     };
 
-    // Detection script
-    let detection_script = r#"
-#!/bin/bash
-echo "OS_RELEASE_START"
-cat /etc/os-release 2>/dev/null || echo "unknown"
-echo "OS_RELEASE_END"
-
-echo "DOCKER=$(command -v docker >/dev/null 2>&1 && echo '1' || echo '0')"
-echo "SYSTEMD=$(command -v systemctl >/dev/null 2>&1 && echo '1' || echo '0')"
-echo "APT=$(command -v apt >/dev/null 2>&1 && echo '1' || echo '0')"
-echo "DNF=$(command -v dnf >/dev/null 2>&1 && echo '1' || echo '0')"
-echo "PACMAN=$(command -v pacman >/dev/null 2>&1 && echo '1' || echo '0')"
-echo "ZFS=$(command -v zpool >/dev/null 2>&1 && echo '1' || echo '0')"
-echo "LVM=$(command -v lvm >/dev/null 2>&1 && echo '1' || echo '0')"
-"#;
+    // Use the same detection script defined at the top of the function
 
     match execute_command(&ssh_config, detection_script).await {
         Ok(result) => {
             let output = result.stdout;
             tracing::debug!("Capability detection output: {}", output);
 
-            // Parse output
+            // Parse capabilities from output
             let mut detected_caps = Vec::new();
 
             for line in output.lines() {
-                if line.starts_with("DOCKER=1") {
-                    detected_caps.push("docker");
-                    servers_queries::set_server_capability(db.pool(), id, "docker", true, None)
-                        .await?;
+                let (cap_name, cap_available) = if line.starts_with("DOCKER=1") {
+                    ("docker", true)
                 } else if line.starts_with("SYSTEMD=1") {
-                    detected_caps.push("systemd");
-                    servers_queries::set_server_capability(db.pool(), id, "systemd", true, None)
-                        .await?;
+                    ("systemd", true)
                 } else if line.starts_with("APT=1") {
-                    detected_caps.push("apt");
-                    servers_queries::set_server_capability(db.pool(), id, "apt", true, None)
-                        .await?;
+                    ("apt", true)
                 } else if line.starts_with("DNF=1") {
-                    detected_caps.push("dnf");
-                    servers_queries::set_server_capability(db.pool(), id, "dnf", true, None)
-                        .await?;
+                    ("dnf", true)
                 } else if line.starts_with("PACMAN=1") {
-                    detected_caps.push("pacman");
-                    servers_queries::set_server_capability(db.pool(), id, "pacman", true, None)
-                        .await?;
+                    ("pacman", true)
                 } else if line.starts_with("ZFS=1") {
-                    detected_caps.push("zfs");
-                    servers_queries::set_server_capability(db.pool(), id, "zfs", true, None)
-                        .await?;
+                    ("zfs", true)
                 } else if line.starts_with("LVM=1") {
-                    detected_caps.push("lvm");
-                    servers_queries::set_server_capability(db.pool(), id, "lvm", true, None)
-                        .await?;
-                }
+                    ("lvm", true)
+                } else if line.starts_with("PYTHON3=1") {
+                    ("python3", true)
+                } else if line.starts_with("NODE=1") {
+                    ("node", true)
+                } else if line.starts_with("GIT=1") {
+                    ("git", true)
+                } else if line.starts_with("PODMAN=1") {
+                    ("podman", true)
+                } else if line.starts_with("SNAP=1") {
+                    ("snap", true)
+                } else if line.starts_with("FLATPAK=1") {
+                    ("flatpak", true)
+                } else {
+                    continue;
+                };
+
+                detected_caps.push(cap_name);
+                servers_queries::set_server_capability(
+                    db.pool(),
+                    id,
+                    cap_name,
+                    cap_available,
+                    None,
+                )
+                .await?;
             }
 
-            // Parse OS info
+            // Parse OS info - prefer PRETTY_NAME for fuller version string
             if let Some(os_start) = output.find("OS_RELEASE_START") {
                 if let Some(os_end) = output.find("OS_RELEASE_END") {
                     let os_info = &output[os_start + 16..os_end];
-                    if let Some(os_line) = os_info.lines().find(|l| l.starts_with("ID=")) {
-                        let os_distro = os_line.trim_start_matches("ID=").trim_matches('"');
+                    // Try PRETTY_NAME first (e.g., "Ubuntu 24.04 LTS")
+                    let os_distro = os_info
+                        .lines()
+                        .find(|l| l.starts_with("PRETTY_NAME="))
+                        .map(|l| l.trim_start_matches("PRETTY_NAME=").trim_matches('"'))
+                        // Fall back to ID if PRETTY_NAME not found
+                        .or_else(|| {
+                            os_info
+                                .lines()
+                                .find(|l| l.starts_with("ID="))
+                                .map(|l| l.trim_start_matches("ID=").trim_matches('"'))
+                        });
+
+                    if let Some(distro) = os_distro {
                         let update = UpdateServer {
-                            os_distro: Some(os_distro.to_string()),
+                            os_distro: Some(distro.to_string()),
                             ..Default::default()
                         };
                         let _ = servers_queries::update_server(db.pool(), id, &update).await;
