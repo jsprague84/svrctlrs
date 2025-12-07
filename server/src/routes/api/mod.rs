@@ -12,6 +12,14 @@
 //! ├── metrics                     GET     System metrics
 //! ├── config/reload               POST    Reload configuration
 //! │
+//! ├── catalog/                    Job Catalog (Basic Mode)
+//! │   ├── /                       GET     List all catalog items
+//! │   ├── /categories             GET     List categories
+//! │   ├── /favorites              GET     List user favorites
+//! │   ├── /:id                    GET     Get catalog item
+//! │   ├── /:id/compatible-servers GET     List compatible servers
+//! │   └── /:id/favorite           POST    Toggle favorite
+//! │
 //! ├── servers/                    Full CRUD + test connection
 //! ├── credentials/                Full CRUD
 //! ├── tags/                       Full CRUD
@@ -25,6 +33,7 @@
 //! └── settings/                   List + get + update
 //! ```
 
+pub mod catalog;
 pub mod credentials;
 pub mod job_runs;
 pub mod job_schedules;
@@ -144,6 +153,7 @@ pub fn routes() -> Router<AppState> {
         .route("/metrics", get(get_metrics))
         .route("/config/reload", post(reload_config))
         // Resource endpoints (nested routers)
+        .nest("/catalog", catalog::routes())
         .nest("/servers", servers::routes())
         .nest("/credentials", credentials::routes())
         .nest("/tags", tags::routes())
