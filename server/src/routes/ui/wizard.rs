@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use svrctlrs_core::executor::JobExecutor;
 use svrctlrs_database::queries;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use crate::{
     routes::ui::AppError,
@@ -707,6 +707,11 @@ async fn create_job(
         }
 
         // Trigger actual execution via executor in background tasks
+        info!(
+            job_run_count = job_run_ids_to_execute.len(),
+            "Spawning immediate job execution tasks"
+        );
+
         let executor = Arc::new(JobExecutor::new(
             state.pool.clone(),
             state.config.ssh_key_path.clone(),
@@ -714,11 +719,15 @@ async fn create_job(
         ));
 
         for run_id in job_run_ids_to_execute {
+            info!(job_run_id = run_id, "Queuing job run for immediate execution");
+
             let executor = executor.clone();
             let job_run_tx = state.job_run_tx.clone();
 
             // Broadcast that job run was created
-            let _ = job_run_tx.send(JobRunUpdate::Created { job_run_id: run_id });
+            if let Err(e) = job_run_tx.send(JobRunUpdate::Created { job_run_id: run_id }) {
+                warn!(job_run_id = run_id, error = %e, "Failed to broadcast job run creation");
+            }
 
             // Spawn background task to execute the job
             tokio::spawn(async move {
