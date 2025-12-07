@@ -719,7 +719,10 @@ async fn create_job(
         ));
 
         for run_id in job_run_ids_to_execute {
-            info!(job_run_id = run_id, "Queuing job run for immediate execution");
+            info!(
+                job_run_id = run_id,
+                "Queuing job run for immediate execution"
+            );
 
             let executor = executor.clone();
             let job_run_tx = state.job_run_tx.clone();
