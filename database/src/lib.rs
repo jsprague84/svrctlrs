@@ -1,5 +1,7 @@
 //! Database layer with SQLite
 
+#![allow(ambiguous_glob_reexports)]
+
 use sqlx::{sqlite::SqlitePool, Pool, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::info;

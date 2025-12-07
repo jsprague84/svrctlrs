@@ -57,6 +57,7 @@ struct WizardPageTemplate {
 
 #[derive(Template)]
 #[template(path = "components/wizard/catalog_grid.html")]
+#[allow(dead_code)]
 struct CatalogGridTemplate {
     items: Vec<JobCatalogItemDisplay>,
     favorites: Vec<i64>,
@@ -96,6 +97,7 @@ struct NotificationChannelDisplay {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct SelectedServerDisplay {
     pub id: i64,
     pub name: String,
@@ -454,6 +456,7 @@ async fn review_step(
 }
 
 #[derive(Deserialize, Debug)]
+#[allow(dead_code)]
 struct CreateJobInput {
     catalog_item_id: i64,
     server_ids: Option<String>, // JSON array string
@@ -462,7 +465,7 @@ struct CreateJobInput {
     cron_expression: Option<String>,
     notify_success: Option<String>,
     notify_failure: Option<String>,
-    channel_ids: Option<String>, // JSON array string
+    channel_ids: Option<String>, // JSON array string - reserved for future use
     job_name: Option<String>,
 }
 
