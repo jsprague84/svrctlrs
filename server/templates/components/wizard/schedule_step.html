@@ -75,16 +75,23 @@
                                id="cron_custom"
                                class="form-control"
                                x-model="cronExpression"
-                               placeholder="*/5 * * * *"
-                               style="font-family: monospace;">
+                               @input="cronValidation = validateCron(cronExpression)"
+                               placeholder="0 */5 * * * * *"
+                               style="font-family: monospace;"
+                               :class="{ 'is-invalid': cronValidation && !cronValidation.valid }">
                         <small class="form-text text-secondary">
-                            Format: minute hour day-of-month month day-of-week
+                            Format: second minute hour day-of-month month day-of-week year<br>
+                            Example: <code>0 30 2 * * * *</code> = Daily at 2:30 AM
                         </small>
+                        <div class="invalid-feedback" x-show="cronValidation && !cronValidation.valid" x-text="cronValidation?.error"></div>
                     </div>
 
                     <div class="mt-3 p-3" style="background: var(--bg-primary); border-radius: 6px;">
                         <strong class="text-secondary" style="font-size: 0.75rem; text-transform: uppercase;">Cron Expression:</strong>
-                        <code style="display: block; margin-top: 0.25rem; font-size: 1rem;" x-text="cronExpression || '0 * * * *'"></code>
+                        <code style="display: block; margin-top: 0.25rem; font-size: 1rem;" x-text="cronExpression || '0 0 * * * * *'"></code>
+                        <small class="text-secondary" style="font-size: 0.6875rem; display: block; margin-top: 0.25rem;">
+                            sec min hour day month dow year
+                        </small>
                     </div>
                 </div>
             </div>

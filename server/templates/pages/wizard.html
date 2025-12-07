@@ -717,27 +717,45 @@ function jobWizard() {
         },
 
         // Cron expression builder
+        // Note: The cron crate requires 7 fields: sec min hour day month day_of_week year
         updateCron() {
             const time = this.scheduleTime || '02:00';
             const [hour, minute] = time.split(':').map(Number);
 
             switch (this.scheduleFreq) {
                 case 'hourly':
-                    this.cronExpression = '0 * * * *';
+                    // Every hour at minute 0
+                    this.cronExpression = '0 0 * * * * *';
                     break;
                 case 'daily':
-                    this.cronExpression = `${minute} ${hour} * * *`;
+                    // Daily at specified time
+                    this.cronExpression = `0 ${minute} ${hour} * * * *`;
                     break;
                 case 'weekly':
-                    this.cronExpression = `${minute} ${hour} * * ${this.scheduleDow}`;
+                    // Weekly on specified day at specified time
+                    this.cronExpression = `0 ${minute} ${hour} * * ${this.scheduleDow} *`;
                     break;
                 case 'monthly':
-                    this.cronExpression = `${minute} ${hour} ${this.scheduleDom} * *`;
+                    // Monthly on specified day at specified time
+                    this.cronExpression = `0 ${minute} ${hour} ${this.scheduleDom} * * *`;
                     break;
                 case 'custom':
                     // Keep current cronExpression for manual editing
                     break;
             }
+        },
+
+        // Validate cron expression (must be 7 fields: sec min hour day month dow year)
+        validateCron(expr) {
+            if (!expr) return { valid: false, error: 'Cron expression is required' };
+            const parts = expr.trim().split(/\s+/);
+            if (parts.length !== 7) {
+                return {
+                    valid: false,
+                    error: `Cron expression must have 7 fields (sec min hour day month dow year), got ${parts.length}`
+                };
+            }
+            return { valid: true };
         },
 
         nextStep() {

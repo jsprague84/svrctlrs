@@ -16,11 +16,14 @@ use axum::{
 };
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::sync::Arc;
+use svrctlrs_core::executor::JobExecutor;
 use svrctlrs_database::queries;
+use tracing::{error, info};
 
 use crate::{
     routes::ui::AppError,
-    state::AppState,
+    state::{AppState, JobRunUpdate},
     templates::{JobCatalogCategoryDisplay, JobCatalogItemDisplay, ServerDisplay, User},
 };
 
@@ -644,6 +647,9 @@ async fn create_job(
             "run_type": "immediate"
         });
 
+        // Collect all job run IDs for execution
+        let mut job_run_ids_to_execute: Vec<i64> = Vec::new();
+
         // Create job runs for all servers (we'll return the first one for the success message)
         for (idx, server_id) in server_ids.iter().enumerate() {
             let schedule_name = if server_count == 1 {
@@ -695,9 +701,47 @@ async fn create_job(
             if idx == 0 {
                 job_run_id = Some(run_id);
             }
+
+            // Collect for execution
+            job_run_ids_to_execute.push(run_id);
         }
 
-        // TODO: Trigger actual execution via executor
+        // Trigger actual execution via executor in background tasks
+        let executor = Arc::new(JobExecutor::new(
+            state.pool.clone(),
+            state.config.ssh_key_path.clone(),
+            10, // max_concurrent_jobs
+        ));
+
+        for run_id in job_run_ids_to_execute {
+            let executor = executor.clone();
+            let job_run_tx = state.job_run_tx.clone();
+
+            // Broadcast that job run was created
+            let _ = job_run_tx.send(JobRunUpdate::Created { job_run_id: run_id });
+
+            // Spawn background task to execute the job
+            tokio::spawn(async move {
+                info!(job_run_id = run_id, "Starting wizard job execution");
+
+                match executor.execute_job_run(run_id).await {
+                    Ok(()) => {
+                        info!(job_run_id = run_id, "Wizard job completed successfully");
+                        let _ = job_run_tx.send(JobRunUpdate::StatusChanged {
+                            job_run_id: run_id,
+                            status: "success".to_string(),
+                        });
+                    }
+                    Err(e) => {
+                        error!(job_run_id = run_id, error = %e, "Wizard job execution failed");
+                        let _ = job_run_tx.send(JobRunUpdate::StatusChanged {
+                            job_run_id: run_id,
+                            status: "failed".to_string(),
+                        });
+                    }
+                }
+            });
+        }
     } else {
         // Create schedule for each server
         for (idx, server_id) in server_ids.iter().enumerate() {
@@ -815,7 +859,38 @@ async fn quick_run_job(
     )
     .await?;
 
-    // TODO: Trigger execution
+    // Trigger execution in background
+    let executor = Arc::new(JobExecutor::new(
+        state.pool.clone(),
+        state.config.ssh_key_path.clone(),
+        10, // max_concurrent_jobs
+    ));
+    let job_run_tx = state.job_run_tx.clone();
+
+    // Broadcast that job run was created
+    let _ = job_run_tx.send(JobRunUpdate::Created { job_run_id });
+
+    // Spawn background task to execute the job
+    tokio::spawn(async move {
+        info!(job_run_id, "Starting quick run job execution");
+
+        match executor.execute_job_run(job_run_id).await {
+            Ok(()) => {
+                info!(job_run_id, "Quick run job completed successfully");
+                let _ = job_run_tx.send(JobRunUpdate::StatusChanged {
+                    job_run_id,
+                    status: "success".to_string(),
+                });
+            }
+            Err(e) => {
+                error!(job_run_id, error = %e, "Quick run job execution failed");
+                let _ = job_run_tx.send(JobRunUpdate::StatusChanged {
+                    job_run_id,
+                    status: "failed".to_string(),
+                });
+            }
+        }
+    });
 
     let template = WizardSuccessTemplate {
         job_name: format!("Quick Run: {}", item.display_name),
