@@ -135,12 +135,11 @@ impl JobSchedule {
 
     /// Parse cron expression (basic validation)
     pub fn validate_cron(&self) -> Result<(), String> {
-        // Basic cron validation - should be 6 fields for cron with seconds
-        // or 5 fields for traditional cron
+        // Cron validation - requires 6 fields: sec min hour day month dow
         let fields: Vec<&str> = self.schedule.split_whitespace().collect();
-        if fields.len() != 5 && fields.len() != 6 {
+        if fields.len() != 6 {
             return Err(format!(
-                "Invalid cron expression: expected 5 or 6 fields, got {}",
+                "Invalid cron expression: requires 6 fields (sec min hour day month dow), got {}",
                 fields.len()
             ));
         }
@@ -180,11 +179,11 @@ impl CreateJobSchedule {
             return Err("Job schedule name cannot be empty".to_string());
         }
 
-        // Basic cron validation
+        // Cron validation - requires 6 fields: sec min hour day month dow
         let fields: Vec<&str> = self.schedule.split_whitespace().collect();
-        if fields.len() != 5 && fields.len() != 6 {
+        if fields.len() != 6 {
             return Err(format!(
-                "Invalid cron expression: expected 5 or 6 fields, got {}",
+                "Invalid cron expression: requires 6 fields (sec min hour day month dow), got {}",
                 fields.len()
             ));
         }
@@ -300,7 +299,7 @@ mod tests {
             description: None,
             job_template_id: 1,
             server_id: 1,
-            schedule: "0 0 * * *".to_string(),
+            schedule: "0 0 0 * * *".to_string(),
             enabled: true,
             timeout_seconds: None,
             retry_count: None,
@@ -328,7 +327,7 @@ mod tests {
             description: None,
             job_template_id: 1,
             server_id: 1,
-            schedule: "0 0 * * *".to_string(), // 5 fields
+            schedule: "0 0 0 * * *".to_string(), // 5 fields
             enabled: true,
             timeout_seconds: None,
             retry_count: None,
@@ -402,7 +401,7 @@ mod tests {
             description: None,
             job_template_id: 1,
             server_id: 1,
-            schedule: "0 0 * * *".to_string(),
+            schedule: "0 0 0 * * *".to_string(),
             enabled: true,
             timeout_seconds: None,
             retry_count: None,
