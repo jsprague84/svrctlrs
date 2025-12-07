@@ -10,6 +10,8 @@ use cron::Schedule;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Arc;
+use svrctlrs_core::executor::JobExecutor;
 use svrctlrs_database::{
     models::{CreateJobSchedule, UpdateJobSchedule},
     queries::{job_schedules as queries, job_templates, servers as server_queries},
@@ -18,7 +20,7 @@ use tracing::{error, info, instrument, warn};
 
 use crate::{
     routes::ui::AppError,
-    state::AppState,
+    state::{AppState, JobRunUpdate},
     templates::{
         GroupedSchedulesTemplate, JobScheduleFormTemplate, JobScheduleListTemplate,
         JobSchedulesTemplate, ServerScheduleGroup,
@@ -481,8 +483,40 @@ pub async fn run_job_schedule(
         job_run_id, "Job schedule triggered for manual execution"
     );
 
-    // TODO: Trigger actual job execution via job executor
-    // For now, the job run is created and will be picked up by the scheduler
+    // Trigger actual job execution in background
+    let executor = Arc::new(JobExecutor::new(
+        state.pool.clone(),
+        state.config.ssh_key_path.clone(),
+        10, // max_concurrent_jobs
+    ));
+    let job_run_tx = state.job_run_tx.clone();
+
+    // Broadcast that job run was created
+    if let Err(e) = job_run_tx.send(JobRunUpdate::Created { job_run_id }) {
+        warn!(job_run_id, error = %e, "Failed to broadcast job run creation");
+    }
+
+    // Spawn background task to execute the job
+    tokio::spawn(async move {
+        info!(job_run_id, "Starting manual job execution");
+
+        match executor.execute_job_run(job_run_id).await {
+            Ok(()) => {
+                info!(job_run_id, "Manual job completed successfully");
+                let _ = job_run_tx.send(JobRunUpdate::StatusChanged {
+                    job_run_id,
+                    status: "success".to_string(),
+                });
+            }
+            Err(e) => {
+                error!(job_run_id, error = %e, "Manual job execution failed");
+                let _ = job_run_tx.send(JobRunUpdate::StatusChanged {
+                    job_run_id,
+                    status: "failed".to_string(),
+                });
+            }
+        }
+    });
 
     // Return success message
     Ok(Html(format!(
