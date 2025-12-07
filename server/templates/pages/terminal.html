@@ -753,9 +753,9 @@
                 </button>
             </div>
             <div class="terminal-pane-header">
-                <span class="status-indicator" :class="panes[0].status"></span>
+                <span class="status-indicator" :class="getActiveTab(0)?.status || 'disconnected'"></span>
                 <span class="pane-title" x-text="'Terminal 1 - Tab ' + (panes[0].activeTab + 1)"></span>
-                <select x-model="panes[0].serverId" @change="connectPane(0)">
+                <select x-model="panes[0].tabs[panes[0].activeTab].serverId" @change="connectPane(0)">
                     <option value="">Select server...</option>
                     {% for server in servers %}
                     <option value="{{ server.id }}">{{ server.name }}</option>
@@ -768,11 +768,11 @@
                         <i data-lucide="variable" style="width: 12px; height: 12px;"></i>
                         <span x-show="panes[0].envVars.length > 0" x-text="panes[0].envVars.length" style="font-size: 9px; margin-left: 2px;"></span>
                     </button>
-                    <button @click="panes[0].interactiveMode ? stopInteractiveShell(0) : startInteractiveShell(0)"
-                            :title="panes[0].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
-                            :style="panes[0].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
+                    <button @click="getActiveTab(0)?.interactiveMode ? stopInteractiveShell(0) : startInteractiveShell(0)"
+                            :title="getActiveTab(0)?.interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
+                            :style="getActiveTab(0)?.interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
                         <i data-lucide="terminal" style="width: 12px; height: 12px;"></i>
-                        <span x-text="panes[0].interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
+                        <span x-text="getActiveTab(0)?.interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
                     </button>
                     <button @click="clearPane(0)" title="Clear">
                         <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
@@ -800,15 +800,15 @@
             </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-0"></div>
-                <div class="terminal-input-row" x-show="!panes[0].interactiveMode">
+                <div class="terminal-input-row" x-show="!getActiveTab(0)?.interactiveMode">
                     <input type="text"
                            x-model="panes[0].command"
                            @keydown.enter="executePaneWithEnv(0)"
                            @keydown.up="historyUp(0)"
                            @keydown.down="historyDown(0)"
                            placeholder="Enter command..."
-                           :disabled="!panes[0].serverId">
-                    <button @click="executePaneWithEnv(0)" :disabled="!panes[0].serverId || !panes[0].command">
+                           :disabled="!getActiveTab(0)?.serverId">
+                    <button @click="executePaneWithEnv(0)" :disabled="!getActiveTab(0)?.serverId || !panes[0].command">
                         Run
                     </button>
                 </div>
@@ -834,9 +834,9 @@
                 </button>
             </div>
             <div class="terminal-pane-header">
-                <span class="status-indicator" :class="panes[1].status"></span>
+                <span class="status-indicator" :class="getActiveTab(1)?.status || 'disconnected'"></span>
                 <span class="pane-title" x-text="'Terminal 2 - Tab ' + (panes[1].activeTab + 1)"></span>
-                <select x-model="panes[1].serverId" @change="connectPane(1)">
+                <select x-model="panes[1].tabs[panes[1].activeTab].serverId" @change="connectPane(1)">
                     <option value="">Select server...</option>
                     {% for server in servers %}
                     <option value="{{ server.id }}">{{ server.name }}</option>
@@ -849,11 +849,11 @@
                         <i data-lucide="variable" style="width: 12px; height: 12px;"></i>
                         <span x-show="panes[1].envVars.length > 0" x-text="panes[1].envVars.length" style="font-size: 9px; margin-left: 2px;"></span>
                     </button>
-                    <button @click="panes[1].interactiveMode ? stopInteractiveShell(1) : startInteractiveShell(1)"
-                            :title="panes[1].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
-                            :style="panes[1].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
+                    <button @click="getActiveTab(1)?.interactiveMode ? stopInteractiveShell(1) : startInteractiveShell(1)"
+                            :title="getActiveTab(1)?.interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
+                            :style="getActiveTab(1)?.interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
                         <i data-lucide="terminal" style="width: 12px; height: 12px;"></i>
-                        <span x-text="panes[1].interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
+                        <span x-text="getActiveTab(1)?.interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
                     </button>
                     <button @click="clearPane(1)" title="Clear">
                         <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
@@ -881,15 +881,15 @@
             </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-1"></div>
-                <div class="terminal-input-row" x-show="!panes[1].interactiveMode">
+                <div class="terminal-input-row" x-show="!getActiveTab(1)?.interactiveMode">
                     <input type="text"
                            x-model="panes[1].command"
                            @keydown.enter="executePaneWithEnv(1)"
                            @keydown.up="historyUp(1)"
                            @keydown.down="historyDown(1)"
                            placeholder="Enter command..."
-                           :disabled="!panes[1].serverId">
-                    <button @click="executePaneWithEnv(1)" :disabled="!panes[1].serverId || !panes[1].command">
+                           :disabled="!getActiveTab(1)?.serverId">
+                    <button @click="executePaneWithEnv(1)" :disabled="!getActiveTab(1)?.serverId || !panes[1].command">
                         Run
                     </button>
                 </div>
@@ -915,9 +915,9 @@
                 </button>
             </div>
             <div class="terminal-pane-header">
-                <span class="status-indicator" :class="panes[2].status"></span>
+                <span class="status-indicator" :class="getActiveTab(2)?.status || 'disconnected'"></span>
                 <span class="pane-title" x-text="'Terminal 3 - Tab ' + (panes[2].activeTab + 1)"></span>
-                <select x-model="panes[2].serverId" @change="connectPane(2)">
+                <select x-model="panes[2].tabs[panes[2].activeTab].serverId" @change="connectPane(2)">
                     <option value="">Select server...</option>
                     {% for server in servers %}
                     <option value="{{ server.id }}">{{ server.name }}</option>
@@ -930,11 +930,11 @@
                         <i data-lucide="variable" style="width: 12px; height: 12px;"></i>
                         <span x-show="panes[2].envVars.length > 0" x-text="panes[2].envVars.length" style="font-size: 9px; margin-left: 2px;"></span>
                     </button>
-                    <button @click="panes[2].interactiveMode ? stopInteractiveShell(2) : startInteractiveShell(2)"
-                            :title="panes[2].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
-                            :style="panes[2].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
+                    <button @click="getActiveTab(2)?.interactiveMode ? stopInteractiveShell(2) : startInteractiveShell(2)"
+                            :title="getActiveTab(2)?.interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
+                            :style="getActiveTab(2)?.interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
                         <i data-lucide="terminal" style="width: 12px; height: 12px;"></i>
-                        <span x-text="panes[2].interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
+                        <span x-text="getActiveTab(2)?.interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
                     </button>
                     <button @click="clearPane(2)" title="Clear">
                         <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
@@ -962,15 +962,15 @@
             </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-2"></div>
-                <div class="terminal-input-row" x-show="!panes[2].interactiveMode">
+                <div class="terminal-input-row" x-show="!getActiveTab(2)?.interactiveMode">
                     <input type="text"
                            x-model="panes[2].command"
                            @keydown.enter="executePaneWithEnv(2)"
                            @keydown.up="historyUp(2)"
                            @keydown.down="historyDown(2)"
                            placeholder="Enter command..."
-                           :disabled="!panes[2].serverId">
-                    <button @click="executePaneWithEnv(2)" :disabled="!panes[2].serverId || !panes[2].command">
+                           :disabled="!getActiveTab(2)?.serverId">
+                    <button @click="executePaneWithEnv(2)" :disabled="!getActiveTab(2)?.serverId || !panes[2].command">
                         Run
                     </button>
                 </div>
@@ -996,9 +996,9 @@
                 </button>
             </div>
             <div class="terminal-pane-header">
-                <span class="status-indicator" :class="panes[3].status"></span>
+                <span class="status-indicator" :class="getActiveTab(3)?.status || 'disconnected'"></span>
                 <span class="pane-title" x-text="'Terminal 4 - Tab ' + (panes[3].activeTab + 1)"></span>
-                <select x-model="panes[3].serverId" @change="connectPane(3)">
+                <select x-model="panes[3].tabs[panes[3].activeTab].serverId" @change="connectPane(3)">
                     <option value="">Select server...</option>
                     {% for server in servers %}
                     <option value="{{ server.id }}">{{ server.name }}</option>
@@ -1011,11 +1011,11 @@
                         <i data-lucide="variable" style="width: 12px; height: 12px;"></i>
                         <span x-show="panes[3].envVars.length > 0" x-text="panes[3].envVars.length" style="font-size: 9px; margin-left: 2px;"></span>
                     </button>
-                    <button @click="panes[3].interactiveMode ? stopInteractiveShell(3) : startInteractiveShell(3)"
-                            :title="panes[3].interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
-                            :style="panes[3].interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
+                    <button @click="getActiveTab(3)?.interactiveMode ? stopInteractiveShell(3) : startInteractiveShell(3)"
+                            :title="getActiveTab(3)?.interactiveMode ? 'Exit Interactive Shell' : 'Start Interactive Shell'"
+                            :style="getActiveTab(3)?.interactiveMode ? 'background: var(--accent-color); color: #fff;' : ''">
                         <i data-lucide="terminal" style="width: 12px; height: 12px;"></i>
-                        <span x-text="panes[3].interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
+                        <span x-text="getActiveTab(3)?.interactiveMode ? 'Exit Shell' : 'Shell'" style="font-size: 10px; margin-left: 4px;"></span>
                     </button>
                     <button @click="clearPane(3)" title="Clear">
                         <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
@@ -1043,15 +1043,15 @@
             </div>
             <div class="terminal-pane-body">
                 <div class="terminal-container" id="terminal-pane-3"></div>
-                <div class="terminal-input-row" x-show="!panes[3].interactiveMode">
+                <div class="terminal-input-row" x-show="!getActiveTab(3)?.interactiveMode">
                     <input type="text"
                            x-model="panes[3].command"
                            @keydown.enter="executePaneWithEnv(3)"
                            @keydown.up="historyUp(3)"
                            @keydown.down="historyDown(3)"
                            placeholder="Enter command..."
-                           :disabled="!panes[3].serverId">
-                    <button @click="executePaneWithEnv(3)" :disabled="!panes[3].serverId || !panes[3].command">
+                           :disabled="!getActiveTab(3)?.serverId">
+                    <button @click="executePaneWithEnv(3)" :disabled="!getActiveTab(3)?.serverId || !panes[3].command">
                         Run
                     </button>
                 </div>
@@ -1109,11 +1109,12 @@ function debugConsole() {
         customQuickCommands: [],
         // Settings modal
         showSettingsModal: false,
+        // Each tab now has its own terminal session with independent server connection
         panes: [
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false, envVars: [], showEnvVars: false },
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false, envVars: [], showEnvVars: false },
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false, envVars: [], showEnvVars: false },
-            { serverId: '', command: '', status: 'disconnected', terminal: null, tabs: [{ id: 0, name: 'Tab 1', history: [] }], activeTab: 0, historyIndex: -1, interactiveMode: false, envVars: [], showEnvVars: false }
+            { command: '', activeTab: 0, historyIndex: -1, envVars: [], showEnvVars: false, tabs: [{ id: 0, name: 'Tab 1', history: [], serverId: '', interactiveMode: false, status: 'disconnected', terminal: null }] },
+            { command: '', activeTab: 0, historyIndex: -1, envVars: [], showEnvVars: false, tabs: [{ id: 0, name: 'Tab 1', history: [], serverId: '', interactiveMode: false, status: 'disconnected', terminal: null }] },
+            { command: '', activeTab: 0, historyIndex: -1, envVars: [], showEnvVars: false, tabs: [{ id: 0, name: 'Tab 1', history: [], serverId: '', interactiveMode: false, status: 'disconnected', terminal: null }] },
+            { command: '', activeTab: 0, historyIndex: -1, envVars: [], showEnvVars: false, tabs: [{ id: 0, name: 'Tab 1', history: [], serverId: '', interactiveMode: false, status: 'disconnected', terminal: null }] }
         ],
 
         get visiblePanes() {
@@ -1124,6 +1125,12 @@ function debugConsole() {
                 case '4': return 4;
                 default: return 2;
             }
+        },
+
+        // Helper to get the active tab for a pane
+        getActiveTab(paneIndex) {
+            const pane = this.panes[paneIndex];
+            return pane.tabs[pane.activeTab];
         },
 
         init() {
@@ -1140,21 +1147,101 @@ function debugConsole() {
                     lucide.createIcons();
                 }
             });
+
+            // Navigation warning for active sessions
+            const self = this;
+            let userConfirmedLeave = false;
+
+            // Helper to disconnect all sessions and clear the flag
+            const disconnectAllSessions = () => {
+                for (let i = 0; i < 4; i++) {
+                    const pane = self.panes[i];
+                    for (const tab of pane.tabs) {
+                        if (tab.terminal && tab.terminal.socket) {
+                            tab.terminal.disconnect();
+                        }
+                        tab.status = 'disconnected';
+                        tab.interactiveMode = false;
+                    }
+                }
+            };
+
+            // Browser navigation (close tab, external URL, refresh)
+            // Only fires for actual browser close/refresh, not HTMX navigation
+            window.addEventListener('beforeunload', (e) => {
+                if (!userConfirmedLeave && self.getActiveConnectionCount() > 0) {
+                    e.preventDefault();
+                    e.returnValue = 'You have active terminal sessions that will be closed.';
+                    return e.returnValue;
+                }
+            });
+
+            // HTMX internal navigation (sidebar links)
+            document.body.addEventListener('htmx:confirm', (evt) => {
+                // Only intercept if we have active sessions and it's a navigation request
+                const target = evt.detail.target || evt.detail.elt;
+                if (!userConfirmedLeave &&
+                    self.getActiveConnectionCount() > 0 &&
+                    target &&
+                    (target.hasAttribute('hx-get') || target.hasAttribute('hx-boost')) &&
+                    !target.closest('.terminal-pane')) {
+                    evt.preventDefault();
+                    if (confirm('You have active terminal sessions that will be closed. Leave this page?')) {
+                        userConfirmedLeave = true;
+                        disconnectAllSessions();
+                        evt.detail.issueRequest(true);
+                    }
+                }
+            });
+
+            // Regular anchor clicks (non-HTMX)
+            document.addEventListener('click', (e) => {
+                const link = e.target.closest('a[href]');
+                if (link &&
+                    !userConfirmedLeave &&
+                    !link.hasAttribute('hx-get') &&
+                    !link.hasAttribute('hx-boost') &&
+                    !link.getAttribute('href').startsWith('#') &&
+                    !link.closest('.terminal-pane') &&
+                    self.getActiveConnectionCount() > 0) {
+                    if (confirm('You have active terminal sessions that will be closed. Leave this page?')) {
+                        userConfirmedLeave = true;
+                        disconnectAllSessions();
+                        // Allow the click to proceed
+                    } else {
+                        e.preventDefault();
+                    }
+                }
+            });
         },
 
         initPane(index) {
-            const containerId = `terminal-pane-${index}`;
+            // Initialize terminal for the first tab of this pane
+            this.initTabTerminal(index, 0);
+        },
+
+        // Initialize a terminal for a specific tab
+        initTabTerminal(paneIndex, tabIndex) {
+            const containerId = `terminal-pane-${paneIndex}`;
             const container = document.getElementById(containerId);
             if (!container) {
                 console.error(`Container not found: ${containerId}`);
                 return;
             }
 
-            // Create terminal manager instance
+            const tab = this.panes[paneIndex].tabs[tabIndex];
+            if (!tab) return;
+
+            // If tab already has a terminal, just show it
+            if (tab.terminal) {
+                return;
+            }
+
+            // Create terminal manager instance for this tab
             const terminal = new TerminalManager();
             terminal.init(containerId);
-            this.panes[index].terminal = terminal;
-            this.terminals[index] = terminal;
+            tab.terminal = terminal;
+            this.terminals[paneIndex] = terminal;
 
             // Use ResizeObserver to fit terminal when container changes size
             const resizeObserver = new ResizeObserver(() => {
@@ -1166,7 +1253,7 @@ function debugConsole() {
 
             // Write welcome message and aggressively fit terminal
             if (terminal.terminal) {
-                terminal.terminal.writeln('\x1b[90m--- Terminal ' + (index + 1) + ' ready ---\x1b[0m');
+                terminal.terminal.writeln('\x1b[90m--- Terminal ' + (paneIndex + 1) + ' ready ---\x1b[0m');
                 terminal.terminal.writeln('\x1b[90mSelect a server and enter a command.\x1b[0m');
 
                 // Multiple delayed fits to handle layout timing
@@ -1185,8 +1272,9 @@ function debugConsole() {
             // Fit terminals to new size after layout change
             this.$nextTick(() => {
                 for (let i = 0; i < this.visiblePanes; i++) {
-                    if (this.panes[i].terminal) {
-                        this.panes[i].terminal.fit();
+                    const tab = this.getActiveTab(i);
+                    if (tab && tab.terminal) {
+                        tab.terminal.fit();
                     }
                 }
             });
@@ -1198,14 +1286,19 @@ function debugConsole() {
             const newTab = {
                 id: this.tabCounter,
                 name: `Tab ${this.panes[paneIndex].tabs.length + 1}`,
-                history: []
+                history: [],
+                serverId: '',
+                interactiveMode: false,
+                status: 'disconnected',
+                terminal: null
             };
             this.panes[paneIndex].tabs.push(newTab);
             this.panes[paneIndex].activeTab = this.panes[paneIndex].tabs.length - 1;
-            this.clearPane(paneIndex);
 
-            // Re-init icons for new close button
+            // Initialize terminal for new tab
             this.$nextTick(() => {
+                this.initTabTerminal(paneIndex, this.panes[paneIndex].activeTab);
+                // Re-init icons for new close button
                 if (typeof lucide !== 'undefined') {
                     lucide.createIcons();
                 }
@@ -1215,49 +1308,89 @@ function debugConsole() {
         closeTab(paneIndex, tabIdx) {
             if (this.panes[paneIndex].tabs.length <= 1) return;
 
+            // Disconnect and cleanup the tab's terminal
+            const tab = this.panes[paneIndex].tabs[tabIdx];
+            if (tab && tab.terminal) {
+                tab.terminal.disconnect();
+                tab.terminal.dispose();
+            }
+
             this.panes[paneIndex].tabs.splice(tabIdx, 1);
             if (this.panes[paneIndex].activeTab >= this.panes[paneIndex].tabs.length) {
                 this.panes[paneIndex].activeTab = this.panes[paneIndex].tabs.length - 1;
             }
-            this.clearPane(paneIndex);
+
+            // Switch to the new active tab's terminal
+            this.switchTab(paneIndex, this.panes[paneIndex].activeTab);
         },
 
         switchTab(paneIndex, tabIdx) {
+            const oldActiveTab = this.panes[paneIndex].activeTab;
             this.panes[paneIndex].activeTab = tabIdx;
-            // Clear terminal and show tab-specific content (could restore history here)
-            this.clearPane(paneIndex);
+
+            const newTab = this.getActiveTab(paneIndex);
+            if (!newTab) return;
+
+            // Initialize terminal for this tab if not already done
+            if (!newTab.terminal) {
+                this.$nextTick(() => {
+                    this.initTabTerminal(paneIndex, tabIdx);
+                });
+            } else {
+                // Re-attach terminal to container (xterm.js terminals can be re-opened)
+                const containerId = `terminal-pane-${paneIndex}`;
+                const container = document.getElementById(containerId);
+                if (container) {
+                    container.innerHTML = ''; // Clear container
+                    newTab.terminal.terminal.open(container);
+                    newTab.terminal.fit();
+                }
+            }
         },
 
         connectPane(index) {
             const pane = this.panes[index];
-            if (!pane.serverId) {
-                pane.status = 'disconnected';
+            const tab = this.getActiveTab(index);
+            if (!tab || !tab.serverId) {
+                if (tab) tab.status = 'disconnected';
                 return;
             }
 
-            // Create new WebSocket connection for this pane
-            if (pane.terminal && pane.terminal.socket) {
-                pane.terminal.disconnect();
+            // Disconnect existing connection if any
+            if (tab.terminal && tab.terminal.socket) {
+                tab.terminal.disconnect();
             }
 
-            pane.status = 'connected';
+            tab.status = 'connected';
 
-            // Write a prompt message
-            if (pane.terminal) {
-                const serverName = document.querySelector(
-                    `[x-model="panes[${index}].serverId"] option[value="${pane.serverId}"]`
-                )?.textContent || 'Unknown';
-                pane.terminal.terminal.write(`\r\n\x1b[36m--- Connected to ${serverName} ---\x1b[0m\r\n\r\n`);
+            // Get server name for messages
+            const serverName = document.querySelector(
+                `[x-model="getActiveTab(${index}).serverId"] option[value="${tab.serverId}"]`
+            )?.textContent || 'Unknown';
+
+            // If in interactive mode, reconnect PTY with new server
+            if (tab.interactiveMode && tab.terminal) {
+                // Clear terminal and show connecting message
+                this.clearPane(index);
+                tab.terminal.terminal.writeln(`\x1b[36m--- Connecting to ${serverName} ---\x1b[0m`);
+                // Connect PTY with new server
+                tab.terminal.connectPty(parseInt(tab.serverId));
+                return;
+            }
+
+            // Write a prompt message for non-interactive mode
+            if (tab.terminal) {
+                tab.terminal.terminal.write(`\r\n\x1b[36m--- Connected to ${serverName} ---\x1b[0m\r\n\r\n`);
             }
         },
 
         executePane(index) {
             const pane = this.panes[index];
-            if (!pane.serverId || !pane.command) return;
+            const tab = this.getActiveTab(index);
+            if (!tab || !tab.serverId || !pane.command) return;
 
             // Save to tab history
-            const tab = pane.tabs[pane.activeTab];
-            if (tab && pane.command.trim()) {
+            if (pane.command.trim()) {
                 if (tab.history.length === 0 || tab.history[tab.history.length - 1] !== pane.command) {
                     tab.history.push(pane.command);
                     if (tab.history.length > 50) tab.history.shift();
@@ -1265,9 +1398,9 @@ function debugConsole() {
                 pane.historyIndex = tab.history.length;
             }
 
-            if (pane.terminal) {
+            if (tab.terminal) {
                 // Execute command using the terminal manager
-                pane.terminal.connect(pane.serverId, pane.command);
+                tab.terminal.connect(tab.serverId, pane.command);
             }
 
             // Clear the command input
@@ -1276,11 +1409,11 @@ function debugConsole() {
 
         executePaneWithEnv(index) {
             const pane = this.panes[index];
-            if (!pane.serverId || !pane.command) return;
+            const tab = this.getActiveTab(index);
+            if (!tab || !tab.serverId || !pane.command) return;
 
             // Save to tab history
-            const tab = pane.tabs[pane.activeTab];
-            if (tab && pane.command.trim()) {
+            if (pane.command.trim()) {
                 if (tab.history.length === 0 || tab.history[tab.history.length - 1] !== pane.command) {
                     tab.history.push(pane.command);
                     if (tab.history.length > 50) tab.history.shift();
@@ -1288,10 +1421,10 @@ function debugConsole() {
                 pane.historyIndex = tab.history.length;
             }
 
-            if (pane.terminal) {
+            if (tab.terminal) {
                 // Filter out empty env vars and execute with environment variables
                 const envVars = pane.envVars.filter(e => e.key && e.key.trim());
-                pane.terminal.connect(pane.serverId, pane.command, envVars);
+                tab.terminal.connect(tab.serverId, pane.command, envVars);
             }
 
             // Clear the command input
@@ -1322,9 +1455,9 @@ function debugConsole() {
         },
 
         clearPane(index) {
-            const pane = this.panes[index];
-            if (pane.terminal) {
-                pane.terminal.clear();
+            const tab = this.getActiveTab(index);
+            if (tab && tab.terminal) {
+                tab.terminal.clear();
             }
         },
 
@@ -1351,54 +1484,56 @@ function debugConsole() {
 
         // Start interactive shell session (PTY mode)
         startInteractiveShell(index) {
-            const pane = this.panes[index];
-            if (!pane.serverId) {
+            const tab = this.getActiveTab(index);
+            if (!tab || !tab.serverId) {
                 alert('Please select a server first');
                 return;
             }
 
             // Disconnect existing connection if any
-            if (pane.terminal && pane.terminal.socket) {
-                pane.terminal.disconnect();
+            if (tab.terminal && tab.terminal.socket) {
+                tab.terminal.disconnect();
             }
 
             // Clear the terminal
             this.clearPane(index);
 
             // Set interactive mode
-            pane.interactiveMode = true;
-            pane.status = 'connected';
+            tab.interactiveMode = true;
+            tab.status = 'connected';
 
             // Connect using PTY
-            if (pane.terminal) {
-                pane.terminal.connectPty(parseInt(pane.serverId));
+            if (tab.terminal) {
+                tab.terminal.connectPty(parseInt(tab.serverId));
             }
         },
 
         // Stop interactive shell session
         stopInteractiveShell(index) {
-            const pane = this.panes[index];
+            const tab = this.getActiveTab(index);
+            if (!tab) return;
 
             // Disconnect PTY
-            if (pane.terminal) {
-                pane.terminal.disconnect();
+            if (tab.terminal) {
+                tab.terminal.disconnect();
             }
 
             // Exit interactive mode
-            pane.interactiveMode = false;
-            pane.status = 'disconnected';
+            tab.interactiveMode = false;
+            tab.status = 'disconnected';
 
             // Write message
-            if (pane.terminal && pane.terminal.terminal) {
-                pane.terminal.terminal.writeln('\r\n\x1b[33m[Interactive shell closed]\x1b[0m');
-                pane.terminal.terminal.writeln('\x1b[90mSelect a server and enter a command.\x1b[0m\r\n');
+            if (tab.terminal && tab.terminal.terminal) {
+                tab.terminal.terminal.writeln('\r\n\x1b[33m[Interactive shell closed]\x1b[0m');
+                tab.terminal.terminal.writeln('\x1b[90mSelect a server and enter a command.\x1b[0m\r\n');
             }
         },
 
         broadcastCommand(cmd) {
-            // Execute command on all panes that have a server selected
+            // Execute command on all panes that have a server selected (on their active tab)
             for (let i = 0; i < this.visiblePanes; i++) {
-                if (this.panes[i].serverId) {
+                const tab = this.getActiveTab(i);
+                if (tab && tab.serverId) {
                     this.panes[i].command = cmd;
                     this.executePane(i);
                 }
@@ -1423,7 +1558,13 @@ function debugConsole() {
         },
 
         getActiveConnectionCount() {
-            return this.panes.filter(p => p.status === 'connected').length;
+            // Count tabs with 'connected' status (across all panes)
+            let count = 0;
+            for (let i = 0; i < this.panes.length; i++) {
+                const tab = this.getActiveTab(i);
+                if (tab && tab.status === 'connected') count++;
+            }
+            return count;
         },
 
         getServersForSelectedTags() {
@@ -1444,14 +1585,17 @@ function debugConsole() {
 
             for (let i = 0; i < panesNeeded; i++) {
                 const server = servers[i];
-                this.panes[i].serverId = String(server.id);
-                this.connectPane(i);
+                const tab = this.getActiveTab(i);
+                if (tab) {
+                    tab.serverId = String(server.id);
+                    this.connectPane(i);
 
-                // Small delay to ensure connection is established
-                setTimeout(() => {
-                    this.panes[i].command = this.groupCommand;
-                    this.executePane(i);
-                }, 100 * (i + 1));
+                    // Small delay to ensure connection is established
+                    setTimeout(() => {
+                        this.panes[i].command = this.groupCommand;
+                        this.executePane(i);
+                    }, 100 * (i + 1));
+                }
             }
 
             // Show message if there are more servers than panes

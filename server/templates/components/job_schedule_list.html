@@ -63,6 +63,8 @@
                 </button>
 
                 <button hx-post="/job-schedules/{{ schedule.id }}/run-now"
+                        hx-target="#schedule-messages"
+                        hx-swap="innerHTML"
                         class="btn btn-sm btn-primary">
                     <i data-lucide="zap" style="width: 12px; height: 12px;"></i> Run Now
                 </button>

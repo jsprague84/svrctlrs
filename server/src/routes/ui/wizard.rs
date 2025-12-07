@@ -24,7 +24,10 @@ use tracing::{error, info, warn};
 use crate::{
     routes::ui::AppError,
     state::{AppState, JobRunUpdate},
-    templates::{JobCatalogCategoryDisplay, JobCatalogItemDisplay, ServerDisplay, User},
+    templates::{
+        JobCatalogCategoryDisplay, JobCatalogItemDisplay, ServerDisplay, User,
+        WizardNotificationChannelDisplay, WizardSelectedServerDisplay,
+    },
 };
 
 /// Create router for job wizard routes
@@ -83,34 +86,20 @@ struct ServersStepTemplate {
 #[derive(Template)]
 #[template(path = "components/wizard/schedule_step.html")]
 struct ScheduleStepTemplate {
-    channels: Vec<NotificationChannelDisplay>,
+    channels: Vec<WizardNotificationChannelDisplay>,
 }
 
 #[derive(Template)]
 #[template(path = "components/wizard/notify_step.html")]
 struct NotifyStepTemplate {
-    channels: Vec<NotificationChannelDisplay>,
-}
-
-#[derive(Debug, Clone)]
-struct NotificationChannelDisplay {
-    pub id: i64,
-    pub name: String,
-    pub channel_type: String,
-}
-
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-struct SelectedServerDisplay {
-    pub id: i64,
-    pub name: String,
+    channels: Vec<WizardNotificationChannelDisplay>,
 }
 
 #[derive(Template)]
 #[template(path = "components/wizard/review_step.html")]
 struct ReviewStepTemplate {
     catalog_item: JobCatalogItemDisplay,
-    servers: Vec<SelectedServerDisplay>,
+    servers: Vec<WizardSelectedServerDisplay>,
     parameters_json: String,
     schedule_type: String,
     cron_expression: Option<String>,
@@ -181,32 +170,16 @@ struct CatalogQuery {
     category: Option<String>,
 }
 
-/// Catalog grid partial - returns job cards for HTMX
-async fn catalog_grid(
-    State(state): State<AppState>,
-    Query(query): Query<CatalogQuery>,
-) -> Result<Html<String>, AppError> {
-    let db = state.db().await;
-
-    // Get all items or filter by category
-    let items = if let Some(ref category) = query.category {
-        queries::job_catalog::list_catalog_items_by_category(db.pool(), category).await?
-    } else {
-        queries::job_catalog::list_catalog_items(db.pool()).await?
-    };
-
-    // Get favorites for marking
-    let favorite_ids: Vec<i64> = queries::job_catalog::list_catalog_favorites(db.pool())
-        .await?
-        .into_iter()
-        .map(|f| f.id)
-        .collect();
-
-    // Apply filters
-    let filtered: Vec<JobCatalogItemDisplay> = items
+/// Filter catalog items by search text and difficulty, and mark favorites
+fn filter_catalog_items(
+    items: Vec<svrctlrs_database::models::JobCatalogItem>,
+    query: &CatalogQuery,
+    favorite_ids: &[i64],
+) -> Vec<JobCatalogItemDisplay> {
+    items
         .into_iter()
         .filter(|item| {
-            // Search filter
+            // Search filter (case-insensitive, min 2 chars)
             if let Some(ref search) = query.search {
                 if search.len() >= 2 {
                     let search_lower = search.to_lowercase();
@@ -230,7 +203,31 @@ async fn catalog_grid(
             display.is_favorite = favorite_ids.contains(&display.id);
             display
         })
+        .collect()
+}
+
+/// Catalog grid partial - returns job cards for HTMX
+async fn catalog_grid(
+    State(state): State<AppState>,
+    Query(query): Query<CatalogQuery>,
+) -> Result<Html<String>, AppError> {
+    let db = state.db().await;
+
+    // Get all items or filter by category
+    let items = if let Some(ref category) = query.category {
+        queries::job_catalog::list_catalog_items_by_category(db.pool(), category).await?
+    } else {
+        queries::job_catalog::list_catalog_items(db.pool()).await?
+    };
+
+    // Get favorites for marking
+    let favorite_ids: Vec<i64> = queries::job_catalog::list_catalog_favorites(db.pool())
+        .await?
+        .into_iter()
+        .map(|f| f.id)
         .collect();
+
+    let filtered = filter_catalog_items(items, &query, &favorite_ids);
 
     let template = CatalogGridTemplate {
         items: filtered,
@@ -257,33 +254,7 @@ async fn catalog_category(
         .map(|f| f.id)
         .collect();
 
-    // Apply search/difficulty filters
-    let filtered: Vec<JobCatalogItemDisplay> = items
-        .into_iter()
-        .filter(|item| {
-            if let Some(ref search) = query.search {
-                if search.len() >= 2 {
-                    let search_lower = search.to_lowercase();
-                    if !item.display_name.to_lowercase().contains(&search_lower)
-                        && !item.description.to_lowercase().contains(&search_lower)
-                    {
-                        return false;
-                    }
-                }
-            }
-            if let Some(ref diff) = query.difficulty {
-                if diff != "all" && item.difficulty != *diff {
-                    return false;
-                }
-            }
-            true
-        })
-        .map(|item| {
-            let mut display: JobCatalogItemDisplay = item.into();
-            display.is_favorite = favorite_ids.contains(&display.id);
-            display
-        })
-        .collect();
+    let filtered = filter_catalog_items(items, &query, &favorite_ids);
 
     let template = CatalogGridTemplate {
         items: filtered,
@@ -349,21 +320,16 @@ async fn servers_step(
 async fn schedule_step(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let db = state.db().await;
 
-    // Load notification channels
-    let channels = queries::notifications::list_notification_channels(db.pool()).await?;
-    let channel_displays: Vec<NotificationChannelDisplay> = channels
-        .into_iter()
-        .filter(|c| c.enabled)
-        .map(|c| NotificationChannelDisplay {
-            id: c.id,
-            name: c.name,
-            channel_type: c.channel_type_str,
-        })
-        .collect();
+    // Load enabled notification channels
+    let channels: Vec<WizardNotificationChannelDisplay> =
+        queries::notifications::list_notification_channels(db.pool())
+            .await?
+            .into_iter()
+            .filter(|c| c.enabled)
+            .map(Into::into)
+            .collect();
 
-    let template = ScheduleStepTemplate {
-        channels: channel_displays,
-    };
+    let template = ScheduleStepTemplate { channels };
     Ok(Html(template.render()?))
 }
 
@@ -371,22 +337,16 @@ async fn schedule_step(State(state): State<AppState>) -> Result<Html<String>, Ap
 async fn notify_step(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let db = state.db().await;
 
-    let channels = queries::notifications::list_notification_channels(db.pool()).await?;
+    // Load enabled notification channels
+    let channels: Vec<WizardNotificationChannelDisplay> =
+        queries::notifications::list_notification_channels(db.pool())
+            .await?
+            .into_iter()
+            .filter(|c| c.enabled)
+            .map(Into::into)
+            .collect();
 
-    let channel_displays: Vec<NotificationChannelDisplay> = channels
-        .into_iter()
-        .filter(|c| c.enabled)
-        .map(|c| NotificationChannelDisplay {
-            id: c.id,
-            name: c.name,
-            channel_type: c.channel_type_str,
-        })
-        .collect();
-
-    let template = NotifyStepTemplate {
-        channels: channel_displays,
-    };
-
+    let template = NotifyStepTemplate { channels };
     Ok(Html(template.render()?))
 }
 
@@ -426,14 +386,14 @@ async fn review_step(
         .unwrap_or_default();
 
     // Build servers list for display
-    let servers: Vec<SelectedServerDisplay> = server_ids
+    let servers: Vec<WizardSelectedServerDisplay> = server_ids
         .iter()
         .map(|id| {
             let name = server_names
                 .get(&id.to_string())
                 .cloned()
                 .unwrap_or_else(|| format!("Server {}", id));
-            SelectedServerDisplay { id: *id, name }
+            WizardSelectedServerDisplay { id: *id, name }
         })
         .collect();
 
@@ -552,6 +512,70 @@ async fn get_or_create_command_template(
     Ok(queries::job_types::create_command_template(db.pool(), &create_input).await?)
 }
 
+/// Create a notification policy for wizard jobs if channels are selected
+async fn create_wizard_notification_policy(
+    db: &svrctlrs_database::Database,
+    policy_name: &str,
+    on_success: bool,
+    on_failure: bool,
+    channel_ids: &[i64],
+) -> Result<Option<i64>, crate::routes::ui::AppError> {
+    // If no channels selected or notifications disabled, return None
+    if channel_ids.is_empty() || (!on_success && !on_failure) {
+        return Ok(None);
+    }
+
+    info!(
+        channels = ?channel_ids,
+        on_success,
+        on_failure,
+        "Creating notification policy for wizard job"
+    );
+
+    // Create the notification policy
+    let policy_input = svrctlrs_database::models::CreateNotificationPolicy {
+        name: policy_name.to_string(),
+        description: Some("Auto-created by job wizard".to_string()),
+        on_success,
+        on_failure,
+        on_timeout: on_failure, // Also notify on timeout if failure notifications enabled
+        job_type_filter: None,
+        server_filter: None,
+        tag_filter: None,
+        min_severity: 0,
+        max_per_hour: None,
+        title_template: None,
+        body_template: None,
+        enabled: true,
+        metadata: Some(serde_json::json!({"source": "wizard"})),
+    };
+
+    let policy_id = queries::notifications::create_notification_policy(db.pool(), &policy_input)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to create notification policy");
+            AppError::DatabaseError(e.to_string())
+        })?;
+
+    // Link each channel to the policy
+    for channel_id in channel_ids {
+        if let Err(e) =
+            queries::notifications::add_policy_channel(db.pool(), policy_id, *channel_id, None)
+                .await
+        {
+            warn!(
+                channel_id,
+                policy_id,
+                error = %e,
+                "Failed to link channel to policy (channel may not exist)"
+            );
+        }
+    }
+
+    info!(policy_id, "Created notification policy for wizard job");
+    Ok(Some(policy_id))
+}
+
 /// Create job from wizard input
 async fn create_job(
     State(state): State<AppState>,
@@ -572,6 +596,13 @@ async fn create_job(
     // Parse server_ids from JSON string
     let server_ids: Vec<i64> = input
         .server_ids
+        .as_ref()
+        .and_then(|s| serde_json::from_str(s).ok())
+        .unwrap_or_default();
+
+    // Parse channel_ids from JSON string
+    let channel_ids: Vec<i64> = input
+        .channel_ids
         .as_ref()
         .and_then(|s| serde_json::from_str(s).ok())
         .unwrap_or_default();
@@ -634,6 +665,18 @@ async fn create_job(
     let job_template_id =
         queries::job_templates::create_job_template(db.pool(), &job_template_input).await?;
 
+    // Create notification policy if channels are selected and notifications are enabled
+    let notify_success = input.notify_success.is_some();
+    let notify_failure = input.notify_failure.is_some();
+    let notification_policy_id = create_wizard_notification_policy(
+        &db,
+        &format!("Wizard: {}", job_name),
+        notify_success,
+        notify_failure,
+        &channel_ids,
+    )
+    .await?;
+
     let mut schedule_id = None;
     let mut job_run_id = None;
 
@@ -668,9 +711,9 @@ async fn create_job(
                 enabled: false, // Disabled so it won't be picked up by scheduler
                 timeout_seconds: None,
                 retry_count: None,
-                notify_on_success: Some(input.notify_success.is_some()),
-                notify_on_failure: Some(input.notify_failure.is_some()),
-                notification_policy_id: None,
+                notify_on_success: Some(notify_success),
+                notify_on_failure: Some(notify_failure),
+                notification_policy_id,
                 metadata: Some(serde_json::json!({
                     "one_time": true,
                     "triggered_by": "wizard"
@@ -726,6 +769,7 @@ async fn create_job(
 
             let executor = executor.clone();
             let job_run_tx = state.job_run_tx.clone();
+            let notification_service = state.notification_service.clone();
 
             // Broadcast that job run was created
             if let Err(e) = job_run_tx.send(JobRunUpdate::Created { job_run_id: run_id }) {
@@ -752,6 +796,15 @@ async fn create_job(
                         });
                     }
                 }
+
+                // Send notification after job completion
+                if let Err(e) = notification_service.notify_job_run(run_id).await {
+                    warn!(
+                        job_run_id = run_id,
+                        error = %e,
+                        "Failed to send job completion notification"
+                    );
+                }
             });
         }
     } else {
@@ -775,9 +828,9 @@ async fn create_job(
                 enabled: true,
                 timeout_seconds: None,
                 retry_count: None,
-                notify_on_success: Some(input.notify_success.is_some()),
-                notify_on_failure: Some(input.notify_failure.is_some()),
-                notification_policy_id: None,
+                notify_on_success: Some(notify_success),
+                notify_on_failure: Some(notify_failure),
+                notification_policy_id,
                 metadata: None,
             };
 
@@ -814,6 +867,9 @@ async fn quick_run_job(
     // Get or create wizard job type
     let job_type_id = get_wizard_job_type_id(&db).await?;
 
+    // Get or create command template from catalog item (required for simple jobs)
+    let command_template_id = get_or_create_command_template(&db, &item, job_type_id).await?;
+
     // Parse parameters as HashMap<String, String>
     let parameters: Option<HashMap<String, String>> = input
         .parameters
@@ -840,7 +896,7 @@ async fn quick_run_job(
         description: Some(format!("Quick run from dashboard: {}", item.description)),
         job_type_id,
         is_composite: false,
-        command_template_id: None,
+        command_template_id: Some(command_template_id),
         variables: parameters,
         timeout_seconds: item.default_timeout as i32,
         retry_count: 0,
@@ -854,7 +910,30 @@ async fn quick_run_job(
     let job_template_id =
         queries::job_templates::create_job_template(db.pool(), &job_template_input).await?;
 
-    // Create job run using individual parameters
+    // Create a disabled one-time schedule (required for FK constraint on job_runs)
+    let schedule_input = svrctlrs_database::models::CreateJobSchedule {
+        name: format!("Quick Run: {} (One-time)", item.display_name),
+        description: Some(format!("One-time quick run: {}", item.description)),
+        job_template_id,
+        server_id: input.server_id,
+        schedule: "0 0 0 31 2 *".to_string(), // 6-field cron: Feb 31st = never
+        enabled: false,                       // Disabled so it won't be picked up by scheduler
+        timeout_seconds: None,
+        retry_count: None,
+        notify_on_success: Some(false),
+        notify_on_failure: Some(false),
+        notification_policy_id: None,
+        metadata: Some(serde_json::json!({
+            "one_time": true,
+            "triggered_by": "quick_run",
+            "catalog_item_id": catalog_id
+        })),
+    };
+
+    let schedule_id =
+        queries::job_schedules::create_job_schedule(db.pool(), &schedule_input).await?;
+
+    // Create job run
     let run_metadata = serde_json::json!({
         "triggered_by": "quick_run",
         "catalog_item_id": catalog_id
@@ -862,7 +941,7 @@ async fn quick_run_job(
 
     let job_run_id = queries::job_runs::create_job_run(
         db.pool(),
-        0, // No schedule
+        schedule_id,
         job_template_id,
         input.server_id,
         0,     // retry_attempt

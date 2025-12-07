@@ -34,16 +34,36 @@ pub struct AppState {
     pub executor: Arc<RemoteExecutor>,
     /// Broadcast channel for job run updates (WebSocket push notifications)
     pub job_run_tx: broadcast::Sender<JobRunUpdate>,
+    /// Notification service for sending job completion notifications
+    pub notification_service: Arc<NotificationService>,
 }
 
 impl AppState {
     /// Create new application state
     pub async fn new(config: Config, database: Database) -> Result<Self> {
+        use tracing::info;
+
         let executor = Arc::new(RemoteExecutor::new(config.ssh_key_path.clone()));
         let pool = database.pool().clone();
 
         // Create broadcast channel for job run updates (capacity of 100 messages)
         let (job_run_tx, _) = broadcast::channel(100);
+
+        // Load notification backends from database
+        let (gotify_backend, ntfy_backend) = Self::load_notification_backends(&pool).await;
+
+        info!(
+            gotify_configured = gotify_backend.is_some(),
+            ntfy_configured = ntfy_backend.is_some(),
+            "Notification backends loaded"
+        );
+
+        // Create notification service with loaded backends
+        let notification_service = Arc::new(NotificationService::new(
+            pool.clone(),
+            gotify_backend,
+            ntfy_backend,
+        ));
 
         Ok(Self {
             config: Arc::new(config),
@@ -52,47 +72,30 @@ impl AppState {
             scheduler: Arc::new(RwLock::new(None)),
             executor,
             job_run_tx,
+            notification_service,
         })
     }
 
-    /// Subscribe to job run updates
-    pub fn subscribe_job_run_updates(&self) -> broadcast::Receiver<JobRunUpdate> {
-        self.job_run_tx.subscribe()
-    }
-
-    /// Broadcast a job run update to all subscribers
-    #[allow(dead_code)] // Public API for future use
-    pub fn broadcast_job_run_update(&self, update: JobRunUpdate) {
-        // It's ok if there are no subscribers (error means no receivers)
-        let _ = self.job_run_tx.send(update);
-    }
-
-    /// Start the scheduler
-    pub async fn start_scheduler(&self) -> Result<()> {
-        use svrctlrs_core::executor::JobExecutor;
+    /// Load notification backends from the database
+    async fn load_notification_backends(
+        pool: &SqlxPool<SqlxSqlite>,
+    ) -> (
+        Option<Arc<svrctlrs_core::GotifyBackend>>,
+        Option<Arc<svrctlrs_core::NtfyBackend>>,
+    ) {
         use svrctlrs_core::{GotifyBackend, NtfyBackend};
         use svrctlrs_database::queries;
         use tracing::{info, warn};
 
-        let mut scheduler_lock = self.scheduler.write().await;
-
-        // Create job executor
-        let executor = Arc::new(JobExecutor::new(
-            self.pool.clone(),
-            self.config.ssh_key_path.clone(),
-            10, // max_concurrent_jobs
-        ));
-
-        // Load notification backends from database
         let client = reqwest::Client::new();
-        let backends = match queries::notifications::list_notification_channels(&self.pool).await {
+        let backends = match queries::notifications::list_notification_channels(pool).await {
             Ok(backends) => backends
                 .into_iter()
                 .filter(|b| b.enabled)
                 .collect::<Vec<_>>(),
             Err(e) => {
                 warn!("Failed to load notification backends from database: {}", e);
-                Vec::new()
+                return (None, None);
             }
         };
 
@@ -160,12 +163,38 @@ impl AppState {
             }
         }
 
-        // Create notification service with loaded backends
-        let notification_service = Arc::new(NotificationService::new(
+        (gotify_backend, ntfy_backend)
+    }
+
+    /// Subscribe to job run updates
+    pub fn subscribe_job_run_updates(&self) -> broadcast::Receiver<JobRunUpdate> {
+        self.job_run_tx.subscribe()
+    }
+
+    /// Broadcast a job run update to all subscribers
+    #[allow(dead_code)] // Public API for future use
+    pub fn broadcast_job_run_update(&self, update: JobRunUpdate) {
+        // It's ok if there are no subscribers (error means no receivers)
+        let _ = self.job_run_tx.send(update);
+    }
+
+    /// Start the scheduler
+    pub async fn start_scheduler(&self) -> Result<()> {
+        use svrctlrs_core::executor::JobExecutor;
+        use tracing::info;
+
+        let mut scheduler_lock = self.scheduler.write().await;
+
+        // Create job executor
+        let executor = Arc::new(JobExecutor::new(
             self.pool.clone(),
-            gotify_backend,
-            ntfy_backend,
+            self.config.ssh_key_path.clone(),
+            10, // max_concurrent_jobs
         ));
+
+        // Use the notification service that was already configured in AppState::new()
+        // This ensures both the scheduler and wizard use the same notification backends
+        let notification_service = self.notification_service.clone();
 
         // Create and start the new scheduler with notification service
         let mut scheduler = Scheduler::new(self.pool.clone(), executor, Some(notification_service));

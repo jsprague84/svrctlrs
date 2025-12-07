@@ -2,16 +2,16 @@
 <div class="card">
     <div class="card-header">
         <h3>When should this job run?</h3>
-        <p class="text-secondary" style="margin: 0;">Choose to run immediately or set up a recurring schedule</p>
+        <p class="text-secondary" style="margin: 0;">Choose a single run or set up a recurring schedule</p>
     </div>
     <div class="card-body">
         <div class="schedule-options">
             <div class="schedule-option"
                  :class="{ selected: scheduleType === 'now' }"
                  @click="scheduleType = 'now'">
-                <i data-lucide="zap"></i>
-                <h4>Run Once Now</h4>
-                <p>Execute immediately</p>
+                <i data-lucide="play"></i>
+                <h4>Single Job Run</h4>
+                <p>Run once upon creation</p>
             </div>
 
             <div class="schedule-option"
@@ -105,7 +105,7 @@
                 <label class="form-check">
                     <input type="checkbox" class="form-check-input" x-model="notifySuccess">
                     <span class="form-check-label">
-                        <i data-lucide="check-circle" style="width: 14px; height: 14px; color: var(--success-color);"></i>
+                        <i data-lucide="check-circle" style="width: 14px; height: 14px; color: var(--accent-success);"></i>
                         Notify on success
                     </span>
                 </label>
@@ -113,7 +113,7 @@
                 <label class="form-check">
                     <input type="checkbox" class="form-check-input" x-model="notifyFailure">
                     <span class="form-check-label">
-                        <i data-lucide="x-circle" style="width: 14px; height: 14px; color: var(--danger-color);"></i>
+                        <i data-lucide="x-circle" style="width: 14px; height: 14px; color: var(--accent-error);"></i>
                         Notify on failure
                     </span>
                 </label>
@@ -146,6 +146,40 @@
                     {% endfor %}
                 </div>
                 {% endif %}
+            </div>
+
+            <!-- Notification Preview -->
+            <div class="mt-4" x-show="(notifySuccess || notifyFailure) && channelIds.length > 0" x-transition>
+                <h5 class="mb-2" style="font-size: 0.875rem; color: var(--text-secondary);">
+                    <i data-lucide="eye" style="width: 14px; height: 14px;"></i> Notification Preview
+                </h5>
+                <div style="display: grid; gap: 0.75rem;">
+                    <!-- Success Notification Preview -->
+                    <div x-show="notifySuccess" class="notification-preview" style="background: var(--bg-tertiary); border-radius: var(--radius-lg); padding: 0.75rem 1rem; border-left: 3px solid var(--accent-success);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                            <i data-lucide="check-circle" style="width: 16px; height: 16px; color: var(--accent-success);"></i>
+                            <strong style="font-size: 0.875rem;">Job Completed Successfully</strong>
+                        </div>
+                        <p style="margin: 0; font-size: 0.8125rem; color: var(--text-secondary);">
+                            <span x-text="selectedJobName || 'Your Job'"></span> completed on
+                            <span x-text="Object.keys(selectedServerNames).length"></span> server(s)
+                        </p>
+                    </div>
+                    <!-- Failure Notification Preview -->
+                    <div x-show="notifyFailure" class="notification-preview" style="background: var(--bg-tertiary); border-radius: var(--radius-lg); padding: 0.75rem 1rem; border-left: 3px solid var(--accent-error);">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                            <i data-lucide="alert-circle" style="width: 16px; height: 16px; color: var(--accent-error);"></i>
+                            <strong style="font-size: 0.875rem;">Job Failed</strong>
+                        </div>
+                        <p style="margin: 0; font-size: 0.8125rem; color: var(--text-secondary);">
+                            <span x-text="selectedJobName || 'Your Job'"></span> failed with error: [error message]
+                        </p>
+                    </div>
+                    <small class="text-muted" style="font-size: 0.75rem;">
+                        <i data-lucide="info" style="width: 12px; height: 12px;"></i>
+                        Notifications will be sent to <span x-text="channelIds.length"></span> channel(s) when enabled conditions are met.
+                    </small>
+                </div>
             </div>
         </div>
     </div>

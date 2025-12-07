@@ -295,6 +295,10 @@ impl JobExecutor {
     /// 3. Dispatches to simple or composite job execution
     /// 4. Records results in the database
     ///
+    /// **IMPORTANT**: This method ensures the job status is always updated to
+    /// either "success" or "failure", even if errors occur during setup (loading
+    /// job template, server, etc.). This prevents jobs from being stuck in "running" status.
+    ///
     /// # Arguments
     ///
     /// * `job_run_id` - ID of the job run to execute
@@ -309,6 +313,35 @@ impl JobExecutor {
             .await
             .map_err(|e| Error::Other(format!("Failed to acquire semaphore: {}", e)))?;
 
+        // Execute the job and capture any errors
+        let result = self.execute_job_run_inner(job_run_id).await;
+
+        // Ensure job status is updated on failure - this catches errors from setup phase
+        // (loading job template, server, etc.) that would otherwise leave the job "running"
+        if let Err(ref e) = result {
+            error!(job_run_id, error = %e, "Job run failed");
+            // Try to mark the job as failed - this is critical for cleanup
+            if let Err(finish_err) = self
+                .finish_job_run(job_run_id, "failure", None, None, Some(e.to_string()), None)
+                .await
+            {
+                // Log but don't override the original error
+                error!(
+                    job_run_id,
+                    error = %finish_err,
+                    "Failed to mark job run as failed after error"
+                );
+            }
+        }
+
+        result
+    }
+
+    /// Inner implementation of job execution
+    ///
+    /// This is separated from `execute_job_run` to allow proper error handling
+    /// and status updates in the outer function.
+    async fn execute_job_run_inner(&self, job_run_id: i64) -> Result<()> {
         // Load job run from database
         let job_run = self.get_job_run(job_run_id).await.map_err(|e| {
             error!(job_run_id, error = %e, "Failed to load job run");
@@ -345,8 +378,8 @@ impl JobExecutor {
                 Ok(())
             }
             Err(e) => {
-                error!(job_run_id, error = %e, "Job run failed");
-                // Error is already recorded in the database by the execution methods
+                // Error is already recorded by execute_simple_job/execute_composite_job
+                // via their finish_job_run calls, so we just propagate the error
                 Err(e)
             }
         }

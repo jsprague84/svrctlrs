@@ -182,18 +182,13 @@ pub async fn get_job_run_detail(
 ) -> Result<Html<String>, AppError> {
     info!(job_run_id = id, "Fetching job run detail");
 
-    // Get job run with names
-    let job_runs = queries::list_job_runs_with_names(&state.pool, 1, 0)
+    // Get job run with names by ID
+    let job_run = queries::get_job_run_with_names(&state.pool, id)
         .await
         .map_err(|e| {
-            error!(error = %e, "Failed to fetch job runs");
-            AppError::DatabaseError(e.to_string())
+            warn!(job_run_id = id, error = %e, "Job run not found");
+            AppError::NotFound(format!("Job run {} not found", id))
         })?;
-
-    let job_run = job_runs.into_iter().find(|jr| jr.id == id).ok_or_else(|| {
-        warn!(job_run_id = id, "Job run not found");
-        AppError::NotFound(format!("Job run {} not found", id))
-    })?;
 
     // Get server results
     let server_results = queries::get_server_job_results(&state.pool, id)

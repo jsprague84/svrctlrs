@@ -2057,6 +2057,35 @@ pub struct JobCatalogItemWithFavoriteDisplay {
 }
 
 // ============================================================================
+// Wizard Display Models
+// ============================================================================
+
+/// Display model for notification channels in the wizard
+#[derive(Debug, Clone)]
+pub struct WizardNotificationChannelDisplay {
+    pub id: i64,
+    pub name: String,
+    pub channel_type: String,
+}
+
+impl From<svrctlrs_database::models::NotificationChannel> for WizardNotificationChannelDisplay {
+    fn from(channel: svrctlrs_database::models::NotificationChannel) -> Self {
+        Self {
+            id: channel.id,
+            name: channel.name,
+            channel_type: channel.channel_type_str,
+        }
+    }
+}
+
+/// Display model for selected servers in wizard review step
+#[derive(Debug, Clone)]
+pub struct WizardSelectedServerDisplay {
+    pub id: i64,
+    pub name: String,
+}
+
+// ============================================================================
 // Error Pages
 // ============================================================================
 
