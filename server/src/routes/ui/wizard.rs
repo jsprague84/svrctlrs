@@ -664,7 +664,7 @@ async fn create_job(
                 description: Some(format!("One-time run from wizard: {}", item.description)),
                 job_template_id,
                 server_id: *server_id,
-                schedule: "0 0 31 2 *".to_string(), // Feb 31st = never (cron that never runs)
+                schedule: "0 0 0 31 2 *".to_string(), // 6-field cron: sec min hour day month dow (Feb 31st = never)
                 enabled: false, // Disabled so it won't be picked up by scheduler
                 timeout_seconds: None,
                 retry_count: None,
