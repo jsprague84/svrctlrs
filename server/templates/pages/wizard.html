@@ -610,7 +610,7 @@ function jobWizard() {
         selectedServerIds: [],
         selectedServerNames: {},
         scheduleType: 'now',
-        cronExpression: '0 * * * *',
+        cronExpression: '0 0 * * * *',
         // Cron builder variables
         scheduleFreq: 'daily',
         scheduleTime: '02:00',
@@ -717,7 +717,7 @@ function jobWizard() {
         },
 
         // Cron expression builder
-        // Note: The cron crate requires 7 fields: sec min hour day month day_of_week year
+        // Note: The cron crate requires 6 fields: sec min hour day month day_of_week
         updateCron() {
             const time = this.scheduleTime || '02:00';
             const [hour, minute] = time.split(':').map(Number);
@@ -725,19 +725,19 @@ function jobWizard() {
             switch (this.scheduleFreq) {
                 case 'hourly':
                     // Every hour at minute 0
-                    this.cronExpression = '0 0 * * * * *';
+                    this.cronExpression = '0 0 * * * *';
                     break;
                 case 'daily':
                     // Daily at specified time
-                    this.cronExpression = `0 ${minute} ${hour} * * * *`;
+                    this.cronExpression = `0 ${minute} ${hour} * * *`;
                     break;
                 case 'weekly':
                     // Weekly on specified day at specified time
-                    this.cronExpression = `0 ${minute} ${hour} * * ${this.scheduleDow} *`;
+                    this.cronExpression = `0 ${minute} ${hour} * * ${this.scheduleDow}`;
                     break;
                 case 'monthly':
                     // Monthly on specified day at specified time
-                    this.cronExpression = `0 ${minute} ${hour} ${this.scheduleDom} * * *`;
+                    this.cronExpression = `0 ${minute} ${hour} ${this.scheduleDom} * *`;
                     break;
                 case 'custom':
                     // Keep current cronExpression for manual editing
@@ -745,14 +745,14 @@ function jobWizard() {
             }
         },
 
-        // Validate cron expression (must be 7 fields: sec min hour day month dow year)
+        // Validate cron expression (must be 6 fields: sec min hour day month dow)
         validateCron(expr) {
             if (!expr) return { valid: false, error: 'Cron expression is required' };
             const parts = expr.trim().split(/\s+/);
-            if (parts.length !== 7) {
+            if (parts.length !== 6) {
                 return {
                     valid: false,
-                    error: `Cron expression must have 7 fields (sec min hour day month dow year), got ${parts.length}`
+                    error: `Cron expression must have 6 fields (sec min hour day month dow), got ${parts.length}`
                 };
             }
             return { valid: true };
