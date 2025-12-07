@@ -22,9 +22,9 @@ pub fn routes() -> Router<AppState> {
         .route("/", get(list_catalog))
         .route("/categories", get(list_categories))
         .route("/favorites", get(list_favorites))
-        .route("/:id", get(get_catalog_item))
-        .route("/:id/compatible-servers", get(list_compatible_servers))
-        .route("/:id/favorite", post(toggle_favorite))
+        .route("/{id}", get(get_catalog_item))
+        .route("/{id}/compatible-servers", get(list_compatible_servers))
+        .route("/{id}/favorite", post(toggle_favorite))
 }
 
 // ============================================================================
