@@ -605,6 +605,7 @@ pub async fn update_step_execution_result(
 // ============================================================================
 
 /// Count currently running job runs
+/// Only counts jobs started within the last 2 hours to avoid counting orphaned/stale jobs
 #[instrument(skip(pool))]
 pub async fn count_running_jobs(pool: &Pool<Sqlite>) -> Result<i64> {
     let count: (i64,) = sqlx::query_as(
@@ -612,6 +613,7 @@ pub async fn count_running_jobs(pool: &Pool<Sqlite>) -> Result<i64> {
         SELECT COUNT(*) as count
         FROM job_runs
         WHERE status = 'running'
+          AND started_at > datetime('now', '-2 hours')
         "#,
     )
     .fetch_one(pool)
