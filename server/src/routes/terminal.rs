@@ -14,6 +14,8 @@ use axum::{
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use svrctlrs_database::sqlx::{Pool, Sqlite};
 use tracing::{error, info, warn};
 
 use crate::state::AppState;
@@ -204,6 +206,16 @@ async fn execute_command(
     } else {
         None
     };
+
+    // Verify host key before SSH connection (skip for local execution)
+    if !server.is_local {
+        let hostname = server.hostname.as_deref().unwrap_or("");
+        let port = server.port as u16;
+        if let Err(e) = verify_host_key(&state.pool, server.id, hostname, port).await {
+            send_error(sender, &e).await;
+            return;
+        }
+    }
 
     // Execute command via SSH or locally
     let result = if server.is_local {
@@ -455,6 +467,123 @@ async fn send_exit_code(
 
     if let Ok(json) = serde_json::to_string(&response) {
         sender.send(Message::Text(json.into())).await.ok();
+    }
+}
+
+// ============================================================================
+// SSH Host Key Verification (TOFU - Trust On First Use)
+// ============================================================================
+
+/// russh client handler for scanning a server's host key
+struct KeyScanHandler {
+    captured_key: Arc<tokio::sync::Mutex<Option<(String, String)>>>,
+}
+
+impl russh::client::Handler for KeyScanHandler {
+    type Error = russh::Error;
+
+    async fn check_server_key(
+        &mut self,
+        server_public_key: &russh::keys::PublicKey,
+    ) -> Result<bool, Self::Error> {
+        let openssh_key = server_public_key
+            .to_openssh()
+            .map_err(|_| russh::Error::CouldNotReadKey)?;
+        let key_type = openssh_key
+            .split_whitespace()
+            .next()
+            .unwrap_or("unknown")
+            .to_string();
+        *self.captured_key.lock().await = Some((key_type, openssh_key));
+        Ok(true) // Accept during scan — verification done after
+    }
+}
+
+/// Scan a remote server's SSH host key using russh.
+/// Returns (key_type, public_key_openssh) on success.
+async fn scan_host_key(hostname: &str, port: u16) -> Result<(String, String), String> {
+    let captured_key = Arc::new(tokio::sync::Mutex::new(None));
+    let handler = KeyScanHandler {
+        captured_key: captured_key.clone(),
+    };
+
+    let config = Arc::new(russh::client::Config::default());
+    let session = russh::client::connect(config, (hostname, port), handler)
+        .await
+        .map_err(|e| format!("Host key scan failed: {}", e))?;
+
+    // Disconnect immediately — we only needed the host key from the handshake
+    session
+        .disconnect(russh::Disconnect::ByApplication, "", "English")
+        .await
+        .ok();
+
+    let result = captured_key.lock().await.take();
+    result.ok_or_else(|| "Host key scan completed but no key was captured".to_string())
+}
+
+/// Verify a server's host key against stored keys, or store on first connection (TOFU).
+/// This is the shared verification logic used by both terminal.rs and terminal_pty.rs.
+pub async fn verify_host_key(
+    pool: &Pool<Sqlite>,
+    server_id: i64,
+    hostname: &str,
+    port: u16,
+) -> Result<(), String> {
+    use svrctlrs_database::queries::server_host_keys;
+
+    // Check if we already have a stored key for this server
+    let stored_key = server_host_keys::get_host_key_by_server(pool, server_id)
+        .await
+        .map_err(|e| format!("Failed to check stored host key: {}", e))?;
+
+    // Scan the server's current host key
+    let (scanned_key_type, scanned_key) = scan_host_key(hostname, port).await?;
+
+    match stored_key {
+        Some(existing) => {
+            // Key exists — verify it matches
+            if existing.public_key == scanned_key {
+                info!(
+                    server_id,
+                    key_type = scanned_key_type,
+                    "Host key verification successful"
+                );
+                // Update last_seen_at
+                server_host_keys::update_host_key_last_seen(pool, server_id)
+                    .await
+                    .ok();
+                Ok(())
+            } else {
+                error!(
+                    server_id,
+                    stored_key_type = existing.key_type,
+                    new_key_type = scanned_key_type,
+                    "HOST KEY MISMATCH - possible MITM attack!"
+                );
+                Err(format!(
+                    "⚠️  WARNING: SSH HOST KEY MISMATCH for this server!\r\n\
+                     The server's host key has changed since the first connection.\r\n\
+                     This could indicate a man-in-the-middle attack.\r\n\
+                     Stored key type: {}\r\n\
+                     Current key type: {}\r\n\
+                     Connection refused for security.",
+                    existing.key_type, scanned_key_type
+                ))
+            }
+        }
+        None => {
+            // First connection — store key (TOFU)
+            info!(
+                server_id,
+                key_type = scanned_key_type,
+                "First connection - storing host key (TOFU)"
+            );
+            server_host_keys::store_host_key(pool, server_id, &scanned_key_type, &scanned_key)
+                .await
+                .map_err(|e| format!("Failed to store host key: {}", e))?;
+            Ok(())
+        }
     }
 }
 
