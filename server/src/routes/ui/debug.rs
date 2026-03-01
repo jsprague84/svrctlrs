@@ -1,7 +1,7 @@
-//! Terminal page routes - Multi-terminal server interface
+//! Terminal page routes - Full-page terminal with server sidebar
 //!
-//! Provides a page with multiple terminal panes for simultaneously
-//! executing commands across multiple servers.
+//! Provides a full-viewport terminal interface with a collapsible
+//! server sidebar for quick server selection and command execution.
 
 use askama::Template;
 use axum::{
@@ -31,11 +31,11 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-/// Terminal page handler - provides multi-terminal interface
+/// Terminal page handler - full-page terminal with server sidebar
 async fn terminal_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let user = get_user_from_session().await;
 
-    // Get all enabled servers for the terminal dropdowns
+    // Get all enabled servers for the server sidebar
     let db = state.db().await;
     let servers_with_details = queries::servers::list_servers_with_details(db.pool()).await?;
 
@@ -46,20 +46,7 @@ async fn terminal_page(State(state): State<AppState>) -> Result<Html<String>, Ap
         .map(Into::into)
         .collect();
 
-    // Get all tags for server groups feature
-    let tags_list = queries::tags::get_tags_with_counts(db.pool()).await?;
-    let tags: Vec<TagDisplay> = tags_list.into_iter().map(Into::into).collect();
-
-    // Get terminal profiles
-    let profiles_list = queries::terminal_profiles::list_terminal_profiles(db.pool()).await?;
-    let profiles: Vec<TerminalProfileDisplay> = profiles_list.into_iter().map(Into::into).collect();
-
-    let template = TerminalPageTemplate {
-        user,
-        servers,
-        tags,
-        profiles,
-    };
+    let template = TerminalPageTemplate { user, servers };
     Ok(Html(template.render()?))
 }
 

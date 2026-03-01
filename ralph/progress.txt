@@ -20,6 +20,10 @@
 - Encryption uses `OnceLock<[u8; 32]>` global for the key — initialized once at startup via `encryption::init_encryption_key()`, then `encryption::is_initialized()` / `encrypt()` / `decrypt()` used in query layer
 - Credential queries transparently encrypt/decrypt using the global key; if key not initialized, stores plaintext with `encrypted = false` flag
 - AES-256-GCM format: base64(nonce_12bytes || ciphertext || auth_tag) — nonce is random per encryption
+- Terminal page route lives in `server/src/routes/ui/debug.rs` (registered as `/terminal`), template is `server/templates/pages/terminal.html`
+- `TerminalPageTemplate` struct in `server/src/templates.rs` defines the Askama template data
+- `TerminalManager` class in `server/static/js/terminal.js` is the shared xterm.js wrapper — instantiate separate instances for full-page vs modal usage
+- Server list for terminal sidebar: use `queries::servers::list_servers_with_details()` → filter `.enabled` → map to `ServerDisplay`
 
 ---
 
@@ -96,4 +100,30 @@
   - Added `encrypted` column flag so existing plaintext credentials remain readable while new ones are encrypted
   - Key format: 64 hex chars = 32 bytes. Stored in env var or `data/encryption.key` file
   - Test suite works without encryption initialized — queries gracefully fall back to plaintext storage
+---
+
+## 2026-02-28 - US-005
+- Redesigned terminal page as full-page terminal with collapsible server sidebar
+- Files modified:
+  - `server/templates/pages/terminal.html` - Complete rewrite: replaced multi-terminal debug layout with full-viewport terminal + collapsible server sidebar (~250px) + command input bar
+  - `server/src/routes/ui/debug.rs` - Simplified `terminal_page` handler to only load enabled servers (removed tags and profiles loading)
+  - `server/src/templates.rs` - Removed `tags` and `profiles` fields from `TerminalPageTemplate` struct (no longer needed by template)
+  - `ralph/prd.json` - Marked US-005 as passing
+- Implementation details:
+  - Left sidebar lists all enabled servers with name, hostname:port, and Connect button
+  - Sidebar is collapsible with expand/collapse toggle buttons
+  - Main area: full-viewport xterm.js terminal using dedicated `TerminalManager` instance
+  - Top bar shows connected server name, status badges, and action buttons (clear, copy, download, disconnect)
+  - Bottom command input bar with textarea (Shift+Enter for multi-line), command history (up/down arrows)
+  - `fullPageTerminal()` Alpine.js component manages state: sidebar toggle, server connection, command execution
+  - Terminal auto-fits on window resize and sidebar toggle via `fitTerminal()` calls
+  - Auto-connect from URL: reads `?server_id=` query parameter on load
+  - Uses separate `TerminalManager` instance from the global modal one to avoid conflicts
+  - Terminal link already existed in base.html sidebar navigation under "Tools" section
+- **Learnings for future iterations:**
+  - The existing `/terminal` route was a complex multi-pane debug page — redesigning it requires updating both template and Askama struct fields
+  - `TerminalManager` instances are independent — create new ones for different contexts (modal vs full-page) to avoid shared state issues
+  - Use `$nextTick()` + `setTimeout()` for terminal `fit()` after DOM layout changes (sidebar toggle, modal open)
+  - Override `.main-content` padding with `!important` in page-specific styles to get true full-viewport layout
+  - `TerminalProfileDisplay` struct in templates.rs becomes dead code when removed from template — `#![allow(dead_code)]` at module level covers it
 ---

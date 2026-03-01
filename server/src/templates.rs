@@ -119,8 +119,6 @@ impl From<svrctlrs_database::queries::job_schedules::JobScheduleWithLastRun>
 pub struct TerminalPageTemplate {
     pub user: Option<User>,
     pub servers: Vec<ServerDisplay>,
-    pub tags: Vec<TagDisplay>,
-    pub profiles: Vec<TerminalProfileDisplay>,
 }
 
 /// Terminal profile display model
