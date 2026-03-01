@@ -145,7 +145,11 @@ async fn main() -> anyhow::Result<()> {
         .merge(job_runs_ws_router)
         // UI routes (HTMX + Askama)
         .merge(ui_router)
-        // Middleware
+        // Auth middleware (runs after session layer processes the request)
+        .layer(axum::middleware::from_fn(
+            routes::ui::auth::require_auth,
+        ))
+        // Session layer (must wrap auth middleware so Session extractor works)
         .layer(session_layer)
         .layer(
             tower_http::trace::TraceLayer::new_for_http().make_span_with(

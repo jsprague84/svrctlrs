@@ -1,11 +1,13 @@
-//! Authentication routes
+//! Authentication routes and middleware
 
 use askama::Template;
 use axum::{
-    extract::State,
-    response::{Html, IntoResponse, Redirect},
+    extract::{Request, State},
+    http::StatusCode,
+    middleware::Next,
+    response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
-    Router,
+    Json, Router,
 };
 use axum_extra::extract::Form;
 use tower_sessions::Session;
@@ -15,6 +17,59 @@ use crate::{state::AppState, templates::*};
 
 /// Session key for the authenticated user's ID
 const USER_ID_KEY: &str = "user_id";
+
+/// Authentication middleware that protects all routes except exempted ones.
+///
+/// Exempt routes: /auth/login, /auth/logout, /static/*, /api/v1/health
+///
+/// Behavior for unauthenticated requests:
+/// - WebSocket upgrades: 401 Unauthorized
+/// - API requests (/api/*): 401 JSON response
+/// - Browser requests: redirect to /auth/login
+pub async fn require_auth(session: Session, request: Request, next: Next) -> Response {
+    let path = request.uri().path();
+
+    // Exempt routes - no auth required
+    if path == "/auth/login"
+        || path == "/auth/logout"
+        || path.starts_with("/static/")
+        || path == "/api/v1/health"
+    {
+        return next.run(request).await;
+    }
+
+    // Check session for authenticated user
+    let user_id: Option<i64> = session.get(USER_ID_KEY).await.unwrap_or(None);
+
+    if user_id.is_some() {
+        return next.run(request).await;
+    }
+
+    // Unauthenticated — determine response type
+
+    // WebSocket upgrade requests get 401
+    let is_websocket = request
+        .headers()
+        .get("upgrade")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.eq_ignore_ascii_case("websocket"));
+
+    if is_websocket {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    // API requests get 401 JSON
+    if path.starts_with("/api/") {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Authentication required"})),
+        )
+            .into_response();
+    }
+
+    // Browser requests redirect to login
+    Redirect::to("/auth/login").into_response()
+}
 
 /// Create auth router
 pub fn routes() -> Router<AppState> {
