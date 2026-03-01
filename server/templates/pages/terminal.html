@@ -229,6 +229,67 @@
         align-self: flex-end;
     }
 
+    /* Mode toggle */
+    .mode-toggle {
+        display: flex;
+        background: var(--bg-primary);
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        overflow: hidden;
+    }
+
+    .mode-toggle button {
+        padding: 4px 12px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        border: none;
+        background: transparent;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.15s;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .mode-toggle button:not(:last-child) {
+        border-right: 1px solid var(--border-color);
+    }
+
+    .mode-toggle button.active {
+        background: var(--accent-color);
+        color: #fff;
+    }
+
+    .mode-toggle button:hover:not(.active) {
+        background: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .mode-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 2px 8px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        border-radius: 4px;
+        letter-spacing: 0.5px;
+    }
+
+    .mode-badge.cmd {
+        background: rgba(129, 161, 193, 0.15);
+        color: var(--accent-color);
+        border: 1px solid rgba(129, 161, 193, 0.3);
+    }
+
+    .mode-badge.pty {
+        background: rgba(163, 190, 140, 0.15);
+        color: #a3be8c;
+        border: 1px solid rgba(163, 190, 140, 0.3);
+    }
+
     /* Sidebar expand button (when collapsed) */
     .sidebar-expand-btn {
         position: absolute;
@@ -329,6 +390,10 @@
                 </template>
             </div>
 
+            <!-- Mode badge -->
+            <span x-show="mode === 'cmd'" class="mode-badge cmd">CMD</span>
+            <span x-show="mode === 'pty'" class="mode-badge pty">PTY</span>
+
             <!-- Status badge -->
             <span x-show="connected" class="status-badge status-connected">
                 <i data-lucide="wifi" style="width: 12px; height: 12px;"></i> Connected
@@ -338,6 +403,22 @@
             </span>
 
             <div class="spacer"></div>
+
+            <!-- Mode toggle -->
+            <div class="mode-toggle">
+                <button :class="{ 'active': mode === 'cmd' }"
+                        @click="switchMode('cmd')"
+                        title="Command mode: type a command, see output">
+                    <i data-lucide="terminal-square" style="width: 12px; height: 12px;"></i>
+                    Command
+                </button>
+                <button :class="{ 'active': mode === 'pty' }"
+                        @click="switchMode('pty')"
+                        title="Shell mode: interactive PTY session">
+                    <i data-lucide="square-terminal" style="width: 12px; height: 12px;"></i>
+                    Shell
+                </button>
+            </div>
 
             <div class="terminal-actions">
                 <button class="btn btn-sm btn-secondary"
@@ -369,8 +450,8 @@
             <div id="fullpage-terminal-output"></div>
         </div>
 
-        <!-- Command Input Bar -->
-        <div class="terminal-command-bar">
+        <!-- Command Input Bar (hidden in PTY mode) -->
+        <div class="terminal-command-bar" x-show="mode === 'cmd'">
             <textarea x-model="command"
                       @keydown.enter.prevent="if($event.shiftKey) { command += '\n' } else { executeCommand() }"
                       @keydown.up="if(!command.includes('\n')) historyUp()"
@@ -398,6 +479,7 @@
 function fullPageTerminal() {
     return {
         sidebarOpen: true,
+        mode: 'cmd', // 'cmd' (Command) or 'pty' (Shell/PTY)
         command: '',
         executing: false,
         connected: false,
@@ -419,6 +501,11 @@ function fullPageTerminal() {
                 // Re-fit on sidebar toggle
                 this.$watch('sidebarOpen', () => {
                     setTimeout(() => this.fitTerminal(), 250);
+                });
+
+                // Re-fit when mode changes (command bar show/hide changes terminal height)
+                this.$watch('mode', () => {
+                    this.$nextTick(() => setTimeout(() => this.fitTerminal(), 50));
                 });
 
                 // Handle window resize
@@ -451,6 +538,45 @@ function fullPageTerminal() {
             }
         },
 
+        switchMode(newMode) {
+            if (newMode === this.mode) return;
+
+            // Disconnect existing connection
+            this.disconnectTerminal();
+
+            this.mode = newMode;
+
+            // Show mode-appropriate welcome message
+            if (this.manager && this.manager.terminal) {
+                this.manager.terminal.clear();
+                if (this.connectedServerId) {
+                    if (newMode === 'pty') {
+                        this.manager.terminal.writeln(`\x1b[33mSwitched to Shell mode for ${this.connectedServerName}\x1b[0m`);
+                        this.manager.terminal.writeln('\x1b[90mStarting interactive session...\x1b[0m\r\n');
+                        // Auto-start PTY session
+                        this.startPtySession();
+                    } else {
+                        this.manager.terminal.writeln(`\x1b[33mSwitched to Command mode for ${this.connectedServerName}\x1b[0m`);
+                        this.manager.terminal.writeln('\x1b[90mType a command below and press Enter to execute.\x1b[0m\r\n');
+                        this.connected = true;
+                        // Focus command input
+                        this.$nextTick(() => {
+                            if (this.$refs.commandInput) {
+                                this.$refs.commandInput.focus();
+                            }
+                        });
+                    }
+                }
+            }
+
+            // Re-init lucide icons for new UI elements
+            this.$nextTick(() => {
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            });
+        },
+
         connectToServer(serverId, serverName, serverHost) {
             this.connectedServerId = serverId;
             this.connectedServerName = serverName;
@@ -461,22 +587,56 @@ function fullPageTerminal() {
             // Disconnect existing
             this.manager.disconnect();
 
-            // Show welcome message
-            if (this.manager.terminal) {
-                this.manager.terminal.clear();
-                this.manager.terminal.writeln(`\x1b[33mConnected to ${serverName} (${serverHost})\x1b[0m`);
-                this.manager.terminal.writeln('\x1b[90mType a command below and press Enter to execute.\x1b[0m\r\n');
-            }
-
-            this.connecting = false;
-            this.connected = true;
-
-            // Focus the command input
-            this.$nextTick(() => {
-                if (this.$refs.commandInput) {
-                    this.$refs.commandInput.focus();
+            if (this.mode === 'pty') {
+                // PTY mode: start interactive shell
+                if (this.manager.terminal) {
+                    this.manager.terminal.clear();
+                    this.manager.terminal.writeln(`\x1b[33mConnecting to ${serverName} (${serverHost})...\x1b[0m\r\n`);
                 }
-            });
+                this.startPtySession();
+            } else {
+                // Command mode: just select server
+                if (this.manager.terminal) {
+                    this.manager.terminal.clear();
+                    this.manager.terminal.writeln(`\x1b[33mConnected to ${serverName} (${serverHost})\x1b[0m`);
+                    this.manager.terminal.writeln('\x1b[90mType a command below and press Enter to execute.\x1b[0m\r\n');
+                }
+
+                this.connecting = false;
+                this.connected = true;
+
+                // Focus the command input
+                this.$nextTick(() => {
+                    if (this.$refs.commandInput) {
+                        this.$refs.commandInput.focus();
+                    }
+                });
+            }
+        },
+
+        startPtySession() {
+            if (!this.connectedServerId) return;
+
+            this.executing = true;
+            this.connecting = true;
+
+            this.manager.connectPty(this.connectedServerId);
+
+            // Poll state
+            const checkState = () => {
+                this.connected = this.manager.connected;
+                this.connecting = this.manager.connecting;
+                if (!this.connecting) {
+                    this.executing = false;
+                    // Focus the terminal for keyboard input in PTY mode
+                    if (this.connected && this.manager.terminal) {
+                        this.manager.terminal.focus();
+                    }
+                } else {
+                    setTimeout(checkState, 100);
+                }
+            };
+            setTimeout(checkState, 100);
         },
 
         executeCommand() {
@@ -527,6 +687,7 @@ function fullPageTerminal() {
             }
             this.connected = false;
             this.connecting = false;
+            this.executing = false;
         },
 
         historyUp() {

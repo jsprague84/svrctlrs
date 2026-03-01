@@ -24,6 +24,7 @@
 - `TerminalPageTemplate` struct in `server/src/templates.rs` defines the Askama template data
 - `TerminalManager` class in `server/static/js/terminal.js` is the shared xterm.js wrapper — instantiate separate instances for full-page vs modal usage
 - Server list for terminal sidebar: use `queries::servers::list_servers_with_details()` → filter `.enabled` → map to `ServerDisplay`
+- Terminal has two modes: CMD (`/ws/terminal`) for one-shot command execution, PTY (`/ws/terminal/pty`) for interactive shell via russh. Both use the same `TerminalManager` class but different connect methods (`connect()` vs `connectPty()`).
 
 ---
 
@@ -126,4 +127,26 @@
   - Use `$nextTick()` + `setTimeout()` for terminal `fit()` after DOM layout changes (sidebar toggle, modal open)
   - Override `.main-content` padding with `!important` in page-specific styles to get true full-viewport layout
   - `TerminalProfileDisplay` struct in templates.rs becomes dead code when removed from template — `#![allow(dead_code)]` at module level covers it
+---
+
+## 2026-02-28 - US-006
+- Integrated PTY mode toggle in the full-page terminal frontend
+- Files modified:
+  - `server/templates/pages/terminal.html` - Added mode toggle UI, mode badge, PTY session support, command bar visibility toggle
+  - `ralph/prd.json` - Marked US-006 as passing
+- Implementation details:
+  - Mode toggle in topbar: "Command" (CMD) and "Shell" (PTY) buttons with active state highlighting
+  - Mode badge in topbar header shows "CMD" (blue) or "PTY" (green) indicator
+  - Command mode: existing behavior — type command in input bar, see output in terminal
+  - Shell mode: hides command bar, starts interactive PTY session via `/ws/terminal/pty`, all keyboard input forwarded directly to PTY
+  - Switching modes disconnects current WebSocket and connects to the appropriate endpoint
+  - `connectToServer()` is mode-aware: CMD mode selects server + shows welcome, PTY mode immediately starts interactive shell
+  - `switchMode()` handles mid-session mode changes with auto-reconnect to new endpoint
+  - Terminal auto-fits when mode changes (command bar show/hide changes terminal height)
+  - No backend changes needed — existing `terminal.rs` (CMD) and `terminal_pty.rs` (PTY) endpoints and `TerminalManager.connectPty()` method already fully implemented
+- **Learnings for future iterations:**
+  - `TerminalManager` already had `connectPty()` and `ptyMode` support from the modal component — reuse in full-page just means calling the right method based on mode state
+  - Alpine.js `x-show` with mode state cleanly hides/shows the command bar without layout jumps (flex layout recalculates automatically)
+  - Watch `mode` changes and call `fitTerminal()` after `$nextTick` to ensure terminal resizes when command bar appears/disappears
+  - `disconnectTerminal()` should also reset `executing` state to prevent stale UI after mode switches
 ---
