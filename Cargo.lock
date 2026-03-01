@@ -3311,6 +3311,7 @@ name = "svrctlrs-core"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "argon2",
  "async-trait",
  "chrono",
  "reqwest",
@@ -3327,6 +3328,7 @@ name = "svrctlrs-database"
 version = "1.0.0"
 dependencies = [
  "anyhow",
+ "argon2",
  "chrono",
  "cron",
  "serde",

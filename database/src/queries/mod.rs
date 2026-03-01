@@ -12,6 +12,7 @@ pub mod servers;
 pub mod settings;
 pub mod tags;
 pub mod terminal_profiles;
+pub mod users;
 
 // Re-export commonly used functions for convenience
 pub use credentials::*;
@@ -25,3 +26,4 @@ pub use servers::*;
 pub use settings::*;
 pub use tags::*;
 pub use terminal_profiles::*;
+pub use users::*;

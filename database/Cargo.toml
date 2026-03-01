@@ -27,5 +27,8 @@ thiserror = { workspace = true }
 # Logging
 tracing = { workspace = true }
 
+# Password hashing
+argon2 = "0.5"
+
 # Core
 svrctlrs-core = { workspace = true }

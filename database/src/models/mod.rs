@@ -11,6 +11,7 @@ pub mod server;
 pub mod setting;
 pub mod tag;
 pub mod terminal_profile;
+pub mod user;
 
 // Re-export all models for convenience
 pub use credential::*;
@@ -24,3 +25,4 @@ pub use server::*;
 pub use setting::*;
 pub use tag::*;
 pub use terminal_profile::*;
+pub use user::*;
