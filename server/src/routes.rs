@@ -7,12 +7,11 @@
 //! ```text
 //! /api/v1/          REST API endpoints (JSON)
 //! /ws/              WebSocket endpoints
-//! /                 HTMX UI routes (HTML)
-//! /static/          Static assets
+//! /auth/            Authentication routes
+//! /                 Svelte SPA (static files)
 //! ```
 
 pub mod api;
-pub mod job_runs_ws;
 pub mod terminal;
 pub mod terminal_pty;
 pub mod ui;

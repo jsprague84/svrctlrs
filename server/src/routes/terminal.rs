@@ -69,7 +69,7 @@ async fn handle_terminal_socket(socket: WebSocket, state: AppState) {
     let welcome = TerminalResponse {
         response_type: "output".to_string(),
         data: "\x1b[1;36m╔════════════════════════════════════════════════════╗\x1b[0m\r\n\
-               \x1b[1;36m║\x1b[0m         \x1b[1mSvrCtlRS Terminal v1.0\x1b[0m                   \x1b[1;36m║\x1b[0m\r\n\
+               \x1b[1;36m║\x1b[0m         \x1b[1mSvrCtlRS Terminal v1.0\x1b[0m                     \x1b[1;36m║\x1b[0m\r\n\
                \x1b[1;36m╚════════════════════════════════════════════════════╝\x1b[0m\r\n\r\n\
                \x1b[90mReady. Select a server and enter a command.\x1b[0m\r\n\r\n"
             .to_string(),

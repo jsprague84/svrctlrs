@@ -1,16 +1,11 @@
-//! SvrCtlRS Server
-//!
-//! Server application with HTMX + Askama UI
+//! SvrCtlRS Server — Terminal-focused infrastructure management
 
 #![allow(non_snake_case)]
 
-// Server-side modules
 mod config;
-mod filters; // Custom Askama template filters
 mod routes;
 mod ssh;
 mod state;
-mod templates;
 
 use config::Config;
 use state::AppState;
@@ -72,20 +67,6 @@ async fn main() -> anyhow::Result<()> {
     let database = svrctlrs_database::Database::new(&database_url).await?;
     database.migrate().await?;
 
-    // Clean up stale running jobs (jobs stuck in 'running' status for more than 1 hour)
-    // This handles cases where the server crashed or was restarted while jobs were running
-    let stale_jobs_count = svrctlrs_database::queries::job_runs::fail_stale_running_jobs(
-        database.pool(),
-        1, // Mark jobs as failed if running for more than 1 hour
-    )
-    .await?;
-    if stale_jobs_count > 0 {
-        tracing::warn!(
-            count = stale_jobs_count,
-            "Marked stale running jobs as failed on startup"
-        );
-    }
-
     // Set up session store (SQLite-backed)
     let session_store = SqliteStore::new(database.pool().clone());
     session_store.migrate().await?;
@@ -120,25 +101,22 @@ async fn main() -> anyhow::Result<()> {
     // Initialize application state
     let state = AppState::new(config, database).await?;
 
-    // Start scheduler
-    info!("Starting scheduler");
-    state.start_scheduler().await?;
-
-    // Build UI router with state
+    // Build UI router with state (SPA + auth)
     let ui_router = routes::ui::ui_routes().with_state(state.clone());
 
-    // Build terminal WebSocket router
+    // Build terminal WebSocket routers
     let terminal_router = routes::terminal::routes().with_state(state.clone());
-
-    // Build interactive PTY terminal router
     let terminal_pty_router = routes::terminal_pty::routes().with_state(state.clone());
 
-    // Build job runs WebSocket router
-    let job_runs_ws_router = routes::job_runs_ws::routes().with_state(state.clone());
-
     // Build session layer
+    // Default secure=true for production (HTTPS). Set SESSION_SECURE=false for local dev.
+    let session_secure = std::env::var("SESSION_SECURE")
+        .map(|v| v != "false" && v != "0")
+        .unwrap_or(true);
+    info!(secure = session_secure, "Session cookie configuration");
+
     let session_layer = SessionManagerLayer::new(session_store)
-        .with_secure(false) // Set to true if using HTTPS
+        .with_secure(session_secure)
         .with_expiry(tower_sessions::Expiry::OnInactivity(
             time::Duration::hours(24),
         ));
@@ -162,8 +140,6 @@ async fn main() -> anyhow::Result<()> {
             .allow_headers(tower_http::cors::Any)
             .allow_credentials(true)
     } else {
-        // Default: same-origin only (no Access-Control-Allow-Origin header means
-        // browsers enforce same-origin policy)
         info!("CORS configured for same-origin only (set ALLOWED_ORIGINS to allow cross-origin)");
         tower_http::cors::CorsLayer::new()
             .allow_methods([
@@ -191,18 +167,16 @@ async fn main() -> anyhow::Result<()> {
     // WebSocket routes WITHOUT timeout (long-lived connections)
     let ws_routes = Router::new()
         .merge(terminal_router)
-        .merge(terminal_pty_router)
-        .merge(job_runs_ws_router);
+        .merge(terminal_pty_router);
 
     // Build main router
     let app = Router::new()
         .merge(http_routes)
         .merge(ws_routes)
-        // Auth middleware (runs after session layer processes the request)
+        // Auth middleware
         .layer(axum::middleware::from_fn(
             routes::ui::auth::require_auth,
         ))
-        // Session layer (must wrap auth middleware so Session extractor works)
         .layer(session_layer)
         .layer(
             tower_http::trace::TraceLayer::new_for_http().make_span_with(
@@ -229,6 +203,12 @@ async fn main() -> anyhow::Result<()> {
             axum::http::HeaderName::from_static("referrer-policy"),
             HeaderValue::from_static("strict-origin-when-cross-origin"),
         ))
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::HeaderName::from_static("content-security-policy"),
+            HeaderValue::from_static(
+                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss:; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'"
+            ),
+        ))
         .layer(cors_layer);
 
     // Start server with graceful shutdown
@@ -244,7 +224,6 @@ async fn main() -> anyhow::Result<()> {
 }
 
 /// Signal handler for graceful shutdown.
-/// Listens for SIGTERM and SIGINT (Ctrl+C) and allows 10 seconds for active connections to complete.
 async fn shutdown_signal() {
     use tokio::signal;
 
@@ -267,10 +246,10 @@ async fn shutdown_signal() {
 
     tokio::select! {
         _ = ctrl_c => {
-            tracing::info!("Received SIGINT (Ctrl+C), starting graceful shutdown (10s timeout)...");
+            tracing::info!("Received SIGINT (Ctrl+C), starting graceful shutdown...");
         }
         _ = terminate => {
-            tracing::info!("Received SIGTERM, starting graceful shutdown (10s timeout)...");
+            tracing::info!("Received SIGTERM, starting graceful shutdown...");
         }
     }
 }

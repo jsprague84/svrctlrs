@@ -16,7 +16,6 @@ path = "src/bin/svrctl.rs"
 [dependencies]
 # Internal crates (server-only - contain tokio, sqlx, etc.)
 svrctlrs-core = { workspace = true, optional = true }
-svrctlrs-scheduler = { workspace = true, optional = true }
 svrctlrs-database = { workspace = true, optional = true }
 
 # Async (optional for server)
@@ -26,10 +25,6 @@ tokio = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 tower = { workspace = true, optional = true }
 tower-http = { workspace = true, optional = true }
-
-# Templating (HTMX + Askama)
-askama = { version = "0.14", features = ["serde_json"] }
-askama_web = { version = "0.14", features = ["axum-0.8"] }
 
 # Session management for auth
 tower-sessions = "0.14"
@@ -65,15 +60,6 @@ russh-keys = { workspace = true, optional = true }
 
 # Date/time (server-only)
 chrono = { workspace = true, optional = true }
-cron = { workspace = true, optional = true }
-
-# Security (server-only)
-subtle = { version = "2.5", optional = true }
-
-# Utilities (server-only)
-which = { version = "6.0", optional = true }
-regex = "1.12.2"
-axum-extra = { version = "0.12.2", features = ["form"] }
 
 # WebSocket support
 futures-util = { workspace = true, optional = true }
@@ -87,7 +73,6 @@ default = ["server"]
 server = [
     # Internal crates (server-only)
     "dep:svrctlrs-core",
-    "dep:svrctlrs-scheduler",
     "dep:svrctlrs-database",
     # Server dependencies
     "dep:axum",
@@ -106,8 +91,5 @@ server = [
     "dep:russh",
     "dep:russh-keys",
     "dep:chrono",
-    "dep:cron",
-    "dep:subtle",
-    "dep:which",
     "dep:futures-util"
 ]

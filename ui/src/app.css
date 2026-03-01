@@ -1,0 +1,90 @@
+@import 'tailwindcss';
+
+@theme inline {
+	/* Tokyo Night — Background & surfaces */
+	--color-background: #1a1b26;
+	--color-foreground: #c0caf5;
+	--color-surface: #16161e;
+	--color-surface-raised: #24283b;
+	--color-surface-overlay: #292e42;
+
+	/* Text */
+	--color-text-primary: #c0caf5;
+	--color-text-secondary: #a9b1d6;
+	--color-text-muted: #565f89;
+
+	/* Accent */
+	--color-accent: #7aa2f7;
+	--color-accent-foreground: #1a1b26;
+
+	/* Semantic */
+	--color-success: #9ece6a;
+	--color-warning: #e0af68;
+	--color-error: #f7768e;
+	--color-info: #7dcfff;
+
+	/* Interactive */
+	--color-primary: #7aa2f7;
+	--color-primary-foreground: #1a1b26;
+	--color-secondary: #24283b;
+	--color-secondary-foreground: #c0caf5;
+	--color-destructive: #f7768e;
+	--color-destructive-foreground: #1a1b26;
+
+	/* Borders & inputs */
+	--color-border: #292e42;
+	--color-input: #24283b;
+	--color-ring: #7aa2f7;
+
+	/* Sidebar */
+	--color-sidebar: #16161e;
+	--color-sidebar-foreground: #c0caf5;
+	--color-sidebar-accent: #24283b;
+	--color-sidebar-border: #292e42;
+	--color-sidebar-muted: #565f89;
+
+	/* Border radius — technical/compact */
+	--radius: 0.375rem;
+	--radius-sm: 0.25rem;
+	--radius-md: 0.375rem;
+	--radius-lg: 0.5rem;
+	--radius-xl: 0.75rem;
+}
+
+/* Base */
+body {
+	background-color: var(--color-background);
+	color: var(--color-foreground);
+	font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Monospace for technical content */
+code, pre, .font-mono {
+	font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: var(--color-background);
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--color-surface-overlay);
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--color-text-muted);
+}
+
+/* Input dark defaults */
+input[type='number'],
+input[type='text'],
+input[type='password'] {
+	color-scheme: dark;
+}

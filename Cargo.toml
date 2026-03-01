@@ -3,7 +3,6 @@ resolver = "2"
 members = [
     "core",
     "server",
-    "scheduler",
     "database",
 ]
 
@@ -65,7 +64,6 @@ clap = { version = "4", features = ["derive", "env"] }
 
 # Internal workspace crates
 svrctlrs-core = { path = "core" }
-svrctlrs-scheduler = { path = "scheduler" }
 svrctlrs-database = { path = "database" }
 
 [profile.release]

@@ -1,31 +1,16 @@
-//! Database query modules for the unified schema
+//! Database query modules
 
-// Re-export all query functions
 pub mod credentials;
-pub mod job_catalog;
-pub mod job_runs;
-pub mod job_schedules;
-pub mod job_templates;
-pub mod job_types;
-pub mod notifications;
 pub mod server_host_keys;
 pub mod servers;
 pub mod settings;
-pub mod tags;
 pub mod terminal_profiles;
 pub mod users;
 
 // Re-export commonly used functions for convenience
 pub use credentials::*;
-pub use job_catalog::*;
-pub use job_runs::*;
-pub use job_schedules::*;
-pub use job_templates::*;
-pub use job_types::*;
-pub use notifications::*;
 pub use server_host_keys::*;
 pub use servers::*;
 pub use settings::*;
-pub use tags::*;
 pub use terminal_profiles::*;
 pub use users::*;

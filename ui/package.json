@@ -1,0 +1,36 @@
+{
+	"name": "svrctlrs-ui",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-static": "^3.0.10",
+		"@sveltejs/kit": "^2.50.2",
+		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"@tailwindcss/vite": "^4.2.1",
+		"svelte": "^5.51.0",
+		"svelte-check": "^4.3.6",
+		"tailwindcss": "^4.2.1",
+		"typescript": "^5.9.3",
+		"vite": "^7.3.1"
+	},
+	"dependencies": {
+		"@xterm/xterm": "^5.5.0",
+		"@xterm/addon-fit": "^0.10.0",
+		"@xterm/addon-search": "^0.15.0",
+		"@xterm/addon-web-links": "^0.11.0",
+		"@xterm/addon-webgl": "^0.18.0",
+		"@xterm/addon-unicode11": "^0.8.0",
+		"@xterm/addon-clipboard": "^0.1.0",
+		"@xterm/addon-image": "^0.8.0",
+		"lucide-svelte": "^0.575.0"
+	}
+}

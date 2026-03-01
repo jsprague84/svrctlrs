@@ -185,7 +185,7 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState) {
     let welcome = PtyResponse {
         response_type: "output".to_string(),
         data: "\x1b[1;36m╔════════════════════════════════════════════════════╗\x1b[0m\r\n\
-               \x1b[1;36m║\x1b[0m    \x1b[1mSvrCtlRS Interactive Terminal (PTY)\x1b[0m          \x1b[1;36m║\x1b[0m\r\n\
+               \x1b[1;36m║\x1b[0m    \x1b[1mSvrCtlRS Interactive Terminal (PTY)\x1b[0m             \x1b[1;36m║\x1b[0m\r\n\
                \x1b[1;36m╚════════════════════════════════════════════════════╝\x1b[0m\r\n\r\n\
                \x1b[90mSend 'shell' message with server_id to start interactive session.\x1b[0m\r\n\r\n"
             .to_string(),
