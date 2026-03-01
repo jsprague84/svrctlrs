@@ -29,6 +29,7 @@
 - `TerminalManager` class in `server/static/js/terminal.js` is the shared xterm.js wrapper — instantiate separate instances for full-page vs modal usage
 - Server list for terminal sidebar: use `queries::servers::list_servers_with_details()` → filter `.enabled` → map to `ServerDisplay`
 - Terminal has two modes: CMD (`/ws/terminal`) for one-shot command execution, PTY (`/ws/terminal/pty`) for interactive shell via russh. Both use the same `TerminalManager` class but different connect methods (`connect()` vs `connectPty()`).
+- Router splitting pattern: to apply middleware selectively, create separate `Router::new()` groups, apply per-group middleware, then `.merge()` into main router before shared middleware
 
 ---
 
@@ -235,4 +236,21 @@
   - `SetResponseHeaderLayer::overriding` overwrites any existing header; `::if_not_present` preserves existing values
   - CorsLayer without `.allow_origin()` call means no `Access-Control-Allow-Origin` header is sent, enforcing same-origin policy by browser default
   - `CorsLayer::allow_credentials(true)` cannot be combined with `allow_origin(Any)` per CORS spec — use explicit origin list when credentials are needed
+---
+
+## 2026-02-28 - US-011
+- Added 30-second request timeout middleware for HTTP routes (API + UI)
+- Files modified:
+  - `server/src/main.rs` - Split router into `http_routes` (with timeout) and `ws_routes` (without timeout), added ServiceBuilder with HandleErrorLayer + TimeoutLayer
+  - `ralph/prd.json` - Marked US-011 as passing
+- Implementation details:
+  - HTTP routes (API + UI) wrapped with `ServiceBuilder::new().layer(HandleErrorLayer).layer(TimeoutLayer(30s))`
+  - WebSocket routes (terminal, terminal_pty, job_runs_ws) in separate Router without timeout
+  - HandleErrorLayer converts tower timeout errors to 408 Request Timeout response
+  - Shared middleware (auth, session, trace, compression, security headers, CORS) applied to merged router
+- **Learnings for future iterations:**
+  - `tower::timeout::TimeoutLayer` is included in tower 0.5 default features — no extra feature flags needed
+  - `HandleErrorLayer` must wrap `TimeoutLayer` (outer layer catches inner layer's errors): `ServiceBuilder::new().layer(HandleErrorLayer).layer(TimeoutLayer)`
+  - To exempt WebSocket routes from timeout: split into separate Router groups, apply timeout layer only to HTTP routes, then merge
+  - `axum::BoxError` is the re-exported `Box<dyn std::error::Error + Send + Sync>` used by HandleErrorLayer's error handler
 ---

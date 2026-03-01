@@ -17,9 +17,12 @@ use state::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    use axum::error_handling::HandleErrorLayer;
     use axum::http::HeaderValue;
     use axum::Router;
     use clap::Parser;
+    use tower::timeout::TimeoutLayer;
+    use tower::ServiceBuilder;
     use tower_http::set_header::SetResponseHeaderLayer;
     use tower_sessions::{ExpiredDeletion, SessionManagerLayer};
     use tower_sessions_sqlx_store::SqliteStore;
@@ -173,18 +176,28 @@ async fn main() -> anyhow::Result<()> {
             .allow_headers(tower_http::cors::Any)
     };
 
+    // HTTP routes WITH 30-second request timeout (API + UI)
+    let http_routes = Router::new()
+        .nest("/api", routes::api_routes(state.clone()))
+        .merge(ui_router)
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(|_: axum::BoxError| async {
+                    axum::http::StatusCode::REQUEST_TIMEOUT
+                }))
+                .layer(TimeoutLayer::new(std::time::Duration::from_secs(30))),
+        );
+
+    // WebSocket routes WITHOUT timeout (long-lived connections)
+    let ws_routes = Router::new()
+        .merge(terminal_router)
+        .merge(terminal_pty_router)
+        .merge(job_runs_ws_router);
+
     // Build main router
     let app = Router::new()
-        // API routes
-        .nest("/api", routes::api_routes(state.clone()))
-        // Terminal WebSocket routes
-        .merge(terminal_router)
-        // Interactive PTY terminal routes
-        .merge(terminal_pty_router)
-        // Job runs WebSocket routes
-        .merge(job_runs_ws_router)
-        // UI routes (HTMX + Askama)
-        .merge(ui_router)
+        .merge(http_routes)
+        .merge(ws_routes)
         // Auth middleware (runs after session layer processes the request)
         .layer(axum::middleware::from_fn(
             routes::ui::auth::require_auth,
