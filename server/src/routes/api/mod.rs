@@ -15,13 +15,7 @@ pub mod credentials;
 pub mod servers;
 pub mod settings;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::get,
-    Json, Router,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
 use serde::Serialize;
 use serde_json::json;
 use tracing::{debug, instrument};

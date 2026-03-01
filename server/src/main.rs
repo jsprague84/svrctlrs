@@ -117,9 +117,9 @@ async fn main() -> anyhow::Result<()> {
 
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(session_secure)
-        .with_expiry(tower_sessions::Expiry::OnInactivity(
-            time::Duration::hours(24),
-        ));
+        .with_expiry(tower_sessions::Expiry::OnInactivity(time::Duration::hours(
+            24,
+        )));
 
     // Build CORS layer
     let cors_layer = if let Ok(origins) = std::env::var("ALLOWED_ORIGINS") {

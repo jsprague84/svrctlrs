@@ -105,7 +105,9 @@ mod tests {
         let key_type = "ssh-ed25519";
         let public_key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKeyDataHere";
 
-        let id = store_host_key(&pool, 1, key_type, public_key).await.unwrap();
+        let id = store_host_key(&pool, 1, key_type, public_key)
+            .await
+            .unwrap();
         assert!(id > 0);
 
         let stored = get_host_key_by_server(&pool, 1, key_type).await.unwrap();
@@ -120,7 +122,9 @@ mod tests {
     async fn test_get_nonexistent_host_key() {
         let pool = setup_test_db().await;
 
-        let result = get_host_key_by_server(&pool, 1, "ssh-ed25519").await.unwrap();
+        let result = get_host_key_by_server(&pool, 1, "ssh-ed25519")
+            .await
+            .unwrap();
         assert!(result.is_none());
     }
 
@@ -133,12 +137,18 @@ mod tests {
             .await
             .unwrap();
 
-        let before = get_host_key_by_server(&pool, 1, key_type).await.unwrap().unwrap();
+        let before = get_host_key_by_server(&pool, 1, key_type)
+            .await
+            .unwrap()
+            .unwrap();
 
         // Update last_seen
         update_host_key_last_seen(&pool, 1, key_type).await.unwrap();
 
-        let after = get_host_key_by_server(&pool, 1, key_type).await.unwrap().unwrap();
+        let after = get_host_key_by_server(&pool, 1, key_type)
+            .await
+            .unwrap()
+            .unwrap();
         assert!(after.last_seen_at >= before.last_seen_at);
     }
 
@@ -156,7 +166,9 @@ mod tests {
             .unwrap();
 
         // Verify both keys stored independently
-        let ed_key = get_host_key_by_server(&pool, 1, "ssh-ed25519").await.unwrap();
+        let ed_key = get_host_key_by_server(&pool, 1, "ssh-ed25519")
+            .await
+            .unwrap();
         assert!(ed_key.is_some());
         assert_eq!(ed_key.unwrap().public_key, "ssh-ed25519 AAAAC3key1");
 

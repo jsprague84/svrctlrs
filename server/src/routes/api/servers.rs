@@ -258,7 +258,11 @@ async fn test_connection(
     match crate::ssh::test_connection(&config).await {
         Ok(output) => {
             let elapsed = started.elapsed();
-            info!(id = id, elapsed_ms = elapsed.as_millis(), "Connection test succeeded");
+            info!(
+                id = id,
+                elapsed_ms = elapsed.as_millis(),
+                "Connection test succeeded"
+            );
 
             Ok(Json(json!({
                 "success": true,

@@ -81,11 +81,8 @@ pub fn decrypt(encoded: &str) -> Result<String> {
     let cipher = Aes256Gcm::new(key_bytes.into());
 
     // Decode base64
-    let combined = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        encoded,
-    )
-    .map_err(|e| Error::Other(format!("Base64 decode failed: {e}")))?;
+    let combined = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded)
+        .map_err(|e| Error::Other(format!("Base64 decode failed: {e}")))?;
 
     if combined.len() < NONCE_SIZE {
         return Err(Error::Other("Ciphertext too short".to_string()));
@@ -133,24 +130,21 @@ fn load_or_generate_key() -> Result<[u8; 32]> {
 
     // Ensure data/ directory exists
     if let Some(parent) = key_path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| {
-            Error::ConfigError(format!("Failed to create data directory: {e}"))
-        })?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| Error::ConfigError(format!("Failed to create data directory: {e}")))?;
     }
 
     // Write hex-encoded key
     let hex_key = hex::encode(key);
-    std::fs::write(key_path, &hex_key).map_err(|e| {
-        Error::ConfigError(format!("Failed to write encryption key file: {e}"))
-    })?;
+    std::fs::write(key_path, &hex_key)
+        .map_err(|e| Error::ConfigError(format!("Failed to write encryption key file: {e}")))?;
 
     // Set restrictive permissions (0600) on Unix
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(key_path, std::fs::Permissions::from_mode(0o600)).map_err(
-            |e| Error::ConfigError(format!("Failed to set key file permissions: {e}")),
-        )?;
+        std::fs::set_permissions(key_path, std::fs::Permissions::from_mode(0o600))
+            .map_err(|e| Error::ConfigError(format!("Failed to set key file permissions: {e}")))?;
     }
 
     warn!(
@@ -199,11 +193,9 @@ mod tests {
         assert_ne!(encrypted, plaintext);
 
         // Should be valid base64
-        assert!(base64::Engine::decode(
-            &base64::engine::general_purpose::STANDARD,
-            &encrypted
-        )
-        .is_ok());
+        assert!(
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &encrypted).is_ok()
+        );
 
         let decrypted = decrypt(&encrypted).unwrap();
         assert_eq!(decrypted, plaintext);
@@ -235,10 +227,7 @@ mod tests {
     fn test_decrypt_too_short() {
         init_test_key();
         // Valid base64 but too short (less than 12 bytes nonce)
-        let short = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            &[0u8; 5],
-        );
+        let short = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, [0u8; 5]);
         assert!(decrypt(&short).is_err());
     }
 
@@ -247,21 +236,15 @@ mod tests {
         init_test_key();
 
         let encrypted = encrypt("secret").unwrap();
-        let mut bytes = base64::Engine::decode(
-            &base64::engine::general_purpose::STANDARD,
-            &encrypted,
-        )
-        .unwrap();
+        let mut bytes =
+            base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &encrypted).unwrap();
 
         // Tamper with the ciphertext (flip a byte after the nonce)
         if bytes.len() > NONCE_SIZE {
             bytes[NONCE_SIZE] ^= 0xFF;
         }
 
-        let tampered = base64::Engine::encode(
-            &base64::engine::general_purpose::STANDARD,
-            &bytes,
-        );
+        let tampered = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &bytes);
         assert!(decrypt(&tampered).is_err());
     }
 
