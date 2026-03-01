@@ -55,6 +55,56 @@ pub struct DashboardStats {
     pub total_tasks: usize,
     pub schedules_with_runs: Vec<ScheduleWithLastRunDisplay>,
     pub favorite_jobs: Vec<JobCatalogItemDisplay>,
+    pub servers: Vec<DashboardServerDisplay>,
+}
+
+/// Lightweight server display for dashboard quick-connect cards
+#[derive(Debug, Clone)]
+pub struct DashboardServerDisplay {
+    pub id: i64,
+    pub name: String,
+    pub hostname: String,
+    pub last_seen_at: String,
+    /// "green" if seen < 5min, "yellow" if < 1hr, "red" otherwise
+    pub status_color: String,
+}
+
+impl DashboardServerDisplay {
+    pub fn from_server_with_details(
+        swd: &svrctlrs_database::ServerWithDetails,
+    ) -> Self {
+        use chrono::{Local, Utc};
+
+        let s = &swd.server;
+        let hostname = s.hostname.clone().unwrap_or_default();
+
+        let (last_seen_at, status_color) = match s.last_seen_at {
+            Some(dt) => {
+                let formatted = dt
+                    .with_timezone(&Local)
+                    .format("%m-%d %H:%M")
+                    .to_string();
+                let age = Utc::now() - dt;
+                let color = if age.num_minutes() < 5 {
+                    "green"
+                } else if age.num_hours() < 1 {
+                    "yellow"
+                } else {
+                    "red"
+                };
+                (formatted, color.to_string())
+            }
+            None => ("Never".to_string(), "red".to_string()),
+        };
+
+        Self {
+            id: s.id,
+            name: s.name.clone(),
+            hostname,
+            last_seen_at,
+            status_color,
+        }
+    }
 }
 
 /// Display struct for schedule with its most recent job run

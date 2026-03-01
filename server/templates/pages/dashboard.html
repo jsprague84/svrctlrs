@@ -29,6 +29,28 @@
     </div>
 </div>
 
+<!-- Quick Connect -->
+{% if !stats.servers.is_empty() %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Quick Connect</h2>
+        <a href="/terminal" class="btn btn-sm btn-secondary">
+            <i data-lucide="terminal" style="width: 14px; height: 14px;"></i> Terminal
+        </a>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+        {% for server in stats.servers %}
+        <a href="/terminal?server_id={{ server.id }}" class="btn btn-secondary" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: var(--{% if server.status_color == "green" %}success{% elif server.status_color == "yellow" %}warning{% else %}error{% endif %}-color);" title="Last seen: {{ server.last_seen_at }}"></span>
+            <i data-lucide="server" style="width: 14px; height: 14px;"></i>
+            <span>{{ server.name }}</span>
+            <span class="text-secondary" style="font-size: 0.75rem;">{{ server.hostname }}</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <!-- Quick Actions -->
 <div class="card">
     <div class="card-header">

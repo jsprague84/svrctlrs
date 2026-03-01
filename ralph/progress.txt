@@ -167,3 +167,23 @@
   - `loadWebGLAddon()` must be called AFTER `terminal.open()` — WebGL needs an attached canvas element
   - Context loss recovery pattern: dispose → nullify → setTimeout → retry load
 ---
+
+## 2026-02-28 - US-008
+- Added server quick-connect cards to dashboard
+- Files modified:
+  - `server/src/templates.rs` - Added `DashboardServerDisplay` struct with `status_color` field, added `servers` field to `DashboardStats`
+  - `server/src/routes/ui/dashboard.rs` - Filters enabled servers and maps to `DashboardServerDisplay` for quick-connect cards
+  - `server/templates/pages/dashboard.html` - Added Quick Connect section with server cards showing status dots (green/yellow/red) and Connect links to `/terminal?server_id={id}`
+  - `ralph/prd.json` - Marked US-008 as passing
+- Implementation details:
+  - `DashboardServerDisplay` is a lightweight struct with only id, name, hostname, last_seen_at, status_color
+  - Status color logic: green if last_seen < 5 minutes, yellow if < 1 hour, red otherwise (or never seen)
+  - Cards render as button-style links with status dot, server icon, name, and hostname
+  - Terminal page already had auto-connect from `?server_id=` query param (implemented in US-005)
+  - Only enabled servers shown (filtered from the `list_servers_with_details` query already fetched for server count)
+- **Learnings for future iterations:**
+  - `DashboardStats` is the central struct for all dashboard data — add new sections as fields here
+  - Reuse existing query results where possible (`list_servers_with_details` was already called for `total_servers` count)
+  - Use `&svrctlrs_database::ServerWithDetails` (by reference) in `from_*` methods to avoid cloning large structs when you only need a few fields
+  - CSS variable pattern for status colors: `var(--success-color)`, `var(--warning-color)`, `var(--error-color)` are already defined in the theme
+---

@@ -16,10 +16,17 @@ pub fn routes() -> Router<AppState> {
 async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, AppError> {
     let user = get_user_from_session().await;
 
-    // Get server count from database
+    // Get servers from database
     let db = state.db().await;
     let servers = queries::servers::list_servers_with_details(db.pool()).await?;
     let total_servers = servers.len();
+
+    // Build quick-connect server cards for enabled servers
+    let quick_connect_servers: Vec<DashboardServerDisplay> = servers
+        .iter()
+        .filter(|s| s.server.enabled)
+        .map(DashboardServerDisplay::from_server_with_details)
+        .collect();
 
     // Get job schedule counts
     let total_schedules = queries::job_schedules::count_job_schedules(db.pool())
@@ -64,6 +71,7 @@ async fn dashboard_page(State(state): State<AppState>) -> Result<Html<String>, A
         total_tasks: total_schedules,
         schedules_with_runs,
         favorite_jobs,
+        servers: quick_connect_servers,
     };
 
     let template = DashboardTemplate { user, stats };
