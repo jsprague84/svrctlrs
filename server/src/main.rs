@@ -206,7 +206,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(SetResponseHeaderLayer::overriding(
             axum::http::HeaderName::from_static("content-security-policy"),
             HeaderValue::from_static(
-                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss:; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'"
+                "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss:; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'"
             ),
         ))
         .layer(cors_layer);
