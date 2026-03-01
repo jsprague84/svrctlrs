@@ -167,7 +167,7 @@ class TerminalManager {
                 this.webglAddon = null;
 
                 // Attempt to restore WebGL after a delay
-                setTimeout(() => this.loadWebGLAddon(), 2000);
+                setTimeout(() => this.loadWebGLAddon(), 1000);
             });
         } catch (e) {
             console.log('WebGL not supported, using canvas renderer:', e.message);

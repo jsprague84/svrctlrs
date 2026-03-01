@@ -150,3 +150,20 @@
   - Watch `mode` changes and call `fitTerminal()` after `$nextTick` to ensure terminal resizes when command bar appears/disappears
   - `disconnectTerminal()` should also reset `executing` state to prevent stale UI after mode switches
 ---
+
+## 2026-02-28 - US-007
+- Added WebGL renderer to xterm.js terminal (mostly pre-existing, minor fix)
+- Files modified:
+  - `server/static/js/terminal.js` - Fixed onContextLoss retry delay from 2000ms to 1000ms per AC
+  - `ralph/prd.json` - Marked US-007 as passing
+- Pre-existing implementation verified:
+  - `@xterm/addon-webgl@0.18.0` already loaded from CDN in `base.html` (line 70)
+  - `loadWebGLAddon()` method already exists (lines 152-176), called after `terminal.open()` (line 131)
+  - `onContextLoss` handler disposes addon and retries (now at 1s delay)
+  - Canvas fallback with console warning on WebGL failure
+  - Unicode11 addon with `activeVersion = '11'` already set (line 98)
+- **Learnings for future iterations:**
+  - WebGL addon, Unicode11, Clipboard, Image, and Serialize addons were all pre-loaded in prior iterations — check existing code before implementing "new" features
+  - `loadWebGLAddon()` must be called AFTER `terminal.open()` — WebGL needs an attached canvas element
+  - Context loss recovery pattern: dispose → nullify → setTimeout → retry load
+---
