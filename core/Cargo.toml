@@ -30,6 +30,16 @@ tracing = { workspace = true }
 # Password hashing
 argon2 = "0.5"
 
+# Encryption
+aes-gcm = "0.10"
+rand = "0.8"
+
+# Encoding
+base64 = "0.22"
+
+# Filesystem
+hex = "0.4"
+
 # Database (for executor) - optional feature
 sqlx = { workspace = true, optional = true }
 

@@ -3291,10 +3291,14 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 name = "svrctlrs-core"
 version = "1.0.0"
 dependencies = [
+ "aes-gcm",
  "anyhow",
  "argon2",
  "async-trait",
+ "base64",
  "chrono",
+ "hex",
+ "rand 0.8.5",
  "reqwest",
  "serde",
  "serde_json",

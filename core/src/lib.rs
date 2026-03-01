@@ -3,6 +3,7 @@
 //! This crate defines shared types, notification system, and job execution
 //! used across all SvrCtlRS components.
 
+pub mod encryption;
 pub mod error;
 #[cfg(feature = "executor")]
 pub mod executor;

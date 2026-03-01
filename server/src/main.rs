@@ -47,6 +47,11 @@ async fn main() -> anyhow::Result<()> {
     // Load environment variables
     dotenvy::dotenv().ok();
 
+    // Initialize encryption key for credential at-rest encryption
+    if let Err(e) = svrctlrs_core::encryption::init_encryption_key() {
+        tracing::warn!(error = %e, "Failed to initialize encryption key — credentials will be stored in plaintext");
+    }
+
     // Parse CLI args
     let args = Args::parse();
 

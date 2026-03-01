@@ -8,7 +8,7 @@
 - Both mod.rs files use `pub mod` + `pub use` glob re-exports
 - Query functions follow pattern: `#[instrument(skip(pool))]`, return `Result<T>`, use `anyhow::Context` with `.map_err(|e| Error::DatabaseError(e.to_string()))`
 - Tests use `setup_test_db()` with `:memory:` SQLite pool + `sqlx::migrate!().run(&pool)`
-- Migrations are numbered sequentially (currently at 016)
+- Migrations are numbered sequentially (currently at 017)
 - argon2 v0.5 uses `password_hash` crate traits: `PasswordHasher`, `PasswordVerifier`, `PasswordHash`
 - tower-sessions version compatibility: use `tower-sessions = "0.14"` with `tower-sessions-sqlx-store = "0.15"` — they share `tower-sessions-core 0.14.0`. Other version combos cause `SessionStore` trait mismatch.
 - `ExpiredDeletion` trait must be imported (`use tower_sessions::ExpiredDeletion`) to call `continuously_delete_expired()` on session stores
@@ -17,6 +17,9 @@
 - Auth middleware pattern: use `axum::middleware::from_fn` with `Session` extractor. Layer must be placed INSIDE (added before) session layer so Session extractor works. Order: `routes.layer(auth_middleware).layer(session_layer)`.
 - Exempt path checking in middleware: check `request.uri().path()` before session extraction for performance on static assets
 - WebSocket detection in middleware: check `request.headers().get("upgrade")` for "websocket" value (case-insensitive)
+- Encryption uses `OnceLock<[u8; 32]>` global for the key — initialized once at startup via `encryption::init_encryption_key()`, then `encryption::is_initialized()` / `encrypt()` / `decrypt()` used in query layer
+- Credential queries transparently encrypt/decrypt using the global key; if key not initialized, stores plaintext with `encrypted = false` flag
+- AES-256-GCM format: base64(nonce_12bytes || ciphertext || auth_tag) — nonce is random per encryption
 
 ---
 
@@ -71,4 +74,26 @@
   - `Session` implements `FromRequestParts` so it can be used as an extractor parameter in `from_fn` middleware
   - `is_some_and()` is a clean Rust idiom for checking Option contents with a predicate
   - The health endpoint is at `/api/v1/health` (nested under `/api` then `/v1`), not `/api/health`
+---
+
+## 2026-02-28 - US-004
+- Implemented AES-256-GCM credential encryption at rest
+- Files created:
+  - `core/src/encryption.rs` - AES-256-GCM encrypt/decrypt with OnceLock global key, key loading from ENCRYPTION_KEY env var or data/encryption.key file, auto-generation with 0600 permissions (~200 lines, 10 tests)
+  - `database/migrations/017_credential_encryption_flag.sql` - adds `encrypted` BOOLEAN DEFAULT 0 to credentials table
+- Files modified:
+  - `core/Cargo.toml` - added aes-gcm 0.10, rand 0.8, base64 0.22, hex 0.4
+  - `core/src/lib.rs` - registered `pub mod encryption`
+  - `database/src/models/credential.rs` - added `encrypted: bool` field to Credential struct
+  - `database/src/queries/credentials.rs` - create_credential encrypts value before INSERT, get_credential/get_credential_by_name/list_credentials decrypt after SELECT, update_credential encrypts value if changed
+  - `server/src/main.rs` - added `encryption::init_encryption_key()` call at startup (graceful fallback if fails)
+  - `Cargo.lock` - updated dependency graph
+- **Learnings for future iterations:**
+  - `OnceLock` from std is ideal for one-time initialization of encryption keys — avoids threading key through every query function
+  - AES-256-GCM from `aes-gcm` crate: `Aes256Gcm::new(key.into())` for cipher, `cipher.encrypt(nonce, plaintext)` / `cipher.decrypt(nonce, ciphertext)` for operations
+  - `rand::RngCore::fill_bytes(&mut OsRng, &mut buf)` for cryptographically secure random nonce generation
+  - Transparent encryption in query layer means zero changes to ~12 call sites across the server — decrypt_credential() helper applied to all fetch paths
+  - Added `encrypted` column flag so existing plaintext credentials remain readable while new ones are encrypted
+  - Key format: 64 hex chars = 32 bytes. Stored in env var or `data/encryption.key` file
+  - Test suite works without encryption initialized — queries gracefully fall back to plaintext storage
 ---

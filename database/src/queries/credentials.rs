@@ -2,18 +2,27 @@
 
 use anyhow::Context;
 use sqlx::{Pool, Sqlite};
+use svrctlrs_core::encryption;
 use svrctlrs_core::{Error, Result};
-use tracing::instrument;
+use tracing::{instrument, warn};
 
 use crate::models::{CreateCredential, Credential, UpdateCredential};
 
-/// List all credentials
+/// Decrypt a credential's value if it's marked as encrypted
+fn decrypt_credential(mut cred: Credential) -> Result<Credential> {
+    if cred.encrypted && encryption::is_initialized() {
+        cred.value = encryption::decrypt(&cred.value)?;
+    }
+    Ok(cred)
+}
+
+/// List all credentials (values are decrypted transparently)
 #[instrument(skip(pool))]
 pub async fn list_credentials(pool: &Pool<Sqlite>) -> Result<Vec<Credential>> {
-    sqlx::query_as::<_, Credential>(
+    let creds = sqlx::query_as::<_, Credential>(
         r#"
         SELECT id, name, credential_type, description, value, username, metadata,
-               created_at, updated_at
+               encrypted, created_at, updated_at
         FROM credentials
         ORDER BY name
         "#,
@@ -21,16 +30,18 @@ pub async fn list_credentials(pool: &Pool<Sqlite>) -> Result<Vec<Credential>> {
     .fetch_all(pool)
     .await
     .context("Failed to list credentials")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    creds.into_iter().map(decrypt_credential).collect()
 }
 
-/// Get credential by ID
+/// Get credential by ID (value is decrypted transparently)
 #[instrument(skip(pool))]
 pub async fn get_credential(pool: &Pool<Sqlite>, id: i64) -> Result<Credential> {
-    sqlx::query_as::<_, Credential>(
+    let cred = sqlx::query_as::<_, Credential>(
         r#"
         SELECT id, name, credential_type, description, value, username, metadata,
-               created_at, updated_at
+               encrypted, created_at, updated_at
         FROM credentials
         WHERE id = ?
         "#,
@@ -39,16 +50,18 @@ pub async fn get_credential(pool: &Pool<Sqlite>, id: i64) -> Result<Credential> 
     .fetch_one(pool)
     .await
     .context("Failed to get credential")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    decrypt_credential(cred)
 }
 
-/// Get credential by name
+/// Get credential by name (value is decrypted transparently)
 #[instrument(skip(pool))]
 pub async fn get_credential_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<Credential> {
-    sqlx::query_as::<_, Credential>(
+    let cred = sqlx::query_as::<_, Credential>(
         r#"
         SELECT id, name, credential_type, description, value, username, metadata,
-               created_at, updated_at
+               encrypted, created_at, updated_at
         FROM credentials
         WHERE name = ?
         "#,
@@ -57,24 +70,34 @@ pub async fn get_credential_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<C
     .fetch_one(pool)
     .await
     .context("Failed to get credential by name")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    decrypt_credential(cred)
 }
 
-/// Create a new credential
+/// Create a new credential (value is encrypted if encryption is initialized)
 #[instrument(skip(pool, input))]
 pub async fn create_credential(pool: &Pool<Sqlite>, input: &CreateCredential) -> Result<i64> {
+    let (stored_value, encrypted) = if encryption::is_initialized() {
+        (encryption::encrypt(&input.value)?, true)
+    } else {
+        warn!("Encryption not initialized — storing credential value in plaintext");
+        (input.value.clone(), false)
+    };
+
     let result = sqlx::query(
         r#"
-        INSERT INTO credentials (name, credential_type, description, value, username, metadata)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO credentials (name, credential_type, description, value, username, metadata, encrypted)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&input.name)
     .bind(input.credential_type.as_str())
     .bind(&input.description)
-    .bind(&input.value)
+    .bind(&stored_value)
     .bind(&input.username)
     .bind(input.metadata_string())
+    .bind(encrypted)
     .execute(pool)
     .await
     .context("Failed to create credential")
@@ -83,7 +106,7 @@ pub async fn create_credential(pool: &Pool<Sqlite>, input: &CreateCredential) ->
     Ok(result.last_insert_rowid())
 }
 
-/// Update an existing credential
+/// Update an existing credential (value is encrypted if changed and encryption is initialized)
 #[instrument(skip(pool, input))]
 pub async fn update_credential(
     pool: &Pool<Sqlite>,
@@ -106,8 +129,14 @@ pub async fn update_credential(
         params.push(description.clone());
     }
     if let Some(value) = &input.value {
-        query.push_str(", value = ?");
-        params.push(value.clone());
+        if encryption::is_initialized() {
+            let encrypted_value = encryption::encrypt(value)?;
+            query.push_str(", value = ?, encrypted = 1");
+            params.push(encrypted_value);
+        } else {
+            query.push_str(", value = ?, encrypted = 0");
+            params.push(value.clone());
+        }
     }
     if let Some(username) = &input.username {
         query.push_str(", username = ?");
@@ -189,7 +218,7 @@ mod tests {
     async fn test_credential_lifecycle() {
         let pool = setup_test_db().await;
 
-        // Create credential
+        // Create credential (without encryption initialized, stores plaintext)
         let input = CreateCredential {
             name: "test-key".to_string(),
             credential_type: CredentialType::SshKey,
@@ -206,6 +235,7 @@ mod tests {
         let cred = get_credential(&pool, id).await.unwrap();
         assert_eq!(cred.name, "test-key");
         assert_eq!(cred.value, "/path/to/key");
+        assert!(!cred.encrypted);
 
         // Update credential
         let update = UpdateCredential {
@@ -225,5 +255,26 @@ mod tests {
 
         // Verify deleted
         assert!(get_credential(&pool, id).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_credential_encrypted_flag_default() {
+        let pool = setup_test_db().await;
+
+        let input = CreateCredential {
+            name: "unencrypted-cred".to_string(),
+            credential_type: CredentialType::Password,
+            description: None,
+            value: "my-password".to_string(),
+            username: Some("admin".to_string()),
+            metadata: None,
+        };
+
+        let id = create_credential(&pool, &input).await.unwrap();
+        let cred = get_credential(&pool, id).await.unwrap();
+
+        // Without encryption initialized, should not be encrypted
+        assert!(!cred.encrypted);
+        assert_eq!(cred.value, "my-password");
     }
 }
