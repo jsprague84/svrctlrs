@@ -7,5 +7,5 @@ CREATE TABLE IF NOT EXISTS server_host_keys (
     first_seen_at DATETIME NOT NULL DEFAULT (datetime('now')),
     last_seen_at DATETIME NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (server_id) REFERENCES servers(id) ON DELETE CASCADE,
-    UNIQUE(server_id)
+    UNIQUE(server_id, key_type)
 );

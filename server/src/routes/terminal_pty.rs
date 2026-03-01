@@ -80,8 +80,8 @@ impl client::Handler for SshClientHandler {
             .unwrap_or("unknown")
             .to_string();
 
-        // Check stored key in database
-        let stored_key = match server_host_keys::get_host_key_by_server(&self.pool, self.server_id)
+        // Check stored key in database for this specific key type
+        let stored_key = match server_host_keys::get_host_key_by_server(&self.pool, self.server_id, &key_type)
             .await
         {
             Ok(key) => key,
@@ -103,7 +103,7 @@ impl client::Handler for SshClientHandler {
                         key_type,
                         "PTY host key verification successful"
                     );
-                    server_host_keys::update_host_key_last_seen(&self.pool, self.server_id)
+                    server_host_keys::update_host_key_last_seen(&self.pool, self.server_id, &key_type)
                         .await
                         .ok();
                     Ok(true)

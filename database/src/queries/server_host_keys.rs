@@ -7,20 +7,22 @@ use tracing::instrument;
 
 use crate::models::ServerHostKey;
 
-/// Get the stored host key for a server
+/// Get the stored host key for a server and key type
 #[instrument(skip(pool))]
 pub async fn get_host_key_by_server(
     pool: &Pool<Sqlite>,
     server_id: i64,
+    key_type: &str,
 ) -> Result<Option<ServerHostKey>> {
     sqlx::query_as::<_, ServerHostKey>(
         r#"
         SELECT id, server_id, key_type, public_key, first_seen_at, last_seen_at
         FROM server_host_keys
-        WHERE server_id = ?
+        WHERE server_id = ? AND key_type = ?
         "#,
     )
     .bind(server_id)
+    .bind(key_type)
     .fetch_optional(pool)
     .await
     .context("Failed to get host key by server")
@@ -54,15 +56,20 @@ pub async fn store_host_key(
 
 /// Update the last_seen_at timestamp for a server's host key
 #[instrument(skip(pool))]
-pub async fn update_host_key_last_seen(pool: &Pool<Sqlite>, server_id: i64) -> Result<()> {
+pub async fn update_host_key_last_seen(
+    pool: &Pool<Sqlite>,
+    server_id: i64,
+    key_type: &str,
+) -> Result<()> {
     sqlx::query(
         r#"
         UPDATE server_host_keys
         SET last_seen_at = datetime('now')
-        WHERE server_id = ?
+        WHERE server_id = ? AND key_type = ?
         "#,
     )
     .bind(server_id)
+    .bind(key_type)
     .execute(pool)
     .await
     .context("Failed to update host key last_seen_at")
@@ -101,7 +108,7 @@ mod tests {
         let id = store_host_key(&pool, 1, key_type, public_key).await.unwrap();
         assert!(id > 0);
 
-        let stored = get_host_key_by_server(&pool, 1).await.unwrap();
+        let stored = get_host_key_by_server(&pool, 1, key_type).await.unwrap();
         assert!(stored.is_some());
         let stored = stored.unwrap();
         assert_eq!(stored.server_id, 1);
@@ -113,7 +120,7 @@ mod tests {
     async fn test_get_nonexistent_host_key() {
         let pool = setup_test_db().await;
 
-        let result = get_host_key_by_server(&pool, 1).await.unwrap();
+        let result = get_host_key_by_server(&pool, 1, "ssh-ed25519").await.unwrap();
         assert!(result.is_none());
     }
 
@@ -121,29 +128,53 @@ mod tests {
     async fn test_update_last_seen() {
         let pool = setup_test_db().await;
 
-        store_host_key(&pool, 1, "ssh-ed25519", "ssh-ed25519 AAAAC3fakekeydata")
+        let key_type = "ssh-ed25519";
+        store_host_key(&pool, 1, key_type, "ssh-ed25519 AAAAC3fakekeydata")
             .await
             .unwrap();
 
-        let before = get_host_key_by_server(&pool, 1).await.unwrap().unwrap();
+        let before = get_host_key_by_server(&pool, 1, key_type).await.unwrap().unwrap();
 
         // Update last_seen
-        update_host_key_last_seen(&pool, 1).await.unwrap();
+        update_host_key_last_seen(&pool, 1, key_type).await.unwrap();
 
-        let after = get_host_key_by_server(&pool, 1).await.unwrap().unwrap();
+        let after = get_host_key_by_server(&pool, 1, key_type).await.unwrap().unwrap();
         assert!(after.last_seen_at >= before.last_seen_at);
     }
 
     #[tokio::test]
-    async fn test_duplicate_server_key_fails() {
+    async fn test_multiple_key_types_per_server() {
         let pool = setup_test_db().await;
 
         store_host_key(&pool, 1, "ssh-ed25519", "ssh-ed25519 AAAAC3key1")
             .await
             .unwrap();
 
-        // Second insert for same server should fail (UNIQUE constraint)
-        let result = store_host_key(&pool, 1, "ssh-rsa", "ssh-rsa AAAAB3key2").await;
+        // Different key type for same server should succeed
+        store_host_key(&pool, 1, "ssh-rsa", "ssh-rsa AAAAB3key2")
+            .await
+            .unwrap();
+
+        // Verify both keys stored independently
+        let ed_key = get_host_key_by_server(&pool, 1, "ssh-ed25519").await.unwrap();
+        assert!(ed_key.is_some());
+        assert_eq!(ed_key.unwrap().public_key, "ssh-ed25519 AAAAC3key1");
+
+        let rsa_key = get_host_key_by_server(&pool, 1, "ssh-rsa").await.unwrap();
+        assert!(rsa_key.is_some());
+        assert_eq!(rsa_key.unwrap().public_key, "ssh-rsa AAAAB3key2");
+    }
+
+    #[tokio::test]
+    async fn test_duplicate_server_and_key_type_fails() {
+        let pool = setup_test_db().await;
+
+        store_host_key(&pool, 1, "ssh-ed25519", "ssh-ed25519 AAAAC3key1")
+            .await
+            .unwrap();
+
+        // Same server + same key type should fail (UNIQUE constraint)
+        let result = store_host_key(&pool, 1, "ssh-ed25519", "ssh-ed25519 AAAAC3key2").await;
         assert!(result.is_err());
     }
 }

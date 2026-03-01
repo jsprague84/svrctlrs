@@ -29,11 +29,12 @@ const USER_ID_KEY: &str = "user_id";
 pub async fn require_auth(session: Session, request: Request, next: Next) -> Response {
     let path = request.uri().path();
 
-    // Exempt routes - no auth required
-    if path == "/auth/login"
-        || path == "/auth/logout"
-        || path.starts_with("/static/")
-        || path == "/api/v1/health"
+    // Exempt routes - no auth required (case-insensitive comparison)
+    let path_lower = path.to_ascii_lowercase();
+    if path_lower == "/auth/login"
+        || path_lower == "/auth/logout"
+        || path_lower.starts_with("/static/")
+        || path_lower == "/api/v1/health"
     {
         return next.run(request).await;
     }

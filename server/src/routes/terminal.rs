@@ -532,13 +532,13 @@ pub async fn verify_host_key(
 ) -> Result<(), String> {
     use svrctlrs_database::queries::server_host_keys;
 
-    // Check if we already have a stored key for this server
-    let stored_key = server_host_keys::get_host_key_by_server(pool, server_id)
-        .await
-        .map_err(|e| format!("Failed to check stored host key: {}", e))?;
-
     // Scan the server's current host key
     let (scanned_key_type, scanned_key) = scan_host_key(hostname, port).await?;
+
+    // Check if we already have a stored key for this server and key type
+    let stored_key = server_host_keys::get_host_key_by_server(pool, server_id, &scanned_key_type)
+        .await
+        .map_err(|e| format!("Failed to check stored host key: {}", e))?;
 
     match stored_key {
         Some(existing) => {
@@ -550,7 +550,7 @@ pub async fn verify_host_key(
                     "Host key verification successful"
                 );
                 // Update last_seen_at
-                server_host_keys::update_host_key_last_seen(pool, server_id)
+                server_host_keys::update_host_key_last_seen(pool, server_id, &scanned_key_type)
                     .await
                     .ok();
                 Ok(())
