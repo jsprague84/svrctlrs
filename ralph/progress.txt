@@ -7,7 +7,11 @@
 - Database queries go in `database/src/queries/<name>.rs`, registered in `database/src/queries/mod.rs`
 - Both mod.rs files use `pub mod` + `pub use` glob re-exports
 - Query functions follow pattern: `#[instrument(skip(pool))]`, return `Result<T>`, use `anyhow::Context` with `.map_err(|e| Error::DatabaseError(e.to_string()))`
-- Tests use `setup_test_db()` with `:memory:` SQLite pool + `sqlx::migrate!().run(&pool)`
+- Tests use `setup_test_db()` with `:memory:` SQLite pool + `sqlx::migrate!().run(&pool)`. Non-local servers require `hostname` AND `username` per CHECK constraint.
+- `sqlx` is not directly importable in the server crate — use `svrctlrs_database::sqlx::{Pool, Sqlite}` instead
+- russh `client::Handler::check_server_key()` receives `&russh::keys::PublicKey`; use `.to_openssh()` to get OpenSSH format string, extract key_type from first whitespace-delimited token
+- For async-ssh2-tokio host key verification, use a pre-connection russh key scan since async-ssh2-tokio doesn't expose the server's public key after connection
+- `Arc<tokio::sync::Mutex<Option<T>>>` pattern for sharing state between a russh handler (moved into connect) and the caller
 - Migrations are numbered sequentially (currently at 017)
 - argon2 v0.5 uses `password_hash` crate traits: `PasswordHasher`, `PasswordVerifier`, `PasswordHash`
 - tower-sessions version compatibility: use `tower-sessions = "0.14"` with `tower-sessions-sqlx-store = "0.15"` — they share `tower-sessions-core 0.14.0`. Other version combos cause `SessionStore` trait mismatch.
@@ -186,4 +190,49 @@
   - Reuse existing query results where possible (`list_servers_with_details` was already called for `total_servers` count)
   - Use `&svrctlrs_database::ServerWithDetails` (by reference) in `from_*` methods to avoid cloning large structs when you only need a few fields
   - CSS variable pattern for status colors: `var(--success-color)`, `var(--warning-color)`, `var(--error-color)` are already defined in the theme
+---
+
+## 2026-02-28 - US-009
+- Implemented SSH host key verification with TOFU (Trust On First Use)
+- Files created:
+  - `database/migrations/018_server_host_keys.sql` - server_host_keys table (id, server_id UNIQUE, key_type, public_key, first_seen_at, last_seen_at)
+  - `database/src/models/server_host_key.rs` - ServerHostKey struct
+  - `database/src/queries/server_host_keys.rs` - get_host_key_by_server, store_host_key, update_host_key_last_seen + 4 tests
+- Files modified:
+  - `database/src/models/mod.rs` - registered server_host_key module
+  - `database/src/queries/mod.rs` - registered server_host_keys module
+  - `server/src/routes/terminal.rs` - Added KeyScanHandler, scan_host_key(), verify_host_key() (public, shared), pre-connection verification call
+  - `server/src/routes/terminal_pty.rs` - Updated SshClientHandler to hold pool+server_id, implemented TOFU in check_server_key()
+- Architecture:
+  - terminal.rs (async-ssh2-tokio): Pre-connection russh key scan captures host key → verify_host_key() checks/stores in DB → proceed with NoCheck (already verified)
+  - terminal_pty.rs (russh): In-handler verification in check_server_key() directly queries DB for stored key
+  - verify_host_key() is public and shared between both handlers
+  - First connection: stores key automatically (TOFU), logs info
+  - Subsequent connections: compares with stored key, rejects with MITM warning on mismatch
+- **Learnings for future iterations:**
+  - `sqlx` is NOT directly importable in the server crate — must use `svrctlrs_database::sqlx::{Pool, Sqlite}`
+  - russh handlers are moved into `russh::client::connect()` — use `Arc<tokio::sync::Mutex<Option<T>>>` to extract data captured during handshake
+  - `russh::keys::PublicKey::to_openssh()` returns canonical OpenSSH format string — safe for string comparison
+  - Non-local test servers require both `hostname` AND `username` columns per the servers table CHECK constraint
+  - russh `check_server_key` returning `Ok(false)` cleanly rejects the connection; returning `Err(...)` also rejects but with error propagation
+  - Borrow checker: when returning an expression involving `.lock().await.take()` at end of function, save to a local variable first to avoid lifetime issues with MutexGuard drop
+---
+
+## 2026-02-28 - US-010
+- Added graceful shutdown and security headers to server
+- Files modified:
+  - `Cargo.toml` (workspace) - Added `set-header` feature to tower-http dependency
+  - `server/src/main.rs` - Added graceful shutdown, security headers, and configurable CORS
+  - `ralph/prd.json` - Marked US-010 as passing
+- Implementation details:
+  - **Graceful shutdown**: `shutdown_signal()` async fn listens for SIGINT (Ctrl+C) and SIGTERM via `tokio::signal`, passed to `axum::serve().with_graceful_shutdown()`. Axum handles the 10s drain period for active connections internally.
+  - **Security headers**: Three `SetResponseHeaderLayer::overriding()` layers for X-Content-Type-Options (nosniff), X-Frame-Options (DENY), Referrer-Policy (strict-origin-when-cross-origin)
+  - **CORS**: Replaced `CorsLayer::permissive()` with configured layer. If `ALLOWED_ORIGINS` env var is set (comma-separated), allows those origins with credentials. Otherwise defaults to same-origin only (no Access-Control-Allow-Origin header).
+  - **Platform support**: SIGTERM uses `#[cfg(unix)]` guard; non-unix uses `std::future::pending()` (never resolves, so only Ctrl+C works on Windows)
+- **Learnings for future iterations:**
+  - `axum::http::header` has `X_CONTENT_TYPE_OPTIONS` and `X_FRAME_OPTIONS` as constants but NOT `REFERRER_POLICY` — use `HeaderName::from_static("referrer-policy")` instead
+  - `tower-http` `set-header` feature must be enabled in workspace Cargo.toml to use `SetResponseHeaderLayer`
+  - `SetResponseHeaderLayer::overriding` overwrites any existing header; `::if_not_present` preserves existing values
+  - CorsLayer without `.allow_origin()` call means no `Access-Control-Allow-Origin` header is sent, enforcing same-origin policy by browser default
+  - `CorsLayer::allow_credentials(true)` cannot be combined with `allow_origin(Any)` per CORS spec — use explicit origin list when credentials are needed
 ---

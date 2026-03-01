@@ -17,8 +17,10 @@ use state::AppState;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    use axum::http::HeaderValue;
     use axum::Router;
     use clap::Parser;
+    use tower_http::set_header::SetResponseHeaderLayer;
     use tower_sessions::{ExpiredDeletion, SessionManagerLayer};
     use tower_sessions_sqlx_store::SqliteStore;
     use tracing::info;
@@ -138,6 +140,39 @@ async fn main() -> anyhow::Result<()> {
             time::Duration::hours(24),
         ));
 
+    // Build CORS layer
+    let cors_layer = if let Ok(origins) = std::env::var("ALLOWED_ORIGINS") {
+        let allowed: Vec<HeaderValue> = origins
+            .split(',')
+            .filter_map(|s| s.trim().parse().ok())
+            .collect();
+        info!(origins = %origins, "CORS configured with allowed origins");
+        tower_http::cors::CorsLayer::new()
+            .allow_origin(allowed)
+            .allow_methods([
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::PUT,
+                axum::http::Method::DELETE,
+                axum::http::Method::PATCH,
+            ])
+            .allow_headers(tower_http::cors::Any)
+            .allow_credentials(true)
+    } else {
+        // Default: same-origin only (no Access-Control-Allow-Origin header means
+        // browsers enforce same-origin policy)
+        info!("CORS configured for same-origin only (set ALLOWED_ORIGINS to allow cross-origin)");
+        tower_http::cors::CorsLayer::new()
+            .allow_methods([
+                axum::http::Method::GET,
+                axum::http::Method::POST,
+                axum::http::Method::PUT,
+                axum::http::Method::DELETE,
+                axum::http::Method::PATCH,
+            ])
+            .allow_headers(tower_http::cors::Any)
+    };
+
     // Build main router
     let app = Router::new()
         // API routes
@@ -168,13 +203,61 @@ async fn main() -> anyhow::Result<()> {
             ),
         )
         .layer(tower_http::compression::CompressionLayer::new())
-        .layer(tower_http::cors::CorsLayer::permissive());
+        // Security headers
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::X_CONTENT_TYPE_OPTIONS,
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::header::X_FRAME_OPTIONS,
+            HeaderValue::from_static("DENY"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            axum::http::HeaderName::from_static("referrer-policy"),
+            HeaderValue::from_static("strict-origin-when-cross-origin"),
+        ))
+        .layer(cors_layer);
 
-    // Start server
+    // Start server with graceful shutdown
     let listener = tokio::net::TcpListener::bind(&args.addr).await?;
     info!(addr = %args.addr, "Server listening");
 
-    axum::serve(listener, app.into_make_service()).await?;
+    axum::serve(listener, app.into_make_service())
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
 
+    info!("Server shut down gracefully");
     Ok(())
+}
+
+/// Signal handler for graceful shutdown.
+/// Listens for SIGTERM and SIGINT (Ctrl+C) and allows 10 seconds for active connections to complete.
+async fn shutdown_signal() {
+    use tokio::signal;
+
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {
+            tracing::info!("Received SIGINT (Ctrl+C), starting graceful shutdown (10s timeout)...");
+        }
+        _ = terminate => {
+            tracing::info!("Received SIGTERM, starting graceful shutdown (10s timeout)...");
+        }
+    }
 }
