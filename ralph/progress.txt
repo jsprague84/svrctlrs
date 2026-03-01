@@ -254,3 +254,19 @@
   - To exempt WebSocket routes from timeout: split into separate Router groups, apply timeout layer only to HTTP routes, then merge
   - `axum::BoxError` is the re-exported `Box<dyn std::error::Error + Send + Sync>` used by HandleErrorLayer's error handler
 ---
+
+## 2026-02-28 - US-012
+- Removed deprecated RemoteExecutor from core crate
+- Files deleted:
+  - `core/src/remote.rs` - Entire file removed (RemoteExecutor struct, tests, 284 lines)
+- Files modified:
+  - `core/src/lib.rs` - Removed `pub mod remote;` and `pub use remote::RemoteExecutor;`
+  - `server/src/state.rs` - Removed `RemoteExecutor` import, `executor` field from AppState struct, and initialization in `AppState::new()`
+  - `core/src/executor.rs` - Replaced `RemoteExecutor` usage in `execute_command()` with inline `tokio::process::Command` logic for both local (sh -c) and remote (ssh) execution; now captures actual exit code from process output
+  - `ralph/prd.json` - Marked US-012 as passing
+- **Learnings for future iterations:**
+  - The executor's `execute_command()` method now returns actual exit codes via `output.status.code()` instead of hardcoded 0 — more accurate than the old RemoteExecutor wrapper
+  - `Error::RemoteExecutionError` variant kept in error.rs since executor.rs still uses it for timeout/SSH errors
+  - Inlining command execution eliminated the intermediate `crate::types::Server` construction (local/remote) that was only needed to satisfy RemoteExecutor's API
+  - `tokio::process::Command` output gives stdout, stderr, AND exit code — strictly more data than RemoteExecutor returned
+---

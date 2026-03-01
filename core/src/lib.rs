@@ -8,7 +8,6 @@ pub mod error;
 #[cfg(feature = "executor")]
 pub mod executor;
 pub mod notifications;
-pub mod remote;
 pub mod types;
 
 // Re-exports
@@ -19,5 +18,4 @@ pub use notifications::{
     mask_token, GotifyBackend, NotificationAction, NotificationBackend, NotificationContext,
     NotificationManager, NotificationMessage, NtfyBackend,
 };
-pub use remote::RemoteExecutor;
 pub use types::{MetricValue, Server, ServerStatus};

@@ -12,7 +12,7 @@
 //! The executor depends on the `database` crate for models and queries.
 //! To use this module, add `features = ["executor"]` to your `svrctlrs-core` dependency.
 
-use crate::{Error, RemoteExecutor, Result};
+use crate::{Error, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -727,37 +727,68 @@ impl JobExecutor {
         command: &str,
         timeout_secs: u64,
     ) -> Result<(i32, String)> {
-        // Create remote executor for this server
-        let executor = if server.is_local {
-            RemoteExecutor::for_server(
-                crate::types::Server::local(&server.name),
-                self.ssh_key_path.clone(),
+        use tokio::process::Command;
+
+        let output = if server.is_local {
+            // Local execution: run sh -c directly
+            timeout(
+                Duration::from_secs(timeout_secs),
+                Command::new("sh").args(["-c", command]).output(),
             )
-            .with_timeout(timeout_secs)
+            .await
+            .map_err(|_| {
+                Error::RemoteExecutionError(format!(
+                    "Command timed out after {}s",
+                    timeout_secs
+                ))
+            })?
+            .map_err(|e| {
+                Error::RemoteExecutionError(format!("Failed to execute command: {}", e))
+            })?
         } else {
+            // Remote execution: run via SSH
             let ssh_host = server.display_address();
-            RemoteExecutor::for_server(
-                crate::types::Server::remote(&server.name, &ssh_host),
-                self.ssh_key_path.clone(),
+            let mut ssh_cmd = Command::new("ssh");
+            ssh_cmd
+                .arg("-o").arg("BatchMode=yes")
+                .arg("-o").arg("StrictHostKeyChecking=accept-new");
+
+            if let Some(key_path) = &self.ssh_key_path {
+                ssh_cmd.arg("-i").arg(key_path);
+            }
+
+            ssh_cmd.arg(&ssh_host).arg(command);
+
+            timeout(
+                Duration::from_secs(timeout_secs + 5), // Buffer for SSH overhead
+                ssh_cmd.output(),
             )
-            .with_timeout(timeout_secs)
+            .await
+            .map_err(|_| {
+                Error::RemoteExecutionError(format!(
+                    "SSH command timed out after {}s to {}",
+                    timeout_secs, ssh_host
+                ))
+            })?
+            .map_err(|e| {
+                Error::RemoteExecutionError(format!("Failed to SSH to {}: {}", ssh_host, e))
+            })?
         };
 
-        // Split command into command and args
-        // For simplicity, we'll use sh -c to execute the full command string
-        let output = timeout(
-            Duration::from_secs(timeout_secs + 5), // Add 5s buffer for SSH overhead
-            executor.execute_command("sh", &["-c", command]),
-        )
-        .await
-        .map_err(|_| {
-            Error::RemoteExecutionError(format!("Command timed out after {}s", timeout_secs))
-        })??;
+        let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+        let exit_code = output.status.code().unwrap_or(-1);
 
-        // We consider the command successful if it doesn't error
-        // The actual exit code is not available from RemoteExecutor::execute_command
-        // which only returns stdout. For now, we'll assume exit code 0 on success.
-        Ok((0, output))
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if stderr.contains("Permission denied") || stderr.contains("Connection refused") {
+                return Err(Error::RemoteExecutionError(format!(
+                    "Command failed on {}: {}",
+                    server.name, stderr
+                )));
+            }
+        }
+
+        Ok((exit_code, stdout))
     }
 
     /// Substitute variables in a template string

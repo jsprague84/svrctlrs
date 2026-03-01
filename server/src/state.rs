@@ -1,7 +1,7 @@
 //! Application state
 
 use std::sync::Arc;
-use svrctlrs_core::{NotificationManager, RemoteExecutor, Result};
+use svrctlrs_core::{NotificationManager, Result};
 use svrctlrs_database::{Database, NotificationService, SqlxPool, SqlxSqlite};
 use svrctlrs_scheduler::Scheduler;
 use tokio::sync::{broadcast, RwLock};
@@ -30,8 +30,6 @@ pub struct AppState {
     pub database: Arc<RwLock<Database>>,
     pub pool: SqlxPool<SqlxSqlite>, // Direct pool access for convenience
     pub scheduler: Arc<RwLock<Option<Scheduler>>>,
-    #[allow(dead_code)]
-    pub executor: Arc<RemoteExecutor>,
     /// Broadcast channel for job run updates (WebSocket push notifications)
     pub job_run_tx: broadcast::Sender<JobRunUpdate>,
     /// Notification service for sending job completion notifications
@@ -43,7 +41,6 @@ impl AppState {
     pub async fn new(config: Config, database: Database) -> Result<Self> {
         use tracing::info;
 
-        let executor = Arc::new(RemoteExecutor::new(config.ssh_key_path.clone()));
         let pool = database.pool().clone();
 
         // Create broadcast channel for job run updates (capacity of 100 messages)
@@ -70,7 +67,6 @@ impl AppState {
             pool,
             database: Arc::new(RwLock::new(database)),
             scheduler: Arc::new(RwLock::new(None)),
-            executor,
             job_run_tx,
             notification_service,
         })
