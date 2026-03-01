@@ -1427,9 +1427,7 @@ pub struct LoginTemplate {
 
 #[derive(Debug, Deserialize)]
 pub struct LoginForm {
-    #[allow(dead_code)]
     pub username: String,
-    #[allow(dead_code)]
     pub password: String,
 }
 

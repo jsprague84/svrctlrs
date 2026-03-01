@@ -19,6 +19,8 @@ use state::AppState;
 async fn main() -> anyhow::Result<()> {
     use axum::Router;
     use clap::Parser;
+    use tower_sessions::{ExpiredDeletion, SessionManagerLayer};
+    use tower_sessions_sqlx_store::SqliteStore;
     use tracing::info;
 
     /// SvrCtlRS Server
@@ -74,6 +76,37 @@ async fn main() -> anyhow::Result<()> {
         );
     }
 
+    // Set up session store (SQLite-backed)
+    let session_store = SqliteStore::new(database.pool().clone());
+    session_store.migrate().await?;
+    info!("Session store initialized");
+
+    // Spawn task to periodically clean up expired sessions
+    let deletion_task_store = session_store.clone();
+    tokio::task::spawn(
+        deletion_task_store.continuously_delete_expired(tokio::time::Duration::from_secs(300)),
+    );
+
+    // Seed initial admin user if ADMIN_USERNAME and ADMIN_PASSWORD are set and no users exist
+    {
+        use svrctlrs_database::queries::users;
+
+        let user_count = users::count_users(database.pool()).await?;
+        if user_count == 0 {
+            if let (Ok(admin_username), Ok(admin_password)) = (
+                std::env::var("ADMIN_USERNAME"),
+                std::env::var("ADMIN_PASSWORD"),
+            ) {
+                let input = svrctlrs_database::models::CreateUser {
+                    username: admin_username.clone(),
+                    password: admin_password,
+                };
+                users::create_user(database.pool(), &input).await?;
+                info!(username = %admin_username, "Created initial admin user from environment variables");
+            }
+        }
+    }
+
     // Initialize application state
     let state = AppState::new(config, database).await?;
 
@@ -93,6 +126,13 @@ async fn main() -> anyhow::Result<()> {
     // Build job runs WebSocket router
     let job_runs_ws_router = routes::job_runs_ws::routes().with_state(state.clone());
 
+    // Build session layer
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(false) // Set to true if using HTTPS
+        .with_expiry(tower_sessions::Expiry::OnInactivity(
+            time::Duration::hours(24),
+        ));
+
     // Build main router
     let app = Router::new()
         // API routes
@@ -106,6 +146,7 @@ async fn main() -> anyhow::Result<()> {
         // UI routes (HTMX + Askama)
         .merge(ui_router)
         // Middleware
+        .layer(session_layer)
         .layer(
             tower_http::trace::TraceLayer::new_for_http().make_span_with(
                 |request: &axum::http::Request<_>| {
