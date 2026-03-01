@@ -1,0 +1,218 @@
+{
+  "project": "SvrCtlRS",
+  "branchName": "ralph/terminal-first-optimization",
+  "description": "Security hardening, terminal-first UX, infrastructure modernization, and deprecated code cleanup for SvrCtlRS",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add users table and argon2 password hashing",
+      "description": "As an admin, I need user accounts so that only authorized users can access the application.",
+      "acceptanceCriteria": [
+        "Migration 016_user_accounts.sql creates 'users' table with: id, username (UNIQUE), password_hash, created_at, updated_at",
+        "Add argon2 dependency to core/Cargo.toml",
+        "Create database/src/models/user.rs with User, CreateUser structs",
+        "Create database/src/queries/users.rs with create_user, get_user_by_username, verify_password functions",
+        "verify_password uses argon2::verify to check plaintext against stored hash",
+        "create_user uses argon2::hash to generate password hash before storing",
+        "Register user model and queries in database/src/lib.rs exports",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Implement login page and session management",
+      "description": "As a user, I want to log in with username/password so that my session is authenticated.",
+      "acceptanceCriteria": [
+        "Integrate tower-sessions and tower-sessions-sqlx-store in server/src/main.rs (already in Cargo.toml)",
+        "Add SessionLayer to the middleware stack in main.rs",
+        "Update server/src/routes/ui/auth.rs: login POST handler verifies password via users::verify_password",
+        "On successful login, store user_id in session",
+        "On failed login, render login page with error message",
+        "Implement logout POST handler that clears the session",
+        "If ADMIN_USERNAME and ADMIN_PASSWORD env vars are set and no users exist, create initial admin user on startup",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Add authentication middleware to protect all routes",
+      "description": "As an admin, I need all routes protected so that unauthenticated users cannot access the application.",
+      "acceptanceCriteria": [
+        "Create auth middleware function in server/src/routes/ui/auth.rs using axum::middleware::from_fn",
+        "Middleware checks for user_id in session",
+        "Exempt routes: /auth/login, /auth/logout, /static/*, /api/health",
+        "Unauthenticated browser requests redirect to /auth/login",
+        "Unauthenticated API requests return 401 JSON response",
+        "Unauthenticated WebSocket upgrade requests return 401",
+        "Apply middleware layer in server/src/main.rs router",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Encrypt credentials at rest with AES-256-GCM",
+      "description": "As an admin, I need stored credentials encrypted so that database compromise does not expose secrets.",
+      "acceptanceCriteria": [
+        "Add aes-gcm and rand crates to core/Cargo.toml",
+        "Create core/src/encryption.rs with encrypt(plaintext, key) and decrypt(ciphertext, key) functions using AES-256-GCM",
+        "Encryption key loaded from ENCRYPTION_KEY environment variable (32-byte hex or base64)",
+        "If ENCRYPTION_KEY is not set, generate a random key and write to data/encryption.key file with 0600 permissions, log warning",
+        "Update database/src/queries/credentials.rs: create_credential encrypts value before INSERT",
+        "Update database/src/queries/credentials.rs: get_credential decrypts value after SELECT",
+        "Add migration 017_credential_encryption_flag.sql adding 'encrypted' boolean column (default false) to credentials",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Add full-page terminal view with server sidebar",
+      "description": "As a user, I want a dedicated terminal page so that I can use the terminal as the primary interface.",
+      "acceptanceCriteria": [
+        "Create server/templates/pages/terminal.html extending base.html with full-viewport layout",
+        "Left sidebar (collapsible, ~250px) lists all enabled servers from database",
+        "Each server entry shows: name, hostname, and a 'Connect' button",
+        "Main area contains xterm.js terminal taking remaining viewport space",
+        "Add route GET /terminal in server/src/routes/ui/ returning the terminal page with server list",
+        "Add 'Terminal' link to the sidebar navigation in base.html",
+        "Terminal auto-fits to container on window resize using FitAddon",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Integrate PTY mode toggle in terminal frontend",
+      "description": "As a user, I want to switch between command mode and interactive shell mode in the terminal.",
+      "acceptanceCriteria": [
+        "Add mode toggle in terminal page UI: 'Command' (default) and 'Shell' modes",
+        "Command mode uses existing /ws/terminal WebSocket endpoint (type command, see output)",
+        "Shell mode uses /ws/terminal/pty WebSocket endpoint (interactive session with PTY)",
+        "In Shell mode, all keyboard input forwarded directly to PTY (no command input box)",
+        "In Command mode, keep existing command input + output display behavior",
+        "Mode indicator visible in terminal header (e.g., badge showing 'CMD' or 'PTY')",
+        "Switching modes disconnects current WebSocket and connects to appropriate endpoint",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Add WebGL renderer to xterm.js terminal",
+      "description": "As a user, I want GPU-accelerated terminal rendering for smooth performance.",
+      "acceptanceCriteria": [
+        "Load @xterm/addon-webgl from CDN in server/templates/base.html",
+        "In server/static/js/terminal.js, after terminal.open(), attempt to load WebglAddon",
+        "Handle onContextLoss event: dispose addon, attempt reload after 1 second delay",
+        "If WebGL fails to load (no WebGL2 support), log warning and continue with canvas renderer",
+        "Activate Unicode11 addon (already loaded) by setting terminal.unicode.activeVersion = '11'",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Add server quick-connect cards to dashboard",
+      "description": "As a user, I want to quickly connect to any server from the dashboard.",
+      "acceptanceCriteria": [
+        "Add 'Quick Connect' section to dashboard page (server/templates/pages/dashboard.html)",
+        "Display cards for each enabled server showing: name, hostname, last_seen_at status",
+        "Each card has a 'Connect' link that navigates to /terminal?server_id={id}",
+        "Terminal page reads server_id query parameter and auto-connects on load",
+        "Update server/src/routes/ui/dashboard.rs to pass server list to template",
+        "Cards show green/yellow/red dot based on last_seen_at (seen < 5min = green, < 1hr = yellow, else red)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Implement SSH host key verification",
+      "description": "As an admin, I need SSH host keys verified so that MITM attacks are detected.",
+      "acceptanceCriteria": [
+        "Add migration 018_server_host_keys.sql: table server_host_keys (id, server_id FK, key_type, public_key, first_seen, last_seen)",
+        "Create database/src/models/server_host_key.rs and database/src/queries/server_host_keys.rs",
+        "Update terminal.rs SSH connection: after connect, check server's public key against stored key",
+        "If no stored key exists (first connection): store it automatically (Trust On First Use) and log info",
+        "If stored key matches: proceed with connection",
+        "If stored key DOES NOT match: reject connection, send error to WebSocket with warning message about potential MITM",
+        "Update terminal_pty.rs check_server_key() with same verification logic (replace 'Ok(true)')",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Add graceful shutdown and security headers",
+      "description": "As an admin, I need the server to shut down cleanly and serve proper security headers.",
+      "acceptanceCriteria": [
+        "In server/src/main.rs, use axum::serve with .with_graceful_shutdown() and a tokio signal handler for SIGTERM/SIGINT",
+        "On shutdown signal, log message and allow active connections 10 seconds to complete",
+        "Add tower-http security headers middleware: X-Content-Type-Options: nosniff, X-Frame-Options: DENY, Referrer-Policy: strict-origin-when-cross-origin",
+        "Replace CorsLayer::permissive() with CorsLayer configured to allow only same-origin (or configurable ALLOWED_ORIGINS env var)",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Add request timeout middleware",
+      "description": "As an admin, I need requests to time out so that stuck handlers don't consume resources indefinitely.",
+      "acceptanceCriteria": [
+        "Import HandleErrorLayer from axum::error_handling and TimeoutLayer from tower::timeout",
+        "Add ServiceBuilder layer in server/src/main.rs with HandleErrorLayer wrapping TimeoutLayer(30 seconds)",
+        "HandleErrorLayer returns 408 Request Timeout for timeout errors",
+        "Place timeout layer BEFORE WebSocket routes in the middleware stack (WebSocket upgrades should not be subject to 30s timeout)",
+        "Alternatively, apply timeout only to non-WebSocket routes using Router::layer on specific route groups",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Remove deprecated RemoteExecutor from core crate",
+      "description": "As a developer, I want deprecated code removed so that the codebase is clean for the upcoming fork.",
+      "acceptanceCriteria": [
+        "Delete core/src/remote.rs entirely",
+        "Remove 'pub mod remote;' from core/src/lib.rs",
+        "Remove RemoteExecutor from server/src/state.rs AppState struct and its initialization in AppState::new()",
+        "Remove any imports of RemoteExecutor or core::remote from server/src/",
+        "If executor field is referenced in any route handlers, remove those references",
+        "Verify no remaining references to RemoteExecutor with grep",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}

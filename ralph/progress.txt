@@ -1,0 +1,74 @@
+# Ralph Progress: SvrCtlRS Terminal-First Optimization
+# Branch: ralph/terminal-first-optimization
+# Started: 2026-02-28
+
+## Codebase Patterns
+- Database models go in `database/src/models/<name>.rs`, registered in `database/src/models/mod.rs`
+- Database queries go in `database/src/queries/<name>.rs`, registered in `database/src/queries/mod.rs`
+- Both mod.rs files use `pub mod` + `pub use` glob re-exports
+- Query functions follow pattern: `#[instrument(skip(pool))]`, return `Result<T>`, use `anyhow::Context` with `.map_err(|e| Error::DatabaseError(e.to_string()))`
+- Tests use `setup_test_db()` with `:memory:` SQLite pool + `sqlx::migrate!().run(&pool)`
+- Migrations are numbered sequentially (currently at 016)
+- argon2 v0.5 uses `password_hash` crate traits: `PasswordHasher`, `PasswordVerifier`, `PasswordHash`
+- tower-sessions version compatibility: use `tower-sessions = "0.14"` with `tower-sessions-sqlx-store = "0.15"` — they share `tower-sessions-core 0.14.0`. Other version combos cause `SessionStore` trait mismatch.
+- `ExpiredDeletion` trait must be imported (`use tower_sessions::ExpiredDeletion`) to call `continuously_delete_expired()` on session stores
+- AppError variants: `DatabaseError`, `TemplateError`, `NotFound`, `ValidationError`, `InternalError` (defined in `server/src/routes/ui/mod.rs`)
+- Session key constant pattern: `const USER_ID_KEY: &str = "user_id"` in auth.rs for session get/insert
+- Auth middleware pattern: use `axum::middleware::from_fn` with `Session` extractor. Layer must be placed INSIDE (added before) session layer so Session extractor works. Order: `routes.layer(auth_middleware).layer(session_layer)`.
+- Exempt path checking in middleware: check `request.uri().path()` before session extraction for performance on static assets
+- WebSocket detection in middleware: check `request.headers().get("upgrade")` for "websocket" value (case-insensitive)
+
+---
+
+## 2026-02-28 - US-001
+- Implemented users table and argon2 password hashing
+- Files created:
+  - `database/migrations/016_user_accounts.sql` - users table with id, username (UNIQUE), password_hash, timestamps
+  - `database/src/models/user.rs` - User and CreateUser structs
+  - `database/src/queries/users.rs` - create_user, get_user_by_username, verify_password, count_users + 5 tests
+- Files modified:
+  - `core/Cargo.toml` - added argon2 v0.5
+  - `database/Cargo.toml` - added argon2 v0.5
+  - `database/src/models/mod.rs` - registered user module
+  - `database/src/queries/mod.rs` - registered users module
+  - `Cargo.lock` - updated
+- **Learnings for future iterations:**
+  - argon2 crate uses `password_hash` sub-crate for OsRng, SaltString, PasswordHash, PasswordHasher, PasswordVerifier traits
+  - `verify_password` is a sync function (no async needed) - argon2 verification is CPU-bound
+  - CreateUser takes plaintext password; hashing happens in the query layer (create_user function)
+  - count_users() helper added for checking if any users exist (useful for initial admin seeding in US-002)
+---
+
+## 2026-02-28 - US-002
+- Implemented login page and session management
+- Files modified:
+  - `server/Cargo.toml` - upgraded tower-sessions to 0.14, tower-sessions-sqlx-store to 0.15, added `time` crate
+  - `server/src/main.rs` - integrated SqliteStore session store with migration, expired session cleanup task, SessionManagerLayer middleware, admin user seeding from ADMIN_USERNAME/ADMIN_PASSWORD env vars
+  - `server/src/routes/ui/auth.rs` - login handler now verifies password via `users::verify_password`, stores `user_id` in session; logout handler flushes session; error renders login page with message
+  - `server/src/templates.rs` - removed `#[allow(dead_code)]` from LoginForm fields (now used)
+  - `Cargo.lock` - updated dependency graph
+- **Learnings for future iterations:**
+  - tower-sessions ecosystem has persistent version misalignment: `tower-sessions-sqlx-store` always lags one `tower-sessions-core` version behind `tower-sessions`. Must pair carefully (0.14 + 0.15 works).
+  - `Session` extractor from tower-sessions only works as Axum extractor when the correct `axum-core` feature version is compatible (tower-sessions 0.13+ for axum 0.8)
+  - `session.flush()` destroys the session (for logout); `session.insert(key, value)` and `session.get::<T>(key)` for data storage
+  - Admin seeding uses `count_users()` from US-001 to check if any users exist before creating from env vars
+  - Login error handling: return `Html(template.render()?).into_response()` for error, `Redirect::to("/").into_response()` for success (both need `.into_response()` to unify return type)
+---
+
+## 2026-02-28 - US-003
+- Implemented authentication middleware to protect all routes
+- Files modified:
+  - `server/src/routes/ui/auth.rs` - Added `require_auth` middleware function using `axum::middleware::from_fn`
+  - `server/src/main.rs` - Applied auth middleware layer between routes and session layer
+- Implementation details:
+  - Middleware checks `Session` for `user_id` key; if present, request proceeds
+  - Exempt routes: `/auth/login`, `/auth/logout`, `/static/*`, `/api/v1/health`
+  - Unauthenticated WebSocket upgrades → 401 (checks `Upgrade: websocket` header)
+  - Unauthenticated API requests (`/api/*`) → 401 JSON `{"error": "Authentication required"}`
+  - Unauthenticated browser requests → 302 redirect to `/auth/login`
+- **Learnings for future iterations:**
+  - Axum middleware layer ordering is critical: `.layer(auth).layer(session)` means session processes FIRST (outermost), then auth runs with session available
+  - `Session` implements `FromRequestParts` so it can be used as an extractor parameter in `from_fn` middleware
+  - `is_some_and()` is a clean Rust idiom for checking Option contents with a predicate
+  - The health endpoint is at `/api/v1/health` (nested under `/api` then `/v1`), not `/api/health`
+---
