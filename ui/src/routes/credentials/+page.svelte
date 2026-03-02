@@ -20,6 +20,7 @@
 	let value = $state('');
 	let description = $state('');
 	let username = $state('');
+	let sshKeyMode = $state<'path' | 'paste'>('path');
 
 	let credentials = $derived(credState.getCredentials());
 	let loading = $derived(credState.isLoading());
@@ -30,7 +31,7 @@
 
 	function resetForm() {
 		name = ''; credType = 'ssh_key'; value = ''; description = ''; username = '';
-		editingId = null;
+		editingId = null; sshKeyMode = 'path';
 	}
 
 	function openCreate() {
@@ -165,7 +166,33 @@
 		{/if}
 
 		{#if credType === 'ssh_key'}
-			<Input label={editingId ? 'New SSH Key Path (leave empty to keep)' : 'SSH Key Path'} bind:value={value} placeholder="/home/user/.ssh/id_ed25519" required={!editingId} />
+			<div class="flex items-center gap-2 mb-1">
+				<span class="text-xs text-text-muted">Input mode:</span>
+				<button
+					type="button"
+					class="text-xs px-2 py-0.5 rounded-sm transition-colors {sshKeyMode === 'path' ? 'bg-accent text-accent-foreground' : 'bg-surface-raised text-text-muted hover:text-text-primary'}"
+					onclick={() => { sshKeyMode = 'path'; value = ''; }}
+				>File path</button>
+				<button
+					type="button"
+					class="text-xs px-2 py-0.5 rounded-sm transition-colors {sshKeyMode === 'paste' ? 'bg-accent text-accent-foreground' : 'bg-surface-raised text-text-muted hover:text-text-primary'}"
+					onclick={() => { sshKeyMode = 'paste'; value = ''; }}
+				>Paste key</button>
+			</div>
+			{#if sshKeyMode === 'path'}
+				<Input label={editingId ? 'New SSH Key Path (leave empty to keep)' : 'SSH Key Path'} bind:value={value} placeholder="/home/user/.ssh/id_ed25519" required={!editingId} />
+			{:else}
+				<label class="flex flex-col gap-1">
+					<span class="text-sm font-medium text-text-primary">{editingId ? 'New SSH Key (leave empty to keep)' : 'SSH Key Content'}</span>
+					<textarea
+						bind:value={value}
+						rows={6}
+						class="w-full px-3 py-2 text-sm font-mono bg-input border border-border rounded-sm text-text-primary placeholder:text-text-muted resize-y focus:ring-1 focus:ring-ring focus:outline-none"
+						placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+						required={!editingId}
+					></textarea>
+				</label>
+			{/if}
 		{:else if credType === 'password'}
 			<Input label={editingId ? 'New Password (leave empty to keep)' : 'Password'} type="password" bind:value={value} required={!editingId} />
 			<Input label="Username" bind:value={username} placeholder="root" />

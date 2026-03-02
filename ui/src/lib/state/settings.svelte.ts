@@ -1,4 +1,5 @@
 import type { Setting, GroupedSettings } from '$lib/types/index.js';
+import type { CreateSettingInput } from '$lib/api/settings.js';
 import * as api from '$lib/api/settings.js';
 
 let settings = $state<GroupedSettings>({});
@@ -35,6 +36,11 @@ export async function loadSettings() {
 	} finally {
 		loading = false;
 	}
+}
+
+export async function createSetting(input: CreateSettingInput): Promise<void> {
+	await api.createSetting(input);
+	await loadSettings();
 }
 
 export async function updateSetting(key: string, value: string): Promise<void> {

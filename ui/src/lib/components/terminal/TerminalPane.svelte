@@ -10,7 +10,8 @@
 	import { ImageAddon } from '@xterm/addon-image';
 	import '@xterm/xterm/css/xterm.css';
 
-	import { tokyoNightTheme } from './terminal-theme.js';
+	import { tokyoNightTheme, lightTheme } from './terminal-theme.js';
+	import * as themeState from '$lib/state/theme.svelte.js';
 	import type { TerminalMode, ConnectionStatus, CmdRequest, CmdResponse, PtyRequest, PtyResponse } from '$lib/types/index.js';
 
 	interface Props {
@@ -30,6 +31,7 @@
 	let webglAddon: WebglAddon | null = null;
 	let socket: WebSocket | null = null;
 	let resizeObserver: ResizeObserver | null = null;
+	let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 	let pingInterval: ReturnType<typeof setInterval> | null = null;
 	let outputHistory: string[] = [];
 	let commandHistory: string[] = [];
@@ -37,10 +39,16 @@
 	let status = $state<ConnectionStatus>('disconnected');
 	let ptyInputDisposable: { dispose: () => void } | null = null;
 	let ptyResizeDisposable: { dispose: () => void } | null = null;
+	let intentionalDisconnect = false;
+	let reconnectAttempt = 0;
+	let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	const HISTORY_KEY = 'svrctlrs-cmd-history';
 	const MAX_HISTORY = 50;
 	const PING_INTERVAL = 30_000;
+	const MAX_OUTPUT_HISTORY = 10_000;
+	const MAX_RECONNECT_ATTEMPTS = 5;
+	const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
 
 	function setStatus(s: ConnectionStatus) {
 		status = s;
@@ -101,6 +109,21 @@
 		return '';
 	}
 
+	function tryLoadWebgl() {
+		if (!terminal) return;
+		try {
+			webglAddon = new WebglAddon();
+			terminal.loadAddon(webglAddon);
+			webglAddon.onContextLoss(() => {
+				webglAddon?.dispose();
+				webglAddon = null;
+				setTimeout(() => tryLoadWebgl(), 1000);
+			});
+		} catch {
+			webglAddon = null;
+		}
+	}
+
 	function initTerminal() {
 		if (!containerEl) return;
 
@@ -115,7 +138,7 @@
 			scrollback: 5000,
 			tabStopWidth: 4,
 			allowProposedApi: true,
-			theme: tokyoNightTheme
+			theme: themeState.isDark() ? tokyoNightTheme : lightTheme
 		});
 
 		fitAddon = new FitAddon();
@@ -148,34 +171,56 @@
 		}
 
 		terminal.open(containerEl);
-
-		// Try WebGL, fall back to canvas
-		try {
-			webglAddon = new WebglAddon();
-			terminal.loadAddon(webglAddon);
-			webglAddon.onContextLoss(() => {
-				webglAddon?.dispose();
-				webglAddon = null;
-			});
-		} catch {
-			webglAddon = null;
-		}
+		tryLoadWebgl();
 
 		fit();
 
-		resizeObserver = new ResizeObserver(() => fit());
+		resizeObserver = new ResizeObserver(() => {
+			if (resizeTimer) clearTimeout(resizeTimer);
+			resizeTimer = setTimeout(() => fit(), 100);
+		});
 		resizeObserver.observe(containerEl);
+	}
+
+	function appendOutput(data: string) {
+		outputHistory.push(data);
+		if (outputHistory.length > MAX_OUTPUT_HISTORY) {
+			outputHistory = outputHistory.slice(-MAX_OUTPUT_HISTORY);
+		}
+	}
+
+	function attemptReconnect() {
+		if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
+			terminal?.writeln('\r\n\x1b[31m[Max reconnection attempts reached]\x1b[0m');
+			return;
+		}
+		const delay = RECONNECT_DELAYS[Math.min(reconnectAttempt, RECONNECT_DELAYS.length - 1)];
+		reconnectAttempt++;
+		terminal?.writeln(`\r\n\x1b[33m[Reconnecting... attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}]\x1b[0m`);
+		reconnectTimeout = setTimeout(() => {
+			reconnectTimeout = null;
+			connect();
+		}, delay);
 	}
 
 	/** Connect to the WebSocket for the current mode and serverId */
 	export function connect() {
 		if (!terminal || serverId === null) return;
 
-		disconnect();
+		// Cancel any pending reconnect
+		if (reconnectTimeout) {
+			clearTimeout(reconnectTimeout);
+			reconnectTimeout = null;
+		}
+
+		intentionalDisconnect = false;
+		cleanupSocket();
 		setStatus('connecting');
 
-		terminal.clear();
-		outputHistory = [];
+		if (reconnectAttempt === 0) {
+			terminal.clear();
+			outputHistory = [];
+		}
 		terminal.writeln('\x1b[33mConnecting...\x1b[0m');
 
 		const wsUrl = getWsUrl(mode);
@@ -190,6 +235,7 @@
 
 		socket.onopen = () => {
 			setStatus('connected');
+			reconnectAttempt = 0;
 
 			const { cols, rows } = terminal!;
 
@@ -221,8 +267,7 @@
 			// Start keep-alive pings
 			pingInterval = setInterval(() => {
 				if (socket?.readyState === WebSocket.OPEN) {
-					const pingType = mode === 'pty' ? 'ping' : 'ping';
-					socket.send(JSON.stringify({ type: pingType }));
+					socket.send(JSON.stringify({ type: 'ping' }));
 				}
 			}, PING_INTERVAL);
 		};
@@ -234,7 +279,7 @@
 					switch (res.type) {
 						case 'output':
 							terminal!.write(res.data);
-							outputHistory.push(res.data);
+							appendOutput(res.data);
 							break;
 						case 'connected':
 							terminal!.write(res.data);
@@ -253,7 +298,7 @@
 						case 'exit':
 						case 'error':
 							terminal!.write(res.data);
-							outputHistory.push(res.data);
+							appendOutput(res.data);
 							break;
 						case 'pong':
 							break;
@@ -270,14 +315,22 @@
 		};
 
 		socket.onclose = () => {
-			if (status === 'connected') {
-				terminal!.writeln('\r\n\x1b[33m[Connection closed]\x1b[0m');
-			}
+			const wasConnected = status === 'connected';
 			setStatus('disconnected');
 			cleanupPty();
 			if (pingInterval) {
 				clearInterval(pingInterval);
 				pingInterval = null;
+			}
+
+			if (wasConnected && !intentionalDisconnect) {
+				terminal!.writeln('\r\n\x1b[33m[Connection lost]\x1b[0m');
+				attemptReconnect();
+			} else if (!intentionalDisconnect && reconnectAttempt > 0) {
+				// Reconnect attempt failed before fully connecting
+				attemptReconnect();
+			} else if (wasConnected) {
+				terminal!.writeln('\r\n\x1b[33m[Disconnected]\x1b[0m');
 			}
 		};
 	}
@@ -299,8 +352,7 @@
 		ptyResizeDisposable = null;
 	}
 
-	/** Disconnect the WebSocket */
-	export function disconnect() {
+	function cleanupSocket() {
 		if (pingInterval) {
 			clearInterval(pingInterval);
 			pingInterval = null;
@@ -314,6 +366,17 @@
 			socket.close();
 			socket = null;
 		}
+	}
+
+	/** Disconnect the WebSocket */
+	export function disconnect() {
+		intentionalDisconnect = true;
+		reconnectAttempt = 0;
+		if (reconnectTimeout) {
+			clearTimeout(reconnectTimeout);
+			reconnectTimeout = null;
+		}
+		cleanupSocket();
 		setStatus('disconnected');
 	}
 
@@ -391,12 +454,21 @@
 		}
 	});
 
+	// Update terminal theme when app theme changes
+	$effect(() => {
+		const currentTheme = themeState.getTheme();
+		if (terminal) {
+			terminal.options.theme = currentTheme === 'dark' ? tokyoNightTheme : lightTheme;
+		}
+	});
+
 	onMount(() => {
 		loadHistory();
 		initTerminal();
 
 		return () => {
 			disconnect();
+			if (resizeTimer) clearTimeout(resizeTimer);
 			resizeObserver?.disconnect();
 			if (webglAddon) {
 				try {
@@ -411,7 +483,7 @@
 </script>
 
 <div
-	class="h-full w-full bg-[#1a1b26]"
+	class="h-full w-full bg-background"
 	class:hidden={!active}
 	bind:this={containerEl}
 ></div>

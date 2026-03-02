@@ -4,6 +4,7 @@ let tabs = $state<TerminalTab[]>([]);
 let activeTabId = $state<string | null>(null);
 let layout = $state<LayoutMode>('single');
 let tabCounter = $state(0);
+let pendingAutoConnect = $state<string | null>(null);
 
 const MAX_TABS = 10;
 
@@ -179,6 +180,18 @@ export function updateTabStatus(id: string, status: ConnectionStatus) {
 export function updateTabMode(id: string, mode: TerminalMode) {
 	const tab = tabs.find((t) => t.id === id);
 	if (tab) tab.mode = mode;
+}
+
+export function getPendingAutoConnect(): string | null {
+	return pendingAutoConnect;
+}
+
+export function setPendingAutoConnect(tabId: string) {
+	pendingAutoConnect = tabId;
+}
+
+export function clearPendingAutoConnect() {
+	pendingAutoConnect = null;
 }
 
 export function updateTabServer(id: string, serverId: number | null, serverName: string | null) {

@@ -62,3 +62,12 @@ export function put<T>(path: string, body?: unknown): Promise<T> {
 export function del<T>(path: string): Promise<T> {
 	return request<T>(path, { method: 'DELETE' });
 }
+
+export async function logout(): Promise<void> {
+	try {
+		await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
+	} catch {
+		// ignore errors
+	}
+	window.location.href = '/auth/login';
+}

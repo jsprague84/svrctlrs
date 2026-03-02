@@ -1,25 +1,28 @@
-/** Tokyo Night theme constants — single theme, no switching needed. */
+export type Theme = 'dark' | 'light';
 
-export const theme = {
-	bg: {
-		primary: '#1a1b26',
-		secondary: '#16161e',
-		tertiary: '#24283b',
-		overlay: '#292e42'
-	},
-	text: {
-		primary: '#c0caf5',
-		secondary: '#a9b1d6',
-		muted: '#565f89'
-	},
-	accent: {
-		blue: '#7aa2f7',
-		green: '#9ece6a',
-		yellow: '#e0af68',
-		red: '#f7768e',
-		cyan: '#7dcfff',
-		magenta: '#bb9af7',
-		orange: '#ff9e64'
-	},
-	border: '#292e42'
-} as const;
+const STORAGE_KEY = 'svrctlrs-theme';
+
+let theme = $state<Theme>('dark');
+
+// Initialize from localStorage
+if (typeof window !== 'undefined') {
+	const saved = localStorage.getItem(STORAGE_KEY);
+	if (saved === 'light' || saved === 'dark') {
+		theme = saved;
+		document.documentElement.dataset.theme = saved;
+	}
+}
+
+export function getTheme(): Theme {
+	return theme;
+}
+
+export function isDark(): boolean {
+	return theme === 'dark';
+}
+
+export function toggleTheme() {
+	theme = theme === 'dark' ? 'light' : 'dark';
+	localStorage.setItem(STORAGE_KEY, theme);
+	document.documentElement.dataset.theme = theme;
+}

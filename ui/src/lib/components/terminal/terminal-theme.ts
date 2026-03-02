@@ -25,3 +25,29 @@ export const tokyoNightTheme: ITheme = {
 	brightCyan: '#7dcfff',
 	brightWhite: '#c0caf5'
 };
+
+/** Light xterm.js theme (warm paper-like) */
+export const lightTheme: ITheme = {
+	background: '#f5f5f0',
+	foreground: '#2e3440',
+	cursor: '#2e3440',
+	cursorAccent: '#f5f5f0',
+	selectionBackground: '#2e6fcf33',
+	selectionForeground: '#2e3440',
+	black: '#2e3440',
+	red: '#c43e3e',
+	green: '#2e8b57',
+	yellow: '#b8860b',
+	blue: '#2e6fcf',
+	magenta: '#8b5fbf',
+	cyan: '#3366a5',
+	white: '#4c566a',
+	brightBlack: '#7b8394',
+	brightRed: '#c43e3e',
+	brightGreen: '#2e8b57',
+	brightYellow: '#b8860b',
+	brightBlue: '#2e6fcf',
+	brightMagenta: '#8b5fbf',
+	brightCyan: '#3366a5',
+	brightWhite: '#9aa0ad'
+};

@@ -7,24 +7,45 @@
 	import CommandInput from '$lib/components/terminal/CommandInput.svelte';
 	import ConnectionBadge from '$lib/components/terminal/ConnectionBadge.svelte';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
-	import * as serversApi from '$lib/api/servers.js';
-	import type { Server, TerminalMode, ConnectionStatus } from '$lib/types/index.js';
+	import * as serversState from '$lib/state/servers.svelte.js';
+	import type { TerminalMode, ConnectionStatus } from '$lib/types/index.js';
 
-	let servers = $state<Server[]>([]);
 	let selectedServerId = $state<number | null>(null);
 	let selectedMode = $state<TerminalMode>('pty');
 	let paneRefs = $state<Record<string, ReturnType<typeof TerminalPane>>>({});
 	let searchOpen = $state(false);
 	let searchTerm = $state('');
 
+	let servers = $derived(serversState.getServers());
+	let serversLoading = $derived(serversState.isLoading());
+	let serversError = $derived(serversState.getError());
 	let tabs = $derived(terminalState.getTabs());
 	let activeTabId = $derived(terminalState.getActiveTabId());
 	let activeTab = $derived(terminalState.getActiveTab());
 	let layout = $derived(terminalState.getLayout());
 	let visibleTabs = $derived(terminalState.getVisibleTabs());
+	let pendingAutoConnect = $derived(terminalState.getPendingAutoConnect());
+
+	// Auto-connect when a pending tab's pane is ready
+	$effect(() => {
+		if (pendingAutoConnect && paneRefs[pendingAutoConnect]) {
+			const tabId = pendingAutoConnect;
+			terminalState.clearPendingAutoConnect();
+			requestAnimationFrame(() => paneRefs[tabId]?.connect());
+		}
+	});
+
+	// Warn before unloading if any tab is connected
+	$effect(() => {
+		const hasConnected = tabs.some((t) => t.status === 'connected');
+		const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+		if (hasConnected) {
+			window.addEventListener('beforeunload', handler);
+			return () => window.removeEventListener('beforeunload', handler);
+		}
+	});
 
 	onMount(() => {
-		serversApi.listServers().then((s) => { servers = s; }).catch(() => {});
 
 		// Create initial tab
 		if (tabs.length === 0) {
@@ -162,17 +183,23 @@
 		<h1 class="text-sm font-semibold text-text-primary">SvrCtlRS</h1>
 
 		<select
-			class="ml-4 px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary"
+			class="ml-4 px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
 			bind:value={selectedServerId}
 		>
-			<option value={null}>Select server...</option>
-			{#each servers as server}
-				<option value={server.id}>{server.name}{server.hostname ? ` (${server.hostname})` : ''}</option>
-			{/each}
+			{#if serversLoading}
+				<option value={null}>Loading servers...</option>
+			{:else if serversError}
+				<option value={null}>Failed to load servers</option>
+			{:else}
+				<option value={null}>Select server...</option>
+				{#each servers as server}
+					<option value={server.id}>{server.name}{server.hostname ? ` (${server.hostname})` : ''}</option>
+				{/each}
+			{/if}
 		</select>
 
 		<select
-			class="px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary"
+			class="px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
 			bind:value={selectedMode}
 		>
 			<option value="pty">Interactive (PTY)</option>
@@ -235,6 +262,8 @@
 		{layout}
 		onSelectTab={(id) => terminalState.setActiveTab(id)}
 		onCloseTab={(id) => {
+			const tab = tabs.find((t) => t.id === id);
+			if (tab?.status === 'connected' && !confirm('Terminal is connected. Close anyway?')) return;
 			paneRefs[id]?.disconnect();
 			delete paneRefs[id];
 			terminalState.closeTab(id);
