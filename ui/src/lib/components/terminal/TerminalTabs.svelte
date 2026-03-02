@@ -34,7 +34,7 @@
 	<div class="flex items-center overflow-x-auto flex-1 min-w-0">
 		{#each tabs as tab (tab.id)}
 			<div
-				class="flex items-center gap-1.5 px-3 py-1.5 text-xs border-r border-border whitespace-nowrap transition-colors cursor-pointer
+				class="flex items-center gap-1.5 px-2 py-1 md:px-3 md:py-1.5 text-xs border-r border-border whitespace-nowrap transition-colors cursor-pointer
 					{tab.id === activeTabId ? 'bg-surface-raised text-text-primary' : 'text-text-muted hover:text-text-secondary hover:bg-surface-raised/50'}"
 				role="tab"
 				tabindex="0"
@@ -43,10 +43,10 @@
 				onkeydown={(e) => { if (e.key === 'Enter') onSelectTab(tab.id); }}
 			>
 				<span class="w-1.5 h-1.5 rounded-full {statusColors[tab.status] ?? 'bg-text-muted'}"></span>
-				<span class="max-w-[120px] truncate">{tab.label}</span>
-				<span class="text-[10px] uppercase text-text-muted">{tab.mode}</span>
+				<span class="max-w-[60px] md:max-w-[120px] truncate">{tab.label}</span>
+				<span class="hidden md:inline text-[10px] uppercase text-text-muted">{tab.mode}</span>
 				<button
-					class="ml-1 p-0.5 rounded-sm hover:bg-error/20 hover:text-error"
+					class="ml-1 p-1 md:p-0.5 rounded-sm hover:bg-error/20 hover:text-error"
 					onclick={(e) => { e.stopPropagation(); onCloseTab(tab.id); }}
 					title="Close tab"
 				>
@@ -57,7 +57,7 @@
 
 		<!-- New Tab -->
 		<button
-			class="flex items-center gap-1 px-2 py-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
+			class="flex items-center gap-1 p-2 md:p-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
 			onclick={onNewTab}
 			title="New terminal (Ctrl+Shift+T)"
 		>
@@ -66,7 +66,7 @@
 	</div>
 
 	<!-- Layout buttons -->
-	<div class="flex items-center gap-0.5 px-2 border-l border-border">
+	<div class="hidden md:flex items-center gap-0.5 px-2 border-l border-border">
 		{#each layouts as l}
 			<button
 				class="p-1 rounded-sm transition-colors {layout === l.mode
