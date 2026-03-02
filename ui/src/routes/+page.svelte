@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Terminal as TerminalIcon } from 'lucide-svelte';
+	import { Terminal as TerminalIcon, Settings2 } from 'lucide-svelte';
 	import TerminalPane from '$lib/components/terminal/TerminalPane.svelte';
 	import TerminalTabs from '$lib/components/terminal/TerminalTabs.svelte';
 	import SplitView from '$lib/components/terminal/SplitView.svelte';
 	import CommandInput from '$lib/components/terminal/CommandInput.svelte';
 	import ConnectionBadge from '$lib/components/terminal/ConnectionBadge.svelte';
+	import TerminalPrefsPanel from '$lib/components/terminal/TerminalPrefsPanel.svelte';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import type { TerminalMode, ConnectionStatus } from '$lib/types/index.js';
@@ -15,6 +16,7 @@
 	let paneRefs = $state<Record<string, ReturnType<typeof TerminalPane>>>({});
 	let searchOpen = $state(false);
 	let searchTerm = $state('');
+	let prefsOpen = $state(false);
 
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
@@ -236,6 +238,9 @@
 			<button class="p-1 text-text-muted hover:text-text-primary" onclick={() => { if (activeTabId) paneRefs[activeTabId]?.downloadOutput(); }} title="Download">
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
 			</button>
+			<button class="p-1 text-text-muted hover:text-text-primary" class:text-accent={prefsOpen} onclick={() => prefsOpen = !prefsOpen} title="Terminal Preferences">
+				<Settings2 class="w-4 h-4" />
+			</button>
 		</div>
 	</div>
 
@@ -282,7 +287,7 @@
 	{/if}
 
 	<!-- Terminal panes -->
-	<div class="flex-1 min-h-0">
+	<div class="flex-1 min-h-0 relative">
 		<SplitView {layout} slotCount={visibleTabs.length}>
 			{#each tabs as tab (tab.id)}
 				<div
@@ -307,5 +312,6 @@
 				</div>
 			{/each}
 		</SplitView>
+		<TerminalPrefsPanel open={prefsOpen} onClose={() => prefsOpen = false} />
 	</div>
 </div>

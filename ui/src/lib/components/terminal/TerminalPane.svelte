@@ -12,6 +12,7 @@
 
 	import { tokyoNightTheme, lightTheme } from './terminal-theme.js';
 	import * as themeState from '$lib/state/theme.svelte.js';
+	import * as terminalPrefs from '$lib/state/terminalPrefs.svelte.js';
 	import type { TerminalMode, ConnectionStatus, CmdRequest, CmdResponse, PtyRequest, PtyResponse } from '$lib/types/index.js';
 
 	interface Props {
@@ -127,16 +128,24 @@
 	function initTerminal() {
 		if (!containerEl) return;
 
+		const p = terminalPrefs.getPrefs();
 		terminal = new Terminal({
-			cursorBlink: true,
-			cursorStyle: 'block',
-			fontSize: 14,
-			fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
-			fontWeight: 400,
-			fontWeightBold: 700,
-			lineHeight: 1.4,
-			scrollback: 5000,
-			tabStopWidth: 4,
+			cursorBlink: p.cursorBlink,
+			cursorStyle: p.cursorStyle,
+			fontSize: p.fontSize,
+			fontFamily: p.fontFamily,
+			fontWeight: p.fontWeight,
+			fontWeightBold: p.fontWeightBold,
+			lineHeight: p.lineHeight,
+			letterSpacing: p.letterSpacing,
+			scrollback: p.scrollback,
+			scrollSensitivity: p.scrollSensitivity,
+			fastScrollSensitivity: p.fastScrollSensitivity,
+			smoothScrollDuration: p.smoothScrollDuration,
+			scrollOnUserInput: p.scrollOnUserInput,
+			tabStopWidth: p.tabStopWidth,
+			drawBoldTextInBrightColors: p.drawBoldTextInBrightColors,
+			minimumContrastRatio: p.minimumContrastRatio,
 			allowProposedApi: true,
 			theme: themeState.isDark() ? tokyoNightTheme : lightTheme
 		});
@@ -460,6 +469,29 @@
 		if (terminal) {
 			terminal.options.theme = currentTheme === 'dark' ? tokyoNightTheme : lightTheme;
 		}
+	});
+
+	// Live-update terminal when preferences change
+	$effect(() => {
+		const p = terminalPrefs.getPrefs();
+		if (!terminal) return;
+		terminal.options.fontSize = p.fontSize;
+		terminal.options.fontFamily = p.fontFamily;
+		terminal.options.fontWeight = p.fontWeight;
+		terminal.options.fontWeightBold = p.fontWeightBold;
+		terminal.options.lineHeight = p.lineHeight;
+		terminal.options.letterSpacing = p.letterSpacing;
+		terminal.options.cursorStyle = p.cursorStyle;
+		terminal.options.cursorBlink = p.cursorBlink;
+		terminal.options.scrollback = p.scrollback;
+		terminal.options.scrollSensitivity = p.scrollSensitivity;
+		terminal.options.fastScrollSensitivity = p.fastScrollSensitivity;
+		terminal.options.smoothScrollDuration = p.smoothScrollDuration;
+		terminal.options.scrollOnUserInput = p.scrollOnUserInput;
+		terminal.options.tabStopWidth = p.tabStopWidth;
+		terminal.options.drawBoldTextInBrightColors = p.drawBoldTextInBrightColors;
+		terminal.options.minimumContrastRatio = p.minimumContrastRatio;
+		requestAnimationFrame(() => fit());
 	});
 
 	onMount(() => {

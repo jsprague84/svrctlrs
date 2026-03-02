@@ -34,6 +34,28 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
 
 export type LayoutMode = 'single' | 'split-h' | 'split-v' | 'quad';
 
+export type CursorStyle = 'block' | 'underline' | 'bar';
+export type FontWeightOption = 300 | 400 | 500 | 600 | 700;
+
+export interface TerminalPreferences {
+	fontSize: number;
+	fontFamily: string;
+	fontWeight: FontWeightOption;
+	fontWeightBold: FontWeightOption;
+	lineHeight: number;
+	letterSpacing: number;
+	cursorStyle: CursorStyle;
+	cursorBlink: boolean;
+	scrollback: number;
+	scrollSensitivity: number;
+	fastScrollSensitivity: number;
+	smoothScrollDuration: number;
+	scrollOnUserInput: boolean;
+	tabStopWidth: number;
+	drawBoldTextInBrightColors: boolean;
+	minimumContrastRatio: number;
+}
+
 export interface TerminalTab {
 	id: string;
 	label: string;
