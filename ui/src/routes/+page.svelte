@@ -180,12 +180,12 @@
 
 <div class="flex flex-col h-screen">
 	<!-- Top toolbar -->
-	<div class="flex items-center gap-3 px-4 py-2 bg-surface border-b border-border">
-		<TerminalIcon class="w-5 h-5 text-accent" />
-		<h1 class="text-sm font-semibold text-text-primary">SvrCtlRS</h1>
+	<div class="flex flex-wrap items-center gap-2 md:gap-3 md:flex-nowrap px-2 md:px-4 py-2 bg-surface border-b border-border">
+		<TerminalIcon class="hidden md:block w-5 h-5 text-accent" />
+		<h1 class="hidden md:block text-sm font-semibold text-text-primary">SvrCtlRS</h1>
 
 		<select
-			class="ml-4 px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
+			class="flex-1 min-w-0 ml-0 md:ml-4 px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
 			bind:value={selectedServerId}
 		>
 			{#if serversLoading}
@@ -201,7 +201,7 @@
 		</select>
 
 		<select
-			class="px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
+			class="min-w-0 px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
 			bind:value={selectedMode}
 		>
 			<option value="pty">Interactive (PTY)</option>
@@ -225,7 +225,7 @@
 			</button>
 		{/if}
 
-		<div class="ml-auto flex items-center gap-2">
+		<div class="w-full md:w-auto md:ml-auto flex items-center gap-1 md:gap-2 justify-end">
 			{#if activeTab}
 				<ConnectionBadge status={activeTab.status} />
 			{/if}
