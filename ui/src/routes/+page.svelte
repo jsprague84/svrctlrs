@@ -246,17 +246,19 @@
 
 	<!-- Search bar -->
 	{#if searchOpen}
-		<div class="flex items-center gap-2 px-4 py-1.5 bg-surface-raised border-b border-border">
+		<div class="flex flex-wrap items-center gap-2 px-2 md:px-4 py-1.5 bg-surface-raised border-b border-border">
 			<input
 				type="text"
 				bind:value={searchTerm}
 				oninput={handleSearch}
-				class="px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary placeholder:text-text-muted w-64"
+				class="px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary placeholder:text-text-muted w-full md:w-64"
 				placeholder="Search terminal output..."
 			/>
-			<button class="px-2 py-1 text-xs text-text-muted hover:text-text-primary" onclick={handleSearchPrev}>Prev</button>
-			<button class="px-2 py-1 text-xs text-text-muted hover:text-text-primary" onclick={handleSearchNext}>Next</button>
-			<button class="px-2 py-1 text-xs text-text-muted hover:text-text-primary" onclick={() => { searchOpen = false; searchTerm = ''; if (activeTabId) paneRefs[activeTabId]?.clearSearch(); }}>Close</button>
+			<div class="flex gap-1 mt-1 md:mt-0 md:gap-2">
+				<button class="px-2 py-1 text-xs text-text-muted hover:text-text-primary" onclick={handleSearchPrev}>Prev</button>
+				<button class="px-2 py-1 text-xs text-text-muted hover:text-text-primary" onclick={handleSearchNext}>Next</button>
+				<button class="px-2 py-1 text-xs text-text-muted hover:text-text-primary" onclick={() => { searchOpen = false; searchTerm = ''; if (activeTabId) paneRefs[activeTabId]?.clearSearch(); }}>Close</button>
+			</div>
 		</div>
 	{/if}
 
