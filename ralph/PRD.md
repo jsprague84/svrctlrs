@@ -1,7 +1,7 @@
-# PRD: SvrCtlRS Optimization & Terminal-First Refactor
+# PRD: Mobile Responsive Optimization
 
 **Version**: 1.0
-**Created**: 2026-02-28
+**Created**: 2026-03-02
 **Status**: Ready for Implementation
 **Priority**: High
 
@@ -9,142 +9,84 @@
 
 ## Problem Statement
 
-SvrCtlRS is an infrastructure automation platform, but the primary user workflow is **using it as a preconfigured web terminal to SSH into local servers from anywhere**. The current app has:
+The SvrCtlRS SvelteKit terminal UI is 100% desktop-only with zero responsive Tailwind classes. On a 375px phone:
 
-1. **No authentication** - Anyone with network access can SSH into any configured server
-2. **Credentials stored in plaintext** - SSH keys and passwords unencrypted in SQLite
-3. **Terminal buried in a modal** - The most-used feature is a secondary UI element
-4. **SSH host keys not verified** - Vulnerable to man-in-the-middle attacks
-5. **No graceful shutdown** - Server crash leaves orphaned connections
-6. **Deprecated code** lingering in the codebase
-7. **No request timeouts or security headers** - Missing standard web security
+- **Sidebar** (w-56 = 224px) takes 60% of the screen, leaving 151px for content
+- **TerminalPrefsPanel** (w-72 = 288px) covers 77% and cannot be dismissed
+- **Toolbar** items all in a single flex row — overflow/compress on phones
+- **Search bar** (w-64) pushes Prev/Next/Close buttons off-screen
+- **SplitView** renders 2-column grid at 170px per pane (unreadable)
+- **Tab labels** hardcoded to max-w-[120px] = 32% of phone width per tab
 
-The application will later be forked to remove job scheduling and focus entirely on server management + terminal access. This PRD optimizes the app for that future direction.
+**Mobile Responsiveness Score: 2/10** — completely non-functional on mobile.
 
 ---
 
 ## Goals
 
-1. **Security**: Authentication, credential encryption, SSH host key verification
-2. **Terminal UX**: Promote terminal from modal to full-page primary interface
-3. **Modernization**: WebGL rendering, timeout middleware, security headers
-4. **Cleanup**: Remove deprecated code, prepare architecture for fork
+1. Full application usability on phones (375-430px) without feature reduction
+2. Hamburger drawer pattern for sidebar navigation on mobile
+3. Bottom sheet pattern for TerminalPrefsPanel on mobile
+4. Forced single-pane terminal layout on small screens
+5. 44px minimum touch targets for all interactive elements
+6. Desktop layout completely unchanged at >= 768px
 
 ---
 
 ## Non-Goals
 
-- Adding new job/scheduling features (these will be removed in fork)
-- Multi-user RBAC (single-user auth is sufficient for now)
-- Kubernetes or cloud provider integration
+- PWA manifest or service worker (separate PRD)
+- Capacitor / native app wrapper
+- Offline support
+- Mobile-specific features (swipe gestures, haptic feedback)
+- Visual theme redesign
+- New components — only Tailwind responsive classes on existing components
 
 ---
 
-## Phase 1: Security Foundation
+## Key Decisions
 
-### 1.1 User Accounts & Password Hashing
-- Add `users` table: id, username, password_hash, created_at, updated_at
-- Use `argon2` crate for password hashing (modern replacement for bcrypt)
-- Create initial admin user via environment variable or first-run setup
-- Migration: `016_user_accounts.sql`
-
-### 1.2 Login/Logout with Session Management
-- Integrate `tower-sessions` + `tower-sessions-sqlx-store` (already in Cargo.toml)
-- Implement login form submission with password verification
-- Session cookie with configurable expiry
-- Logout clears session
-- Login page uses existing Askama templates
-
-### 1.3 Authentication Middleware
-- Tower middleware layer that checks session on every request
-- Exempt routes: `/auth/login`, `/static/*`, health check
-- Redirect unauthenticated users to login page
-- Return 401 for unauthenticated API/WebSocket requests
-
-### 1.4 Credential Encryption at Rest
-- Encrypt credential `value` field using AES-256-GCM
-- Encryption key from `ENCRYPTION_KEY` environment variable
-- Migrate existing plaintext credentials to encrypted format
-- Decrypt on read, encrypt on write (transparent to rest of app)
+- **Breakpoint**: Tailwind `md:` (768px) — below = mobile, above = desktop
+- **Sidebar**: Hamburger drawer (fixed overlay with backdrop)
+- **Prefs Panel**: Bottom sheet on mobile (70vh, slide up)
+- **Terminal**: Full PTY + CMD on mobile (no feature reduction)
+- **Layouts**: Single-pane forced on mobile, all 4 layouts available on desktop
 
 ---
 
-## Phase 2: Terminal-First Experience
+## Stories Summary
 
-### 2.1 Full-Page Terminal View
-- New route: `GET /terminal` - dedicated full-page terminal
-- Full viewport terminal with sidebar for server selection
-- Server list with connection status indicators
-- Quick-connect: click a server to open terminal immediately
-- Replace modal as primary terminal interface (modal kept for command template testing)
-
-### 2.2 PTY Mode Integration in Frontend
-- Add toggle in terminal UI: "Command Mode" vs "Interactive Shell"
-- Command mode: existing non-interactive WebSocket (`/ws/terminal`)
-- Shell mode: PTY WebSocket (`/ws/terminal/pty`) with full interactive support
-- Auto-detect mode based on command (e.g., `vim`, `top` → suggest PTY)
-- Visual indicator showing current mode
-
-### 2.3 xterm.js WebGL Renderer
-- Load WebGL addon for GPU-accelerated rendering
-- Graceful fallback to canvas on WebGL context loss
-- Add Unicode11 addon (already loaded but not activated)
-- Configure proper font stack with ligature support
-
-### 2.4 Server Quick-Connect Dashboard
-- Dashboard cards for each server with one-click "Connect" button
-- Show server status (last seen, health indicator)
-- Recent connections history
-- Pinned/favorite servers at top
-
----
-
-## Phase 3: Infrastructure Hardening
-
-### 3.1 SSH Host Key Verification
-- Implement known_hosts file management
-- On first connect: prompt user to accept host key (TOFU model)
-- Store accepted keys in database (`server_host_keys` table)
-- Reject connections when host key changes (with override option)
-
-### 3.2 Graceful Shutdown & Security Headers
-- Handle SIGTERM/SIGINT for clean shutdown
-- Close active WebSocket connections gracefully
-- Add security headers: CSP, X-Frame-Options, X-Content-Type-Options
-- Restrict CORS to configured origins (not permissive)
-
-### 3.3 Request Timeout Middleware
-- Add `tower::timeout::TimeoutLayer` with `HandleErrorLayer`
-- Default 30s timeout for HTTP requests
-- Separate timeout configuration for WebSocket upgrade requests
-- Return proper 408 Request Timeout responses
-
-### 3.4 Remove Deprecated RemoteExecutor
-- Delete `core/src/remote.rs` (shell-based SSH executor)
-- Remove all references from `core/src/lib.rs`
-- Update `server/src/state.rs` to remove `executor` field
-- Verify no remaining callers
+| # | Title | Key Files |
+|---|-------|-----------|
+| US-001 | Sidebar hamburger drawer | +layout.svelte, Sidebar.svelte |
+| US-002 | Toolbar responsive | +page.svelte |
+| US-003 | Prefs panel bottom sheet | TerminalPrefsPanel.svelte, +page.svelte |
+| US-004 | Single layout + compact tabs | mobile.svelte.ts (NEW), SplitView.svelte, TerminalTabs.svelte |
+| US-005 | Search bar + command input | +page.svelte, CommandInput.svelte |
+| US-006 | Content pages responsive | servers, credentials, settings pages, Modal.svelte |
+| US-007 | Touch targets + polish | app.html, app.css, Sidebar.svelte, toolbar buttons |
 
 ---
 
 ## Technical Notes
 
-### Dependencies to Add
-- `argon2` - Password hashing (replaces bcrypt, recommended by OWASP)
-- `aes-gcm` - Credential encryption at rest
-- `rand` - Secure random key generation
+### Stack
+- Tailwind CSS v4 (`@import 'tailwindcss'` with `@theme` block)
+- SvelteKit 5 with Svelte 5 runes ($state, $derived, $effect)
+- adapter-static (SPA)
+- All responsive via `md:` prefix — no custom @media queries
 
-### Dependencies Already Present (Unused)
-- `tower-sessions` 0.13 - In Cargo.toml but not integrated
-- `tower-sessions-sqlx-store` 0.13 - In Cargo.toml but not integrated
+### Context7 Research Requirement
+Each story MUST use the Context7 MCP tool to query latest Tailwind CSS v4 and SvelteKit 5 documentation before implementing. This ensures usage of current best practices and avoids deprecated patterns.
 
-### xterm.js Modern Best Practices (from Context7)
-- WebGL addon: `@xterm/addon-webgl` for GPU-accelerated rendering
-- Handle `onContextLoss` for GPU driver recovery
-- Fit addon already used correctly
-- AttachAddon available for cleaner WebSocket piping (evaluate vs current custom protocol)
+### Quality Checks
+```bash
+cd ui && npm run check    # TypeScript typecheck
+cd ui && npm run build    # Production build
+```
 
-### Axum 0.8 Best Practices (from Context7)
-- `HandleErrorLayer` wrapping `TimeoutLayer` for proper error responses
-- `ServiceBuilder` for composing middleware layers
-- Custom middleware via `axum::middleware::from_fn` for auth guard
+### Key Existing Patterns
+- `$state` + localStorage for persistence (theme.svelte.ts, terminalPrefs.svelte.ts)
+- Sidebar already has collapsed/expanded toggle with localStorage
+- TerminalPrefsPanel already has open/close with slide transition
+- SplitView uses `$derived` grid classes from layout prop

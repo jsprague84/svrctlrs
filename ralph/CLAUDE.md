@@ -18,24 +18,32 @@ You are an autonomous coding agent working on the SvrCtlRS project.
 ## Project-Specific Build & Check Commands
 
 ```bash
-# From project root (/home/jsprague/Development/svrctlrs)
+# SvelteKit Frontend (current PRD targets this)
+cd ui && npm run check           # TypeScript typecheck (svelte-check)
+cd ui && npm run build           # Production build (vite + adapter-static)
+cd ui && npm run dev             # Dev server for browser testing
+
+# Rust Backend (not targeted by current PRD, but available)
 cargo build --workspace          # Build all crates
 cargo clippy --workspace -- -D warnings   # Lint
 cargo test --workspace           # Run tests
 ```
 
-The workspace has 4 crates: core, database, scheduler, server.
+The Rust workspace has 4 crates: core, database, scheduler, server.
+The SvelteKit frontend is in the `ui/` directory.
 
 ## Key Project Context
 
-- **Stack**: Rust (Axum 0.8), HTMX 2.0, Alpine.js, SQLite (sqlx), Askama templates, xterm.js
+- **Stack**: SvelteKit 5 (Svelte 5 runes), Tailwind CSS v4, TypeScript, xterm.js, adapter-static (SPA)
+- **Backend**: Rust (Axum 0.8), SQLite (sqlx), Askama templates
 - **Architecture**: Job-based infrastructure automation platform with embedded terminal
 - **Primary CLAUDE.md**: Read `/home/jsprague/Development/svrctlrs/CLAUDE.md` for full architecture docs
-- **Current schema**: `database/migrations/011_complete_restructure.sql`
-- **Display Model Pattern**: ALL complex types in Askama templates MUST use Display models (see main CLAUDE.md)
-- **Form handling**: Use `axum_extra::extract::Form` (NOT `axum::Form`) for multi-value form fields
+- **SvelteKit UI directory**: `ui/` — all frontend code lives here
+- **Tailwind CSS v4**: Uses `@import 'tailwindcss'` with `@theme` block in `ui/src/app.css`. Default breakpoints: sm=640px, md=768px, lg=1024px
+- **Svelte 5 Runes**: Uses `$state`, `$derived`, `$effect`, `$props` — NOT legacy `$:` reactive statements
+- **State pattern**: Modules in `ui/src/lib/state/` export functions wrapping `$state` variables (see theme.svelte.ts, terminalPrefs.svelte.ts)
+- **Context7 MCP Tool**: MUST use Context7 MCP tool to research latest Tailwind CSS v4 and SvelteKit 5 patterns before implementing each story. Query examples: 'responsive breakpoints mobile-first', 'flex-wrap responsive layout', 'fixed positioning bottom sheet'
 - **SSH**: Two libraries - `async-ssh2-tokio` (non-interactive) and `russh` (PTY/interactive)
-- **Dependencies already in Cargo.toml**: tower-sessions, tower-sessions-sqlx-store (not yet integrated)
 
 ## Progress Report Format
 

@@ -8,10 +8,12 @@
 	import type { Server } from '$lib/types/index.js';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
+	import { Menu } from 'lucide-svelte';
 
 	let { children } = $props();
 
 	let sidebarCollapsed = $state(false);
+	let mobileOpen = $state(false);
 
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
@@ -30,6 +32,10 @@
 		localStorage.setItem('svrctlrs-sidebar-collapsed', String(sidebarCollapsed));
 	}
 
+	function closeMobileSidebar() {
+		mobileOpen = false;
+	}
+
 	function handleConnectServer(server: Server) {
 		// Navigate to terminal page and create a tab for this server
 		const tab = terminalState.createTab(server.id, server.name, 'pty');
@@ -40,13 +46,34 @@
 	}
 </script>
 
+<!-- Hamburger button (mobile only) -->
+<button
+	class="fixed top-2 left-2 z-50 p-2 rounded-md bg-surface text-foreground md:hidden"
+	onclick={() => (mobileOpen = true)}
+	aria-label="Open sidebar"
+>
+	<Menu class="w-5 h-5" />
+</button>
+
+<!-- Mobile backdrop -->
+{#if mobileOpen}
+	<button
+		class="fixed inset-0 bg-black/50 z-30 md:hidden"
+		onclick={closeMobileSidebar}
+		aria-label="Close sidebar"
+		tabindex="-1"
+	></button>
+{/if}
+
 <div class="flex h-screen bg-background text-foreground">
 	<Sidebar
 		{servers}
 		loading={serversLoading}
 		error={serversError}
 		collapsed={sidebarCollapsed}
+		{mobileOpen}
 		onToggle={toggleSidebar}
+		onMobileClose={closeMobileSidebar}
 		onConnectServer={handleConnectServer}
 	/>
 	<main class="flex-1 min-w-0 flex flex-col">

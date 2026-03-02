@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { base } from '$app/paths';
-	import { Terminal, Server, KeyRound, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon } from 'lucide-svelte';
+	import { Terminal, Server, KeyRound, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, X } from 'lucide-svelte';
 	import type { Server as ServerType } from '$lib/types/index.js';
 	import { logout } from '$lib/api/client.js';
 	import * as themeState from '$lib/state/theme.svelte.js';
@@ -11,11 +11,13 @@
 		loading?: boolean;
 		error?: string | null;
 		collapsed?: boolean;
+		mobileOpen?: boolean;
 		onToggle: () => void;
+		onMobileClose?: () => void;
 		onConnectServer: (server: ServerType) => void;
 	}
 
-	let { servers, loading = false, error = null, collapsed = false, onToggle, onConnectServer }: Props = $props();
+	let { servers, loading = false, error = null, collapsed = false, mobileOpen = false, onToggle, onMobileClose, onConnectServer }: Props = $props();
 
 	const navItems = [
 		{ href: `${base}/`, icon: Terminal, label: 'Terminal' },
@@ -29,31 +31,53 @@
 		if (href === `${base}/`) return path === `${base}/` || path === base;
 		return path.startsWith(href);
 	}
+
+	function handleNavClick() {
+		onMobileClose?.();
+	}
+
+	function handleServerConnect(server: ServerType) {
+		onMobileClose?.();
+		onConnectServer(server);
+	}
 </script>
 
 <aside
-	class="flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200
-		{collapsed ? 'w-12' : 'w-56'}"
+	class="flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200
+		{mobileOpen
+			? 'fixed inset-y-0 left-0 z-40 w-64 flex translate-x-0'
+			: 'hidden md:flex'} {!mobileOpen && collapsed ? 'w-12' : !mobileOpen ? 'w-56' : ''}"
 	aria-label="Sidebar"
 >
 	<!-- Logo / Toggle -->
 	<div class="flex items-center justify-between px-3 py-3 border-b border-sidebar-border">
-		{#if !collapsed}
+		{#if mobileOpen || !collapsed}
 			<span class="text-sm font-bold text-sidebar-foreground tracking-tight">SvrCtlRS</span>
 		{/if}
-		<button
-			class="p-1 text-sidebar-muted hover:text-sidebar-foreground rounded-sm"
-			onclick={onToggle}
-			title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-			aria-expanded={!collapsed}
-			aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-		>
-			{#if collapsed}
-				<PanelLeftOpen class="w-4 h-4" />
-			{:else}
-				<PanelLeftClose class="w-4 h-4" />
-			{/if}
-		</button>
+		{#if mobileOpen}
+			<button
+				class="p-1 text-sidebar-muted hover:text-sidebar-foreground rounded-sm"
+				onclick={onMobileClose}
+				title="Close sidebar"
+				aria-label="Close sidebar"
+			>
+				<X class="w-4 h-4" />
+			</button>
+		{:else}
+			<button
+				class="p-1 text-sidebar-muted hover:text-sidebar-foreground rounded-sm"
+				onclick={onToggle}
+				title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+				aria-expanded={!collapsed}
+				aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+			>
+				{#if collapsed}
+					<PanelLeftOpen class="w-4 h-4" />
+				{:else}
+					<PanelLeftClose class="w-4 h-4" />
+				{/if}
+			</button>
+		{/if}
 	</div>
 
 	<!-- Navigation -->
@@ -65,19 +89,20 @@
 					{isActive(item.href)
 						? 'bg-sidebar-accent text-sidebar-foreground'
 						: 'text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}"
-				title={collapsed ? item.label : undefined}
+				title={collapsed && !mobileOpen ? item.label : undefined}
 				aria-current={isActive(item.href) ? 'page' : undefined}
+				onclick={handleNavClick}
 			>
 				<item.icon class="w-4 h-4 flex-shrink-0" />
-				{#if !collapsed}
+				{#if mobileOpen || !collapsed}
 					<span>{item.label}</span>
 				{/if}
 			</a>
 		{/each}
 	</nav>
 
-	<!-- Server list (not collapsed) -->
-	{#if !collapsed}
+	<!-- Server list (not collapsed, or mobile open) -->
+	{#if mobileOpen || !collapsed}
 		<div class="flex-1 overflow-y-auto border-t border-sidebar-border" aria-label="Servers">
 			<div class="px-3 py-2">
 				<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold mb-1.5">Servers</h3>
@@ -93,7 +118,7 @@
 							<button
 								class="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm text-left w-full
 									text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
-								onclick={() => onConnectServer(server)}
+								onclick={() => handleServerConnect(server)}
 								title="Connect to {server.name}"
 							>
 								<span class="w-1.5 h-1.5 rounded-full flex-shrink-0
@@ -124,7 +149,7 @@
 			{:else}
 				<Moon class="w-4 h-4 flex-shrink-0" />
 			{/if}
-			{#if !collapsed}
+			{#if mobileOpen || !collapsed}
 				<span>{themeState.isDark() ? 'Light Mode' : 'Dark Mode'}</span>
 			{/if}
 		</button>
@@ -136,7 +161,7 @@
 			aria-label="Logout"
 		>
 			<LogOut class="w-4 h-4 flex-shrink-0" />
-			{#if !collapsed}
+			{#if mobileOpen || !collapsed}
 				<span>Logout</span>
 			{/if}
 		</button>
