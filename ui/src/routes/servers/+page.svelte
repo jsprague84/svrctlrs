@@ -106,7 +106,7 @@
 </script>
 
 <div class="flex flex-col h-full">
-	<div class="flex items-center justify-between px-6 py-4 border-b border-border">
+	<div class="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-4 border-b border-border">
 		<div class="flex items-center gap-3">
 			<Server class="w-5 h-5 text-accent" />
 			<h1 class="text-lg font-semibold text-text-primary">Servers</h1>
@@ -115,67 +115,58 @@
 		<Button onclick={openCreate}><Plus class="w-4 h-4" /> Add Server</Button>
 	</div>
 
-	<div class="flex-1 overflow-y-auto">
+	<div class="flex-1 overflow-y-auto p-4 md:p-6">
 		{#if loading}
-			<div class="p-6 text-text-muted">Loading...</div>
+			<div class="text-text-muted">Loading...</div>
 		{:else if servers.length === 0}
-			<div class="p-6 text-center text-text-muted">
+			<div class="text-center text-text-muted">
 				<p>No servers configured yet.</p>
 				<Button variant="secondary" class="mt-3" onclick={openCreate}>Add your first server</Button>
 			</div>
 		{:else}
-			<table class="w-full text-sm">
-				<thead>
-					<tr class="border-b border-border text-left text-text-muted">
-						<th class="px-4 py-2 font-medium">Name</th>
-						<th class="px-4 py-2 font-medium">Host</th>
-						<th class="px-4 py-2 font-medium">User</th>
-						<th class="px-4 py-2 font-medium">Status</th>
-						<th class="px-4 py-2 font-medium text-right">Actions</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each servers as server (server.id)}
-						<tr class="border-b border-border/50 hover:bg-surface-raised/30">
-							<td class="px-4 py-2 text-text-primary font-medium">
-								{server.name}
+			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+				{#each servers as server (server.id)}
+					<div class="border border-border/50 rounded-lg p-4 hover:bg-surface-raised/30 flex flex-col gap-2">
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-2 min-w-0">
+								<span class="text-text-primary font-medium truncate">{server.name}</span>
 								{#if server.is_local}
 									<Badge variant="info">local</Badge>
 								{/if}
-							</td>
-							<td class="px-4 py-2 text-text-secondary font-mono text-xs">
-								{server.hostname ?? '—'}:{server.port}
-							</td>
-							<td class="px-4 py-2 text-text-secondary">{server.username ?? '—'}</td>
-							<td class="px-4 py-2">
-								{#if server.enabled}
-									<Badge variant="success">Enabled</Badge>
+							</div>
+							{#if server.enabled}
+								<Badge variant="success">Enabled</Badge>
+							{:else}
+								<Badge variant="warning">Disabled</Badge>
+							{/if}
+						</div>
+						<div class="text-text-secondary font-mono text-xs">
+							{server.hostname ?? '—'}:{server.port}
+						</div>
+						{#if server.username}
+							<div class="text-text-muted text-xs">User: {server.username}</div>
+						{/if}
+						<div class="flex items-center justify-end gap-1 mt-auto pt-2 border-t border-border/30">
+							<Button variant="ghost" size="sm" onclick={() => handleTest(server.id)} disabled={testing === server.id}>
+								{#if testing === server.id}
+									<span class="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"></span>
 								{:else}
-									<Badge variant="warning">Disabled</Badge>
+									<Wifi class="w-3.5 h-3.5" />
 								{/if}
-							</td>
-							<td class="px-4 py-2 text-right">
-								<div class="flex items-center justify-end gap-1">
-									<Button variant="ghost" size="sm" onclick={() => handleTest(server.id)} disabled={testing === server.id}>
-										{#if testing === server.id}
-											<span class="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"></span>
-										{:else}
-											<Wifi class="w-3.5 h-3.5" />
-										{/if}
-										Test
-									</Button>
-									<Button variant="ghost" size="sm" onclick={() => openEdit(server)}>
-										<Pencil class="w-3.5 h-3.5" />
-									</Button>
-									<Button variant="ghost" size="sm" onclick={() => handleDelete(server.id)}>
-										<Trash2 class="w-3.5 h-3.5 text-error" />
-									</Button>
-								</div>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
+								<span class="hidden md:inline">Test</span>
+							</Button>
+							<Button variant="ghost" size="sm" onclick={() => openEdit(server)}>
+								<Pencil class="w-3.5 h-3.5" />
+								<span class="hidden md:inline">Edit</span>
+							</Button>
+							<Button variant="ghost" size="sm" onclick={() => handleDelete(server.id)}>
+								<Trash2 class="w-3.5 h-3.5 text-error" />
+								<span class="hidden md:inline">Delete</span>
+							</Button>
+						</div>
+					</div>
+				{/each}
+			</div>
 		{/if}
 	</div>
 </div>

@@ -35,7 +35,7 @@
 		></button>
 
 		<!-- Content -->
-		<div class="relative bg-surface border border-border rounded-lg shadow-lg w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+		<div class="relative bg-surface border border-border rounded-lg shadow-lg w-[calc(100%-1rem)] md:w-full max-w-lg mx-auto max-h-[90vh] flex flex-col">
 			<!-- Header -->
 			<div class="flex items-center justify-between px-4 py-3 border-b border-border">
 				<h2 class="text-sm font-semibold text-text-primary">{title}</h2>

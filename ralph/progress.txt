@@ -11,6 +11,11 @@ Started: Mon Mar  2 05:35:09 PM CST 2026
 - Playwright browser install not available on Fedora — manual browser testing needed
 - Direction-switching animation: `translate-y-full md:translate-y-0 md:translate-x-full` (when closed) to animate different axis per breakpoint
 - Bottom sheet pattern: `fixed bottom-0 left-0 right-0 h-[70vh] rounded-t-xl` + `md:absolute md:...` for responsive panel
+- Mobile detection: `ui/src/lib/state/mobile.svelte.ts` exports `isMobile()` — use for JS-level responsive logic (e.g., overriding $derived grid classes in SplitView)
+- Svelte 5 has built-in `MediaQuery` class in `svelte/reactivity`, but project uses custom `$state` pattern for consistency with other state modules
+- CRUD pages: convert tables to card grids for mobile — `grid-cols-1 md:grid-cols-2 lg:grid-cols-3` with card pattern `border rounded-lg p-4 flex flex-col gap-2`
+- Icon-only buttons on mobile: wrap text in `<span class="hidden md:inline">Text</span>`
+- Page headers: use `flex flex-wrap items-center justify-between gap-2 px-4 md:px-6` for responsive stacking
 
 ---
 
@@ -48,4 +53,45 @@ Started: Mon Mar  2 05:35:09 PM CST 2026
   - Border direction switch: `border-t md:border-t-0 md:border-l` gives top border on bottom sheet and left border on side panel
   - Drag handle is purely decorative: `w-10 h-1 rounded-full bg-text-muted/30` centered with flexbox
   - Backdrop button needs `aria-label` to pass svelte-check a11y warnings
+---
+
+## 2026-03-02 17:50 CST - US-004
+- Forced single-pane layout on mobile and made terminal tabs compact
+- Files changed:
+  - `ui/src/lib/state/mobile.svelte.ts` (NEW) — Reactive mobile detection using `$state` + `window.matchMedia('(max-width: 767px)')` with change listener; exports `isMobile()` function
+  - `ui/src/lib/components/terminal/SplitView.svelte` — Imported `isMobile`, added check to `$derived` gridClass to force `grid-cols-1 grid-rows-1` when mobile
+  - `ui/src/lib/components/terminal/TerminalTabs.svelte` — Hidden layout selector buttons on mobile (`hidden md:flex`); reduced tab padding (`px-2 py-1 md:px-3 md:py-1.5`); compact tab label width (`max-w-[60px] md:max-w-[120px]`); hidden mode badge (`hidden md:inline`); larger close button touch target (`p-1 md:p-0.5`); larger new tab button touch target (`p-2 md:p-1.5`)
+- **Learnings for future iterations:**
+  - `mobile.svelte.ts` follows the exact same pattern as `theme.svelte.ts` — top-level `$state` in a `.svelte.ts` module with exported getter function
+  - Import path must use `.js` extension: `import { isMobile } from '$lib/state/mobile.svelte.js'`
+  - For CSS-only responsive changes, use Tailwind `md:` prefix; for JS logic overrides (like $derived), use `isMobile()` function
+  - Touch targets: use responsive padding increase pattern (`p-1 md:p-0.5`) — larger on mobile, normal on desktop
+---
+
+## 2026-03-02 17:52 CST - US-005
+- Made search bar and command input responsive for mobile
+- Files changed:
+  - `ui/src/routes/+page.svelte` — Search bar container: added `flex-wrap` and `px-2 md:px-4`; search input: `w-full md:w-64` (was `w-64`); wrapped Prev/Next/Close buttons in a `<div class="flex gap-1 mt-1 md:mt-0 md:gap-2">` so they wrap to second row on mobile
+  - `ui/src/lib/components/terminal/CommandInput.svelte` — Verified: already uses `flex-1` on input, no changes needed
+- **Learnings for future iterations:**
+  - CommandInput was already responsive — `flex-1` on the input naturally fills available width on any screen size
+  - For search bars with buttons, wrapping buttons in a `<div>` with `mt-1 md:mt-0` creates a clean two-row layout on mobile without affecting desktop
+  - Minimal changes (7 lines added, 5 removed) — responsive Tailwind classes keep diffs small
+---
+
+## 2026-03-02 17:56 CST - US-006
+- Made servers, credentials, and settings pages responsive; made Modal mobile-friendly
+- Files changed:
+  - `ui/src/routes/servers/+page.svelte` — Converted table to card grid (`grid-cols-1 md:grid-cols-2 lg:grid-cols-3`); action buttons icon-only on mobile (`hidden md:inline` on text spans); responsive header with `flex-wrap gap-2 px-4 md:px-6`
+  - `ui/src/routes/credentials/+page.svelte` — Converted table to card grid (`grid-cols-1 md:grid-cols-2`); action buttons icon-only on mobile; responsive header
+  - `ui/src/routes/settings/+page.svelte` — Settings rows stack vertically on mobile (`flex-col md:flex-row`); edit inputs use `w-full md:w-48`; setting keys use `break-all` for long keys; responsive header and padding
+  - `ui/src/lib/components/ui/Modal.svelte` — Changed content wrapper from `w-full mx-4` to `w-[calc(100%-1rem)] md:w-full mx-auto` for tighter mobile margins while preserving desktop appearance
+- **Learnings for future iterations:**
+  - Tables don't work well on mobile — convert to card grids for CRUD pages
+  - Card pattern: `border rounded-lg p-4 flex flex-col gap-2` with `mt-auto pt-2 border-t` for action buttons at bottom
+  - Icon-only buttons on mobile: wrap text in `<span class="hidden md:inline">` — keeps buttons compact but still informative on desktop
+  - `break-all` on monospace text (keys, hostnames) prevents horizontal overflow on mobile
+  - Settings inline edit: `flex-col md:flex-row` stacks key and value on mobile, side by side on desktop
+  - Modal `w-[calc(100%-1rem)]` gives 0.5rem margin each side (tighter than `mx-4` which is 1rem each side)
+  - Form inputs within modals already fill full width via flex-col containers — no changes needed
 ---

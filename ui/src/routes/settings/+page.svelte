@@ -68,7 +68,7 @@
 </script>
 
 <div class="flex flex-col h-full">
-	<div class="flex items-center justify-between px-6 py-4 border-b border-border">
+	<div class="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-4 border-b border-border">
 		<div class="flex items-center gap-3">
 			<Settings class="w-5 h-5 text-accent" />
 			<h1 class="text-lg font-semibold text-text-primary">Settings</h1>
@@ -76,7 +76,7 @@
 		<Button onclick={openCreate}><Plus class="w-4 h-4" /> Add Setting</Button>
 	</div>
 
-	<div class="flex-1 overflow-y-auto p-6">
+	<div class="flex-1 overflow-y-auto p-4 md:p-6">
 		{#if loading}
 			<div class="text-text-muted">Loading...</div>
 		{:else}
@@ -87,17 +87,17 @@
 					</h2>
 					<div class="flex flex-col gap-2">
 						{#each items as setting}
-							<div class="flex items-start gap-4 px-3 py-2 rounded-sm hover:bg-surface-raised/30">
+							<div class="flex flex-col md:flex-row md:items-start gap-2 md:gap-4 px-3 py-2 rounded-sm hover:bg-surface-raised/30">
 								<div class="flex-1 min-w-0">
-									<div class="text-sm text-text-primary font-mono">{setting.key}</div>
+									<div class="text-sm text-text-primary font-mono break-all">{setting.key}</div>
 									{#if setting.description}
 										<div class="text-xs text-text-muted mt-0.5">{setting.description}</div>
 									{/if}
 								</div>
-								<div class="flex items-center gap-2">
+								<div class="flex flex-wrap items-center gap-2">
 									{#if editingKey === setting.key}
 										{#if setting.value_type === 'boolean'}
-											<select bind:value={editValue} class="px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary">
+											<select bind:value={editValue} class="w-full md:w-auto px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary">
 												<option value="true">true</option>
 												<option value="false">false</option>
 											</select>
@@ -105,7 +105,7 @@
 											<input
 												type={setting.value_type === 'number' ? 'number' : 'text'}
 												bind:value={editValue}
-												class="px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary w-48"
+												class="w-full md:w-48 px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary"
 											/>
 										{/if}
 										<Button size="sm" onclick={() => saveEdit(setting.key)}>
@@ -113,7 +113,7 @@
 										</Button>
 										<Button variant="ghost" size="sm" onclick={cancelEdit}>Cancel</Button>
 									{:else}
-										<span class="text-sm text-text-secondary font-mono bg-surface-raised px-2 py-0.5 rounded-sm">
+										<span class="text-sm text-text-secondary font-mono bg-surface-raised px-2 py-0.5 rounded-sm break-all">
 											{setting.value}
 										</span>
 										<span class="text-[10px] text-text-muted uppercase">{setting.value_type}</span>
