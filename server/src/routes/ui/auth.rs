@@ -1,16 +1,75 @@
-//! Authentication routes
+//! Authentication routes and middleware
 
-use askama::Template;
 use axum::{
-    extract::State,
-    response::{Html, IntoResponse, Redirect},
+    extract::{Request, State},
+    http::StatusCode,
+    middleware::Next,
+    response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
-    Router,
+    Form, Json, Router,
 };
-use axum_extra::extract::Form;
+use serde::Deserialize;
+use tower_sessions::Session;
 
-use super::AppError;
-use crate::{state::AppState, templates::*};
+use crate::state::AppState;
+
+/// Session key for the authenticated user's ID
+const USER_ID_KEY: &str = "user_id";
+
+/// Authentication middleware that protects all routes except exempted ones.
+///
+/// Exempt routes: /auth/login, /auth/logout, /api/v1/health, SPA static assets
+///
+/// Behavior for unauthenticated requests:
+/// - WebSocket upgrades: 401 Unauthorized
+/// - API requests (/api/*): 401 JSON response
+/// - Browser requests: redirect to /auth/login
+pub async fn require_auth(session: Session, request: Request, next: Next) -> Response {
+    let path = request.uri().path();
+
+    // Exempt routes - no auth required (case-insensitive comparison)
+    let path_lower = path.to_ascii_lowercase();
+    if path_lower == "/auth/login"
+        || path_lower == "/auth/logout"
+        || path_lower == "/api/v1/health"
+        // SPA static assets (SvelteKit immutable hashed chunks)
+        || path_lower.starts_with("/_app/")
+    {
+        return next.run(request).await;
+    }
+
+    // Check session for authenticated user
+    let user_id: Option<i64> = session.get(USER_ID_KEY).await.unwrap_or(None);
+
+    if user_id.is_some() {
+        return next.run(request).await;
+    }
+
+    // Unauthenticated — determine response type
+
+    // WebSocket upgrade requests get 401
+    let is_websocket = request
+        .headers()
+        .get("upgrade")
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.eq_ignore_ascii_case("websocket"));
+
+    if is_websocket {
+        return StatusCode::UNAUTHORIZED.into_response();
+    }
+
+    // API requests get 401 JSON
+    if path.starts_with("/api/") {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Authentication required"})),
+        )
+            .into_response();
+    }
+
+    // Browser requests redirect to login
+    Redirect::to("/auth/login").into_response()
+}
 
 /// Create auth router
 pub fn routes() -> Router<AppState> {
@@ -19,26 +78,133 @@ pub fn routes() -> Router<AppState> {
         .route("/auth/logout", post(logout))
 }
 
+/// Login form data
+#[derive(Debug, Deserialize)]
+struct LoginForm {
+    username: String,
+    password: String,
+}
+
+/// Render minimal standalone login page
+fn render_login_html(error: Option<&str>) -> String {
+    let error_block = error
+        .map(|msg| {
+            format!(
+                r#"<div style="background:#f85149;color:#fff;padding:0.75rem 1rem;border-radius:6px;margin-bottom:1.5rem;font-size:0.875rem;">{}</div>"#,
+                msg
+            )
+        })
+        .unwrap_or_default();
+
+    format!(
+        r##"<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SvrCtlRS — Login</title>
+<style>
+*,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
+body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#1a1b26;color:#c0caf5;display:flex;align-items:center;justify-content:center;min-height:100vh}}
+.card{{background:#24283b;border:1px solid #414868;border-radius:12px;padding:2.5rem;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.3)}}
+h1{{font-size:1.5rem;font-weight:600;margin-bottom:0.25rem;text-align:center}}
+.sub{{color:#565f89;font-size:0.875rem;text-align:center;margin-bottom:2rem}}
+label{{display:block;font-size:0.875rem;font-weight:500;color:#a9b1d6;margin-bottom:0.375rem}}
+input{{width:100%;padding:0.625rem 0.75rem;background:#1a1b26;border:1px solid #414868;border-radius:6px;color:#c0caf5;font-size:0.875rem;outline:none;transition:border-color 0.15s}}
+input:focus{{border-color:#7aa2f7}}
+.field{{margin-bottom:1.25rem}}
+button{{width:100%;padding:0.75rem;background:#7aa2f7;color:#1a1b26;border:none;border-radius:6px;font-size:0.875rem;font-weight:600;cursor:pointer;transition:background 0.15s}}
+button:hover{{background:#89b4fa}}
+</style>
+</head>
+<body>
+<div class="card">
+<h1>SvrCtlRS</h1>
+<p class="sub">Sign in to continue</p>
+{error_block}
+<form method="post" action="/auth/login">
+<div class="field"><label for="username">Username</label><input id="username" name="username" type="text" autocomplete="username" required autofocus></div>
+<div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+<button type="submit">Sign in</button>
+</form>
+</div>
+</body>
+</html>"##
+    )
+}
+
 /// Login page handler
-async fn login_page() -> Result<Html<String>, AppError> {
-    let template = LoginTemplate { error: None };
-    Ok(Html(template.render()?))
+async fn login_page() -> Html<String> {
+    Html(render_login_html(None))
 }
 
 /// Login form submission handler
 async fn login(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
+    session: Session,
     Form(creds): Form<LoginForm>,
-) -> Result<impl IntoResponse, AppError> {
-    // TODO: Implement authentication
-    tracing::info!("Login attempt: {}", creds.username);
+) -> Result<Response, (StatusCode, Html<String>)> {
+    use svrctlrs_database::queries::users;
 
-    // For now, just redirect to dashboard
-    Ok(Redirect::to("/"))
+    // Look up the user by username
+    let user = users::get_user_by_username(&state.pool, &creds.username)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Database error during login");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Html(render_login_html(Some("Internal server error"))),
+            )
+        })?;
+
+    let user = match user {
+        Some(u) => u,
+        None => {
+            tracing::warn!(username = %creds.username, "Login failed: user not found");
+            return Err((
+                StatusCode::OK,
+                Html(render_login_html(Some("Invalid username or password"))),
+            ));
+        }
+    };
+
+    // Verify password
+    let valid = users::verify_password(&creds.password, &user.password_hash).map_err(|e| {
+        tracing::error!(error = %e, "Password verification error");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(render_login_html(Some("Internal server error"))),
+        )
+    })?;
+
+    if !valid {
+        tracing::warn!(username = %creds.username, "Login failed: invalid password");
+        return Err((
+            StatusCode::OK,
+            Html(render_login_html(Some("Invalid username or password"))),
+        ));
+    }
+
+    // Store user_id in session
+    session.insert(USER_ID_KEY, user.id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to store session");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(render_login_html(Some("Internal server error"))),
+        )
+    })?;
+
+    tracing::info!(username = %user.username, user_id = user.id, "User logged in");
+    Ok(Redirect::to("/").into_response())
 }
 
 /// Logout handler
-async fn logout() -> Result<impl IntoResponse, AppError> {
-    // TODO: Clear session
+async fn logout(session: Session) -> Result<Redirect, StatusCode> {
+    session
+        .flush()
+        .await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    tracing::info!("User logged out");
     Ok(Redirect::to("/auth/login"))
 }

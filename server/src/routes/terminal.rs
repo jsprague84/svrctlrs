@@ -14,6 +14,8 @@ use axum::{
 };
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use svrctlrs_database::sqlx::{Pool, Sqlite};
 use tracing::{error, info, warn};
 
 use crate::state::AppState;
@@ -67,7 +69,7 @@ async fn handle_terminal_socket(socket: WebSocket, state: AppState) {
     let welcome = TerminalResponse {
         response_type: "output".to_string(),
         data: "\x1b[1;36m╔════════════════════════════════════════════════════╗\x1b[0m\r\n\
-               \x1b[1;36m║\x1b[0m         \x1b[1mSvrCtlRS Terminal v1.0\x1b[0m                   \x1b[1;36m║\x1b[0m\r\n\
+               \x1b[1;36m║\x1b[0m         \x1b[1mSvrCtlRS Terminal v1.0\x1b[0m                     \x1b[1;36m║\x1b[0m\r\n\
                \x1b[1;36m╚════════════════════════════════════════════════════╝\x1b[0m\r\n\r\n\
                \x1b[90mReady. Select a server and enter a command.\x1b[0m\r\n\r\n"
             .to_string(),
@@ -205,13 +207,35 @@ async fn execute_command(
         None
     };
 
+    // Verify host key before SSH connection (skip for local execution)
+    let verified_key = if !server.is_local {
+        let hostname = server.hostname.as_deref().unwrap_or("");
+        let port = server.port as u16;
+        match verify_host_key(&state.pool, server.id, hostname, port).await {
+            Ok(key) => key,
+            Err(e) => {
+                send_error(sender, &e).await;
+                return;
+            }
+        }
+    } else {
+        None
+    };
+
     // Execute command via SSH or locally
     let result = if server.is_local {
         // Local execution
         execute_local_command(command, env).await
     } else {
-        // Remote execution via SSH
-        execute_ssh_command(&server, credential.as_ref(), command, env).await
+        // Remote execution via SSH with verified host key
+        execute_ssh_command(
+            &server,
+            credential.as_ref(),
+            command,
+            env,
+            verified_key.as_deref(),
+        )
+        .await
     };
 
     match result {
@@ -274,6 +298,7 @@ async fn execute_ssh_command(
     credential: Option<&svrctlrs_database::models::Credential>,
     command: &str,
     env: Option<&std::collections::HashMap<String, String>>,
+    verified_host_key: Option<&str>,
 ) -> Result<(String, String, i32), String> {
     use async_ssh2_tokio::client::{AuthMethod, Client, ServerCheckMethod};
     use svrctlrs_database::models::CredentialType;
@@ -346,15 +371,19 @@ async fn execute_ssh_command(
         }
     };
 
-    // Connect to SSH server
-    let client = Client::connect(
-        (hostname, port),
-        username,
-        auth_method,
-        ServerCheckMethod::NoCheck,
-    )
-    .await
-    .map_err(|e| format!("SSH connection failed: {}", e))?;
+    // Connect to SSH server with host key verification
+    let server_check = if let Some(key) = verified_host_key {
+        // Use the verified host key from TOFU check — extract base64 portion
+        // OpenSSH format: "key_type base64_data [comment]"
+        let base64_key = key.split_whitespace().nth(1).unwrap_or(key);
+        ServerCheckMethod::with_public_key(base64_key)
+    } else {
+        ServerCheckMethod::NoCheck
+    };
+
+    let client = Client::connect((hostname, port), username, auth_method, server_check)
+        .await
+        .map_err(|e| format!("SSH connection failed: {}", e))?;
 
     // Build command with environment variables if provided
     // SSH doesn't directly support env vars, so we prepend them to the command
@@ -455,6 +484,124 @@ async fn send_exit_code(
 
     if let Ok(json) = serde_json::to_string(&response) {
         sender.send(Message::Text(json.into())).await.ok();
+    }
+}
+
+// ============================================================================
+// SSH Host Key Verification (TOFU - Trust On First Use)
+// ============================================================================
+
+/// russh client handler for scanning a server's host key
+struct KeyScanHandler {
+    captured_key: Arc<tokio::sync::Mutex<Option<(String, String)>>>,
+}
+
+impl russh::client::Handler for KeyScanHandler {
+    type Error = russh::Error;
+
+    async fn check_server_key(
+        &mut self,
+        server_public_key: &russh::keys::PublicKey,
+    ) -> Result<bool, Self::Error> {
+        let openssh_key = server_public_key
+            .to_openssh()
+            .map_err(|_| russh::Error::CouldNotReadKey)?;
+        let key_type = openssh_key
+            .split_whitespace()
+            .next()
+            .unwrap_or("unknown")
+            .to_string();
+        *self.captured_key.lock().await = Some((key_type, openssh_key));
+        Ok(true) // Accept during scan — verification done after
+    }
+}
+
+/// Scan a remote server's SSH host key using russh.
+/// Returns (key_type, public_key_openssh) on success.
+async fn scan_host_key(hostname: &str, port: u16) -> Result<(String, String), String> {
+    let captured_key = Arc::new(tokio::sync::Mutex::new(None));
+    let handler = KeyScanHandler {
+        captured_key: captured_key.clone(),
+    };
+
+    let config = Arc::new(russh::client::Config::default());
+    let session = russh::client::connect(config, (hostname, port), handler)
+        .await
+        .map_err(|e| format!("Host key scan failed: {}", e))?;
+
+    // Disconnect immediately — we only needed the host key from the handshake
+    session
+        .disconnect(russh::Disconnect::ByApplication, "", "English")
+        .await
+        .ok();
+
+    let result = captured_key.lock().await.take();
+    result.ok_or_else(|| "Host key scan completed but no key was captured".to_string())
+}
+
+/// Verify a server's host key against stored keys, or store on first connection (TOFU).
+/// Returns the verified public key in OpenSSH format on success (for use in subsequent connections).
+/// This is the shared verification logic used by both terminal.rs and terminal_pty.rs.
+pub async fn verify_host_key(
+    pool: &Pool<Sqlite>,
+    server_id: i64,
+    hostname: &str,
+    port: u16,
+) -> Result<Option<String>, String> {
+    use svrctlrs_database::queries::server_host_keys;
+
+    // Scan the server's current host key
+    let (scanned_key_type, scanned_key) = scan_host_key(hostname, port).await?;
+
+    // Check if we already have a stored key for this server and key type
+    let stored_key = server_host_keys::get_host_key_by_server(pool, server_id, &scanned_key_type)
+        .await
+        .map_err(|e| format!("Failed to check stored host key: {}", e))?;
+
+    match stored_key {
+        Some(existing) => {
+            // Key exists — verify it matches
+            if existing.public_key == scanned_key {
+                info!(
+                    server_id,
+                    key_type = scanned_key_type,
+                    "Host key verification successful"
+                );
+                // Update last_seen_at
+                server_host_keys::update_host_key_last_seen(pool, server_id, &scanned_key_type)
+                    .await
+                    .ok();
+                Ok(Some(scanned_key))
+            } else {
+                error!(
+                    server_id,
+                    stored_key_type = existing.key_type,
+                    new_key_type = scanned_key_type,
+                    "HOST KEY MISMATCH - possible MITM attack!"
+                );
+                Err(format!(
+                    "⚠️  WARNING: SSH HOST KEY MISMATCH for this server!\r\n\
+                     The server's host key has changed since the first connection.\r\n\
+                     This could indicate a man-in-the-middle attack.\r\n\
+                     Stored key type: {}\r\n\
+                     Current key type: {}\r\n\
+                     Connection refused for security.",
+                    existing.key_type, scanned_key_type
+                ))
+            }
+        }
+        None => {
+            // First connection — store key (TOFU)
+            info!(
+                server_id,
+                key_type = scanned_key_type,
+                "First connection - storing host key (TOFU)"
+            );
+            server_host_keys::store_host_key(pool, server_id, &scanned_key_type, &scanned_key)
+                .await
+                .map_err(|e| format!("Failed to store host key: {}", e))?;
+            Ok(Some(scanned_key))
+        }
     }
 }
 

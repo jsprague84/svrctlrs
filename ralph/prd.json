@@ -1,0 +1,105 @@
+{
+  "project": "SvrCtlRS",
+  "branchName": "ralph/multi-tab-split-terminal",
+  "description": "Multi-tab and split-pane terminal with concurrent sessions to multiple servers",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Add dispose() and ResizeObserver to TerminalManager",
+      "description": "As a developer, I need TerminalManager to clean up properly so multiple instances don't leak listeners.",
+      "acceptanceCriteria": [
+        "Add dispose() method that disconnects WebSocket, disconnects ResizeObserver, disconnects MutationObserver, disposes xterm Terminal, and sets initialized=false",
+        "Replace window.addEventListener('resize', ...) in init() with ResizeObserver on the container element",
+        "Store _resizeObserver and _themeObserver as instance properties for cleanup",
+        "Add optional options parameter to init(containerId, options) with skipResizeListener flag",
+        "Preserve window.terminalManager global singleton at end of file (terminal modal depends on it)",
+        "Typecheck passes (cargo build --workspace)"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "This is a prerequisite for multi-tab - each tab creates its own TerminalManager instance. File: server/static/js/terminal.js"
+    },
+    {
+      "id": "US-002",
+      "title": "Add tab bar UI and multi-panel Alpine.js state",
+      "description": "As a user, I want a tab bar above the terminal so I can manage multiple terminal sessions.",
+      "acceptanceCriteria": [
+        "Add terminal-tab-bar div between terminal-topbar and terminal-fullpage in terminal.html",
+        "Tab bar shows tabs with: connection indicator dot (green=connected, yellow=connecting, gray=disconnected), label text, mode badge (CMD/PTY), and close button (X)",
+        "Tab bar has a '+' new tab button on the right side",
+        "Tab bar has layout selector buttons (single, side-by-side, stacked, quad) on the right side using lucide icons",
+        "Rewrite fullPageTerminal() Alpine.js component with panels[] array, activePanel ID, layout state, and visibleSlots[] array",
+        "Add computed getters (mode, connected, connectedServerId, etc.) that delegate to the active panel so existing topbar/command-bar bindings work unchanged",
+        "createPanel() creates a new panel object with its own TerminalManager instance and initializes xterm in its container via $nextTick",
+        "closePanel(id) disposes manager, removes panel, reassigns visible slots, activates adjacent panel",
+        "focusPanel(id) sets activePanel and fits that terminal",
+        "First panel created automatically on init()",
+        "Add CSS for tab bar, tabs, indicators, mode badges, close button, layout buttons in the page style block",
+        "Typecheck passes (cargo build --workspace)"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "File: server/templates/pages/terminal.html. Each panel = { id, label, serverId, serverName, serverHost, mode, connected, connecting, executing, command, containerId, manager }. Max 10 panels."
+    },
+    {
+      "id": "US-003",
+      "title": "Implement multi-panel terminal containers with tab switching",
+      "description": "As a user, I want each tab to have its own independent terminal so I can connect to different servers.",
+      "acceptanceCriteria": [
+        "Replace single #fullpage-terminal-output div with dynamic containers using x-for over panels array",
+        "Each panel gets its own container div with unique ID (panel.containerId), shown via x-show when panel is active in single layout",
+        "switchTab() method (for single layout): sets activePanel, $nextTick fits terminal, focuses PTY terminal if connected",
+        "Clicking a tab calls focusPanel() which sets activePanel",
+        "connectToServer() connects in the focused/active panel and updates that panel's label to server name",
+        "switchMode(), executeCommand(), startPtySession(), clearTerminal(), copyOutput(), downloadOutput(), disconnectTerminal() all delegate to the active panel's manager",
+        "historyUp/historyDown delegate to active panel's manager",
+        "Server sidebar 'active' highlight uses activePanel's serverId",
+        "Typecheck passes (cargo build --workspace)",
+        "Verify in browser: create 3 tabs, connect each to a different server, switch between them, verify independent output"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "File: server/templates/pages/terminal.html. Use x-show (not x-if) for panel containers to preserve xterm.js DOM when switching tabs."
+    },
+    {
+      "id": "US-004",
+      "title": "Implement split-pane layout with CSS Grid",
+      "description": "As a user, I want to view multiple terminals side by side for monitoring.",
+      "acceptanceCriteria": [
+        "Add terminal-grid wrapper div with CSS Grid layout around the panel containers",
+        "Support 4 layout modes: 'single' (1 panel visible), 'split-h' (2 columns side by side), 'split-v' (2 rows stacked), 'quad' (2x2 grid)",
+        "CSS Grid templates: single=1fr/1fr, split-h=1fr/1fr 1fr, split-v=1fr 1fr/1fr, quad=1fr 1fr/1fr 1fr",
+        "Each visible pane has a terminal-pane wrapper with subtle border; focused pane has accent-colored border",
+        "setLayout(mode) updates layout state, auto-assigns panels to visibleSlots array, creates new panels if needed to fill slots",
+        "Clicking inside a pane calls focusPanel() to set it as active (for sidebar connections and topbar display)",
+        "Layout selector buttons in tab bar: single (maximize icon), split-h (columns icon), split-v (rows icon), quad (grid icon)",
+        "1px gap between panes using var(--border-color) background on the grid container",
+        "All visible panes call fit() after layout change via $nextTick",
+        "Hidden panels (not in visible slots) have display:none containers but keep WebSocket connections alive",
+        "Typecheck passes (cargo build --workspace)",
+        "Verify in browser: switch between all 4 layouts, verify terminals render correctly in each, verify focus switching between panes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "File: server/templates/pages/terminal.html. The visibleSlots array maps slot index to panel ID. In single mode, visibleSlots has 1 entry (activePanel). In split-h/split-v, 2 entries. In quad, 4 entries."
+    },
+    {
+      "id": "US-005",
+      "title": "Add keyboard shortcuts for tab management",
+      "description": "As a power user, I want keyboard shortcuts to quickly manage terminal tabs.",
+      "acceptanceCriteria": [
+        "Ctrl+T creates a new panel (preventDefault to override browser new tab)",
+        "Ctrl+W closes the active panel (only if more than 1 panel exists)",
+        "Ctrl+Tab cycles focus to next panel, Ctrl+Shift+Tab to previous",
+        "Ctrl+backslash toggles between single and split-h layout",
+        "Keyboard listener registered on capture phase (3rd param true) so it intercepts before xterm.js in PTY mode",
+        "Shortcuts do not fire when terminal modal is open",
+        "Typecheck passes (cargo build --workspace)",
+        "Verify in browser: test all shortcuts in both CMD and PTY modes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "File: server/templates/pages/terminal.html. Register in init() with document.addEventListener('keydown', handler, true). The capture phase is critical for PTY mode where xterm consumes keyboard events."
+    }
+  ]
+}

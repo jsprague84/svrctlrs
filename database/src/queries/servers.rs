@@ -444,12 +444,11 @@ mod tests {
 // Optimized Queries with Joined Data
 // ============================================================================
 
-/// Extended server with credential name, tags, and capabilities for display
+/// Extended server with credential name and capabilities for display
 #[derive(Debug, Clone)]
 pub struct ServerWithDetails {
     pub server: Server,
     pub credential_name: Option<String>,
-    pub tags: Vec<crate::models::Tag>,
     pub capabilities: Vec<ServerCapability>,
 }
 
@@ -479,16 +478,12 @@ pub async fn list_servers_with_details(pool: &Pool<Sqlite>) -> Result<Vec<Server
             None
         };
 
-        // Get tags
-        let tags = crate::queries::tags::get_server_tags(pool, server.id).await?;
-
         // Get capabilities
         let capabilities = get_server_capabilities(pool, server.id).await?;
 
         result.push(ServerWithDetails {
             server,
             credential_name,
-            tags,
             capabilities,
         });
     }
@@ -520,16 +515,12 @@ pub async fn get_server_with_details(pool: &Pool<Sqlite>, id: i64) -> Result<Ser
         None
     };
 
-    // Get tags
-    let tags = crate::queries::tags::get_server_tags(pool, server.id).await?;
-
     // Get capabilities
     let capabilities = get_server_capabilities(pool, server.id).await?;
 
     Ok(ServerWithDetails {
         server,
         credential_name,
-        tags,
         capabilities,
     })
 }

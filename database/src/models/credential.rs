@@ -57,6 +57,9 @@ pub struct Credential {
     /// Examples: {"key_passphrase": "...", "port": 2222}
     pub metadata: Option<String>,
 
+    /// Whether the value field is encrypted at rest
+    pub encrypted: bool,
+
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -185,6 +188,7 @@ mod tests {
             value: "/path/to/key".to_string(),
             username: None,
             metadata: None,
+            encrypted: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };

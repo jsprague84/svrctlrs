@@ -18,6 +18,7 @@ use russh::keys::key::PrivateKeyWithHashAlg;
 use russh::keys::{Algorithm, HashAlg};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use svrctlrs_database::sqlx::{Pool, Sqlite};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
@@ -55,18 +56,94 @@ async fn pty_ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> 
     ws.on_upgrade(move |socket| handle_pty_socket(socket, state))
 }
 
-/// SSH client handler for russh
-struct SshClientHandler;
+/// SSH client handler for russh with host key verification
+struct SshClientHandler {
+    pool: Pool<Sqlite>,
+    server_id: i64,
+}
 
 impl client::Handler for SshClientHandler {
     type Error = russh::Error;
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &russh::keys::PublicKey,
+        server_public_key: &russh::keys::PublicKey,
     ) -> Result<bool, Self::Error> {
-        // Accept all host keys for now (TODO: implement proper host key checking)
-        Ok(true)
+        use svrctlrs_database::queries::server_host_keys;
+
+        let openssh_key = server_public_key
+            .to_openssh()
+            .map_err(|_| russh::Error::CouldNotReadKey)?;
+        let key_type = openssh_key
+            .split_whitespace()
+            .next()
+            .unwrap_or("unknown")
+            .to_string();
+
+        // Check stored key in database for this specific key type
+        let stored_key =
+            match server_host_keys::get_host_key_by_server(&self.pool, self.server_id, &key_type)
+                .await
+            {
+                Ok(key) => key,
+                Err(e) => {
+                    warn!(
+                        server_id = self.server_id,
+                        error = %e,
+                        "Failed to query host key database, accepting key"
+                    );
+                    return Ok(true);
+                }
+            };
+
+        match stored_key {
+            Some(existing) => {
+                if existing.public_key == openssh_key {
+                    info!(
+                        server_id = self.server_id,
+                        key_type, "PTY host key verification successful"
+                    );
+                    server_host_keys::update_host_key_last_seen(
+                        &self.pool,
+                        self.server_id,
+                        &key_type,
+                    )
+                    .await
+                    .ok();
+                    Ok(true)
+                } else {
+                    error!(
+                        server_id = self.server_id,
+                        stored_key_type = existing.key_type,
+                        new_key_type = key_type,
+                        "PTY HOST KEY MISMATCH - possible MITM attack!"
+                    );
+                    Ok(false)
+                }
+            }
+            None => {
+                // First connection — store key (TOFU)
+                info!(
+                    server_id = self.server_id,
+                    key_type, "PTY first connection - storing host key (TOFU)"
+                );
+                if let Err(e) = server_host_keys::store_host_key(
+                    &self.pool,
+                    self.server_id,
+                    &key_type,
+                    &openssh_key,
+                )
+                .await
+                {
+                    warn!(
+                        server_id = self.server_id,
+                        error = %e,
+                        "Failed to store host key, accepting anyway"
+                    );
+                }
+                Ok(true)
+            }
+        }
     }
 }
 
@@ -115,7 +192,7 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState) {
     let welcome = PtyResponse {
         response_type: "output".to_string(),
         data: "\x1b[1;36m╔════════════════════════════════════════════════════╗\x1b[0m\r\n\
-               \x1b[1;36m║\x1b[0m    \x1b[1mSvrCtlRS Interactive Terminal (PTY)\x1b[0m          \x1b[1;36m║\x1b[0m\r\n\
+               \x1b[1;36m║\x1b[0m    \x1b[1mSvrCtlRS Interactive Terminal (PTY)\x1b[0m             \x1b[1;36m║\x1b[0m\r\n\
                \x1b[1;36m╚════════════════════════════════════════════════════╝\x1b[0m\r\n\r\n\
                \x1b[90mSend 'shell' message with server_id to start interactive session.\x1b[0m\r\n\r\n"
             .to_string(),
@@ -383,7 +460,10 @@ async fn start_pty_session(
 
         // Connect to SSH server (new connection for each attempt)
         let config = Arc::new(russh::client::Config::default());
-        let handler = SshClientHandler;
+        let handler = SshClientHandler {
+            pool: state.pool.clone(),
+            server_id,
+        };
 
         let mut session = match russh::client::connect(config, (hostname, port), handler).await {
             Ok(s) => s,

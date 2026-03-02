@@ -18,7 +18,6 @@ serde_json = { workspace = true }
 
 # Time
 chrono = { workspace = true }
-cron = { workspace = true }
 
 # Error handling
 anyhow = { workspace = true }
@@ -26,6 +25,9 @@ thiserror = { workspace = true }
 
 # Logging
 tracing = { workspace = true }
+
+# Password hashing
+argon2 = "0.5"
 
 # Core
 svrctlrs-core = { workspace = true }

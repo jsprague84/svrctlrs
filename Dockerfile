@@ -2,12 +2,22 @@
 # Multi-stage optimized build for SvrCtlRS with cargo-chef + sccache
 
 # ============================================
-# Base: Install build tools
+# Frontend: Build Svelte SPA
+# ============================================
+FROM node:22-slim AS frontend
+
+WORKDIR /app/ui
+COPY ui/package.json ui/package-lock.json ./
+RUN npm ci
+COPY ui/ ./
+RUN npm run build
+
+# ============================================
+# Base: Install Rust build tools
 # ============================================
 FROM rust:bookworm AS base
 
 # Install cargo-chef and sccache for optimal caching
-# Use cache mounts to speed up installation
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     cargo install cargo-chef --locked && \
@@ -28,7 +38,6 @@ FROM base AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY core ./core
 COPY server ./server
-COPY scheduler ./scheduler
 COPY database ./database
 
 # Generate recipe.json containing all workspace dependencies
@@ -59,10 +68,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 COPY Cargo.toml Cargo.lock ./
 COPY core ./core
 COPY server ./server
-COPY scheduler ./scheduler
 COPY database ./database
 
-# Build server binary with HTMX + Askama
+# Build server binary
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
@@ -100,14 +108,8 @@ WORKDIR /app
 COPY --from=builder /app/target/release/server /app/svrctlrs-server
 COPY --from=builder /app/target/release/svrctl /app/svrctl
 
-# Copy static assets (CSS, JS, templates) from builder
-COPY --from=builder /app/server/static /app/server/static
-COPY --from=builder /app/server/templates /app/server/templates
-
-# Copy helper scripts
-COPY scripts/fix-task-commands.sh /app/scripts/fix-task-commands.sh
-COPY scripts/fix-plugin-task-ids.sh /app/scripts/fix-plugin-task-ids.sh
-RUN chmod +x /app/scripts/*.sh
+# Copy Svelte SPA build from frontend stage
+COPY --from=frontend /app/ui/build /app/ui/build
 
 # Create data directory and .ssh directory for the svrctlrs user
 RUN mkdir -p /app/data && \
@@ -124,7 +126,7 @@ EXPOSE 8080
 # Set default environment variables
 ENV RUST_LOG=info
 ENV DATABASE_URL=sqlite:/app/data/svrctlrs.db
-ENV STATIC_DIR=/app/server/static
+ENV SPA_DIR=/app/ui/build
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \

@@ -6,13 +6,6 @@ license.workspace = true
 authors.workspace = true
 
 [dependencies]
-# Async
-tokio = { workspace = true }
-async-trait = "0.1"
-
-# HTTP client
-reqwest = { workspace = true }
-
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -27,9 +20,15 @@ thiserror = { workspace = true }
 # Logging
 tracing = { workspace = true }
 
-# Database (for executor) - optional feature
-sqlx = { workspace = true, optional = true }
+# Password hashing
+argon2 = "0.5"
 
-[features]
-default = []
-executor = ["sqlx"]
+# Encryption
+aes-gcm = "0.10"
+rand = "0.8"
+
+# Encoding
+base64 = "0.22"
+
+# Filesystem
+hex = "0.4"

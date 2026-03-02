@@ -1,7 +1,6 @@
 # Rust
 /target/
 **/*.rs.bk
-Cargo.lock
 
 # Database
 *.db
@@ -33,6 +32,10 @@ node_modules/
 test-results/
 playwright-report/
 playwright/.cache/
+
+# SvelteKit
+ui/.svelte-kit/
+ui/build/
 
 # Test database
 data/test.db

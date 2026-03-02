@@ -84,6 +84,31 @@ pub async fn set_setting(pool: &Pool<Sqlite>, key: &str, value: &str) -> Result<
     Ok(())
 }
 
+/// Create a new setting
+pub async fn create_setting(
+    pool: &Pool<Sqlite>,
+    key: &str,
+    value: &str,
+    value_type: &str,
+    description: Option<&str>,
+) -> Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO settings (key, value, value_type, description, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        "#,
+    )
+    .bind(key)
+    .bind(value)
+    .bind(value_type)
+    .bind(description)
+    .execute(pool)
+    .await
+    .map_err(|e| Error::DatabaseError(format!("Failed to create setting: {}", e)))?;
+
+    Ok(())
+}
+
 /// Delete setting
 pub async fn delete_setting(pool: &Pool<Sqlite>, key: &str) -> Result<()> {
     sqlx::query("DELETE FROM settings WHERE key = ?")

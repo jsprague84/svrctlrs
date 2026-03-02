@@ -11,10 +11,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use svrctlrs_database::{
-    queries::{servers, tags},
-    CreateServer, UpdateServer,
-};
+use svrctlrs_database::{queries::servers, CreateServer, UpdateServer};
 use tracing::{error, info, instrument};
 
 use super::ApiError;
@@ -29,7 +26,6 @@ pub fn routes() -> Router<AppState> {
             get(get_server).put(update_server).delete(delete_server),
         )
         .route("/{id}/test", post(test_connection))
-        .route("/{id}/tags", get(get_server_tags).put(set_server_tags))
         .route("/{id}/capabilities", get(get_server_capabilities))
 }
 
@@ -46,7 +42,7 @@ async fn list_servers(
     Ok(Json(json!({ "servers": servers_list })))
 }
 
-/// Get server by ID with tags
+/// Get server by ID
 #[instrument(skip(state))]
 async fn get_server(
     State(state): State<AppState>,
@@ -57,17 +53,12 @@ async fn get_server(
         ApiError::not_found("Server")
     })?;
 
-    let server_tags = tags::get_server_tags(&state.pool, id)
-        .await
-        .unwrap_or_default();
-
     let capabilities = servers::get_server_capabilities(&state.pool, id)
         .await
         .unwrap_or_default();
 
     Ok(Json(json!({
         "server": server,
-        "tags": server_tags,
         "capabilities": capabilities
     })))
 }
@@ -90,8 +81,6 @@ struct CreateServerInput {
     is_local: bool,
     #[serde(default = "default_enabled")]
     enabled: bool,
-    #[serde(default)]
-    tag_ids: Vec<i64>,
 }
 
 fn default_port() -> i32 {
@@ -129,16 +118,6 @@ async fn create_server(
             ApiError::internal_error(format!("Failed to create server: {}", e))
         })?;
 
-    // Set tags if provided
-    if !input.tag_ids.is_empty() {
-        tags::set_server_tags(&state.pool, id, &input.tag_ids)
-            .await
-            .map_err(|e| {
-                error!(error = %e, "Failed to set server tags");
-                ApiError::internal_error(format!("Failed to set server tags: {}", e))
-            })?;
-    }
-
     info!(id = id, "Server created successfully");
 
     Ok((
@@ -167,8 +146,6 @@ struct UpdateServerInput {
     description: Option<String>,
     #[serde(default)]
     enabled: Option<bool>,
-    #[serde(default)]
-    tag_ids: Option<Vec<i64>>,
 }
 
 /// Update an existing server
@@ -208,16 +185,6 @@ async fn update_server(
             error!(error = %e, id = id, "Failed to update server");
             ApiError::internal_error(format!("Failed to update server: {}", e))
         })?;
-
-    // Update tags if provided
-    if let Some(tag_ids) = input.tag_ids {
-        tags::set_server_tags(&state.pool, id, &tag_ids)
-            .await
-            .map_err(|e| {
-                error!(error = %e, "Failed to set server tags");
-                ApiError::internal_error(format!("Failed to set server tags: {}", e))
-            })?;
-    }
 
     info!(id = id, "Server updated successfully");
 
@@ -261,71 +228,65 @@ async fn test_connection(
         ApiError::not_found("Server")
     })?;
 
-    // TODO: Implement actual SSH connection test using the ssh module
-    // For now, return a placeholder response
-    info!(id = id, hostname = ?server.hostname, "Connection test completed");
+    let hostname = server.hostname.as_deref().unwrap_or("").to_string();
+    if hostname.is_empty() {
+        return Err(ApiError::bad_request("Server has no hostname configured"));
+    }
 
-    Ok(Json(json!({
-        "success": true,
-        "message": "Connection test not yet fully implemented",
-        "server_id": id,
-        "hostname": server.hostname,
-        "port": server.port
-    })))
-}
+    // Load credential if assigned
+    let key_path = if let Some(cred_id) = server.credential_id {
+        match svrctlrs_database::queries::credentials::get_credential(&state.pool, cred_id).await {
+            Ok(cred) => Some(cred.value.clone()),
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to load credential for connection test");
+                None
+            }
+        }
+    } else {
+        None
+    };
 
-/// Get server tags
-#[instrument(skip(state))]
-async fn get_server_tags(
-    State(state): State<AppState>,
-    Path(id): Path<i64>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    // Verify server exists
-    servers::get_server(&state.pool, id)
-        .await
-        .map_err(|_| ApiError::not_found("Server"))?;
+    let config = crate::ssh::SshConfig {
+        host: hostname,
+        port: server.port as u16,
+        username: server.username.unwrap_or_else(|| "root".to_string()),
+        key_path,
+        ..Default::default()
+    };
 
-    let server_tags = tags::get_server_tags(&state.pool, id).await.map_err(|e| {
-        error!(error = %e, "Failed to get server tags");
-        ApiError::internal_error(format!("Failed to get server tags: {}", e))
-    })?;
+    let started = std::time::Instant::now();
+    match crate::ssh::test_connection(&config).await {
+        Ok(output) => {
+            let elapsed = started.elapsed();
+            info!(
+                id = id,
+                elapsed_ms = elapsed.as_millis(),
+                "Connection test succeeded"
+            );
 
-    Ok(Json(json!({ "tags": server_tags })))
-}
+            Ok(Json(json!({
+                "success": true,
+                "message": output,
+                "server_id": id,
+                "hostname": server.hostname,
+                "port": server.port,
+                "latency_ms": elapsed.as_millis()
+            })))
+        }
+        Err(e) => {
+            let elapsed = started.elapsed();
+            error!(id = id, error = %e, elapsed_ms = elapsed.as_millis(), "Connection test failed");
 
-/// Set server tags input
-#[derive(Debug, Deserialize)]
-struct SetServerTagsInput {
-    tag_ids: Vec<i64>,
-}
-
-/// Set server tags (replaces all existing tags)
-#[instrument(skip(state))]
-async fn set_server_tags(
-    State(state): State<AppState>,
-    Path(id): Path<i64>,
-    Json(input): Json<SetServerTagsInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    info!(id = id, "Setting server tags");
-
-    // Verify server exists
-    servers::get_server(&state.pool, id)
-        .await
-        .map_err(|_| ApiError::not_found("Server"))?;
-
-    tags::set_server_tags(&state.pool, id, &input.tag_ids)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to set server tags");
-            ApiError::internal_error(format!("Failed to set server tags: {}", e))
-        })?;
-
-    info!(id = id, "Server tags updated successfully");
-
-    Ok(Json(json!({
-        "server_id": id,
-        "message": "Server tags updated successfully"
-    })))
+            Ok(Json(json!({
+                "success": false,
+                "message": format!("{}", e),
+                "server_id": id,
+                "hostname": server.hostname,
+                "port": server.port,
+                "latency_ms": elapsed.as_millis()
+            })))
+        }
+    }
 }
 
 /// Get server capabilities
