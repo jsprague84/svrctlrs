@@ -145,7 +145,9 @@ async fn create_setting(
 
     // Check if setting already exists
     if settings::get_setting(&state.pool, &input.key).await.is_ok() {
-        return Err(ApiError::bad_request("Setting with this key already exists"));
+        return Err(ApiError::bad_request(
+            "Setting with this key already exists",
+        ));
     }
 
     settings::create_setting(

@@ -228,8 +228,14 @@ async fn execute_command(
         execute_local_command(command, env).await
     } else {
         // Remote execution via SSH with verified host key
-        execute_ssh_command(&server, credential.as_ref(), command, env, verified_key.as_deref())
-            .await
+        execute_ssh_command(
+            &server,
+            credential.as_ref(),
+            command,
+            env,
+            verified_key.as_deref(),
+        )
+        .await
     };
 
     match result {
@@ -369,23 +375,15 @@ async fn execute_ssh_command(
     let server_check = if let Some(key) = verified_host_key {
         // Use the verified host key from TOFU check — extract base64 portion
         // OpenSSH format: "key_type base64_data [comment]"
-        let base64_key = key
-            .split_whitespace()
-            .nth(1)
-            .unwrap_or(key);
+        let base64_key = key.split_whitespace().nth(1).unwrap_or(key);
         ServerCheckMethod::with_public_key(base64_key)
     } else {
         ServerCheckMethod::NoCheck
     };
 
-    let client = Client::connect(
-        (hostname, port),
-        username,
-        auth_method,
-        server_check,
-    )
-    .await
-    .map_err(|e| format!("SSH connection failed: {}", e))?;
+    let client = Client::connect((hostname, port), username, auth_method, server_check)
+        .await
+        .map_err(|e| format!("SSH connection failed: {}", e))?;
 
     // Build command with environment variables if provided
     // SSH doesn't directly support env vars, so we prepend them to the command
