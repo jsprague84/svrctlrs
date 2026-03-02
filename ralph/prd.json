@@ -43,7 +43,7 @@
         "Verify in browser using dev-browser skill at 375px viewport width"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "File: ui/src/routes/+page.svelte (lines 181-243). The toolbar has: icon, title, server select, mode select, connect button, then ml-auto group with badge + 4 icon buttons. On mobile the icon+title are hidden; selects+button go on row 1; badge+icons wrap to row 2. Use flex-wrap to achieve this naturally."
     },
     {
@@ -64,7 +64,7 @@
         "Verify in browser using dev-browser skill at 375px viewport width"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Files: ui/src/lib/components/terminal/TerminalPrefsPanel.svelte, ui/src/routes/+page.svelte. The panel is currently 'absolute right-0 top-0 bottom-0 w-72 z-20'. The backdrop should be a sibling element rendered conditionally. On +page.svelte, the panel sits inside a 'relative' container wrapping SplitView — on mobile it needs to break out of that container with 'fixed' positioning."
     },
     {

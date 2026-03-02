@@ -9,6 +9,8 @@ Started: Mon Mar  2 05:35:09 PM CST 2026
 - Backdrop overlays use `<button>` with `tabindex="-1"` for click-to-dismiss (accessible)
 - Gate mobile-only rendering with `mobileOpen` prop checks alongside `collapsed` checks
 - Playwright browser install not available on Fedora — manual browser testing needed
+- Direction-switching animation: `translate-y-full md:translate-y-0 md:translate-x-full` (when closed) to animate different axis per breakpoint
+- Bottom sheet pattern: `fixed bottom-0 left-0 right-0 h-[70vh] rounded-t-xl` + `md:absolute md:...` for responsive panel
 
 ---
 
@@ -23,4 +25,27 @@ Started: Mon Mar  2 05:35:09 PM CST 2026
   - Backdrop needs to be a sibling element outside the sidebar, not inside it, for proper z-index layering
   - Using `<button>` for backdrop instead of `<div>` improves accessibility
   - The `!mobileOpen && collapsed` ternary pattern handles the width switching between mobile (always w-64) and desktop (w-12/w-56)
+---
+
+## 2026-03-02 17:43 CST - US-002
+- Made terminal page toolbar responsive for mobile (<768px)
+- Files changed:
+  - `ui/src/routes/+page.svelte` — Toolbar container: `flex-wrap gap-2 md:gap-3 md:flex-nowrap px-2 md:px-4`; hid icon+title on mobile (`hidden md:block`); server select: `flex-1 min-w-0 ml-0 md:ml-4`; mode select: `min-w-0`; action buttons div: `w-full md:w-auto md:ml-auto gap-1 md:gap-2 justify-end` to wrap to second row on mobile
+- **Learnings for future iterations:**
+  - `flex-wrap` + `md:flex-nowrap` is the standard pattern for toolbars that need to wrap on mobile and stay single-row on desktop
+  - `w-full md:w-auto` on the action buttons div forces a line break on mobile (since parent is flex-wrap) while staying inline on desktop
+  - `flex-1 min-w-0` on selects lets them fill available space and shrink below their natural width
+  - Changes were minimal (6 lines changed) — Tailwind responsive prefixes keep the diff small
+---
+
+## 2026-03-02 17:47 CST - US-003
+- Converted TerminalPrefsPanel from desktop-only right panel to responsive bottom sheet on mobile
+- Files changed:
+  - `ui/src/lib/components/terminal/TerminalPrefsPanel.svelte` — Changed positioning from `absolute right-0 top-0 bottom-0 w-72` to `fixed bottom-0 left-0 right-0 h-[70vh] rounded-t-xl` on mobile with `md:absolute md:top-0 md:right-0` on desktop; added backdrop overlay (`fixed inset-0 bg-black/40 z-20 md:hidden`); added decorative drag handle bar (mobile only); switched animation from translate-x to translate-y on mobile with `translate-y-full md:translate-y-0 md:translate-x-full`
+- **Learnings for future iterations:**
+  - Direction-switching animation pattern: use `translate-y-full md:translate-y-0 md:translate-x-full` when closed to slide different directions per breakpoint
+  - `fixed` positioning breaks out of `relative` containers — useful for bottom sheets inside nested layouts
+  - Border direction switch: `border-t md:border-t-0 md:border-l` gives top border on bottom sheet and left border on side panel
+  - Drag handle is purely decorative: `w-10 h-1 rounded-full bg-text-muted/30` centered with flexbox
+  - Backdrop button needs `aria-label` to pass svelte-check a11y warnings
 ---

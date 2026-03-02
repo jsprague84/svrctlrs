@@ -28,9 +28,28 @@
 	}
 </script>
 
+<!-- Backdrop (mobile only) -->
+{#if open}
+	<button
+		tabindex="-1"
+		aria-label="Close preferences"
+		class="fixed inset-0 bg-black/40 z-20 md:hidden"
+		onclick={onClose}
+	></button>
+{/if}
+
 <div
-	class="absolute right-0 top-0 bottom-0 w-72 bg-surface border-l border-border z-20 flex flex-col transition-transform duration-200 ease-in-out overflow-hidden {open ? 'translate-x-0' : 'translate-x-full'}"
+	class="fixed bottom-0 left-0 right-0 h-[70vh] rounded-t-xl z-30
+		md:absolute md:top-0 md:bottom-0 md:right-0 md:left-auto md:h-auto md:w-72 md:rounded-none md:z-20
+		bg-surface border-t border-border md:border-t-0 md:border-l
+		flex flex-col transition-transform duration-200 ease-in-out overflow-hidden
+		{open ? '' : 'translate-y-full md:translate-y-0 md:translate-x-full'}"
 >
+	<!-- Drag handle (mobile only) -->
+	<div class="flex justify-center pt-2 pb-1 md:hidden">
+		<div class="w-10 h-1 rounded-full bg-text-muted/30"></div>
+	</div>
+
 	<!-- Header -->
 	<div class="flex items-center justify-between px-3 py-2 border-b border-border">
 		<span class="text-sm font-semibold text-text-primary">Terminal Preferences</span>
