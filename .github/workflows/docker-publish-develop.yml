@@ -6,6 +6,10 @@ on:
       - develop
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -46,7 +50,7 @@ jobs:
             type=sha,prefix=develop-
 
       - name: Build and push Docker image (AMD64 only - Fast)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
@@ -61,6 +65,5 @@ jobs:
       - name: Comment on commit (optional)
         if: github.event_name == 'push'
         run: |
-          echo "✅ Docker image published: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:develop"
+          echo "Docker image published: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:develop"
           echo "Pull command: docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:develop"
-

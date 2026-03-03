@@ -6,6 +6,10 @@ on:
       - 'ralph/**'
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
@@ -41,7 +45,7 @@ jobs:
             type=sha,prefix=dev-
 
       - name: Build and push Docker image (AMD64 only - Fast)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
