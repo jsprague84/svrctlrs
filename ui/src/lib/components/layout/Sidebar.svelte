@@ -50,7 +50,7 @@
 	aria-label="Sidebar"
 >
 	<!-- Logo / Toggle -->
-	<div class="flex items-center justify-between px-3 py-3 border-b border-sidebar-border">
+	<div class="flex items-center justify-between py-3 border-b border-sidebar-border {mobileOpen ? 'pl-12 pr-3' : 'px-3'}">
 		{#if mobileOpen || !collapsed}
 			<span class="text-sm font-bold text-sidebar-foreground tracking-tight">SvrCtlRS</span>
 		{/if}

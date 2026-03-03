@@ -124,29 +124,29 @@
 				<Button variant="secondary" class="mt-3" onclick={openCreate}>Add your first server</Button>
 			</div>
 		{:else}
-			<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+			<div class="flex flex-col gap-2">
 				{#each servers as server (server.id)}
-					<div class="border border-border/50 rounded-lg p-4 hover:bg-surface-raised/30 flex flex-col gap-2">
-						<div class="flex items-center justify-between">
-							<div class="flex items-center gap-2 min-w-0">
-								<span class="text-text-primary font-medium truncate">{server.name}</span>
-								{#if server.is_local}
-									<Badge variant="info">local</Badge>
-								{/if}
-							</div>
+					<div class="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 border border-border/50 rounded-lg px-4 py-3 hover:bg-surface-raised/30">
+						<div class="flex items-center gap-2 min-w-0 w-full md:w-auto md:flex-1">
+							<span class="text-text-primary font-medium truncate">{server.name}</span>
+							{#if server.is_local}
+								<Badge variant="info">local</Badge>
+							{/if}
+						</div>
+						<div class="w-full md:w-24 md:flex-shrink-0">
 							{#if server.enabled}
 								<Badge variant="success">Enabled</Badge>
 							{:else}
 								<Badge variant="warning">Disabled</Badge>
 							{/if}
 						</div>
-						<div class="text-text-secondary font-mono text-xs">
+						<div class="text-text-secondary font-mono text-xs w-full md:w-auto md:flex-1 truncate">
 							{server.hostname ?? '—'}:{server.port}
 						</div>
 						{#if server.username}
-							<div class="text-text-muted text-xs">User: {server.username}</div>
+							<div class="text-text-muted text-xs w-full md:w-auto md:flex-1 truncate">User: {server.username}</div>
 						{/if}
-						<div class="flex items-center justify-end gap-1 mt-auto pt-2 border-t border-border/30">
+						<div class="flex items-center gap-1 w-full md:w-auto md:flex-shrink-0">
 							<Button variant="ghost" size="sm" onclick={() => handleTest(server.id)} disabled={testing === server.id}>
 								{#if testing === server.id}
 									<span class="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"></span>

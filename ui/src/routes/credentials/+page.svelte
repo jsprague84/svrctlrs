@@ -114,22 +114,24 @@
 				<Button variant="secondary" class="mt-3" onclick={openCreate}>Add your first credential</Button>
 			</div>
 		{:else}
-			<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+			<div class="flex flex-col gap-2">
 				{#each credentials as cred (cred.id)}
-					<div class="border border-border/50 rounded-lg p-4 hover:bg-surface-raised/30 flex flex-col gap-2">
-						<div class="flex items-center justify-between">
+					<div class="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 border border-border/50 rounded-lg px-4 py-3 hover:bg-surface-raised/30">
+						<div class="flex items-center gap-2 min-w-0 w-full md:w-auto md:flex-1">
 							<span class="text-text-primary font-medium truncate">{cred.name}</span>
+						</div>
+						<div class="w-full md:w-auto md:flex-shrink-0">
 							<Badge variant={typeVariant[cred.credential_type]}>
 								{CREDENTIAL_TYPE_LABELS[cred.credential_type]}
 							</Badge>
 						</div>
 						{#if cred.username}
-							<div class="text-text-secondary text-xs">User: {cred.username}</div>
+							<div class="text-text-secondary text-xs w-full md:w-auto md:flex-1 truncate">User: {cred.username}</div>
 						{/if}
 						{#if cred.description}
-							<div class="text-text-muted text-xs truncate">{cred.description}</div>
+							<div class="text-text-muted text-xs w-full md:flex-1 truncate">{cred.description}</div>
 						{/if}
-						<div class="flex items-center justify-end gap-1 mt-auto pt-2 border-t border-border/30">
+						<div class="flex items-center gap-1 w-full md:w-auto md:flex-shrink-0">
 							<Button variant="ghost" size="sm" onclick={() => openEdit(cred)}>
 								<Pencil class="w-3.5 h-3.5" />
 								<span class="hidden md:inline">Edit</span>

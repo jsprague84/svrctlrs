@@ -16,6 +16,9 @@ Started: Mon Mar  2 05:35:09 PM CST 2026
 - CRUD pages: convert tables to card grids for mobile — `grid-cols-1 md:grid-cols-2 lg:grid-cols-3` with card pattern `border rounded-lg p-4 flex flex-col gap-2`
 - Icon-only buttons on mobile: wrap text in `<span class="hidden md:inline">Text</span>`
 - Page headers: use `flex flex-wrap items-center justify-between gap-2 px-4 md:px-6` for responsive stacking
+- Touch targets: use `p-2 md:p-1` (or `py-2.5 md:py-1.5`) for WCAG 2.5.5 compliant mobile touch targets
+- Safe-area insets: use `pb-[env(safe-area-inset-bottom)]` with `md:pb-0` reset; requires `viewport-fit=cover` in meta tag
+- Eliminate 300ms tap delay: add `touch-action: manipulation` to body in app.css
 
 ---
 
@@ -94,4 +97,27 @@ Started: Mon Mar  2 05:35:09 PM CST 2026
   - Settings inline edit: `flex-col md:flex-row` stacks key and value on mobile, side by side on desktop
   - Modal `w-[calc(100%-1rem)]` gives 0.5rem margin each side (tighter than `mx-4` which is 1rem each side)
   - Form inputs within modals already fill full width via flex-col containers — no changes needed
+---
+
+## 2026-03-02 18:01 CST - US-007
+- Added touch-action: manipulation to body in app.css to eliminate 300ms tap delay
+- Updated viewport meta tag to `viewport-fit=cover` for notched phones
+- Increased toolbar icon-only button touch targets: `p-1` → `p-2 md:p-1`
+- Increased sidebar nav items touch targets: `py-1.5` → `py-2.5 md:py-1.5` (nav links, server buttons, theme toggle, logout)
+- Increased toolbar select dropdown touch targets: `py-1` → `py-2 md:py-1`
+- Added `pl-[env(safe-area-inset-left)]` to sidebar mobile overlay for notched phones
+- Added `pb-[env(safe-area-inset-bottom)]` to TerminalPrefsPanel bottom sheet with `md:pb-0` reset for desktop
+- Files changed:
+  - `ui/src/app.css` — Added `touch-action: manipulation` to body
+  - `ui/src/app.html` — Updated viewport meta tag with `viewport-fit=cover`
+  - `ui/src/routes/+page.svelte` — Increased toolbar button and select touch targets
+  - `ui/src/lib/components/layout/Sidebar.svelte` — Increased nav item, server button, and bottom button touch targets; added safe-area padding
+  - `ui/src/lib/components/terminal/TerminalPrefsPanel.svelte` — Added safe-area bottom padding
+- **Learnings for future iterations:**
+  - `touch-action: manipulation` on body is the simplest way to eliminate the 300ms tap delay globally
+  - `viewport-fit=cover` is required for `env(safe-area-inset-*)` to work on notched phones
+  - Responsive touch target pattern: `p-2 md:p-1` — larger on mobile, normal on desktop (follows WCAG 2.5.5)
+  - Safe-area values use arbitrary Tailwind syntax: `pb-[env(safe-area-inset-bottom)]`
+  - Always pair mobile safe-area padding with `md:pb-0` to reset on desktop
+  - Tailwind v4 has `pointer-coarse:` variant for targeting touch devices, but responsive `md:` prefix is simpler for this use case
 ---

@@ -21,7 +21,7 @@
         "Verify in browser using dev-browser skill at 375px viewport width"
       ],
       "priority": 1,
-      "passes": true,
+      "passes": false,
       "notes": "Files: ui/src/routes/+layout.svelte, ui/src/lib/components/layout/Sidebar.svelte. The Sidebar component already accepts 'collapsed' and 'onToggle' props — add 'mobileOpen' and 'onMobileClose' props. Keep the existing desktop collapse mechanism (w-12/w-56 toggle) untouched. The hamburger button should use the same bg-surface styling as the toolbar. Use Tailwind's 'md:' prefix exclusively — no custom @media queries."
     },
     {
@@ -43,7 +43,7 @@
         "Verify in browser using dev-browser skill at 375px viewport width"
       ],
       "priority": 2,
-      "passes": true,
+      "passes": false,
       "notes": "File: ui/src/routes/+page.svelte (lines 181-243). The toolbar has: icon, title, server select, mode select, connect button, then ml-auto group with badge + 4 icon buttons. On mobile the icon+title are hidden; selects+button go on row 1; badge+icons wrap to row 2. Use flex-wrap to achieve this naturally."
     },
     {
@@ -64,7 +64,7 @@
         "Verify in browser using dev-browser skill at 375px viewport width"
       ],
       "priority": 3,
-      "passes": true,
+      "passes": false,
       "notes": "Files: ui/src/lib/components/terminal/TerminalPrefsPanel.svelte, ui/src/routes/+page.svelte. The panel is currently 'absolute right-0 top-0 bottom-0 w-72 z-20'. The backdrop should be a sibling element rendered conditionally. On +page.svelte, the panel sits inside a 'relative' container wrapping SplitView — on mobile it needs to break out of that container with 'fixed' positioning."
     },
     {
@@ -86,7 +86,7 @@
         "Verify in browser using dev-browser skill at 375px viewport width"
       ],
       "priority": 4,
-      "passes": true,
+      "passes": false,
       "notes": "Files: ui/src/lib/state/mobile.svelte.ts (NEW), ui/src/lib/components/terminal/SplitView.svelte, ui/src/lib/components/terminal/TerminalTabs.svelte. The mobile.svelte.ts module should be minimal — just a $state boolean that tracks matchMedia. SplitView uses CSS grid classes derived from layout prop; on mobile the derived class should ignore the prop entirely. Don't use CSS-only responsive grid because the Svelte $derived logic controls grid-cols/grid-rows."
     },
     {
@@ -105,7 +105,7 @@
         "Verify in browser using dev-browser skill at 375px viewport width"
       ],
       "priority": 5,
-      "passes": true,
+      "passes": false,
       "notes": "Files: ui/src/routes/+page.svelte (search bar at lines 246-258), ui/src/lib/components/terminal/CommandInput.svelte. The search bar has an input (w-64), then 3 buttons (Prev, Next, Close) all in a single flex row. On 375px the input alone nearly fills the screen. Fix: make input w-full, let buttons wrap below."
     },
     {
@@ -126,7 +126,7 @@
         "Verify in browser using dev-browser skill at 375px viewport width"
       ],
       "priority": 6,
-      "passes": true,
+      "passes": false,
       "notes": "Files: ui/src/routes/servers/+page.svelte, ui/src/routes/credentials/+page.svelte, ui/src/routes/settings/+page.svelte, ui/src/lib/components/ui/Modal.svelte. Read each page file first to understand current layout before making changes. These pages use Button, Input, Select, Modal, Badge components from ui/src/lib/components/ui/. Focus on adding responsive Tailwind classes to the page-level layout — the UI components themselves are likely fine."
     },
     {
@@ -148,7 +148,7 @@
         "Verify in browser using dev-browser skill at 375px viewport width"
       ],
       "priority": 7,
-      "passes": true,
+      "passes": false,
       "notes": "Files: ui/src/app.html, ui/src/app.css, ui/src/routes/+page.svelte (toolbar buttons), ui/src/lib/components/layout/Sidebar.svelte (nav items, server list, bottom buttons), ui/src/lib/components/terminal/TerminalPrefsPanel.svelte (safe-area on bottom sheet). This is the final polish pass. All previous stories must be complete first. The key principle: use responsive padding increases (larger on mobile, normal on desktop) rather than changing element sizes. WCAG 2.5.5 recommends 44x44px minimum."
     }
   ]

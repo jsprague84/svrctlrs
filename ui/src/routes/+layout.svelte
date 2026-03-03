@@ -48,9 +48,9 @@
 
 <!-- Hamburger button (mobile only) -->
 <button
-	class="fixed top-2 left-2 z-50 p-2 rounded-md bg-surface text-foreground md:hidden"
-	onclick={() => (mobileOpen = true)}
-	aria-label="Open sidebar"
+	class="fixed top-2 left-2 z-50 p-2 rounded-md bg-surface border border-border text-foreground md:hidden"
+	onclick={() => (mobileOpen = !mobileOpen)}
+	aria-label={mobileOpen ? 'Close sidebar' : 'Open sidebar'}
 >
 	<Menu class="w-5 h-5" />
 </button>
@@ -76,7 +76,7 @@
 		onMobileClose={closeMobileSidebar}
 		onConnectServer={handleConnectServer}
 	/>
-	<main class="flex-1 min-w-0 flex flex-col">
+	<main class="flex-1 min-w-0 flex flex-col pl-12 md:pl-0">
 		{@render children()}
 	</main>
 </div>

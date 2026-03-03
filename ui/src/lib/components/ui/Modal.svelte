@@ -51,7 +51,7 @@
 
 			<!-- Footer -->
 			{#if footer}
-				<div class="flex items-center justify-end gap-2 px-4 py-3 border-t border-border">
+				<div class="flex items-center justify-end gap-2 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border">
 					{@render footer()}
 				</div>
 			{/if}
