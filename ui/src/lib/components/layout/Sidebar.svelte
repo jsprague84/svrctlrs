@@ -45,7 +45,7 @@
 <aside
 	class="flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200
 		{mobileOpen
-			? 'fixed inset-y-0 left-0 z-40 w-64 flex translate-x-0'
+			? 'fixed inset-y-0 left-0 z-40 w-64 flex translate-x-0 pl-[env(safe-area-inset-left)]'
 			: 'hidden md:flex'} {!mobileOpen && collapsed ? 'w-12' : !mobileOpen ? 'w-56' : ''}"
 	aria-label="Sidebar"
 >
@@ -85,7 +85,7 @@
 		{#each navItems as item}
 			<a
 				href={item.href}
-				class="flex items-center gap-2.5 px-2 py-1.5 rounded-sm text-sm transition-colors
+				class="flex items-center gap-2.5 px-2 py-2.5 md:py-1.5 rounded-sm text-sm transition-colors
 					{isActive(item.href)
 						? 'bg-sidebar-accent text-sidebar-foreground'
 						: 'text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}"
@@ -116,7 +116,7 @@
 					<div class="flex flex-col gap-0.5">
 						{#each servers as server}
 							<button
-								class="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm text-left w-full
+								class="flex items-center gap-2 px-2 py-2.5 md:py-1.5 text-xs rounded-sm text-left w-full
 									text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
 								onclick={() => handleServerConnect(server)}
 								title="Connect to {server.name}"
@@ -138,7 +138,7 @@
 	<!-- Theme toggle + Logout -->
 	<div class="mt-auto border-t border-sidebar-border px-2 py-2 flex flex-col gap-0.5">
 		<button
-			class="flex items-center gap-2.5 px-2 py-1.5 rounded-sm text-sm transition-colors w-full
+			class="flex items-center gap-2.5 px-2 py-2.5 md:py-1.5 rounded-sm text-sm transition-colors w-full
 				text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
 			onclick={themeState.toggleTheme}
 			title={themeState.isDark() ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -154,7 +154,7 @@
 			{/if}
 		</button>
 		<button
-			class="flex items-center gap-2.5 px-2 py-1.5 rounded-sm text-sm transition-colors w-full
+			class="flex items-center gap-2.5 px-2 py-2.5 md:py-1.5 rounded-sm text-sm transition-colors w-full
 				text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
 			onclick={logout}
 			title="Logout"

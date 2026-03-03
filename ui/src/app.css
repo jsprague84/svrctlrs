@@ -94,6 +94,7 @@ body {
 	background-color: var(--color-background);
 	color: var(--color-foreground);
 	font-family: 'Inter', system-ui, -apple-system, sans-serif;
+	touch-action: manipulation;
 }
 
 /* Monospace for technical content */

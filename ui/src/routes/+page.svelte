@@ -185,7 +185,7 @@
 		<h1 class="hidden md:block text-sm font-semibold text-text-primary">SvrCtlRS</h1>
 
 		<select
-			class="flex-1 min-w-0 ml-0 md:ml-4 px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
+			class="flex-1 min-w-0 ml-0 md:ml-4 px-2 py-2 md:py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
 			bind:value={selectedServerId}
 		>
 			{#if serversLoading}
@@ -201,7 +201,7 @@
 		</select>
 
 		<select
-			class="min-w-0 px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
+			class="min-w-0 px-2 py-2 md:py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
 			bind:value={selectedMode}
 		>
 			<option value="pty">Interactive (PTY)</option>
@@ -229,16 +229,16 @@
 			{#if activeTab}
 				<ConnectionBadge status={activeTab.status} />
 			{/if}
-			<button class="p-1 text-text-muted hover:text-text-primary" onclick={() => { if (activeTabId) paneRefs[activeTabId]?.clear(); }} title="Clear">
+			<button class="p-2 md:p-1 text-text-muted hover:text-text-primary" onclick={() => { if (activeTabId) paneRefs[activeTabId]?.clear(); }} title="Clear">
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
 			</button>
-			<button class="p-1 text-text-muted hover:text-text-primary" onclick={() => { if (activeTabId) paneRefs[activeTabId]?.copyOutput(); }} title="Copy">
+			<button class="p-2 md:p-1 text-text-muted hover:text-text-primary" onclick={() => { if (activeTabId) paneRefs[activeTabId]?.copyOutput(); }} title="Copy">
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
 			</button>
-			<button class="p-1 text-text-muted hover:text-text-primary" onclick={() => { if (activeTabId) paneRefs[activeTabId]?.downloadOutput(); }} title="Download">
+			<button class="p-2 md:p-1 text-text-muted hover:text-text-primary" onclick={() => { if (activeTabId) paneRefs[activeTabId]?.downloadOutput(); }} title="Download">
 				<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
 			</button>
-			<button class="p-1 text-text-muted hover:text-text-primary" class:text-accent={prefsOpen} onclick={() => prefsOpen = !prefsOpen} title="Terminal Preferences">
+			<button class="p-2 md:p-1 text-text-muted hover:text-text-primary" class:text-accent={prefsOpen} onclick={() => prefsOpen = !prefsOpen} title="Terminal Preferences">
 				<Settings2 class="w-4 h-4" />
 			</button>
 		</div>

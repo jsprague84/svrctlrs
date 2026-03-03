@@ -39,8 +39,8 @@
 {/if}
 
 <div
-	class="fixed bottom-0 left-0 right-0 h-[70vh] rounded-t-xl z-30
-		md:absolute md:top-0 md:bottom-0 md:right-0 md:left-auto md:h-auto md:w-72 md:rounded-none md:z-20
+	class="fixed bottom-0 left-0 right-0 h-[70vh] rounded-t-xl z-30 pb-[env(safe-area-inset-bottom)]
+		md:absolute md:top-0 md:bottom-0 md:right-0 md:left-auto md:h-auto md:w-72 md:rounded-none md:z-20 md:pb-0
 		bg-surface border-t border-border md:border-t-0 md:border-l
 		flex flex-col transition-transform duration-200 ease-in-out overflow-hidden
 		{open ? '' : 'translate-y-full md:translate-y-0 md:translate-x-full'}"
