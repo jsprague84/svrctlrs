@@ -1,4 +1,9 @@
-//! SSH connection utilities for remote server management
+//! SSH connection utilities for remote server management.
+//!
+//! **NOTE:** This module uses `ServerCheckMethod::NoCheck` for SSH host key verification,
+//! which is vulnerable to MITM attacks. For production use, prefer the WebSocket terminal
+//! endpoints (`terminal.rs` and `terminal_pty.rs`) which implement proper TOFU (Trust On
+//! First Use) verification via the `server_host_keys` database table.
 
 #![allow(dead_code)]
 

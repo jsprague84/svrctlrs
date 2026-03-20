@@ -222,7 +222,8 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState) {
             };
             if let Ok(json) = serde_json::to_string(&response) {
                 let mut sender = ws_sender_for_output.lock().await;
-                if sender.send(Message::Text(json.into())).await.is_err() {
+                if let Err(e) = sender.send(Message::Text(json.into())).await {
+                    tracing::debug!("PTY output WebSocket send failed (client likely disconnected): {e}");
                     break;
                 }
             }
