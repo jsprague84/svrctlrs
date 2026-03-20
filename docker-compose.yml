@@ -11,7 +11,7 @@ services:
       - SESSION_SECURE=true
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env (64 hex chars for AES-256-GCM)}
     volumes:
       - svrctlrs-data:/app/data
       - ${SSH_KEY_PATH:-~/.ssh}:/home/svrctlrs/.ssh:ro
