@@ -1,7 +1,7 @@
 //! Terminal profile queries
 
-use anyhow::Result;
-use sqlx::{Pool, Sqlite};
+use anyhow::{Context, Result};
+use sqlx::{Pool, QueryBuilder, Sqlite};
 
 use crate::models::{CreateTerminalProfile, TerminalProfile, UpdateTerminalProfile};
 
@@ -67,11 +67,15 @@ pub async fn create_terminal_profile(
     let pane_configs_json = profile
         .pane_configs
         .as_ref()
-        .map(|v| serde_json::to_string(v).unwrap_or_default());
+        .map(serde_json::to_string)
+        .transpose()
+        .context("Failed to serialize pane configs")?;
     let quick_commands_json = profile
         .quick_commands
         .as_ref()
-        .map(|v| serde_json::to_string(v).unwrap_or_default());
+        .map(serde_json::to_string)
+        .transpose()
+        .context("Failed to serialize quick commands")?;
 
     let result = sqlx::query(
         r#"
@@ -105,43 +109,35 @@ pub async fn update_terminal_profile(
             .await?;
     }
 
-    let mut query = String::from("UPDATE terminal_profiles SET updated_at = CURRENT_TIMESTAMP");
-    let mut params: Vec<String> = Vec::new();
+    let mut qb: QueryBuilder<Sqlite> =
+        QueryBuilder::new("UPDATE terminal_profiles SET updated_at = CURRENT_TIMESTAMP");
 
     if let Some(name) = &update.name {
-        query.push_str(", name = ?");
-        params.push(name.clone());
+        qb.push(", name = ").push_bind(name.clone());
     }
     if let Some(description) = &update.description {
-        query.push_str(", description = ?");
-        params.push(description.clone());
+        qb.push(", description = ").push_bind(description.clone());
     }
     if let Some(layout) = &update.layout {
-        query.push_str(", layout = ?");
-        params.push(layout.clone());
+        qb.push(", layout = ").push_bind(layout.clone());
     }
     if let Some(pane_configs) = &update.pane_configs {
-        query.push_str(", pane_configs = ?");
-        params.push(serde_json::to_string(pane_configs).unwrap_or_default());
+        let json = serde_json::to_string(pane_configs)
+            .context("Failed to serialize pane configs")?;
+        qb.push(", pane_configs = ").push_bind(json);
     }
     if let Some(quick_commands) = &update.quick_commands {
-        query.push_str(", quick_commands = ?");
-        params.push(serde_json::to_string(quick_commands).unwrap_or_default());
+        let json = serde_json::to_string(quick_commands)
+            .context("Failed to serialize quick commands")?;
+        qb.push(", quick_commands = ").push_bind(json);
     }
     if let Some(is_default) = update.is_default {
-        query.push_str(", is_default = ?");
-        params.push(if is_default { "1" } else { "0" }.to_string());
+        qb.push(", is_default = ").push_bind(is_default);
     }
 
-    query.push_str(" WHERE id = ?");
+    qb.push(" WHERE id = ").push_bind(id);
 
-    // Build the query dynamically
-    let mut qb = sqlx::query(&query);
-    for param in &params {
-        qb = qb.bind(param);
-    }
-    qb = qb.bind(id);
-    qb.execute(pool).await?;
+    qb.build().execute(pool).await?;
 
     Ok(())
 }

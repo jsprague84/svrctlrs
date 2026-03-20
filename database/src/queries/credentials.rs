@@ -1,7 +1,7 @@
 //! Credential database queries
 
 use anyhow::Context;
-use sqlx::{Pool, Sqlite};
+use sqlx::{Pool, QueryBuilder, Sqlite};
 use svrctlrs_core::encryption;
 use svrctlrs_core::{Error, Result};
 use tracing::{instrument, warn};
@@ -120,45 +120,36 @@ pub async fn update_credential(
         return Ok(());
     }
 
-    let mut query = String::from("UPDATE credentials SET updated_at = CURRENT_TIMESTAMP");
-    let mut params: Vec<String> = Vec::new();
+    let mut qb: QueryBuilder<Sqlite> =
+        QueryBuilder::new("UPDATE credentials SET updated_at = CURRENT_TIMESTAMP");
 
     if let Some(name) = &input.name {
-        query.push_str(", name = ?");
-        params.push(name.clone());
+        qb.push(", name = ").push_bind(name.clone());
     }
     if let Some(description) = &input.description {
-        query.push_str(", description = ?");
-        params.push(description.clone());
+        qb.push(", description = ").push_bind(description.clone());
     }
     if let Some(value) = &input.value {
         if encryption::is_initialized() {
             let encrypted_value = encryption::encrypt(value)?;
-            query.push_str(", value = ?, encrypted = 1");
-            params.push(encrypted_value);
+            qb.push(", value = ").push_bind(encrypted_value);
+            qb.push(", encrypted = ").push_bind(true);
         } else {
-            query.push_str(", value = ?, encrypted = 0");
-            params.push(value.clone());
+            qb.push(", value = ").push_bind(value.clone());
+            qb.push(", encrypted = ").push_bind(false);
         }
     }
     if let Some(username) = &input.username {
-        query.push_str(", username = ?");
-        params.push(username.clone());
+        qb.push(", username = ").push_bind(username.clone());
     }
     if let Some(metadata) = input.metadata_string() {
-        query.push_str(", metadata = ?");
-        params.push(metadata);
+        qb.push(", metadata = ").push_bind(metadata);
     }
 
-    query.push_str(" WHERE id = ?");
+    qb.push(" WHERE id = ").push_bind(id);
 
-    let mut q = sqlx::query(&query);
-    for param in params {
-        q = q.bind(param);
-    }
-    q = q.bind(id);
-
-    q.execute(pool)
+    qb.build()
+        .execute(pool)
         .await
         .context("Failed to update credential")
         .map_err(|e| Error::DatabaseError(e.to_string()))?;
