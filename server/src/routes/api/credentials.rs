@@ -83,7 +83,10 @@ async fn get_credential(
     // Check if in use
     let in_use = credentials::credential_in_use(&state.pool, id)
         .await
-        .unwrap_or(false);
+        .map_err(|e| {
+            error!(error = %e, id = id, "Failed to check credential usage");
+            ApiError::internal_error(format!("Failed to check credential usage: {}", e))
+        })?;
 
     Ok(Json(json!({
         "id": cred.id,

@@ -35,7 +35,10 @@ pub async fn list_credentials(pool: &Pool<Sqlite>) -> Result<Vec<Credential>> {
     creds.into_iter().map(decrypt_credential).collect()
 }
 
-/// Get credential by ID (value is decrypted transparently)
+/// Get credential by ID (value is decrypted transparently via `decrypt_credential()`).
+///
+/// Use this when the actual credential value is needed (e.g., SSH connections).
+/// For listing/display purposes, use `list_credentials()` instead.
 #[instrument(skip(pool))]
 pub async fn get_credential(pool: &Pool<Sqlite>, id: i64) -> Result<Credential> {
     let cred = sqlx::query_as::<_, Credential>(

@@ -1,3 +1,5 @@
+use std::fmt;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
@@ -38,7 +40,7 @@ impl CredentialType {
 }
 
 /// Credential model - stores SSH keys, API tokens, passwords, certificates
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Clone, Serialize, Deserialize, FromRow)]
 pub struct Credential {
     pub id: i64,
     pub name: String,
@@ -62,6 +64,23 @@ pub struct Credential {
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+impl fmt::Debug for Credential {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Credential")
+            .field("id", &self.id)
+            .field("name", &self.name)
+            .field("credential_type_str", &self.credential_type_str)
+            .field("description", &self.description)
+            .field("value", &"[REDACTED]")
+            .field("username", &self.username)
+            .field("metadata", &self.metadata)
+            .field("encrypted", &self.encrypted)
+            .field("created_at", &self.created_at)
+            .field("updated_at", &self.updated_at)
+            .finish()
+    }
 }
 
 impl Credential {
