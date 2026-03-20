@@ -1,7 +1,7 @@
 //! Server database queries (updated for new schema)
 
 use anyhow::Context;
-use sqlx::{Pool, Sqlite};
+use sqlx::{Pool, QueryBuilder, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::instrument;
 
@@ -123,80 +123,56 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
         return Ok(());
     }
 
-    let mut query = String::from("UPDATE servers SET updated_at = CURRENT_TIMESTAMP");
-    let mut params: Vec<String> = Vec::new();
+    let mut qb: QueryBuilder<Sqlite> =
+        QueryBuilder::new("UPDATE servers SET updated_at = CURRENT_TIMESTAMP");
 
     if let Some(name) = &input.name {
-        query.push_str(", name = ?");
-        params.push(name.clone());
+        qb.push(", name = ").push_bind(name.clone());
     }
     if let Some(hostname) = &input.hostname {
-        query.push_str(", hostname = ?");
-        params.push(hostname.clone());
+        qb.push(", hostname = ").push_bind(hostname.clone());
     }
     if let Some(port) = input.port {
-        query.push_str(", port = ?");
-        params.push(port.to_string());
+        qb.push(", port = ").push_bind(port);
     }
     if let Some(username) = &input.username {
-        query.push_str(", username = ?");
-        params.push(username.clone());
+        qb.push(", username = ").push_bind(username.clone());
     }
-    if input.credential_id.is_some() {
-        query.push_str(", credential_id = ?");
-        params.push(
-            input
-                .credential_id
-                .map(|id| id.to_string())
-                .unwrap_or_else(|| "NULL".to_string()),
-        );
+    if let Some(credential_id) = input.credential_id {
+        qb.push(", credential_id = ").push_bind(credential_id);
     }
     if let Some(description) = &input.description {
-        query.push_str(", description = ?");
-        params.push(description.clone());
+        qb.push(", description = ").push_bind(description.clone());
     }
     if let Some(enabled) = input.enabled {
-        query.push_str(", enabled = ?");
-        params.push(if enabled { "1" } else { "0" }.to_string());
+        qb.push(", enabled = ").push_bind(enabled);
     }
     if let Some(os_type) = &input.os_type {
-        query.push_str(", os_type = ?");
-        params.push(os_type.clone());
+        qb.push(", os_type = ").push_bind(os_type.clone());
     }
     if let Some(os_distro) = &input.os_distro {
-        query.push_str(", os_distro = ?");
-        params.push(os_distro.clone());
+        qb.push(", os_distro = ").push_bind(os_distro.clone());
     }
     if let Some(package_manager) = &input.package_manager {
-        query.push_str(", package_manager = ?");
-        params.push(package_manager.clone());
+        qb.push(", package_manager = ").push_bind(package_manager.clone());
     }
     if let Some(docker_available) = input.docker_available {
-        query.push_str(", docker_available = ?");
-        params.push(if docker_available { "1" } else { "0" }.to_string());
+        qb.push(", docker_available = ").push_bind(docker_available);
     }
     if let Some(systemd_available) = input.systemd_available {
-        query.push_str(", systemd_available = ?");
-        params.push(if systemd_available { "1" } else { "0" }.to_string());
+        qb.push(", systemd_available = ").push_bind(systemd_available);
     }
     if let Some(metadata) = input.metadata_string() {
-        query.push_str(", metadata = ?");
-        params.push(metadata);
+        qb.push(", metadata = ").push_bind(metadata);
     }
     if let Some(last_error) = &input.last_error {
-        query.push_str(", last_error = ?");
-        params.push(last_error.clone());
+        qb.push(", last_error = ").push_bind(last_error.clone());
     }
 
-    query.push_str(" WHERE id = ?");
+    qb.push(" WHERE id = ").push_bind(id);
 
-    let mut q = sqlx::query(&query);
-    for param in params {
-        q = q.bind(param);
-    }
-    q = q.bind(id);
-
-    q.execute(pool)
+    qb.build()
+        .execute(pool)
         .await
         .context("Failed to update server")
         .map_err(|e| Error::DatabaseError(e.to_string()))?;
