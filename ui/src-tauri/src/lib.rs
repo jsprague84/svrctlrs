@@ -18,8 +18,9 @@ pub fn run() {
             }
 
             // Register plugins
-            app.handle().plugin(tauri_plugin_biometric::init())?;
             app.handle().plugin(tauri_plugin_os::init())?;
+            #[cfg(mobile)]
+            app.handle().plugin(tauri_plugin_biometric::init())?;
 
             // System tray (desktop only)
             #[cfg(desktop)]
