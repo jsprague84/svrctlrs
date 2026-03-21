@@ -10,9 +10,11 @@
 	import CommandPalette from '$lib/components/terminal/CommandPalette.svelte';
 	import ProfileManager from '$lib/components/terminal/ProfileManager.svelte';
 	import MobileStatusBar from '$lib/components/terminal/MobileStatusBar.svelte';
+	import ExtraKeysRow from '$lib/components/terminal/ExtraKeysRow.svelte';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
+	import { isKeyboardVisible, initKeyboardDetection, destroyKeyboardDetection } from '$lib/platform/keyboard.js';
 	import type { TerminalMode, ConnectionStatus } from '$lib/types/index.js';
 
 	let selectedServerId = $state<number | null>(null);
@@ -54,6 +56,8 @@
 	});
 
 	onMount(() => {
+		// Initialize keyboard detection for mobile extra keys row
+		if (isMobile()) initKeyboardDetection();
 
 		// Create initial tab
 		if (tabs.length === 0) {
@@ -144,7 +148,10 @@
 		}
 
 		window.addEventListener('keydown', handleKeydown, true);
-		return () => window.removeEventListener('keydown', handleKeydown, true);
+		return () => {
+			window.removeEventListener('keydown', handleKeydown, true);
+			destroyKeyboardDetection();
+		};
 	});
 
 	function handleConnect() {
@@ -340,6 +347,14 @@
 				</div>
 			{/each}
 		</SplitView>
+		<!-- Extra keys row (mobile only, when keyboard visible) -->
+		{#if isMobile() && isKeyboardVisible()}
+			<ExtraKeysRow onKeyPress={(seq) => {
+				if (activeTabId && paneRefs[activeTabId]) {
+					paneRefs[activeTabId].injectInput(seq);
+				}
+			}} />
+		{/if}
 		<TerminalPrefsPanel open={prefsOpen} onClose={() => prefsOpen = false} />
 		<ProfileManager
 			open={profileSaveOpen}
