@@ -81,14 +81,20 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
                             return next.run(request).await;
                         }
 
-                        // Debug: check if ANY sessions exist
-                        let count: Option<(i64,)> = svrctlrs_database::sqlx::query_as(
-                            "SELECT COUNT(*) FROM tower_sessions"
+                        // Debug: compare token format with actual DB IDs
+                        let latest: Option<(String,)> = svrctlrs_database::sqlx::query_as(
+                            "SELECT id FROM tower_sessions ORDER BY expiry_date DESC LIMIT 1"
                         )
                         .fetch_optional(pool)
                         .await
                         .unwrap_or(None);
-                        tracing::info!(session_count = ?count, "Total sessions in store");
+                        tracing::info!(
+                            token_value = token,
+                            token_len = token.len(),
+                            db_id_sample = ?latest.as_ref().map(|r| &r.0),
+                            db_id_len = latest.as_ref().map(|r| r.0.len()),
+                            "Token vs DB format comparison"
+                        );
                     }
                 }
             }
