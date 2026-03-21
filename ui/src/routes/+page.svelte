@@ -275,7 +275,7 @@
 	{/if}
 
 	<!-- Search bar (desktop only) -->
-	{#if searchOpen}
+	{#if searchOpen && !isMobile()}
 		<div class="flex flex-wrap items-center gap-2 px-2 md:px-4 py-1.5 bg-surface-raised border-b border-border">
 			<input
 				type="text"
@@ -311,8 +311,8 @@
 	/>
 	{/if}
 
-	<!-- CMD input bar -->
-	{#if activeTab?.mode === 'cmd' && activeTab?.status === 'connected'}
+	<!-- CMD input bar (desktop only) -->
+	{#if !isMobile() && activeTab?.mode === 'cmd' && activeTab?.status === 'connected'}
 		<CommandInput
 			onSubmit={handleCmdSubmit}
 			onHistoryUp={() => activeTabId ? paneRefs[activeTabId]?.getPreviousCommand() : null}
@@ -370,6 +370,16 @@
 				}
 			}}
 			onSaveProfile={() => profileSaveOpen = true}
+			onClearTerminal={() => { if (activeTabId) paneRefs[activeTabId]?.clear(); }}
+			onCopyOutput={() => { if (activeTabId) paneRefs[activeTabId]?.copyOutput(); }}
+			onDownloadOutput={() => { if (activeTabId) paneRefs[activeTabId]?.downloadOutput(); }}
+			onToggleSearch={() => { searchOpen = !searchOpen; }}
+			onConnect={handleConnect}
+			onDisconnect={handleDisconnect}
+			onConnectServer={(id, name) => {
+				const tab = terminalState.createTab(id, name, 'pty');
+				if (tab) terminalState.setPendingAutoConnect(tab.id);
+			}}
 			serverId={activeTab?.serverId ?? null}
 		/>
 	</div>

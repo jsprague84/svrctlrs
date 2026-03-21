@@ -2,6 +2,7 @@
 	import { Search } from 'lucide-svelte';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import * as quickCommandsState from '$lib/state/quickCommands.svelte.js';
+	import * as serversState from '$lib/state/servers.svelte.js';
 	import * as themeState from '$lib/state/theme.svelte.js';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 
@@ -18,10 +19,17 @@
 		onClose: () => void;
 		onInjectCommand?: (cmd: string) => void;
 		onSaveProfile?: () => void;
+		onClearTerminal?: () => void;
+		onCopyOutput?: () => void;
+		onDownloadOutput?: () => void;
+		onToggleSearch?: () => void;
+		onConnect?: () => void;
+		onDisconnect?: () => void;
+		onConnectServer?: (serverId: number, serverName: string) => void;
 		serverId: number | null;
 	}
 
-	let { open, onClose, onInjectCommand, onSaveProfile, serverId }: Props = $props();
+	let { open, onClose, onInjectCommand, onSaveProfile, onClearTerminal, onCopyOutput, onDownloadOutput, onToggleSearch, onConnect, onDisconnect, onConnectServer, serverId }: Props = $props();
 
 	let query = $state('');
 	let selectedIndex = $state(0);
@@ -47,6 +55,17 @@
 			});
 		}
 
+		// Server connections (for mobile — connect directly from palette)
+		for (const server of serversState.getServers()) {
+			result.push({
+				id: `server-${server.id}`,
+				name: `Connect: ${server.name}`,
+				detail: server.hostname ?? 'local',
+				category: 'action',
+				action: () => { onConnectServer?.(server.id, server.name); onClose(); }
+			});
+		}
+
 		// App actions
 		result.push(
 			{
@@ -66,6 +85,48 @@
 					if (id) terminalState.closeTab(id);
 					onClose();
 				}
+			},
+			{
+				id: 'action-connect',
+				name: 'Connect',
+				detail: 'Connect active tab to server',
+				category: 'action',
+				action: () => { onConnect?.(); onClose(); }
+			},
+			{
+				id: 'action-disconnect',
+				name: 'Disconnect',
+				detail: 'Disconnect active tab',
+				category: 'action',
+				action: () => { onDisconnect?.(); onClose(); }
+			},
+			{
+				id: 'action-clear',
+				name: 'Clear Terminal',
+				detail: 'Clear terminal output',
+				category: 'action',
+				action: () => { onClearTerminal?.(); onClose(); }
+			},
+			{
+				id: 'action-copy',
+				name: 'Copy Output',
+				detail: 'Copy terminal output to clipboard',
+				category: 'action',
+				action: () => { onCopyOutput?.(); onClose(); }
+			},
+			{
+				id: 'action-download',
+				name: 'Download Output',
+				detail: 'Download terminal output as file',
+				category: 'action',
+				action: () => { onDownloadOutput?.(); onClose(); }
+			},
+			{
+				id: 'action-search',
+				name: 'Search Output',
+				detail: 'Search terminal output',
+				category: 'action',
+				action: () => { onToggleSearch?.(); onClose(); }
 			},
 			{
 				id: 'action-save-profile',
