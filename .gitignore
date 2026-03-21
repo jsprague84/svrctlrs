@@ -41,3 +41,4 @@ ui/build/
 data/test.db
 data/test.db-shm
 data/test.db-wal
+.superpowers/
