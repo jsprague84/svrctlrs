@@ -3,6 +3,7 @@
 	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import GeneralSettings from '$lib/components/settings/GeneralSettings.svelte';
 	import NotificationSettings from '$lib/components/settings/NotificationSettings.svelte';
+	import QuickCommandsSettings from '$lib/components/settings/QuickCommandsSettings.svelte';
 
 	type TabId = 'general' | 'notifications' | 'commands' | 'about';
 
@@ -46,7 +47,7 @@
 		{:else if activeTab === 'notifications'}
 			<NotificationSettings />
 		{:else if activeTab === 'commands'}
-			<div class="text-text-muted text-sm">Quick commands — coming soon</div>
+			<QuickCommandsSettings />
 		{:else if activeTab === 'about'}
 			<div class="text-text-muted text-sm">About — coming soon</div>
 		{/if}
