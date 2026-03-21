@@ -99,6 +99,8 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    info!("Build: token-auth-v2 (2026-03-21T21:20)");
+
     // Initialize application state
     let state = AppState::new(config, database).await?;
 
