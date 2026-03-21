@@ -4,6 +4,7 @@
 	import GeneralSettings from '$lib/components/settings/GeneralSettings.svelte';
 	import NotificationSettings from '$lib/components/settings/NotificationSettings.svelte';
 	import QuickCommandsSettings from '$lib/components/settings/QuickCommandsSettings.svelte';
+	import AboutSettings from '$lib/components/settings/AboutSettings.svelte';
 
 	type TabId = 'general' | 'notifications' | 'commands' | 'about';
 
@@ -49,7 +50,7 @@
 		{:else if activeTab === 'commands'}
 			<QuickCommandsSettings />
 		{:else if activeTab === 'about'}
-			<div class="text-text-muted text-sm">About — coming soon</div>
+			<AboutSettings />
 		{/if}
 	</div>
 </div>
