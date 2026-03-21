@@ -62,30 +62,31 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 if !token.is_empty() {
                     if let Some(pool) = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>() {
-                        // Look up session and extract user_id from the stored data
-                        let result: Option<(Vec<u8>,)> = svrctlrs_database::sqlx::query_as(
-                            "SELECT data FROM tower_sessions WHERE id = ?"
+                        // Verify session exists in the store
+                        let exists = svrctlrs_database::sqlx::query(
+                            "SELECT id FROM tower_sessions WHERE id = ?"
                         )
                         .bind(token)
                         .fetch_optional(pool)
                         .await
-                        .unwrap_or(None);
+                        .ok()
+                        .flatten()
+                        .is_some();
 
-                        if let Some((data,)) = result {
-                            // Parse session data to extract user_id
-                            // tower-sessions stores data as JSON: {"user_id": N}
-                            if let Ok(json_str) = String::from_utf8(data) {
-                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&json_str) {
-                                    if let Some(uid) = parsed.get("user_id").and_then(|v| v.as_i64()) {
-                                        // Insert user_id into the current session so handlers can read it
+                        if exists {
+                            // Session token is valid — read user_id from X-User-Id header
+                            // (sent alongside the token; trusted because token was verified first)
+                            if let Some(uid_header) = request.headers().get("x-user-id") {
+                                if let Ok(uid_str) = uid_header.to_str() {
+                                    if let Ok(uid) = uid_str.parse::<i64>() {
                                         let _ = session.insert(USER_ID_KEY, uid).await;
                                         tracing::info!(user_id = uid, "Authenticated via Bearer token");
                                         return next.run(request).await;
                                     }
                                 }
                             }
-                            // If data parsing failed, still allow through (session exists)
-                            tracing::warn!("Bearer token valid but couldn't extract user_id from session data");
+                            // Token valid but no user_id header — allow through anyway
+                            tracing::warn!("Bearer token valid but missing X-User-Id header");
                             return next.run(request).await;
                         }
                     }

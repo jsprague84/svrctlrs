@@ -4,15 +4,17 @@ function getApiBase(): string {
 	return `${getServerUrl()}/api/v1`;
 }
 
-/** Get auth headers — includes Bearer token if available.
- * Always sends token if one exists in localStorage (not gated on isTauri).
- * In web mode with cookies, the server checks cookies first — token is ignored.
- * In Tauri mode without cookies, the server falls back to token auth. */
+/** Get auth headers — includes Bearer token + user ID if available.
+ * In web mode with cookies, server checks cookies first — these are ignored.
+ * In Tauri mode without cookies, server uses token + user_id for auth. */
 function getAuthHeaders(): Record<string, string> {
 	if (typeof localStorage === 'undefined') return {};
 	const token = localStorage.getItem('svrctlrs-session-token');
 	if (!token) return {};
-	return { Authorization: `Bearer ${token}` };
+	const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+	const userId = localStorage.getItem('svrctlrs-user-id');
+	if (userId) headers['X-User-Id'] = userId;
+	return headers;
 }
 
 export class ApiError extends Error {
@@ -96,6 +98,7 @@ export async function logout(): Promise<void> {
 		console.warn('Logout request failed:', e);
 	}
 	localStorage.removeItem('svrctlrs-session-token');
+	localStorage.removeItem('svrctlrs-user-id');
 	try {
 		const { goto } = await import('$app/navigation');
 		goto('/auth/login');

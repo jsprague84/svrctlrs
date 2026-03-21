@@ -26,9 +26,10 @@
 
 			if (res.ok) {
 				const data = await res.json().catch(() => ({}));
-				// Store session token for Tauri mode (WebKitGTK can't send cross-origin cookies)
+				// Store session token + user_id for Tauri mode (WebKitGTK can't send cross-origin cookies)
 				if (data.session_id) {
 					localStorage.setItem('svrctlrs-session-token', data.session_id);
+					localStorage.setItem('svrctlrs-user-id', String(data.user_id ?? ''));
 				}
 				// Full reload — token is in localStorage, survives reload
 				window.location.href = '/';

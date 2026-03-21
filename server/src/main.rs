@@ -152,6 +152,7 @@ async fn main() -> anyhow::Result<()> {
                 axum::http::header::AUTHORIZATION,
                 axum::http::header::COOKIE,
                 axum::http::header::ACCEPT,
+                axum::http::HeaderName::from_static("x-user-id"),
             ])
             .expose_headers([
                 axum::http::header::SET_COOKIE,
