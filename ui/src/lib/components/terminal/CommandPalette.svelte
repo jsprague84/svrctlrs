@@ -199,24 +199,31 @@
 		} else if (e.key === 'Enter') {
 			e.preventDefault();
 			if (filtered[selectedIndex]) {
-				filtered[selectedIndex].action();
+				handleSelect(filtered[selectedIndex]);
 			}
 		}
 	}
 
-	function handleSelect(item: PaletteItem) {
-		item.action();
+	function handleSelect(item: PaletteItem, e?: MouseEvent) {
+		e?.stopPropagation();
+		e?.preventDefault();
+		// Delay action to prevent click passthrough to elements below
+		// (palette DOM removed on close, click falls through to toolbar/sidebar)
+		requestAnimationFrame(() => {
+			item.action();
+		});
 	}
 </script>
 
 {#if open}
 	<!-- Backdrop -->
-	<button
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
 		class="fixed inset-0 bg-black/40 z-40"
-		onclick={onClose}
-		tabindex="-1"
-		aria-label="Close command palette"
-	></button>
+		onclick={(e) => { e.stopPropagation(); requestAnimationFrame(() => onClose()); }}
+		onkeydown={() => {}}
+		role="presentation"
+	></div>
 
 	<!-- Palette -->
 	<div
@@ -250,7 +257,7 @@
 					<button
 						class="w-full text-left px-3 py-2 flex items-center gap-3 text-sm transition-colors
 							{i === selectedIndex ? 'bg-accent/10 text-text-primary' : 'text-text-secondary hover:bg-surface-raised'}"
-						onclick={() => handleSelect(item)}
+						onclick={(e) => handleSelect(item, e)}
 						role="option"
 						aria-selected={i === selectedIndex}
 					>
