@@ -1,0 +1,166 @@
+{
+  "project": "SvrCtlRS",
+  "branchName": "ralph/phase3-tauri-desktop",
+  "description": "Phase 3 — Tauri v2 desktop app setup, platform detection layer, system tray, and Android mobile validation spike",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Install Tauri CLI and system dependencies",
+      "description": "As a developer, I want the Tauri v2 CLI and Linux system dependencies installed so I can initialize and build the Tauri project.",
+      "acceptanceCriteria": [
+        "Install @tauri-apps/cli v2 as a dev dependency in ui/package.json: `npm install -D @tauri-apps/cli@latest`",
+        "Install Tauri Rust crate prerequisites if missing: `sudo dnf install webkit2gtk4.1-devel libsoup3-devel -y` (Fedora — check if already installed first)",
+        "Add tauri scripts to ui/package.json: `\"tauri\": \"tauri\"`, `\"tauri:dev\": \"tauri dev\"`, `\"tauri:build\": \"tauri build\"`",
+        "Verify CLI works: `cd ui && npx tauri --version` outputs a version number",
+        "`cd ui && npm run check` still passes",
+        "`cd ui && npm run build` still passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Tauri v2 CLI is installed as an npm dev dependency (not cargo install). The Rust tauri crate is added automatically during `tauri init`. On Fedora, the required system packages are webkit2gtk4.1-devel and libsoup3-devel. Run `rpm -q webkit2gtk4.1-devel libsoup3-devel` to check first. Also may need: `sudo dnf install openssl-devel librsvg2-devel`. The tauri scripts in package.json allow running `npm run tauri dev` and `npm run tauri build`."
+    },
+    {
+      "id": "US-002",
+      "title": "Initialize Tauri v2 project with SvelteKit integration",
+      "description": "As a developer, I want a properly configured src-tauri/ directory that builds the SvelteKit SPA into a native desktop window.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'tauri init SvelteKit configuration tauri.conf.json frontendDist devUrl'. Use latest patterns found.",
+        "Run `cd ui && npx tauri init` — this creates `src-tauri/` directory inside `ui/`",
+        "When prompted: app name = 'SvrCtlRS', window title = 'SvrCtlRS', web assets relative path = '../build', dev server URL = 'http://localhost:5173', frontend dev command = 'npm run dev', frontend build command = 'npm run build'",
+        "Verify tauri.conf.json has correct settings: `frontendDist: '../build'`, `devUrl: 'http://localhost:5173'`",
+        "Update tauri.conf.json identifier to `app.js-node.svrctlrs`",
+        "Set window configuration: title = 'SvrCtlRS', width = 1200, height = 800, resizable = true, fullscreen = false",
+        "Verify `cd ui && npx tauri build` completes and produces a binary (may take a while first time)",
+        "The resulting binary opens a window showing the SvelteKit SPA"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "The `tauri init` command will create `ui/src-tauri/` with: src/main.rs, src/lib.rs, Cargo.toml, tauri.conf.json, icons/, build.rs. The SvelteKit app already uses adapter-static with fallback: 'index.html' and output to 'build/' — this matches Tauri's expectations. The tauri.conf.json `build.frontendDist` should be `../build` (relative to src-tauri/). For dev mode, Tauri will proxy to the Vite dev server at localhost:5173. Note: the SvelteKit app connects to the Axum backend via WebSocket — the user needs to configure the backend URL in the Tauri app (it won't be same-origin like the web version)."
+    },
+    {
+      "id": "US-003",
+      "title": "Configure Tauri for external API backend connection",
+      "description": "As a desktop app user, I want the Tauri app to connect to my remote SvrCtlRS server for API and WebSocket connections, since the SPA won't be served by the Axum backend.",
+      "acceptanceCriteria": [
+        "Add a settings/configuration mechanism for the backend server URL (e.g., 'https://svrctlrs.js-node.app')",
+        "Update the frontend API client (ui/src/lib/api/client.ts) to use a configurable base URL instead of hardcoded '/api/v1' when running in Tauri",
+        "Update WebSocket URLs in terminal.rs and terminal_pty.rs connections (TerminalPane.svelte getWsUrl function) to use the configurable backend URL",
+        "Use the platform detection layer to determine if running in Tauri — if so, read the backend URL from Tauri's configuration or localStorage",
+        "For web mode: keep existing behavior (relative URLs, same-origin)",
+        "For Tauri mode: prepend the configured backend URL to all API and WebSocket paths",
+        "Add Tauri security configuration to allow connections to the backend: update `tauri.conf.json` with appropriate CSP and allowlist",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "This is critical — in web mode the SPA is served from the same origin as the API, so relative URLs work. In Tauri, the SPA is loaded from the filesystem (tauri://localhost or similar), so API calls to '/api/v1/servers' would fail. The API client needs to detect Tauri mode and prepend the server URL. Approach: create `ui/src/lib/platform/index.ts` with `isTauri()` detection (check for `window.__TAURI_INTERNALS__`). Store the backend URL in localStorage as `svrctlrs-server-url`. On first launch in Tauri mode, prompt the user to enter their server URL. For WebSocket: currently `getWsUrl()` in TerminalPane.svelte builds ws:// URLs from window.location — this needs to use the configured backend URL instead."
+    },
+    {
+      "id": "US-004",
+      "title": "Platform detection layer",
+      "description": "As a developer, I want a clean platform detection API so components can conditionally render Tauri-specific features.",
+      "acceptanceCriteria": [
+        "Create `ui/src/lib/platform/index.ts` with exports: isWeb(), isTauri(), isTauriMobile(), isTauriDesktop(), getPlatform()",
+        "Detection method: check for `window.__TAURI_INTERNALS__` (Tauri v2 global)",
+        "Platform discrimination: use user agent parsing or Tauri os plugin for mobile vs desktop",
+        "SSR-safe: all functions return web defaults when window is undefined",
+        "Export a reactive `platform` state that components can use with $derived",
+        "The existing `isMobile()` from mobile.svelte.ts continues to work alongside platform detection (viewport-based vs platform-based are different concerns)",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "The platform/keyboard.ts file already exists from Phase 2. Add platform/index.ts alongside it. Keep it simple — just check for the Tauri global. In Tauri v2, `window.__TAURI_INTERNALS__` is always present. For mobile vs desktop distinction in Tauri, check `navigator.userAgent` for 'Android' or 'iPhone/iPad' — this works because Tauri uses the system WebView which sets platform-appropriate user agents. Don't over-engineer this — we just need boolean functions."
+    },
+    {
+      "id": "US-005",
+      "title": "Server URL configuration UI for Tauri",
+      "description": "As a desktop app user, I want to configure my SvrCtlRS server URL on first launch so the app knows where to connect.",
+      "acceptanceCriteria": [
+        "Create `ui/src/lib/components/ui/ServerUrlSetup.svelte` — a simple modal/page shown on first Tauri launch",
+        "Input field for server URL (e.g., 'https://svrctlrs.js-node.app')",
+        "Test Connection button that hits the /api/v1/health endpoint to verify connectivity",
+        "Save URL to localStorage key `svrctlrs-server-url`",
+        "Show this setup only in Tauri mode (isTauri()) and only when no URL is saved",
+        "Add a 'Server URL' option in the settings page to change it later",
+        "After saving URL, redirect to login page",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "This only applies in Tauri mode. In web mode, the SPA is already served from the correct backend. The setup flow: app launches -> check localStorage for svrctlrs-server-url -> if not found and isTauri(), show ServerUrlSetup -> user enters URL and tests connection -> on success, save to localStorage and reload. The settings page (ui/src/routes/settings/+page.svelte) should show the current server URL with an edit button when in Tauri mode."
+    },
+    {
+      "id": "US-006",
+      "title": "System tray integration",
+      "description": "As a desktop user, I want SvrCtlRS in my system tray so I can quickly access it without finding the window.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'system tray tray-icon plugin menu configuration'. Use latest patterns found.",
+        "Enable tray-icon feature in src-tauri/Cargo.toml: `tauri = { features = ['tray-icon'] }`",
+        "Add tray icon configuration in src-tauri/src/lib.rs or main.rs",
+        "Tray menu items: Show/Hide window, Quit",
+        "Clicking the tray icon toggles window visibility",
+        "App icon used for tray (use default Tauri icon initially, can be customized later)",
+        "Window close button hides to tray instead of quitting (on desktop only)",
+        "`cd ui && npx tauri build` succeeds"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Tauri v2 system tray uses the `tray-icon` feature and `tauri::tray` module. The tray is configured in the Rust code (src-tauri/src/lib.rs). Key APIs: `TrayIconBuilder::new()`, `.menu()`, `.on_tray_icon_event()`. The menu needs items for Show/Hide and Quit. When the user clicks the window close button, instead of quitting, call `window.hide()` and keep the app in the tray. This is standard desktop app behavior."
+    },
+    {
+      "id": "US-007",
+      "title": "Desktop build verification and app icon",
+      "description": "As a developer, I want the Tauri desktop build to produce a working Linux application with proper branding.",
+      "acceptanceCriteria": [
+        "Run `cd ui && npx tauri build` and verify it produces a working binary",
+        "The app opens, shows the SvelteKit SPA in a native window",
+        "Window title is 'SvrCtlRS'",
+        "Generate app icons using `npx tauri icon` with a source image (create a simple SVG icon or use existing branding)",
+        "Verify the built .deb and/or AppImage package works (if applicable on Fedora)",
+        "Document the build process in CLAUDE.md under a 'Tauri Desktop' section"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "On Linux, `tauri build` produces a .deb package and/or AppImage depending on system packages available. The build may need `dpkg` for .deb or `appimage` tools. For Fedora, AppImage is more appropriate. The `npx tauri icon` command generates all required icon sizes from a single source image. If no custom icon exists, the default Tauri icon works for now. Update CLAUDE.md with build commands: `cd ui && npm run tauri:dev` for development, `cd ui && npm run tauri:build` for production."
+    },
+    {
+      "id": "US-008",
+      "title": "Android mobile validation spike",
+      "description": "As a developer, I want to validate that Tauri v2 mobile works on Android by building a basic version and testing on a device/emulator.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'android setup prerequisites mobile configuration'. Use latest patterns found.",
+        "Check if Android SDK and NDK are available (`ANDROID_HOME` env var, `adb` command)",
+        "If available: run `cd ui && npx tauri android init` to set up Android target",
+        "If available: attempt `npx tauri android build --debug` to produce an APK",
+        "Document the result in progress.txt: what worked, what didn't, blockers encountered",
+        "If Android toolchain is NOT available: document what needs to be installed and skip the build — mark this story as passed with notes about prerequisites",
+        "This is a SPIKE — the goal is to validate feasibility, not build a production app"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "SPIKE RESULT: Android SDK not installed on dev machine. Prerequisites for Phase 4: (1) Install Android Studio or Android command-line tools, (2) Set ANDROID_HOME env var, (3) Install NDK via sdkmanager, (4) Run `npx tauri android init` to generate Android project. The Tauri desktop build works perfectly — mobile is blocked only by toolchain availability, not code issues. This is a validation spike, not a full implementation. The goal is to answer: 'Can we build a Tauri mobile app from this codebase?' If Android SDK is not installed, just document what's needed and move on. The user mentioned they have experience with React Native so they likely have some Android tooling. Check: `echo $ANDROID_HOME`, `which adb`, `which sdkmanager`. Required: Android SDK (API 24+), NDK, Android Studio or command-line tools. Tauri v2 mobile is stable but less battle-tested than desktop."
+    },
+    {
+      "id": "US-009",
+      "title": "Integration testing and cleanup",
+      "description": "As a developer, I want all Phase 3 changes verified and documented.",
+      "acceptanceCriteria": [
+        "Run full frontend quality checks: `cd ui && npm run check && npm run build`",
+        "Run full backend quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`",
+        "Verify Tauri dev mode works: `cd ui && npm run tauri:dev` opens a window with the SPA",
+        "Run /simplify skill to review all changed files",
+        "Fix any issues found",
+        "Update progress.txt with all learnings",
+        "Update CLAUDE.md with Tauri build commands and platform detection docs",
+        "All quality checks pass"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "The Tauri dev mode requires the Axum backend to be running separately (for API/WebSocket). Start the backend with the usual cargo run command, then `npm run tauri:dev` in another terminal. The Tauri window will load the Vite dev server and proxy API calls through the configured backend URL."
+    }
+  ]
+}

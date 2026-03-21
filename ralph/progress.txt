@@ -1,58 +1,23 @@
-# Ralph Progress Log — Phase 3: Tauri Desktop + Mobile Spike
+# Ralph Progress Log — Phase 4: Tauri Mobile
 Started: Fri Mar 21 2026
 
 ## Codebase Patterns
-- Branch: ralph/phase3-tauri-desktop (from ralph/phase2-mobile-ux)
-- IMPORTANT: main branch is stale. Never use as base.
-- OS: Fedora 43 (COSMIC), Linux, Rust 1.89, Node 24
-- Tauri v2 creates `ui/src-tauri/` directory (NOT at repo root)
-- SvelteKit already uses adapter-static with fallback: 'index.html' -> perfect for Tauri
-- SvelteKit build output: `ui/build/` -> Tauri frontendDist: `../build` (relative to src-tauri)
-- Tauri dev proxies to Vite dev server at localhost:5173
-- In Tauri mode, SPA is NOT served by Axum — needs configurable backend URL for API/WebSocket
-- Platform detection: check `window.__TAURI_INTERNALS__` for Tauri v2
-- Existing platform dir: `ui/src/lib/platform/keyboard.ts` (Phase 2)
-- Svelte 5 callback props, NOT dispatch
-- Use Context7 MCP tool for Tauri v2 docs
-- Backend quality: `cargo clippy --workspace -- -D warnings && cargo test --workspace`
+- Branch: ralph/phase4-tauri-mobile (from ralph/phase3-tauri-desktop)
+- IMPORTANT: Set env vars before ALL tauri commands:
+  export JAVA_HOME=/usr/lib/jvm/java-21-openjdk
+  export ANDROID_HOME=$HOME/Android/Sdk
+  export NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198
+  export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin
+- Tauri project: ui/src-tauri/ (excluded from root Cargo workspace)
+- Android generated project: ui/src-tauri/gen/android/
+- Platform detection: ui/src/lib/platform/index.ts (isWeb, isTauri, isTauriMobile, etc.)
+- Keyboard detection: ui/src/lib/platform/keyboard.ts (web fallback via visualViewport)
+- API client uses getServerUrl() for Tauri mode backend URL
+- Desktop build: `cd ui && npx tauri build` → binary + .deb + .rpm
+- Android build: `cd ui && npx tauri android build --debug` → APK
 - Frontend quality: `cd ui && npm run check && npm run build`
-- Design spec: docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md
+- Backend quality: `cargo clippy --workspace -- -D warnings && cargo test --workspace`
+- Rust Android targets installed: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android, i686-linux-android
+- Android SDK: API 36.1, NDK 30.0.14904198, Java 21
 
----
-
-## 2026-03-21 - US-001: Tauri CLI install
-- @tauri-apps/cli 2.10.1, system deps: webkit2gtk4.1, libsoup3, openssl, librsvg2, libayatana-appindicator-gtk3
-- **Learning:** Need both runtime AND -devel packages for bundling on Fedora
-
-## 2026-03-21 - US-002: Tauri project init
-- `tauri init` creates ui/src-tauri/ with Rust code + config
-- Must exclude ui/src-tauri from root Cargo workspace (separate project)
-- Build: 9.2MB binary, 3.2MB .deb/.rpm, AppImage fails (linuxdeploy issue, non-critical)
-
-## 2026-03-21 - US-003/004: Platform detection + backend URL
-- platform/index.ts: isWeb(), isTauri(), getServerUrl(), setServerUrl()
-- API client uses getServerUrl() prefix in Tauri mode, empty string for web
-- WebSocket URLs: convert http->ws for Tauri, use window.location for web
-- Changed credentials from 'same-origin' to 'include' for cross-origin Tauri
-
-## 2026-03-21 - US-005: Server URL setup UI
-- ServerUrlSetup.svelte: full-page setup shown on first Tauri launch
-- Test Connection hits /api/v1/health before allowing save
-- Integrated into +layout.svelte with needsServerSetup gate
-
-## 2026-03-21 - US-006: System tray
-- tray-icon feature, Show/Hide + Quit menu
-- Close button hides to tray on desktop (#[cfg(desktop)])
-- Requires libayatana-appindicator-gtk3 at runtime on Linux
-
-## 2026-03-21 - US-007: Desktop build verification
-- Updated CLAUDE.md with Tauri docs, platform detection, build commands
-- Binary + .deb + .rpm all verified
-
-## 2026-03-21 - US-008: Android mobile spike
-- Android SDK not installed — documented prerequisites for Phase 4
-- Desktop build works perfectly, mobile blocked only by toolchain
-
-## 2026-03-21 - US-009: Integration testing
-- All backend (clippy + 18 tests) and frontend (check + build) pass
 ---
