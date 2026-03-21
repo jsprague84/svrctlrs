@@ -12,6 +12,8 @@
 //! ```
 
 pub mod credentials;
+pub mod profiles;
+pub mod quick_commands;
 pub mod servers;
 pub mod settings;
 
@@ -82,6 +84,8 @@ pub fn routes() -> Router<AppState> {
         .nest("/servers", servers::routes())
         .nest("/credentials", credentials::routes())
         .nest("/settings", settings::routes())
+        .nest("/profiles", profiles::routes())
+        .nest("/quick-commands", quick_commands::routes())
 }
 
 /// Health check endpoint
