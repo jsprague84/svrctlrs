@@ -1,256 +1,206 @@
 {
   "project": "SvrCtlRS",
-  "branchName": "ralph/code-quality-audit",
-  "description": "Code quality, security, and accessibility improvements from comprehensive codebase audit — credential security hardening, query optimization, WebSocket cleanup, WCAG accessibility, error handling, and configuration fixes",
+  "branchName": "ralph/phase1-foundation",
+  "description": "Phase 1 Foundation — CLAUDE.md rewrite, dependency upgrades, database cleanup, session persistence, terminal profiles, command palette, quick commands, and design system tokens",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Credential model security hardening",
-      "description": "As a developer, I want the Credential struct to never leak sensitive values in logs or debug output, and credential deletion checks to propagate errors properly.",
+      "title": "Upgrade all dependencies to latest versions",
+      "description": "As a developer, I want all npm and Rust dependencies at their latest stable versions so the codebase uses the newest APIs and security patches.",
       "acceptanceCriteria": [
-        "Remove `Debug` from the derive macro on `Credential` struct in `database/src/models/credential.rs`",
-        "Implement manual `std::fmt::Debug` for `Credential` that prints `value: \"[REDACTED]\"` instead of actual credential content — all other fields printed normally using `f.debug_struct(\"Credential\").field(...).finish()`",
-        "In `server/src/routes/api/credentials.rs`, replace `.unwrap_or(false)` on the `credential_in_use()` call with proper error propagation using `?` or `.map_err()` that returns a 500 Internal Server Error",
-        "Add comment on `get_credential()` in `database/src/queries/credentials.rs` documenting that it automatically decrypts credential values via `decrypt_credential()`",
+        "CONTEXT7 RESEARCH: Before implementing, use Context7 MCP to check xterm.js 6.0 migration guide for breaking changes. Also check Vite 8 and @sveltejs/vite-plugin-svelte 7 changelogs for breaking changes.",
+        "Install @xterm/addon-serialize@latest (new dependency for session persistence)",
+        "Upgrade @xterm/xterm and ALL @xterm/addon-* packages to latest (6.x for core, matching versions for addons)",
+        "Upgrade svelte, @sveltejs/kit, @sveltejs/adapter-static, @sveltejs/vite-plugin-svelte to latest",
+        "Upgrade vite and typescript to latest",
+        "Upgrade tailwindcss, @tailwindcss/vite to latest",
+        "Upgrade lucide-svelte, svelte-check to latest",
+        "Fix any TypeScript errors from xterm 6.0 breaking changes (import paths, API changes, addon constructors)",
+        "Fix any build errors from Vite 8 or vite-plugin-svelte 7 breaking changes (check vite.config.ts, svelte.config.js)",
+        "`cd ui && npm run check` passes with 0 errors",
+        "`cd ui && npm run build` passes",
         "`cargo clippy --workspace -- -D warnings` passes",
         "`cargo test --workspace` passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Files: `database/src/models/credential.rs` (Credential struct derives Debug which prints SSH keys/passwords to logs), `server/src/routes/api/credentials.rs` (credential_in_use().unwrap_or(false) silently allows deletion if DB query fails — database error should become 500, not 'safe to delete'). The manual Debug impl pattern: `impl fmt::Debug for Credential { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.debug_struct(\"Credential\").field(\"id\", &self.id).field(\"name\", &self.name).field(\"value\", &\"[REDACTED]\").field(\"credential_type\", &self.credential_type)...finish() } }`. Keep Serialize/Deserialize/Clone derives unchanged. Read the struct to see all fields."
+      "passes": false,
+      "notes": "Run `npm outdated` first to see current vs latest versions. Key major bumps: xterm 5.5->6.0, vite 7.3->8.0, @sveltejs/vite-plugin-svelte 6.2->7.0. The @xterm/addon-serialize package is NOT currently installed — add it new. After upgrading, read the xterm.js, Vite, and vite-plugin-svelte changelogs to identify breaking changes. Common xterm 6 changes: Terminal constructor options, addon API signatures. Common Vite 8 changes: config file format, plugin API."
     },
     {
       "id": "US-002",
-      "title": "Configuration cleanup and security defaults",
-      "description": "As an operator, I want the deployment configuration to require an encryption key and not reference deprecated features, so credentials are always encrypted and config is clear.",
+      "title": "Rewrite CLAUDE.md for terminal-first architecture",
+      "description": "As a developer, I want CLAUDE.md to accurately describe the current terminal/SSH management tool architecture so AI assistants don't reference stale job-based system concepts.",
       "acceptanceCriteria": [
-        "In `docker-compose.yml`, change `ENCRYPTION_KEY=${ENCRYPTION_KEY:-}` to `ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY environment variable must be set}` so docker-compose fails fast if not set",
-        "In `config/example.toml`, remove the entire `[plugins]` section (docker_enabled, updates_enabled, health_enabled, weather_enabled, speedtest_enabled) — this system was removed and replaced by the terminal-based architecture",
-        "Add a comment in `config/example.toml` noting that the application is now a terminal/SSH management tool",
-        "Verify `docker-compose.yml` parses correctly: `docker-compose config` or manual YAML syntax check",
-        "Verify `config/example.toml` is valid TOML syntax",
+        "Replace the entire CLAUDE.md with documentation reflecting the current SvelteKit + Axum + xterm.js terminal-first architecture",
+        "Document: project purpose (terminal/SSH management), architecture (SvelteKit SPA + Axum backend + SQLite), active branch (ralph/phase1-foundation), build commands, directory structure, key patterns",
+        "Include WARNING that `main` branch is stale and must never be used as a base",
+        "Remove ALL references to: job types, command templates, job schedules, job runs, HTMX, Alpine.js, Askama templates, plugins, notification channels/policies, composite workflows",
+        "Document the scheduler/ crate as legacy (still in workspace but unused)",
+        "Reference the design spec at docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md for future direction",
+        "Search the new CLAUDE.md for stale terms (job, plugin, HTMX, Alpine, Askama) — none should appear except in the WARNING",
         "`cargo clippy --workspace -- -D warnings` passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Files: `docker-compose.yml` (ENCRYPTION_KEY defaults to empty string, allowing plaintext credential storage — main.rs warns but continues), `config/example.toml` (references removed plugin system that no longer exists on this branch). The `${VAR:?message}` bash parameter expansion errors if VAR is unset or empty. Read both files first to understand full context before editing."
+      "passes": false,
+      "notes": "The current CLAUDE.md is 1,413 lines describing the old job-based automation system. Read the design spec at docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md section 6 for what the new CLAUDE.md should contain. Key sections: Project Purpose, Architecture (Frontend + Backend + Workspace Crates), Build Commands, Directory Structure, Key Patterns (State Management, Database Queries, Terminal Modes, Theme System, Mobile Breakpoint), Future Direction (Tauri v2). Keep it concise — under 200 lines."
     },
     {
       "id": "US-003",
-      "title": "Replace dynamic SQL string building in servers.rs with QueryBuilder",
-      "description": "As a developer, I want server update queries to use sqlx::QueryBuilder instead of manual string concatenation, so the code is safer and easier to maintain.",
+      "title": "Database cleanup migration — drop legacy tables",
+      "description": "As a developer, I want unused database tables from the old job system removed so the schema only contains tables relevant to the terminal-first architecture.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query sqlx docs for 'QueryBuilder push push_bind conditional update SQLite'. Use the latest patterns found.",
-        "Replace the manual `String::push_str()` + `Vec<String>` parameter pattern in the `update_server()` function in `database/src/queries/servers.rs` with `sqlx::QueryBuilder`",
-        "Use `.push()` for SQL fragments and `.push_bind()` for all parameter values",
-        "Conditional field updates preserved: only SET fields that are `Some(...)` in the input struct",
-        "Remove the manual `Vec<String>` params accumulator and the for-loop that binds them one by one",
-        "Function behavior unchanged — same fields updated conditionally, same return type",
+        "Create migration `database/migrations/019_cleanup_and_quick_commands.sql`",
+        "DROP IF EXISTS all legacy tables: step_execution_results, server_job_results, job_runs, job_schedules, job_template_steps, job_templates, command_templates, job_types, notification_policy_channels, notification_policies, notification_channels, notification_log, webhooks, task_history, metrics, tags, server_tags, job_catalog, job_catalog_categories, job_catalog_favorites, server_capabilities",
+        "ALTER TABLE terminal_profiles ADD COLUMN user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+        "UPDATE terminal_profiles layout values: '1'->'single', '2h'->'split-h', '2v'->'split-v', '4'->'quad'",
+        "CREATE TABLE quick_commands with columns: id, user_id, name, command, server_id (nullable FK to servers), category, sort_order, created_at, updated_at",
+        "Add indexes: idx_quick_commands_user, idx_quick_commands_server",
         "`cargo clippy --workspace -- -D warnings` passes",
         "`cargo test --workspace` passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "File: `database/src/queries/servers.rs` (update_server function). Current anti-pattern: builds UPDATE with `String::from(\"UPDATE servers SET updated_at = CURRENT_TIMESTAMP\")` then `query.push_str(\", name = ?\")` for each present field, accumulates values in `Vec<String>`, then binds them in a loop. QueryBuilder pattern: `let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(\"UPDATE servers SET updated_at = CURRENT_TIMESTAMP\"); if let Some(name) = &input.name { qb.push(\", name = \").push_bind(name.clone()); }` ... `qb.push(\" WHERE id = \").push_bind(id); qb.build().execute(pool).await?;`. Import: `use sqlx::QueryBuilder;`. QueryBuilder handles parameter numbering automatically."
+      "passes": false,
+      "notes": "Check migration files in database/migrations/ — 018 is the latest, so this is 019. Use DROP TABLE IF EXISTS for safety. The quick_commands table replaces the quick_commands TEXT field on terminal_profiles (which stored a flat Vec<String> — too limited). Leave the old column on terminal_profiles (SQLite DROP COLUMN compatibility). Tables to preserve: servers, credentials, users, settings, terminal_profiles, server_host_keys. Verify migration runs by checking `cargo test --workspace` which runs migrations on in-memory SQLite."
     },
     {
       "id": "US-004",
-      "title": "Replace dynamic SQL string building in credentials.rs with QueryBuilder",
-      "description": "As a developer, I want credential update queries to use sqlx::QueryBuilder instead of manual string concatenation.",
+      "title": "QuickCommand and extended TerminalProfile Rust models and queries",
+      "description": "As a developer, I want Rust models and CRUD queries for quick commands and the extended terminal profiles so the backend can serve the new API endpoints.",
       "acceptanceCriteria": [
-        "Replace the manual `String::push_str()` + `Vec<String>` parameter pattern in the `update_credential()` function in `database/src/queries/credentials.rs` with `sqlx::QueryBuilder`",
-        "Use `.push()` for SQL fragments and `.push_bind()` for all parameter values",
-        "Conditional field updates preserved: only SET fields that are `Some(...)` in the input",
-        "Preserve existing encryption logic — if credential value is updated, it must still be encrypted before storage",
-        "Remove the manual `Vec<String>` params accumulator and binding loop",
-        "Function behavior unchanged",
+        "Create `database/src/models/quick_command.rs` with QuickCommand, CreateQuickCommand, UpdateQuickCommand structs",
+        "Add `pub mod quick_command;` and re-export in `database/src/models/mod.rs`",
+        "Create `database/src/queries/quick_commands.rs` with: list_quick_commands(pool, user_id), list_quick_commands_for_server(pool, user_id, server_id), get_quick_command(pool, id), create_quick_command(pool, user_id, input), update_quick_command(pool, id, input) using QueryBuilder, delete_quick_command(pool, id)",
+        "Add `pub mod quick_commands;` in `database/src/queries/mod.rs`",
+        "Extend PaneConfig struct in terminal_profile.rs with `pub mode: Option<String>` field",
+        "Update terminal_profiles queries to accept and filter by user_id — add user_id to SELECT columns and WHERE clauses in list and create functions",
+        "Use anyhow::Context for all error handling, sqlx::QueryBuilder for update_quick_command",
         "`cargo clippy --workspace -- -D warnings` passes",
         "`cargo test --workspace` passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "File: `database/src/queries/credentials.rs` (update_credential function). Same anti-pattern as US-003. Apply the same QueryBuilder fix. IMPORTANT: The credential value field may be encrypted before storage via `encrypt()` from `core/src/encryption.rs` — make sure to preserve that logic when switching to QueryBuilder. Read the full function to understand the encryption flow before refactoring."
+      "passes": false,
+      "notes": "Follow the existing pattern in database/src/models/credential.rs and database/src/queries/credentials.rs. The models/mod.rs uses `pub use` re-exports — add `pub use quick_command::*;` to match. QuickCommand fields: id (i64), user_id (Option<i64>), name (String), command (String), server_id (Option<i64>), category (String), sort_order (i32), created_at/updated_at (DateTime<Utc>). All derive Debug, Clone, Serialize, Deserialize, FromRow."
     },
     {
       "id": "US-005",
-      "title": "Replace dynamic SQL string building in terminal_profiles.rs with QueryBuilder",
-      "description": "As a developer, I want terminal profile update queries to use sqlx::QueryBuilder instead of manual string concatenation.",
+      "title": "REST API endpoints for profiles and quick commands",
+      "description": "As a frontend developer, I want REST API endpoints for terminal profiles and quick commands so the SvelteKit app can CRUD these resources.",
       "acceptanceCriteria": [
-        "Replace the manual `String::push_str()` + `Vec<String>` parameter pattern in the `update_terminal_profile()` function in `database/src/queries/terminal_profiles.rs` with `sqlx::QueryBuilder`",
-        "Use `.push()` for SQL fragments and `.push_bind()` for all parameter values",
-        "Conditional field updates preserved",
-        "Fix the `serde_json::to_string().unwrap_or_default()` pattern — replace with proper error propagation using `?` or `.context()`",
-        "Remove the manual `Vec<String>` params accumulator",
-        "Function behavior unchanged",
+        "Create `server/src/routes/api/profiles.rs` with routes: GET / (list user's profiles), GET /:id, POST / (create with user_id from session), PUT /:id, DELETE /:id",
+        "Create `server/src/routes/api/quick_commands.rs` with routes: GET / (list user's commands, optional ?server_id= filter), GET /:id, POST /, PUT /:id, DELETE /:id",
+        "Register both modules in `server/src/routes/api/mod.rs` — add `.nest(\"/profiles\", profiles::routes())` and `.nest(\"/quick-commands\", quick_commands::routes())` in the routes() function",
+        "Extract user_id from the session for user-scoped operations (check how auth.rs middleware provides user context)",
+        "Follow the pattern in server/src/routes/api/credentials.rs for response format, error handling, and tracing",
+        "Do NOT modify server/src/main.rs — routes are registered via api/mod.rs",
         "`cargo clippy --workspace -- -D warnings` passes",
         "`cargo test --workspace` passes"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "File: `database/src/queries/terminal_profiles.rs` (update_terminal_profile function). Same anti-pattern as US-003 and US-004. Also fix the `unwrap_or_default()` on `serde_json::to_string()` for pane_configs_json — if serialization fails, it silently becomes empty string instead of returning an error. Replace with `.map(|v| serde_json::to_string(v)).transpose().context(\"Failed to serialize pane configs\")?`."
+      "passes": false,
+      "notes": "Read server/src/routes/api/mod.rs to see how routes are registered — it has a `pub fn routes() -> Router<AppState>` function that nests sub-routers. Read server/src/routes/api/credentials.rs as the reference pattern for CRUD endpoints. Read server/src/routes/ui/auth.rs to understand how user_id is extracted from the session (look for session middleware, tower-sessions usage). Response format: JSON with appropriate status codes (200, 201, 404, 500)."
     },
     {
       "id": "US-006",
-      "title": "Skip unnecessary credential decryption in list operations",
-      "description": "As a developer, I want credential listing to skip expensive decryption for values that will be redacted anyway, reducing CPU overhead.",
+      "title": "Frontend types, API clients, and state modules for profiles and quick commands",
+      "description": "As a frontend developer, I want TypeScript types, API client wrappers, and reactive state modules for profiles and quick commands.",
       "acceptanceCriteria": [
-        "Modify `list_credentials()` in `database/src/queries/credentials.rs` to NOT call `decrypt_credential()` on each credential",
-        "Instead, set each credential's `value` field to `\"[REDACTED]\"` directly in the list function",
-        "Ensure `get_credential()` (single credential fetch by ID) still decrypts the value for actual use in SSH connections and terminal operations",
-        "Verify API routes that list credentials still work correctly — check `server/src/routes/api/credentials.rs` list endpoint",
-        "Verify terminal routes that need actual values still use `get_credential()` — check `server/src/routes/terminal.rs` and `terminal_pty.rs`",
-        "`cargo clippy --workspace -- -D warnings` passes",
-        "`cargo test --workspace` passes"
+        "Create `ui/src/lib/types/profile.ts` with: TerminalProfile, PaneConfig, CreateProfile, QuickCommand, CreateQuickCommand interfaces",
+        "Export new types from `ui/src/lib/types/index.ts`",
+        "Create `ui/src/lib/api/profiles.ts` with: listProfiles, getProfile, createProfile, updateProfile, deleteProfile — following the pattern in servers.ts",
+        "Create `ui/src/lib/api/quickCommands.ts` with: listQuickCommands, listQuickCommandsForServer, getQuickCommand, createQuickCommand, updateQuickCommand, deleteQuickCommand",
+        "Create `ui/src/lib/state/profiles.svelte.ts` with $state, getters, loaders, CRUD wrappers — following servers.svelte.ts pattern, using extractErrorMessage for errors",
+        "Create `ui/src/lib/state/quickCommands.svelte.ts` with same pattern, including loadForServer(serverId) function",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "File: `database/src/queries/credentials.rs` (list_credentials function). Current behavior: fetches all credentials then calls `decrypt_credential()` on each one, but the API endpoint immediately redacts the values anyway. The fix: skip `decrypt_credential()` in the list and set `value = \"[REDACTED]\".to_string()`. Keep `get_credential()` (single fetch) unchanged — it's used by terminal.rs and terminal_pty.rs to get actual SSH keys/passwords for connections."
+      "passes": false,
+      "notes": "Follow these existing patterns exactly: ui/src/lib/api/servers.ts for API client (thin wrappers around get/post/put/del from client.ts), ui/src/lib/state/servers.svelte.ts for state module ($state variables, exported getter functions, async loaders with try/catch using extractErrorMessage from $lib/utils/error.js). PaneConfig type: { server_id: number | null, mode: 'pty' | 'cmd' | null }. Use snake_case for API fields to match Rust serde defaults."
     },
     {
       "id": "US-007",
-      "title": "PTY terminal error logging and ssh.rs deprecation notice",
-      "description": "As a developer, I want PTY terminal WebSocket errors to be logged instead of silently dropped, and the deprecated ssh.rs module to be clearly marked.",
+      "title": "Session serialize/restore with reconnect prompt",
+      "description": "As a user, I want my terminal scrollback to survive page refreshes and disconnections, with a clear reconnect prompt when a PTY session is lost.",
       "acceptanceCriteria": [
-        "In `server/src/routes/terminal_pty.rs`, add `warn!()` or `debug!()` logging when WebSocket send fails in the output_task (currently just `break`s silently)",
-        "In `server/src/routes/terminal_pty.rs`, add logging when SSH channel operations fail",
-        "In `server/src/ssh.rs`, add a module-level doc comment `//! DEPRECATED: This module uses NoCheck for SSH host key verification.` and `//! Use terminal.rs or terminal_pty.rs which implement proper TOFU verification.`",
-        "Review all `#[allow(dead_code)]` annotations in `server/src/ssh.rs` and `server/src/state.rs` — remove annotations if the code IS used, or add deprecation comments if it's truly dead",
-        "`cargo clippy --workspace -- -D warnings` passes",
-        "`cargo test --workspace` passes"
+        "Import and load @xterm/addon-serialize in TerminalPane.svelte alongside existing addons",
+        "Add serializeBuffer() function that saves terminal buffer to sessionStorage keyed by tab ID with 512KB size limit",
+        "Call serializeBuffer() on: disconnect(), document visibilitychange (when hidden), and beforeunload events",
+        "Add restoreBuffer() function that writes saved buffer to terminal before WebSocket connect",
+        "Call restoreBuffer() at the start of connect() before opening the WebSocket",
+        "Remove saved buffer from sessionStorage when user explicitly closes a tab",
+        "When a PTY session drops unexpectedly, show a reconnect prompt overlay on the terminal: 'Session disconnected. [Reconnect] [New Session]' — implement as a small overlay div positioned over the terminal pane",
+        "For size limit: if serialized data exceeds 512KB, reduce terminal scrollback option temporarily, serialize, then restore original scrollback value",
+        "Add visibilitychange and beforeunload listeners with proper cleanup in onMount return function",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Files: `server/src/routes/terminal_pty.rs` (output_task silently drops WebSocket send errors — should log), `server/src/ssh.rs` (uses `ServerCheckMethod::NoCheck` with TODO — terminal.rs has proper TOFU via server_host_keys table but ssh.rs does not), `server/src/state.rs` (has #[allow(dead_code)] annotations). The ssh.rs module appears to be used for the connection test API endpoint (`/api/v1/servers/{id}/test`) — if so, it should use TOFU verification too or document the security limitation."
+      "passes": false,
+      "notes": "File: ui/src/lib/components/terminal/TerminalPane.svelte. The serialize addon API: `const data = serializeAddon.serialize()` returns a string, `terminal.write(data)` restores it. Storage key: `svrctlrs-term-buffer-${tabId}` where tabId comes from the component's props. The reconnect prompt is display-only — the serialized buffer shows what was on screen but the shell session cannot be resumed (PTY is stateless from the client side). The overlay should have two buttons: 'Reconnect' (calls connect()) and 'New Session' (calls disconnect then connect with fresh state). Use $effect for the visibilitychange listener with cleanup."
     },
     {
       "id": "US-008",
-      "title": "WebSocket cleanup and toast timer fixes",
-      "description": "As a user, I want the terminal to properly clean up WebSocket connections and timers on unmount so the app doesn't leak memory.",
+      "title": "Command palette component with Ctrl+K and double-tap",
+      "description": "As a user, I want a searchable command palette accessible via Ctrl+K (desktop) or double-tap (mobile) that lets me run saved commands, recent history, and app actions.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Svelte 5 docs for '$effect cleanup onMount return function timer clearTimeout'. Use the latest patterns found.",
-        "In `ui/src/lib/components/terminal/TerminalPane.svelte`, clear the `reconnectTimeout` in the onMount cleanup function alongside the existing `resizeTimer` and `resizeObserver` cleanup",
-        "In `ui/src/lib/state/toast.svelte.ts`, store setTimeout references in a Map keyed by toast ID",
-        "In `removeToast()`, clear the corresponding timer with `clearTimeout()` before removing the toast from the array",
-        "Ensure all timer handles are properly typed (`ReturnType<typeof setTimeout>`)",
+        "Create `ui/src/lib/components/terminal/CommandPalette.svelte` with props: open (boolean), onClose (callback), onSelectCommand (callback), serverId (number|null)",
+        "Desktop layout: centered overlay with search input at top, filtered list below, max-height 50vh",
+        "Mobile layout (isMobile() from $lib/state/mobile.svelte.js): bottom sheet with search input, thumb-reachable",
+        "Populate with three categories: Quick Commands (from quickCommands state), Recent Commands (from terminal command history), Actions (New Tab, Close Tab, Toggle Theme, etc.)",
+        "Implement fuzzy search filtering across name and command fields as user types",
+        "Keyboard navigation: arrow keys to move selection, Enter to execute, Escape to close",
+        "Add backdrop overlay that closes palette on click",
+        "In +page.svelte: add Ctrl+K / Cmd+K keyboard shortcut to toggle palette open/closed",
+        "In TerminalPane.svelte: add double-tap gesture detector using touchend events (two taps within 300ms, 20px radius) — use callback prop `onOpenPalette?: () => void` (NOT dispatch, this is Svelte 5)",
+        "Wire +page.svelte to listen for onOpenPalette from active TerminalPane and open the palette",
+        "When a quick command is selected in PTY mode: write the command string to the active PTY input",
+        "When an action is selected: execute the action directly (e.g., terminalState.createTab, themeState.toggleTheme)",
         "`cd ui && npm run check` passes",
-        "`cd ui && npm run build` passes"
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Files: `ui/src/lib/components/terminal/TerminalPane.svelte` (onMount cleanup at ~line 501-514 clears resizeTimer and resizeObserver but NOT reconnectTimeout — if component unmounts during reconnect backoff, the timeout fires and tries to access a disposed terminal), `ui/src/lib/state/toast.svelte.ts` (addToast sets setTimeout but removeToast doesn't clear it — if toast is manually dismissed before auto-dismiss fires, the timer runs uselessly and tries to remove an already-removed toast). Both are resource cleanup issues."
+      "passes": false,
+      "notes": "Read ui/src/routes/+page.svelte for the existing keyboard shortcut handler (lines 64-133 in onMount handleKeydown function — add Ctrl+K there). Read ui/src/lib/components/terminal/TerminalPrefsPanel.svelte for the bottom sheet mobile pattern (it uses fixed bottom-0 with backdrop). The TerminalPane component uses Svelte 5 callback props (e.g., onStatusChange) — use the same pattern for onOpenPalette, NOT createEventDispatcher. Import isMobile from '$lib/state/mobile.svelte.js'. For command history access: TerminalPane stores history in localStorage keyed per server — the palette can read from localStorage directly."
     },
     {
       "id": "US-009",
-      "title": "Error state display and API client error handling",
-      "description": "As a user, I want to see error messages when data fails to load, and as a developer I want the API client to handle errors consistently.",
+      "title": "Terminal profiles UI — save, load, manage, and auto-load default",
+      "description": "As a user, I want to save my current terminal layout as a named profile, load profiles from the sidebar, manage them, and have my default profile auto-load on app start.",
       "acceptanceCriteria": [
-        "In `ui/src/routes/servers/+page.svelte`, add error state display between loading and empty states: show `serversError` with red text when non-null",
-        "In `ui/src/routes/credentials/+page.svelte`, add same error state display pattern",
-        "In `ui/src/routes/settings/+page.svelte`, add same error state display pattern",
-        "In `ui/src/lib/api/client.ts`, replace the empty catch block on JSON parse with a fallback that returns `{ error: response.statusText }` or the raw text body",
-        "In `ui/src/lib/api/client.ts` logout function, replace the empty catch block with `console.warn('Logout request failed:', error)`",
-        "Create a shared `extractErrorMessage(e: unknown, fallback?: string): string` utility in `ui/src/lib/utils/error.ts` that handles Error instances, string errors, and unknown types",
-        "Use the utility in the three page components' catch blocks to replace repeated `e instanceof Error ? e.message : 'Operation failed'` pattern",
+        "Create `ui/src/lib/components/terminal/ProfileManager.svelte` with save dialog (Modal): name input, description, is_default checkbox — captures current layout + tab server/mode assignments as PaneConfig[]",
+        "Add captureProfileState() function to terminal.svelte.ts that returns current layout mode and per-tab {server_id, mode} as PaneConfig array",
+        "Add applyProfile(profile) function to terminal.svelte.ts that closes all tabs, creates new tabs matching profile pane_configs, and triggers auto-connect for each",
+        "Add 'Profiles' section to Sidebar.svelte below the server list — show saved profiles as clickable items with Layout icon, load profiles in +layout.svelte via profilesState and pass as prop to Sidebar",
+        "Clicking a profile in the sidebar calls applyProfile() to load the layout",
+        "Add 'Save Layout' option in the command palette actions list",
+        "On app start (+page.svelte onMount): check for default profile and auto-load it instead of creating an empty tab",
+        "Add profile management: delete button on each profile in sidebar (with confirmation), set-as-default toggle",
         "`cd ui && npm run check` passes",
-        "`cd ui && npm run build` passes"
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Files: `ui/src/routes/servers/+page.svelte` (has `serversError = $derived(serversState.getError())` but never displays it — loading/empty states shown but error state missing), same pattern in credentials and settings pages. `ui/src/lib/api/client.ts` has empty catch at JSON parse (~line 34) and logout (~line 69-70). Create new file `ui/src/lib/utils/error.ts` for the shared utility. Error display pattern: `{:else if error}<div class=\"text-center py-8\"><p class=\"text-error\">{error}</p><Button variant=\"secondary\" onclick={reload}>Retry</Button></div>{:else if items.length === 0}`."
+      "passes": false,
+      "notes": "Read ui/src/lib/components/layout/Sidebar.svelte for the existing nav items and server list pattern — profiles go below servers with the same styling. Read ui/src/lib/state/terminal.svelte.ts (230 lines) for tab management — captureProfileState() should iterate getTabs() and build PaneConfig[]. Read ui/src/routes/+page.svelte onMount to see where the initial empty tab is created — replace with default profile check. The profiles state module (from US-006) provides getProfiles(), loadProfiles(), etc. The Sidebar component uses collapsed/mobileOpen props — profile labels should follow the same visibility pattern."
     },
     {
       "id": "US-010",
-      "title": "Modal focus trap implementation",
-      "description": "As a keyboard user, I want focus to stay trapped inside open modals so I can navigate modal content without accidentally interacting with the page behind it.",
+      "title": "Design system tokens, density mode, and integration testing",
+      "description": "As a developer, I want design system tokens for density and motion, compact density on mobile, and full integration verification of all Phase 1 features.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Svelte 5 docs for '$effect cleanup keydown event listener focus trap modal'. Use the latest patterns found.",
-        "Add focus trap logic to `ui/src/lib/components/ui/Modal.svelte` that activates when the modal is open",
-        "On modal open: save `document.activeElement` as the previously focused element, then focus the first focusable element inside the modal content",
-        "Tab from last focusable element wraps to first focusable element inside the modal",
-        "Shift+Tab from first focusable element wraps to last focusable element inside the modal",
-        "Escape key closes the modal via the `onClose` prop (check if already implemented — if so, keep existing logic)",
-        "When modal closes: restore focus to the previously saved element",
-        "Use `$effect` with a cleanup function to add/remove the keydown event listener",
-        "Focusable elements query: `button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])`",
-        "`cd ui && npm run check` passes",
-        "`cd ui && npm run build` passes",
-        "Verify in browser using dev-browser skill"
+        "Add CSS tokens to app.css @theme block: --density (1), --duration-fast (100ms), --duration-normal (200ms), --duration-slow (300ms), --easing-default",
+        "Add [data-density='compact'] override setting --density to 0.75",
+        "In +layout.svelte: set data-density='compact' on the root element when isMobile() is true",
+        "Run full backend quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`",
+        "Run full frontend quality checks: `cd ui && npm run check && npm run build`",
+        "Run /simplify skill to review all changed files for code quality, efficiency, and deduplication",
+        "Fix any issues found by the quality review",
+        "All backend and frontend quality checks pass after fixes"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "File: `ui/src/lib/components/ui/Modal.svelte`. Read the full component first to understand current structure. The modal likely has an `open` prop and `onClose` callback. The focus trap should: (1) on open, save activeElement and query all focusable elements inside the modal container div, (2) add keydown listener for Tab/Shift+Tab/Escape, (3) on close, remove listener and restore focus. Use `$effect(() => { if (open) { ... setup ... return () => { ... cleanup ... } } })` pattern."
-    },
-    {
-      "id": "US-011",
-      "title": "Fix color contrast and button focus/disabled states",
-      "description": "As a user with visual impairments, I want sufficient color contrast on muted text and visible focus indicators on buttons.",
-      "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'focus-visible ring outline custom theme'. Use the latest patterns found.",
-        "Update `--color-text-muted` value in `ui/src/app.css` to meet WCAG AA 4.5:1 contrast ratio against `--color-background: #1a1b26` — use a value like `#787c9e` or `#7982a9` (verify luminance ratio >= 4.5:1)",
-        "Check if there's a light theme `--color-text-muted` that also needs updating for contrast against the light background",
-        "Add `:focus-visible` styling to `ui/src/lib/components/ui/Button.svelte` with a visible outline ring (e.g., `outline: 2px solid var(--color-accent); outline-offset: 2px`)",
-        "Add `cursor: not-allowed` to the disabled state in Button.svelte",
-        "`cd ui && npm run check` passes",
-        "`cd ui && npm run build` passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 11,
-      "passes": true,
-      "notes": "Files: `ui/src/app.css` (--color-text-muted: #565f89 on background #1a1b26 gives ~3.5:1 ratio — below WCAG AA 4.5:1 minimum), `ui/src/lib/components/ui/Button.svelte` (missing :focus-visible styling and cursor:not-allowed on disabled). For contrast: relative luminance of #1a1b26 ≈ 0.02. Color #787c9e has luminance ≈ 0.15, giving ratio ≈ 5.2:1 which passes AA. Also check --color-warning (#e0af68) contrast — it's borderline at ~4.2:1."
-    },
-    {
-      "id": "US-012",
-      "title": "ARIA accessibility improvements",
-      "description": "As a screen reader user, I want icon-only buttons to have accessible labels, tab lists to have proper roles, and connection status changes to be announced.",
-      "acceptanceCriteria": [
-        "Add `aria-label` attributes to all icon-only buttons in the terminal toolbar in `ui/src/routes/+page.svelte` — Clear, Copy, Download, Settings/Preferences buttons",
-        "Add `aria-live=\"polite\"` wrapper around the ConnectionBadge component in `ui/src/routes/+page.svelte` so screen readers announce status changes",
-        "In `ui/src/lib/components/terminal/TerminalTabs.svelte`, add `role=\"tablist\"` to the tab container div, and add `aria-label=\"Close tab\"` to tab close buttons",
-        "Check sidebar icon-only buttons in `ui/src/lib/components/layout/Sidebar.svelte` — add `aria-label` to theme toggle, collapse toggle, and logout buttons if missing",
-        "Run `cd ui && npm run check` and verify no new a11y warnings from svelte-check",
-        "`cd ui && npm run check` passes",
-        "`cd ui && npm run build` passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 12,
-      "passes": true,
-      "notes": "Files: `ui/src/routes/+page.svelte` (toolbar icon-only buttons have `title` but no `aria-label` — screen readers don't reliably read `title`), `ui/src/lib/components/terminal/TerminalTabs.svelte` (tab container uses role=\"tab\" on items but parent div doesn't have role=\"tablist\", close buttons lack aria-label), `ui/src/lib/components/layout/Sidebar.svelte` (bottom buttons — theme toggle, collapse, logout — may also need aria-label). Svelte 5 has built-in a11y checking via svelte-check."
-    },
-    {
-      "id": "US-013",
-      "title": "Replace inline SVGs with lucide-svelte icons",
-      "description": "As a developer, I want consistent icon usage across the app using the lucide-svelte library instead of hand-coded inline SVGs.",
-      "acceptanceCriteria": [
-        "In `ui/src/routes/+page.svelte`, replace all inline `<svg>` elements in the toolbar action buttons with equivalent lucide-svelte icon components",
-        "Identify the correct lucide icon names for: Clear/Trash (Trash2), Copy (Copy), Download (Download), Settings/Preferences (Settings or SlidersHorizontal), Search (Search)",
-        "Import icons at the top of the file: `import { Trash2, Copy, Download, Settings, Search } from 'lucide-svelte'`",
-        "Apply same `class=\"w-4 h-4\"` sizing as existing inline SVGs",
-        "Verify all toolbar buttons still look and function identically",
-        "`cd ui && npm run check` passes",
-        "`cd ui && npm run build` passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "File: `ui/src/routes/+page.svelte` (toolbar action buttons use inline `<svg>` elements with raw paths). The rest of the app uses `lucide-svelte` consistently (Sidebar uses Menu, X, Terminal, Server, etc.). Check which lucide icons match the current inline SVGs by comparing the SVG paths. The lucide-svelte package is already installed in `ui/package.json`. Read the file first to find all inline SVGs — they're in the action buttons section of the toolbar."
-    },
-    {
-      "id": "US-014",
-      "title": "Final code quality audit and simplification",
-      "description": "As a developer, I want all changes from US-001 through US-013 reviewed for code quality, efficiency, consistency, and deduplication before the branch is finalized.",
-      "acceptanceCriteria": [
-        "Run `/simplify` skill to review ALL files changed by US-001 through US-013 for reuse opportunities, code quality, consistency, and efficiency",
-        "Review every Rust file changed in this branch for: unnecessary clones, redundant error handling, inconsistent naming, missing docs on public functions, dead code",
-        "Review every SvelteKit/TypeScript file changed in this branch for: duplicate logic that could be extracted, inconsistent patterns between components, unused imports, type safety gaps",
-        "Check for any regressions introduced by US-001–US-013: verify no functionality was accidentally broken",
-        "Verify all Rust code compiles and passes quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`",
-        "Verify all frontend code compiles and passes quality checks: `cd ui && npm run check && npm run build`",
-        "If any issues found by the audit, fix them in this story — do not leave TODOs",
-        "All fixes pass both backend and frontend quality checks"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "This is the final review step. Use `git diff ralph/mobile-responsive...HEAD --name-only` to get ALL files changed by the code-quality-audit branch. Then read each changed file fully and evaluate for: (1) Code duplication across files — extract shared utilities, (2) Consistency — naming conventions, error patterns, import styles match the rest of the codebase, (3) Efficiency — unnecessary allocations, redundant operations, over-engineering, (4) Correctness — edge cases, error propagation, type safety. Run the /simplify skill which reviews recently changed code for reuse, quality, and efficiency. Fix any issues found rather than just reporting them."
+      "passes": false,
+      "notes": "Read ui/src/app.css for the existing @theme block structure — add the new tokens inside it. For the density scaling, start simple: just define the CSS variables and the compact override. Actual component padding adjustments can be incremental. In +layout.svelte, use a reactive effect: `$effect(() => { document.documentElement.dataset.density = isMobile() ? 'compact' : 'comfortable'; })`. Import isMobile from '$lib/state/mobile.svelte.js'. The /simplify skill reviews recently changed code for reuse, quality, and efficiency — run it after all other changes are committed."
     }
   ]
 }

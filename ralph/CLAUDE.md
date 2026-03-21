@@ -35,14 +35,20 @@ The SvelteKit frontend is in the `ui/` directory.
 ## Key Project Context
 
 - **Stack**: SvelteKit 5 (Svelte 5 runes), Tailwind CSS v4, TypeScript, xterm.js, adapter-static (SPA)
-- **Backend**: Rust (Axum 0.8), SQLite (sqlx), Askama templates
-- **Architecture**: Job-based infrastructure automation platform with embedded terminal
-- **Primary CLAUDE.md**: Read `/home/jsprague/Development/svrctlrs/CLAUDE.md` for full architecture docs
+- **Backend**: Rust (Axum 0.8), SQLite (sqlx), russh (PTY), async-ssh2-tokio (CMD)
+- **Architecture**: Terminal/SSH management tool — NOT a job scheduler (that was the old main branch)
+- **Primary CLAUDE.md**: Read `/home/jsprague/Development/svrctlrs/CLAUDE.md` for architecture docs (will be rewritten in US-002)
+- **Design Spec**: Read `docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md` for full design
+- **Implementation Plan**: Read `docs/superpowers/plans/2026-03-20-phase1-foundation.md` for detailed task breakdown
+- **IMPORTANT**: The `main` branch is stale. Never reference it. Always branch from ralph/phase1-foundation or its predecessor.
 - **SvelteKit UI directory**: `ui/` — all frontend code lives here
 - **Tailwind CSS v4**: Uses `@import 'tailwindcss'` with `@theme` block in `ui/src/app.css`. Default breakpoints: sm=640px, md=768px, lg=1024px
 - **Svelte 5 Runes**: Uses `$state`, `$derived`, `$effect`, `$props` — NOT legacy `$:` reactive statements
 - **State pattern**: Modules in `ui/src/lib/state/` export functions wrapping `$state` variables (see theme.svelte.ts, terminalPrefs.svelte.ts)
-- **Context7 MCP Tool**: MUST use Context7 MCP tool to research latest Tailwind CSS v4 and SvelteKit 5 patterns before implementing each story. Query examples: 'responsive breakpoints mobile-first', 'flex-wrap responsive layout', 'fixed positioning bottom sheet'
+- **Context7 MCP Tool**: MUST use Context7 MCP tool to research latest library patterns before implementing each story. Query for: xterm.js 6.x API changes, Svelte 5 runes patterns, Tailwind CSS v4, sqlx QueryBuilder, Tauri v2 SvelteKit integration
+- **Superpowers Skills**: Use /simplify skill after completing each story for code quality review. Use brainstorming skill if design decisions arise during implementation.
+- **Svelte 5 Callback Props**: This codebase uses callback props (onSomething: () => void), NOT createEventDispatcher (Svelte 4 pattern). Never use dispatch().
+- **API Route Registration**: New API routes go in `server/src/routes/api/mod.rs` routes() function via .nest(), NOT in main.rs
 - **SSH**: Two libraries - `async-ssh2-tokio` (non-interactive) and `russh` (PTY/interactive)
 
 ## Progress Report Format

@@ -2,90 +2,25 @@
 Started: Thu Mar 20 2026
 
 ## Codebase Patterns
-- Branch: ralph/mobile-responsive — terminal/SSH management tool, NOT the job-based system on main
-- Rust workspace has 4 crates: core, database, server (scheduler exists on main but not active here)
+- Branch: ralph/phase1-foundation (from ralph/code-quality-audit) — terminal/SSH management tool
+- IMPORTANT: main branch is stale (old job system). Never use as base.
+- Rust workspace: core, database, server (scheduler exists but unused)
 - SvelteKit 5 frontend in `ui/` — Svelte 5 runes ($state, $derived, $effect), Tailwind CSS v4, adapter-static
 - State modules in `ui/src/lib/state/*.svelte.ts` export getter functions wrapping `$state` variables
-- Database queries in `database/src/queries/` — use `anyhow::Context` for error handling (some modules use inconsistent .map_err pattern)
+- Database queries in `database/src/queries/` — use `anyhow::Context` for errors, `sqlx::QueryBuilder` for dynamic SQL
 - Credential values encrypted at rest with AES-256-GCM via `core/src/encryption.rs`
-- `list_credentials()` uses SQL CASE to redact values at query level — never loads secrets for list operations
-- Dynamic SQL updates use `sqlx::QueryBuilder` with proper typed `.push_bind()` — no more String::push_str + Vec<String>
 - Two SSH libraries: `async-ssh2-tokio` (non-interactive, terminal.rs) and `russh` (PTY/interactive, terminal_pty.rs)
-- ssh.rs uses NoCheck for host keys (insecure), but terminal.rs implements proper TOFU with server_host_keys table
+- ssh.rs uses NoCheck for host keys (DEPRECATED), terminal.rs implements proper TOFU
 - Backend quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`
 - Frontend quality checks: `cd ui && npm run check && npm run build`
-- Icon library: lucide-svelte — all icons now use lucide-svelte consistently
-- Mobile breakpoint: md (768px), mobile detection via `ui/src/lib/state/mobile.svelte.ts`
-- CRUD pages have loading/error/empty states with Retry button — use `extractErrorMessage()` from `$lib/utils/error.ts`
-- API client handles non-JSON error responses and logs logout failures
-- Toast system cancels timers on manual dismissal via Map<id, timer>
-- TerminalPane cleanup already handled via disconnect() which clears reconnectTimeout
-- `extractErrorMessage()` is ApiError-aware: extracts body.error.message from backend responses
-- Modal has focus trap (Tab/Shift+Tab cycle within content, Escape closes, restores focus)
-- Button: focus-visible outline, cursor-not-allowed on disabled (no pointer-events-none conflict)
-- Color contrast: --color-text-muted meets WCAG AA 4.5:1 in both dark and light themes
+- Svelte 5 uses callback props (onSomething), NOT createEventDispatcher (Svelte 4)
+- API routes registered in `server/src/routes/api/mod.rs` routes() function, NOT in main.rs
+- Use Context7 MCP tool to research latest library patterns before implementing
+- Use /simplify skill after completing implementation for code quality review
+- Icon library: lucide-svelte
+- Mobile breakpoint: md (768px), detection via `ui/src/lib/state/mobile.svelte.ts`
+- Error handling: use `extractErrorMessage()` from `$lib/utils/error.js` in all catch blocks
+- Design spec: docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md
+- Implementation plan: docs/superpowers/plans/2026-03-20-phase1-foundation.md
 
----
-
-## 2026-03-20 - US-001
-- Implemented custom Debug for Credential that redacts `value` field as `[REDACTED]`
-- Fixed `.unwrap_or(false)` on `credential_in_use()` in GET /credentials/{id} to propagate DB errors as 500
-- Added documentation on `get_credential()` noting automatic decryption behavior
-- Files changed:
-  - `database/src/models/credential.rs` — Removed `Debug` from derive, added manual `fmt::Debug` impl
-  - `server/src/routes/api/credentials.rs` — Replaced `.unwrap_or(false)` with `.map_err()` + `?`
-  - `database/src/queries/credentials.rs` — Added doc comment on `get_credential()`
-- **Learnings for future iterations:**
-  - The `.unwrap_or(false)` was in the GET handler (display), not DELETE handler (which already had proper error handling)
-  - The manual Debug impl needs `use std::fmt;` import
-  - Keep Serialize/Deserialize/Clone derives — only remove Debug
----
-
-## 2026-03-20 - US-002
-- Made ENCRYPTION_KEY required in docker-compose.yml, removed deprecated [plugins] config
----
-
-## 2026-03-20 - US-003/004/005
-- Replaced manual String::push_str + Vec<String> SQL building with sqlx::QueryBuilder in servers.rs, credentials.rs, terminal_profiles.rs
-- Fixed unwrap_or_default() on JSON serialization in terminal_profiles.rs with proper error propagation
-- **Learnings:** QueryBuilder requires owned values via push_bind (clones necessary), but eliminates parameter ordering bugs
----
-
-## 2026-03-20 - US-006
-- list_credentials() now uses SQL CASE expression to redact values at query level, never loading secrets into memory
----
-
-## 2026-03-20 - US-007
-- Added debug logging for PTY WebSocket send failures, deprecation notice to ssh.rs
----
-
-## 2026-03-20 - US-008
-- Toast timer Map for cleanup on manual dismissal; TerminalPane reconnectTimeout already handled by disconnect()
----
-
-## 2026-03-20 - US-009
-- Added error state display with Retry to servers/credentials/settings pages
-- Created extractErrorMessage() utility, fixed API client empty catch blocks
----
-
-## 2026-03-20 - US-010
-- Modal focus trap: Tab/Shift+Tab cycle, Escape close, focus restore, initial focus on first content element
----
-
-## 2026-03-20 - US-011
-- Fixed color contrast for WCAG AA compliance in both themes, added focus-visible and cursor-not-allowed to Button
----
-
-## 2026-03-20 - US-012
-- Added aria-label to icon-only buttons, aria-live for ConnectionBadge, role=tablist to tab container
----
-
-## 2026-03-20 - US-013
-- Replaced inline SVGs with lucide-svelte icons (Trash2, ClipboardCopy, Download)
----
-
-## 2026-03-20 - US-014
-- Code quality audit via /simplify skill (3 parallel review agents)
-- Fixed: Button pointer-events-none conflict, Modal focus scoping to content div, list_credentials has_value bug
-- Enhanced extractErrorMessage with ApiError body extraction, used in state modules
 ---
