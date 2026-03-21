@@ -8,6 +8,15 @@
   "permissions": [
     "core:default",
     "biometric:default",
-    "os:default"
+    "os:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        { "url": "https://*" },
+        { "url": "http://*" },
+        { "url": "ws://*" },
+        { "url": "wss://*" }
+      ]
+    }
   ]
 }

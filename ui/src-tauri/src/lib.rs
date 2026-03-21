@@ -19,6 +19,7 @@ pub fn run() {
 
             // Register plugins
             app.handle().plugin(tauri_plugin_os::init())?;
+            app.handle().plugin(tauri_plugin_http::init())?;
             #[cfg(mobile)]
             app.handle().plugin(tauri_plugin_biometric::init())?;
 
