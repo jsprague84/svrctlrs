@@ -30,7 +30,8 @@
 				if (data.session_id) {
 					localStorage.setItem('svrctlrs-session-token', data.session_id);
 				}
-				goto('/');
+				// Full reload — token is in localStorage, survives reload
+				window.location.href = '/';
 			} else {
 				const data = await res.json().catch(() => ({ error: 'Login failed' }));
 				toast.error(data.error || 'Login failed');

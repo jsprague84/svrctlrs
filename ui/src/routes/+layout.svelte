@@ -38,24 +38,20 @@
 		document.documentElement.dataset.density = isMobile() ? 'compact' : 'comfortable';
 	});
 
-	// Load data reactively when navigating to non-auth pages
-	// (handles both initial load AND post-login goto('/') navigation)
-	let dataLoaded = $state(false);
-	$effect(() => {
-		if (isAuthPage || dataLoaded || needsServerSetup) return;
-		if (isTauri() && !hasServerUrl()) {
-			needsServerSetup = true;
-			return;
-		}
-		serversState.loadServers();
-		profilesState.loadProfiles();
-		dataLoaded = true;
-	});
-
 	onMount(() => {
 		// Load sidebar preference
 		const saved = localStorage.getItem('svrctlrs-sidebar-collapsed');
 		if (saved === 'true') sidebarCollapsed = true;
+
+		// Auth pages don't need data loading
+		if (!isAuthPage) {
+			if (isTauri() && !hasServerUrl()) {
+				needsServerSetup = true;
+			} else {
+				serversState.loadServers();
+				profilesState.loadProfiles();
+			}
+		}
 
 		// Listen for toggle-sidebar events from child components (e.g., MobileStatusBar)
 		const handleToggleSidebar = () => { mobileOpen = !mobileOpen; };
