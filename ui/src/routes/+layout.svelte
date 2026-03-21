@@ -14,9 +14,13 @@
 	import { extractErrorMessage } from '$lib/utils/error.js';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
+	import { page } from '$app/state';
 	import { Menu } from 'lucide-svelte';
 
 	let { children } = $props();
+
+	// Auth pages render without sidebar/chrome
+	let isAuthPage = $derived(page.url?.pathname?.startsWith('/auth') ?? false);
 
 	let sidebarCollapsed = $state(false);
 	let mobileOpen = $state(false);
@@ -99,6 +103,10 @@
 		serversState.loadServers();
 		profilesState.loadProfiles();
 	}} />
+{:else if isAuthPage}
+	<!-- Auth pages render without sidebar/chrome -->
+	{@render children()}
+	<Toast />
 {:else}
 
 <!-- Hamburger button (mobile only) -->
