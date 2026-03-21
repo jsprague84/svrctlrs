@@ -12,17 +12,65 @@
 
 	let { open, title, onClose, children, footer }: Props = $props();
 
+	let dialogEl: HTMLDivElement | undefined = $state();
+	let previousFocus: Element | null = null;
+
+	const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+	$effect(() => {
+		if (open && dialogEl) {
+			previousFocus = document.activeElement;
+
+			// Focus first focusable element inside modal content (skip backdrop)
+			requestAnimationFrame(() => {
+				const first = dialogEl?.querySelector<HTMLElement>(FOCUSABLE);
+				first?.focus();
+			});
+
+			return () => {
+				if (previousFocus instanceof HTMLElement) {
+					previousFocus.focus();
+				}
+			};
+		}
+	});
+
 	function handleKeydown(e: KeyboardEvent) {
-		if (e.key === 'Escape') onClose();
+		if (e.key === 'Escape') {
+			onClose();
+			return;
+		}
+
+		if (e.key === 'Tab' && dialogEl) {
+			const focusable = Array.from(dialogEl.querySelectorAll<HTMLElement>(FOCUSABLE));
+			if (focusable.length === 0) return;
+
+			const first = focusable[0];
+			const last = focusable[focusable.length - 1];
+
+			if (e.shiftKey) {
+				if (document.activeElement === first) {
+					e.preventDefault();
+					last.focus();
+				}
+			} else {
+				if (document.activeElement === last) {
+					e.preventDefault();
+					first.focus();
+				}
+			}
+		}
 	}
 </script>
 
 {#if open}
 	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<div
+		bind:this={dialogEl}
 		class="fixed inset-0 z-50 flex items-center justify-center"
 		role="dialog"
 		aria-modal="true"
+		aria-label={title}
 		tabindex="-1"
 		onkeydown={handleKeydown}
 	>
@@ -39,7 +87,7 @@
 			<!-- Header -->
 			<div class="flex items-center justify-between px-4 py-3 border-b border-border">
 				<h2 class="text-sm font-semibold text-text-primary">{title}</h2>
-				<button class="p-1 text-text-muted hover:text-text-primary rounded-sm" onclick={onClose}>
+				<button class="p-1 text-text-muted hover:text-text-primary rounded-sm" onclick={onClose} aria-label="Close dialog">
 					<X class="w-4 h-4" />
 				</button>
 			</div>
