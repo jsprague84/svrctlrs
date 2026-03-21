@@ -1,17 +1,19 @@
-# Ralph Progress Log — Phase 6: Advanced Features
-Started: TBD (waiting for Phase 1-5 testing)
+# Ralph Progress Log — UI Polish
+Started: Fri Mar 21 2026
 
 ## Codebase Patterns
-- Branch: ralph/phase6-advanced (from ralph/phase5-rstify)
-- Tauri IPC: #[tauri::command] async functions, called via invoke() from JS
-- Tauri events: app.emit() from Rust, listen() from JS — for streaming data
-- russh for SSH: Client::connect(), session.channel_open_session(), channel.exec()/request_shell()
-- Quick commands in quick_commands table — webhook allowlist
-- NotificationClient in core/src/notifications.rs — Gotify/ntfy compatible
-- Health monitor in server/src/health_monitor.rs — background tokio task
-- Tauri env: JAVA_HOME=~/Development/android-studio/jbr, ANDROID_HOME, NDK_HOME
-- Set env vars before ALL tauri commands
-- Backend quality: `cargo clippy --workspace -- -D warnings && cargo test --workspace`
+- Branch: ralph/ui-polish (from ralph/phase5-rstify)
+- Settings stored as key-value pairs in `settings` table
+- settingsState: getSettings() returns grouped by prefix, updateSetting(key, {value})
+- quickCommandsState: loadCommands(), createCommand(), updateCommand(), deleteCommand()
+- profilesState: getProfiles(), createProfile(), updateProfile(), deleteProfile()
+- serversState: getServers() for server dropdown data
+- Svelte 5 callback props, NOT dispatch
+- Use extractErrorMessage() from $lib/utils/error.js in all catch blocks
+- isMobile() from $lib/state/mobile.svelte.js for responsive
+- isTauri(), getServerUrl(), getPlatform() from $lib/platform/index.js
+- Shared UI components: Modal, Button, Input, Select, Badge, Toast
 - Frontend quality: `cd ui && npm run check && npm run build`
+- Backend quality: `cargo clippy --workspace -- -D warnings && cargo test --workspace`
 
 ---
