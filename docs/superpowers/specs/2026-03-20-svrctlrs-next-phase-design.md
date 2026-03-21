@@ -419,7 +419,26 @@ The `ui/src/lib/platform/` module provides:
 
 ---
 
-## 6. Database Cleanup
+## 6. CLAUDE.md Rewrite
+
+The root `CLAUDE.md` is completely stale — it describes the old job-based automation system (HTMX, Alpine.js, Askama templates, job types, command templates, job schedules, etc.) that was removed months ago. This is the single biggest source of confusion for AI assistants and must be rewritten as the first task.
+
+**The new CLAUDE.md must reflect:**
+- **Purpose:** Terminal/SSH management tool for remote server access (not a job scheduler)
+- **Architecture:** SvelteKit 5 SPA + Axum (Rust) backend + SQLite
+- **Active branch:** `ralph/code-quality-audit` (branched from `ralph/mobile-responsive`). The `main` branch is stale and should not be used.
+- **Frontend:** SvelteKit 5 with Svelte runes, Tailwind CSS v4, xterm.js 5.5, adapter-static
+- **Backend:** Axum 0.8, SQLite via sqlx, russh (PTY), async-ssh2-tokio (CMD), tower-sessions
+- **Key features:** Interactive PTY terminal, server/credential CRUD, terminal profiles, SSH host key verification (TOFU)
+- **Build commands:** cargo build/clippy/test for backend, npm run check/build/dev for frontend
+- **Design system:** Tokyo Night theme, CSS variables, shared UI components
+- **Future direction:** Tauri v2 for desktop + mobile apps (reference the design spec)
+
+**Remove all references to:** job types, command templates, job schedules, job runs, HTMX, Alpine.js, Askama templates, plugins, webhook endpoints, notification channels/policies, scheduler crate, composite workflows.
+
+---
+
+## 7. Database Cleanup
 
 The database contains tables from the original job-based automation system (migrations 001-011) that are no longer used on this branch. These should be audited and cleaned up:
 
@@ -437,9 +456,10 @@ The database contains tables from the original job-based automation system (migr
 
 ---
 
-## 7. Implementation Phases
+## 8. Implementation Phases
 
 ### Phase 1: Foundation (Web)
+- Rewrite CLAUDE.md to reflect current terminal-first architecture
 - Database cleanup: drop unused tables from old job system
 - Session serialize/restore addon
 - Terminal profiles UI (save/load/manage) — includes schema migration for user_id, layout values, PaneConfig.mode
@@ -481,7 +501,7 @@ The database contains tables from the original job-based automation system (migr
 
 ---
 
-## 8. Success Criteria
+## 9. Success Criteria
 
 - Terminal renders at 60fps with WebGL acceleration
 - Terminal scrollback survives page refresh and mobile browser suspension; reconnect prompt shown on PTY session loss
