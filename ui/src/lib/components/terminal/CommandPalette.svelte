@@ -34,6 +34,7 @@
 	let query = $state('');
 	let selectedIndex = $state(0);
 	let inputEl: HTMLInputElement | undefined = $state();
+	let pendingAction: (() => void) | null = null;
 
 	let commands = $derived(quickCommandsState.getCommands());
 
@@ -48,14 +49,11 @@
 				name: cmd.name,
 				detail: cmd.command,
 				category: 'command',
-				action: () => {
-					if (onInjectCommand) onInjectCommand(cmd.command);
-					onClose();
-				}
+				action: () => { if (onInjectCommand) onInjectCommand(cmd.command); }
 			});
 		}
 
-		// Server connections (for mobile — connect directly from palette)
+		// Server connections
 		const servers = serversState.getServers();
 		for (const server of servers) {
 			result.push({
@@ -63,97 +61,42 @@
 				name: `Connect: ${server.name}`,
 				detail: server.hostname ?? 'local',
 				category: 'action',
-				action: () => { onConnectServer?.(server.id, server.name); onClose(); }
+				action: () => { onConnectServer?.(server.id, server.name); }
 			});
 		}
 
-		// If no servers configured, offer to add one
 		if (servers.length === 0) {
 			result.push({
 				id: 'action-add-server',
 				name: 'Add Server',
 				detail: 'Configure a new server',
 				category: 'action',
-				action: () => { onClose(); window.location.href = '/servers'; }
+				action: () => { window.location.href = '/servers'; }
 			});
 		}
 
 		// App actions
 		result.push(
-			{
-				id: 'action-new-tab',
-				name: 'New Tab',
-				detail: 'Open a new terminal tab',
-				category: 'action',
-				action: () => { terminalState.createTab(null, null, 'pty'); onClose(); }
-			},
-			{
-				id: 'action-close-tab',
-				name: 'Close Tab',
-				detail: 'Close the active terminal tab',
-				category: 'action',
-				action: () => {
-					const id = terminalState.getActiveTabId();
-					if (id) terminalState.closeTab(id);
-					onClose();
-				}
-			},
-			{
-				id: 'action-connect',
-				name: 'Connect',
-				detail: 'Connect active tab to server',
-				category: 'action',
-				action: () => { onConnect?.(); onClose(); }
-			},
-			{
-				id: 'action-disconnect',
-				name: 'Disconnect',
-				detail: 'Disconnect active tab',
-				category: 'action',
-				action: () => { onDisconnect?.(); onClose(); }
-			},
-			{
-				id: 'action-clear',
-				name: 'Clear Terminal',
-				detail: 'Clear terminal output',
-				category: 'action',
-				action: () => { onClearTerminal?.(); onClose(); }
-			},
-			{
-				id: 'action-copy',
-				name: 'Copy Output',
-				detail: 'Copy terminal output to clipboard',
-				category: 'action',
-				action: () => { onCopyOutput?.(); onClose(); }
-			},
-			{
-				id: 'action-download',
-				name: 'Download Output',
-				detail: 'Download terminal output as file',
-				category: 'action',
-				action: () => { onDownloadOutput?.(); onClose(); }
-			},
-			{
-				id: 'action-search',
-				name: 'Search Output',
-				detail: 'Search terminal output',
-				category: 'action',
-				action: () => { onToggleSearch?.(); onClose(); }
-			},
-			{
-				id: 'action-save-profile',
-				name: 'Save Layout as Profile',
-				detail: 'Save current tabs and layout',
-				category: 'action',
-				action: () => { onClose(); onSaveProfile?.(); }
-			},
-			{
-				id: 'action-toggle-theme',
-				name: 'Toggle Theme',
-				detail: 'Switch between dark and light mode',
-				category: 'action',
-				action: () => { themeState.toggleTheme(); onClose(); }
-			}
+			{ id: 'action-new-tab', name: 'New Tab', detail: 'Open a new terminal tab', category: 'action',
+				action: () => { terminalState.createTab(null, null, 'pty'); } },
+			{ id: 'action-close-tab', name: 'Close Tab', detail: 'Close the active terminal tab', category: 'action',
+				action: () => { const id = terminalState.getActiveTabId(); if (id) terminalState.closeTab(id); } },
+			{ id: 'action-connect', name: 'Connect', detail: 'Connect active tab to server', category: 'action',
+				action: () => { onConnect?.(); } },
+			{ id: 'action-disconnect', name: 'Disconnect', detail: 'Disconnect active tab', category: 'action',
+				action: () => { onDisconnect?.(); } },
+			{ id: 'action-clear', name: 'Clear Terminal', detail: 'Clear terminal output', category: 'action',
+				action: () => { onClearTerminal?.(); } },
+			{ id: 'action-copy', name: 'Copy Output', detail: 'Copy terminal output to clipboard', category: 'action',
+				action: () => { onCopyOutput?.(); } },
+			{ id: 'action-download', name: 'Download Output', detail: 'Download terminal output as file', category: 'action',
+				action: () => { onDownloadOutput?.(); } },
+			{ id: 'action-search', name: 'Search Output', detail: 'Search terminal output', category: 'action',
+				action: () => { onToggleSearch?.(); } },
+			{ id: 'action-save-profile', name: 'Save Layout as Profile', detail: 'Save current tabs and layout', category: 'action',
+				action: () => { onSaveProfile?.(); } },
+			{ id: 'action-toggle-theme', name: 'Toggle Theme', detail: 'Switch between dark and light mode', category: 'action',
+				action: () => { themeState.toggleTheme(); } }
 		);
 
 		return result;
@@ -173,6 +116,7 @@
 		if (open) {
 			query = '';
 			selectedIndex = 0;
+			pendingAction = null;
 			void quickCommandsState.loadCommands();
 			requestAnimationFrame(() => inputEl?.focus());
 		}
@@ -186,10 +130,10 @@
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
-		e.stopPropagation(); // Prevent window-level shortcuts from firing
+		e.stopPropagation();
 		if (e.key === 'Escape') {
 			e.preventDefault();
-			onClose();
+			closePalette();
 		} else if (e.key === 'ArrowDown') {
 			e.preventDefault();
 			if (filtered.length > 0) selectedIndex = (selectedIndex + 1) % filtered.length;
@@ -199,19 +143,25 @@
 		} else if (e.key === 'Enter') {
 			e.preventDefault();
 			if (filtered[selectedIndex]) {
-				handleSelect(filtered[selectedIndex]);
+				selectItem(filtered[selectedIndex]);
 			}
 		}
 	}
 
-	function handleSelect(item: PaletteItem, e?: MouseEvent) {
-		e?.stopPropagation();
-		e?.preventDefault();
-		// Delay action to prevent click passthrough to elements below
-		// (palette DOM removed on close, click falls through to toolbar/sidebar)
-		requestAnimationFrame(() => {
-			item.action();
-		});
+	function selectItem(item: PaletteItem) {
+		// Store action, close palette first, then run action after DOM settles
+		pendingAction = item.action;
+		closePalette();
+	}
+
+	function closePalette() {
+		// Close first, run pending action after a delay so DOM fully settles
+		onClose();
+		if (pendingAction) {
+			const action = pendingAction;
+			pendingAction = null;
+			setTimeout(() => action(), 50);
+		}
 	}
 </script>
 
@@ -220,7 +170,7 @@
 	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="fixed inset-0 bg-black/40 z-40"
-		onclick={(e) => { e.stopPropagation(); requestAnimationFrame(() => onClose()); }}
+		onclick={(e) => { e.stopPropagation(); closePalette(); }}
 		onkeydown={() => {}}
 		role="presentation"
 	></div>
@@ -257,7 +207,7 @@
 					<button
 						class="w-full text-left px-3 py-2 flex items-center gap-3 text-sm transition-colors
 							{i === selectedIndex ? 'bg-accent/10 text-text-primary' : 'text-text-secondary hover:bg-surface-raised'}"
-						onclick={(e) => handleSelect(item, e)}
+						onclick={(e) => { e.stopPropagation(); selectItem(item); }}
 						role="option"
 						aria-selected={i === selectedIndex}
 					>
