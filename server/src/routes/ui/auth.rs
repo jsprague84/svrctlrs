@@ -66,13 +66,20 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
                     if let Some(pool) = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>() {
                         tracing::info!(token_prefix = &token[..token.len().min(8)], "Looking up session token");
 
-                        let valid: Option<(String,)> = svrctlrs_database::sqlx::query_as(
-                            "SELECT data FROM tower_sessions WHERE id = ?"
+                        let result = svrctlrs_database::sqlx::query(
+                            "SELECT id FROM tower_sessions WHERE id = ?"
                         )
                         .bind(token)
                         .fetch_optional(pool)
-                        .await
-                        .unwrap_or(None);
+                        .await;
+
+                        match &result {
+                            Ok(Some(_)) => tracing::info!("Session found in DB!"),
+                            Ok(None) => tracing::warn!("Session NOT found — id match failed"),
+                            Err(e) => tracing::error!(error = %e, "Session query ERROR"),
+                        };
+
+                        let valid = result.ok().flatten();
 
                         tracing::info!(found = valid.is_some(), "Session lookup result");
 
