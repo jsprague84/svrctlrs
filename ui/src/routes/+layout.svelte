@@ -8,6 +8,7 @@
 	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import { isTauri, hasServerUrl } from '$lib/platform/index.js';
 	import ServerUrlSetup from '$lib/components/ui/ServerUrlSetup.svelte';
+	import ProfileEditModal from '$lib/components/terminal/ProfileEditModal.svelte';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
 	import type { Server, TerminalProfile, LayoutMode } from '$lib/types/index.js';
@@ -25,6 +26,7 @@
 	let sidebarCollapsed = $state(false);
 	let mobileOpen = $state(false);
 	let needsServerSetup = $state(false);
+	let editingProfile = $state<import('$lib/types/index.js').TerminalProfile | null>(null);
 
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
@@ -143,7 +145,13 @@
 		onMobileClose={closeMobileSidebar}
 		onConnectServer={handleConnectServer}
 		onLoadProfile={handleLoadProfile}
+		onEditProfile={(profile) => editingProfile = profile}
 		onDeleteProfile={handleDeleteProfile}
+	/>
+	<ProfileEditModal
+		open={!!editingProfile}
+		profile={editingProfile}
+		onClose={() => editingProfile = null}
 	/>
 	<main class="flex-1 min-w-0 flex flex-col pl-12 md:pl-0">
 		{@render children()}

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { base } from '$app/paths';
-	import { Terminal, Server, KeyRound, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, X, Layout, Trash2 } from 'lucide-svelte';
+	import { Terminal, Server, KeyRound, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, X, Layout, Trash2, Pencil } from 'lucide-svelte';
 	import type { Server as ServerType, TerminalProfile } from '$lib/types/index.js';
 	import { logout } from '$lib/api/client.js';
 	import * as themeState from '$lib/state/theme.svelte.js';
@@ -17,10 +17,11 @@
 		onMobileClose?: () => void;
 		onConnectServer: (server: ServerType) => void;
 		onLoadProfile?: (profile: TerminalProfile) => void;
+		onEditProfile?: (profile: TerminalProfile) => void;
 		onDeleteProfile?: (id: number) => void;
 	}
 
-	let { servers, profiles = [], loading = false, error = null, collapsed = false, mobileOpen = false, onToggle, onMobileClose, onConnectServer, onLoadProfile, onDeleteProfile }: Props = $props();
+	let { servers, profiles = [], loading = false, error = null, collapsed = false, mobileOpen = false, onToggle, onMobileClose, onConnectServer, onLoadProfile, onEditProfile, onDeleteProfile }: Props = $props();
 
 	const navItems = [
 		{ href: `${base}/`, icon: Terminal, label: 'Terminal' },
@@ -157,6 +158,13 @@
 								{#if profile.is_default}
 									<span class="text-[9px] text-accent ml-auto flex-shrink-0">default</span>
 								{/if}
+							</button>
+							<button
+								class="p-1 text-sidebar-muted hover:text-sidebar-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+								onclick={() => onEditProfile?.(profile)}
+								aria-label="Edit profile"
+							>
+								<Pencil class="w-3 h-3" />
 							</button>
 							<button
 								class="p-1 text-sidebar-muted hover:text-error opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
