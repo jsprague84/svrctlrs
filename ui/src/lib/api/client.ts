@@ -27,7 +27,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 	});
 
 	if (res.status === 401) {
-		window.location.href = '/auth/login';
+		// Use SvelteKit goto if available, fall back to window.location for non-SPA contexts
+		try {
+			const { goto } = await import('$app/navigation');
+			goto('/auth/login');
+		} catch {
+			window.location.href = '/auth/login';
+		}
 		throw new ApiError(401, 'Unauthorized');
 	}
 
@@ -73,5 +79,10 @@ export async function logout(): Promise<void> {
 	} catch (e) {
 		console.warn('Logout request failed:', e);
 	}
-	window.location.href = '/auth/login';
+	try {
+		const { goto } = await import('$app/navigation');
+		goto('/auth/login');
+	} catch {
+		window.location.href = '/auth/login';
+	}
 }

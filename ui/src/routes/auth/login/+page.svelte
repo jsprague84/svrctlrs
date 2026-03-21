@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { isTauri } from '$lib/platform/index.js';
 	import { getServerUrl } from '$lib/platform/index.js';
+	import { goto } from '$app/navigation';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import * as toast from '$lib/state/toast.svelte.js';
@@ -24,7 +25,8 @@
 			});
 
 			if (res.ok) {
-				window.location.href = '/';
+				// Use SvelteKit navigation (not full reload) to preserve cookie jar in WebKitGTK
+				goto('/');
 			} else {
 				const data = await res.json().catch(() => ({ error: 'Login failed' }));
 				toast.error(data.error || 'Login failed');
