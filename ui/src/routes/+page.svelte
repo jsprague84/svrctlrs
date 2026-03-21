@@ -9,8 +9,10 @@
 	import TerminalPrefsPanel from '$lib/components/terminal/TerminalPrefsPanel.svelte';
 	import CommandPalette from '$lib/components/terminal/CommandPalette.svelte';
 	import ProfileManager from '$lib/components/terminal/ProfileManager.svelte';
+	import MobileStatusBar from '$lib/components/terminal/MobileStatusBar.svelte';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as serversState from '$lib/state/servers.svelte.js';
+	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import type { TerminalMode, ConnectionStatus } from '$lib/types/index.js';
 
 	let selectedServerId = $state<number | null>(null);
@@ -188,7 +190,16 @@
 </script>
 
 <div class="flex flex-col h-screen">
-	<!-- Top toolbar -->
+	<!-- Mobile: minimal status bar -->
+	{#if isMobile()}
+		<MobileStatusBar
+			serverName={activeTab?.serverName ?? null}
+			connectionStatus={activeTab?.status ?? 'disconnected'}
+			{tabs}
+			{activeTabId}
+		/>
+	{:else}
+	<!-- Desktop: full toolbar -->
 	<div class="flex flex-wrap items-center gap-2 md:gap-3 md:flex-nowrap px-2 md:px-4 py-2 bg-surface border-b border-border">
 		<TerminalIcon class="hidden md:block w-5 h-5 text-accent" />
 		<h1 class="hidden md:block text-sm font-semibold text-text-primary">SvrCtlRS</h1>
@@ -254,8 +265,9 @@
 			</button>
 		</div>
 	</div>
+	{/if}
 
-	<!-- Search bar -->
+	<!-- Search bar (desktop only) -->
 	{#if searchOpen}
 		<div class="flex flex-wrap items-center gap-2 px-2 md:px-4 py-1.5 bg-surface-raised border-b border-border">
 			<input
@@ -273,7 +285,8 @@
 		</div>
 	{/if}
 
-	<!-- Tab bar -->
+	<!-- Tab bar (desktop only) -->
+	{#if !isMobile()}
 	<TerminalTabs
 		{tabs}
 		{activeTabId}
@@ -289,6 +302,7 @@
 		onNewTab={handleNewTab}
 		onSetLayout={(mode) => terminalState.setLayout(mode)}
 	/>
+	{/if}
 
 	<!-- CMD input bar -->
 	{#if activeTab?.mode === 'cmd' && activeTab?.status === 'connected'}

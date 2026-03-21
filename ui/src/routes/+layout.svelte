@@ -33,6 +33,11 @@
 		serversState.loadServers();
 		profilesState.loadProfiles();
 
+		// Listen for toggle-sidebar events from child components (e.g., MobileStatusBar)
+		const handleToggleSidebar = () => { mobileOpen = !mobileOpen; };
+		window.addEventListener('toggle-sidebar', handleToggleSidebar);
+		return () => window.removeEventListener('toggle-sidebar', handleToggleSidebar);
+
 		// Load sidebar preference
 		const saved = localStorage.getItem('svrctlrs-sidebar-collapsed');
 		if (saved === 'true') sidebarCollapsed = true;
