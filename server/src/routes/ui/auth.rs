@@ -69,7 +69,7 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
                         .unwrap_or(None);
 
                         if valid.is_some() {
-                            tracing::debug!("Authenticated via Bearer token");
+                            tracing::info!("Authenticated via Bearer token");
                             return next.run(request).await;
                         }
                     }
@@ -268,9 +268,16 @@ async fn login_json(
         (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Session error"})))
     })?;
 
+    // Force save the session so it gets an ID assigned
+    session.save().await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to save session");
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Session error"})))
+    })?;
+
     // Return session ID so Tauri clients can use token-based auth
     // (WebKitGTK doesn't reliably send cross-origin cookies)
     let session_id = session.id().map(|id| id.to_string()).unwrap_or_default();
+    tracing::info!(session_id_len = session_id.len(), "Session saved, returning token");
 
     tracing::info!(username = %user.username, user_id = user.id, "User logged in (JSON)");
     Ok(Json(serde_json::json!({"success": true, "user_id": user.id, "session_id": session_id})))
