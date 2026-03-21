@@ -5,6 +5,7 @@
 
 pub mod encryption;
 pub mod error;
+pub mod notifications;
 pub mod types;
 
 // Re-exports
