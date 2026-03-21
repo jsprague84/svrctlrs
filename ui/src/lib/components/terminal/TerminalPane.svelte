@@ -8,6 +8,7 @@
 	import { Unicode11Addon } from '@xterm/addon-unicode11';
 	import { ClipboardAddon } from '@xterm/addon-clipboard';
 	import { ImageAddon } from '@xterm/addon-image';
+	import { SerializeAddon } from '@xterm/addon-serialize';
 	import '@xterm/xterm/css/xterm.css';
 
 	import { tokyoNightTheme, lightTheme } from './terminal-theme.js';
@@ -29,6 +30,7 @@
 	let terminal: Terminal | null = null;
 	let fitAddon: FitAddon | null = null;
 	let searchAddon: SearchAddon | null = null;
+	let serializeAddon: SerializeAddon | null = null;
 	let webglAddon: WebglAddon | null = null;
 	let socket: WebSocket | null = null;
 	let resizeObserver: ResizeObserver | null = null;
@@ -156,6 +158,9 @@
 		searchAddon = new SearchAddon();
 		terminal.loadAddon(searchAddon);
 
+		serializeAddon = new SerializeAddon();
+		terminal.loadAddon(serializeAddon);
+
 		terminal.loadAddon(new WebLinksAddon());
 		terminal.loadAddon(new Unicode11Addon());
 		terminal.loadAddon(new ClipboardAddon());
@@ -229,6 +234,7 @@
 		if (reconnectAttempt === 0) {
 			terminal.clear();
 			outputHistory = [];
+			restoreBuffer();
 		}
 		terminal.writeln('\x1b[33mConnecting...\x1b[0m');
 
@@ -379,6 +385,7 @@
 
 	/** Disconnect the WebSocket */
 	export function disconnect() {
+		serializeBuffer();
 		intentionalDisconnect = true;
 		reconnectAttempt = 0;
 		if (reconnectTimeout) {
@@ -387,6 +394,33 @@
 		}
 		cleanupSocket();
 		setStatus('disconnected');
+	}
+
+	/** Serialize terminal buffer to sessionStorage for later restoration */
+	function serializeBuffer() {
+		if (!serializeAddon || !terminal) return;
+		try {
+			const data = serializeAddon.serialize();
+			if (data.length > 512 * 1024) return; // Skip if > 512KB
+			sessionStorage.setItem(`svrctlrs-term-buffer-${tabId}`, data);
+		} catch {
+			// sessionStorage full or unavailable
+		}
+	}
+
+	/** Restore terminal buffer from sessionStorage */
+	function restoreBuffer() {
+		const key = `svrctlrs-term-buffer-${tabId}`;
+		const data = sessionStorage.getItem(key);
+		if (data && terminal) {
+			terminal.write(data);
+			sessionStorage.removeItem(key);
+		}
+	}
+
+	/** Remove saved buffer (called when tab is explicitly closed) */
+	export function clearSavedBuffer() {
+		sessionStorage.removeItem(`svrctlrs-term-buffer-${tabId}`);
 	}
 
 	export function clear() {
@@ -498,7 +532,17 @@
 		loadHistory();
 		initTerminal();
 
+		// Serialize buffer when tab is hidden or page is unloading
+		const handleVisibilityChange = () => {
+			if (document.hidden) serializeBuffer();
+		};
+		const handleBeforeUnload = () => serializeBuffer();
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+		window.addEventListener('beforeunload', handleBeforeUnload);
+
 		return () => {
+			document.removeEventListener('visibilitychange', handleVisibilityChange);
+			window.removeEventListener('beforeunload', handleBeforeUnload);
 			disconnect();
 			if (resizeTimer) clearTimeout(resizeTimer);
 			resizeObserver?.disconnect();
