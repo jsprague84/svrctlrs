@@ -67,7 +67,7 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
                         tracing::info!(token_prefix = &token[..token.len().min(8)], "Looking up session token");
 
                         let valid: Option<(String,)> = svrctlrs_database::sqlx::query_as(
-                            "SELECT data FROM tower_sessions WHERE id = ? AND expiry_date > datetime('now')"
+                            "SELECT data FROM tower_sessions WHERE id = ?"
                         )
                         .bind(token)
                         .fetch_optional(pool)
