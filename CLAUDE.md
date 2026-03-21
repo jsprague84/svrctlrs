@@ -175,6 +175,27 @@ cd ui && npm run tauri:build
 - **Web:** SPA served by Axum, API same-origin, credentials: 'same-origin'
 - **Tauri:** SPA loaded from filesystem, API to remote server, credentials: 'include', requires server URL setup on first launch
 
+## Tauri Mobile App (Android)
+
+```bash
+# Set env vars first
+export JAVA_HOME=~/Development/android-studio/jbr
+export ANDROID_HOME=$HOME/Android/Sdk
+export NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198
+
+# Build debug APK
+cd ui && npm run tauri android build -- --debug
+```
+
+**System requirements:** Android Studio (with JBR), Android SDK (API 24+), NDK, Rust Android targets (`rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android i686-linux-android`)
+
+**Key note:** Must use Android Studio's bundled JBR (`~/Development/android-studio/jbr`) — Fedora system OpenJDK breaks Gradle's toolchain detection.
+
+### Mobile-Specific Features
+- `ui/src/lib/platform/biometrics.ts` — Fingerprint/face/PIN via `@tauri-apps/plugin-biometric`
+- `ui/src/lib/platform/keyboard.ts` — Keyboard visibility detection (web heuristic)
+- Mobile UX: invisible-until-needed (status bar, swipe tabs, double-tap command palette, extra keys row)
+
 ## Future Direction
 
 Push notifications via rstify (self-hosted, Gotify/ntfy compatible). Tauri mobile app (iOS/Android) planned for Phase 4. See `docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md` for the full design specification.

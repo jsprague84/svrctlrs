@@ -21,3 +21,23 @@ Started: Fri Mar 21 2026
 - Android SDK: API 36.1, NDK 30.0.14904198, Java 21
 
 ---
+
+## 2026-03-21 - US-001: Android target init
+- `tauri android init` generates src-tauri/gen/android/
+- Must gate tray imports with #[cfg(desktop)] — mobile build fails on tray-icon types
+- **KEY LEARNING:** Fedora system OpenJDK breaks Gradle toolchain detection. Must use
+  Android Studio's bundled JBR at ~/Development/android-studio/jbr
+- Debug APK: 388MB (universal, all 4 archs + debug symbols)
+- Set JAVA_HOME to JBR path in gradle.properties AND env
+
+## 2026-03-21 - US-002/003/004: Plugins + biometrics + config
+- @tauri-apps/plugin-biometric exists officially (2.3.2) — installed + configured
+- No dedicated keyboard plugin — web visualViewport heuristic sufficient
+- @tauri-apps/plugin-os for platform detection
+- Plugins registered in Rust code + capabilities/default.json
+- biometrics.ts: dynamic imports with graceful web fallback (no-op)
+
+## 2026-03-21 - US-005: Integration testing
+- All backend (clippy + 18 tests) and frontend (check + build) pass
+- CLAUDE.md updated with mobile build commands
+---
