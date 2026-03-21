@@ -26,7 +26,6 @@ pub fn routes() -> Router<AppState> {
             get(get_server).put(update_server).delete(delete_server),
         )
         .route("/{id}/test", post(test_connection))
-        .route("/{id}/capabilities", get(get_server_capabilities))
 }
 
 /// List all servers
@@ -53,13 +52,8 @@ async fn get_server(
         ApiError::not_found("Server")
     })?;
 
-    let capabilities = servers::get_server_capabilities(&state.pool, id)
-        .await
-        .unwrap_or_default();
-
     Ok(Json(json!({
-        "server": server,
-        "capabilities": capabilities
+        "server": server
     })))
 }
 
@@ -289,23 +283,3 @@ async fn test_connection(
     }
 }
 
-/// Get server capabilities
-#[instrument(skip(state))]
-async fn get_server_capabilities(
-    State(state): State<AppState>,
-    Path(id): Path<i64>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    // Verify server exists
-    servers::get_server(&state.pool, id)
-        .await
-        .map_err(|_| ApiError::not_found("Server"))?;
-
-    let capabilities = servers::get_server_capabilities(&state.pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to get server capabilities");
-            ApiError::internal_error(format!("Failed to get server capabilities: {}", e))
-        })?;
-
-    Ok(Json(json!({ "capabilities": capabilities })))
-}

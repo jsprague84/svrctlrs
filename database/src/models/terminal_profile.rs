@@ -13,8 +13,9 @@ pub struct TerminalProfile {
     pub description: Option<String>,
     pub layout: String,
     pub pane_configs: Option<String>,   // JSON string
-    pub quick_commands: Option<String>, // JSON string
+    pub quick_commands: Option<String>, // JSON string (legacy, use quick_commands table instead)
     pub is_default: bool,
+    pub user_id: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -41,6 +42,7 @@ impl TerminalProfile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaneConfig {
     pub server_id: Option<i64>,
+    pub mode: Option<String>,
 }
 
 /// Create a new terminal profile
@@ -59,7 +61,7 @@ impl Default for CreateTerminalProfile {
         Self {
             name: String::new(),
             description: None,
-            layout: "2h".to_string(),
+            layout: "single".to_string(),
             pane_configs: None,
             quick_commands: None,
             is_default: false,

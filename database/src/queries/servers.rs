@@ -5,7 +5,7 @@ use sqlx::{Pool, QueryBuilder, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::instrument;
 
-use crate::models::{CreateServer, Server, ServerCapability, UpdateServer};
+use crate::models::{CreateServer, Server, UpdateServer};
 
 /// List all servers
 #[instrument(skip(pool))]
@@ -237,104 +237,6 @@ pub async fn list_enabled_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
-// ============================================================================
-// Capability Queries
-// ============================================================================
-
-/// Get all capabilities for a server
-#[instrument(skip(pool))]
-pub async fn get_server_capabilities(
-    pool: &Pool<Sqlite>,
-    server_id: i64,
-) -> Result<Vec<ServerCapability>> {
-    sqlx::query_as::<_, ServerCapability>(
-        r#"
-        SELECT id, server_id, capability, available, version, detected_at
-        FROM server_capabilities
-        WHERE server_id = ?
-        ORDER BY capability
-        "#,
-    )
-    .bind(server_id)
-    .fetch_all(pool)
-    .await
-    .context("Failed to get server capabilities")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
-}
-
-/// Set or update a server capability
-#[instrument(skip(pool))]
-pub async fn set_server_capability(
-    pool: &Pool<Sqlite>,
-    server_id: i64,
-    name: &str,
-    available: bool,
-    version: Option<&str>,
-) -> Result<()> {
-    sqlx::query(
-        r#"
-        INSERT INTO server_capabilities (server_id, capability, available, version, detected_at)
-        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(server_id, capability)
-        DO UPDATE SET available = ?, version = ?, detected_at = CURRENT_TIMESTAMP
-        "#,
-    )
-    .bind(server_id)
-    .bind(name)
-    .bind(available)
-    .bind(version)
-    .bind(available)
-    .bind(version)
-    .execute(pool)
-    .await
-    .context("Failed to set server capability")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
-
-    Ok(())
-}
-
-/// Check if a server has a specific capability
-#[instrument(skip(pool))]
-pub async fn has_capability(pool: &Pool<Sqlite>, server_id: i64, name: &str) -> Result<bool> {
-    let result: Option<(bool,)> = sqlx::query_as(
-        r#"
-        SELECT available
-        FROM server_capabilities
-        WHERE server_id = ? AND capability = ?
-        "#,
-    )
-    .bind(server_id)
-    .bind(name)
-    .fetch_optional(pool)
-    .await
-    .context("Failed to check server capability")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
-
-    Ok(result.map(|(available,)| available).unwrap_or(false))
-}
-
-/// Find all servers that have a specific capability
-#[instrument(skip(pool))]
-pub async fn get_servers_with_capability(pool: &Pool<Sqlite>, name: &str) -> Result<Vec<Server>> {
-    sqlx::query_as::<_, Server>(
-        r#"
-        SELECT s.id, s.name, s.hostname, s.port, s.username, s.credential_id, s.description,
-               s.is_local, s.enabled, s.os_type, s.os_distro, s.package_manager,
-               s.docker_available, s.systemd_available, s.metadata, s.last_seen_at, s.last_error,
-               s.created_at, s.updated_at
-        FROM servers s
-        JOIN server_capabilities sc ON s.id = sc.server_id
-        WHERE sc.capability = ? AND sc.available = 1
-        ORDER BY s.name
-        "#,
-    )
-    .bind(name)
-    .fetch_all(pool)
-    .await
-    .context("Failed to get servers with capability")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -387,27 +289,6 @@ mod tests {
         assert_eq!(server.os_type, Some("linux".to_string()));
         assert!(server.docker_available);
 
-        // Set capabilities
-        set_server_capability(&pool, id, "docker", true, Some("20.10.0"))
-            .await
-            .unwrap();
-        set_server_capability(&pool, id, "systemd", true, None)
-            .await
-            .unwrap();
-
-        // Check capabilities
-        assert!(has_capability(&pool, id, "docker").await.unwrap());
-        assert!(has_capability(&pool, id, "systemd").await.unwrap());
-        assert!(!has_capability(&pool, id, "nonexistent").await.unwrap());
-
-        let caps = get_server_capabilities(&pool, id).await.unwrap();
-        assert_eq!(caps.len(), 2);
-
-        // Get servers with capability
-        let servers = get_servers_with_capability(&pool, "docker").await.unwrap();
-        assert_eq!(servers.len(), 1);
-        assert_eq!(servers[0].id, id);
-
         // Delete server
         delete_server(&pool, id).await.unwrap();
 
@@ -420,12 +301,11 @@ mod tests {
 // Optimized Queries with Joined Data
 // ============================================================================
 
-/// Extended server with credential name and capabilities for display
+/// Extended server with credential name for display
 #[derive(Debug, Clone)]
 pub struct ServerWithDetails {
     pub server: Server,
     pub credential_name: Option<String>,
-    pub capabilities: Vec<ServerCapability>,
 }
 
 /// List all servers with credential names, tags, and capabilities (optimized for display)
@@ -454,13 +334,9 @@ pub async fn list_servers_with_details(pool: &Pool<Sqlite>) -> Result<Vec<Server
             None
         };
 
-        // Get capabilities
-        let capabilities = get_server_capabilities(pool, server.id).await?;
-
         result.push(ServerWithDetails {
             server,
             credential_name,
-            capabilities,
         });
     }
 
@@ -491,12 +367,8 @@ pub async fn get_server_with_details(pool: &Pool<Sqlite>, id: i64) -> Result<Ser
         None
     };
 
-    // Get capabilities
-    let capabilities = get_server_capabilities(pool, server.id).await?;
-
     Ok(ServerWithDetails {
         server,
         credential_name,
-        capabilities,
     })
 }

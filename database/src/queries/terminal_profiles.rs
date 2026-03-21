@@ -5,11 +5,12 @@ use sqlx::{Pool, QueryBuilder, Sqlite};
 
 use crate::models::{CreateTerminalProfile, TerminalProfile, UpdateTerminalProfile};
 
-/// List all terminal profiles
+/// List all terminal profiles (optionally filtered by user)
 pub async fn list_terminal_profiles(pool: &Pool<Sqlite>) -> Result<Vec<TerminalProfile>> {
     let profiles = sqlx::query_as::<_, TerminalProfile>(
         r#"
-        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, created_at, updated_at
+        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, user_id,
+               created_at, updated_at
         FROM terminal_profiles
         ORDER BY is_default DESC, name ASC
         "#,
@@ -20,11 +21,33 @@ pub async fn list_terminal_profiles(pool: &Pool<Sqlite>) -> Result<Vec<TerminalP
     Ok(profiles)
 }
 
+/// List terminal profiles for a specific user
+pub async fn list_terminal_profiles_for_user(
+    pool: &Pool<Sqlite>,
+    user_id: i64,
+) -> Result<Vec<TerminalProfile>> {
+    let profiles = sqlx::query_as::<_, TerminalProfile>(
+        r#"
+        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, user_id,
+               created_at, updated_at
+        FROM terminal_profiles
+        WHERE user_id = ? OR user_id IS NULL
+        ORDER BY is_default DESC, name ASC
+        "#,
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(profiles)
+}
+
 /// Get a terminal profile by ID
 pub async fn get_terminal_profile(pool: &Pool<Sqlite>, id: i64) -> Result<TerminalProfile> {
     let profile = sqlx::query_as::<_, TerminalProfile>(
         r#"
-        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, created_at, updated_at
+        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, user_id,
+               created_at, updated_at
         FROM terminal_profiles
         WHERE id = ?
         "#,
@@ -36,11 +59,12 @@ pub async fn get_terminal_profile(pool: &Pool<Sqlite>, id: i64) -> Result<Termin
     Ok(profile)
 }
 
-/// Get the default terminal profile
+/// Get the default terminal profile (optionally for a specific user)
 pub async fn get_default_terminal_profile(pool: &Pool<Sqlite>) -> Result<Option<TerminalProfile>> {
     let profile = sqlx::query_as::<_, TerminalProfile>(
         r#"
-        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, created_at, updated_at
+        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, user_id,
+               created_at, updated_at
         FROM terminal_profiles
         WHERE is_default = 1
         LIMIT 1
@@ -56,6 +80,7 @@ pub async fn get_default_terminal_profile(pool: &Pool<Sqlite>) -> Result<Option<
 pub async fn create_terminal_profile(
     pool: &Pool<Sqlite>,
     profile: &CreateTerminalProfile,
+    user_id: Option<i64>,
 ) -> Result<i64> {
     // If this profile is set as default, unset any existing default
     if profile.is_default {
@@ -79,8 +104,8 @@ pub async fn create_terminal_profile(
 
     let result = sqlx::query(
         r#"
-        INSERT INTO terminal_profiles (name, description, layout, pane_configs, quick_commands, is_default)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO terminal_profiles (name, description, layout, pane_configs, quick_commands, is_default, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&profile.name)
@@ -89,6 +114,7 @@ pub async fn create_terminal_profile(
     .bind(&pane_configs_json)
     .bind(&quick_commands_json)
     .bind(profile.is_default)
+    .bind(user_id)
     .execute(pool)
     .await?;
 

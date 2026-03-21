@@ -98,19 +98,6 @@ impl Server {
     }
 }
 
-/// ServerCapability model - tracks detected capabilities
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct ServerCapability {
-    pub id: i64,
-    pub server_id: i64,
-    /// Capability name (docker, systemd, apt, dnf, pacman, etc.)
-    pub capability: String,
-    pub available: bool,
-    /// Version if applicable
-    pub version: Option<String>,
-    pub detected_at: DateTime<Utc>,
-}
-
 /// Input for creating a new server
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateServer {
