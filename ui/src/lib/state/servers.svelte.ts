@@ -1,5 +1,6 @@
 import type { Server, CreateServer, UpdateServer, TestConnectionResult } from '$lib/types/index.js';
 import * as api from '$lib/api/servers.js';
+import { extractErrorMessage } from '$lib/utils/error.js';
 
 let servers = $state<Server[]>([]);
 let loading = $state(false);
@@ -36,7 +37,7 @@ export async function loadServers() {
 	try {
 		servers = await api.listServers();
 	} catch (e) {
-		error = e instanceof Error ? e.message : 'Failed to load servers';
+		error = extractErrorMessage(e, 'Failed to load servers');
 	} finally {
 		loading = false;
 	}

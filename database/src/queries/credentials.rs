@@ -18,13 +18,18 @@ fn decrypt_credential(mut cred: Credential) -> Result<Credential> {
 
 /// List all credentials with values redacted (skips decryption for efficiency).
 ///
+/// The `value` field is set to `"[HAS_VALUE]"` if the credential has a value,
+/// or `""` if it is empty. This allows callers to check `!c.value.is_empty()`
+/// without exposing the actual secret.
+///
 /// Use `get_credential()` when you need the actual decrypted value.
 #[instrument(skip(pool))]
 pub async fn list_credentials(pool: &Pool<Sqlite>) -> Result<Vec<Credential>> {
-    let mut creds = sqlx::query_as::<_, Credential>(
+    let creds = sqlx::query_as::<_, Credential>(
         r#"
-        SELECT id, name, credential_type, description, value, username, metadata,
-               encrypted, created_at, updated_at
+        SELECT id, name, credential_type, description,
+               CASE WHEN length(value) > 0 THEN '[REDACTED]' ELSE '' END AS value,
+               username, metadata, encrypted, created_at, updated_at
         FROM credentials
         ORDER BY name
         "#,
@@ -33,11 +38,6 @@ pub async fn list_credentials(pool: &Pool<Sqlite>) -> Result<Vec<Credential>> {
     .await
     .context("Failed to list credentials")
     .map_err(|e| Error::DatabaseError(e.to_string()))?;
-
-    // Redact values — callers listing credentials don't need decrypted values
-    for cred in &mut creds {
-        cred.value = "[REDACTED]".to_string();
-    }
 
     Ok(creds)
 }

@@ -1,5 +1,6 @@
 import type { Credential, CreateCredential, UpdateCredential } from '$lib/types/index.js';
 import * as api from '$lib/api/credentials.js';
+import { extractErrorMessage } from '$lib/utils/error.js';
 
 let credentials = $state<Credential[]>([]);
 let loading = $state(false);
@@ -23,7 +24,7 @@ export async function loadCredentials() {
 	try {
 		credentials = await api.listCredentials();
 	} catch (e) {
-		error = e instanceof Error ? e.message : 'Failed to load credentials';
+		error = extractErrorMessage(e, 'Failed to load credentials');
 	} finally {
 		loading = false;
 	}

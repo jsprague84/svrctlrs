@@ -1,6 +1,7 @@
 import type { Setting, GroupedSettings } from '$lib/types/index.js';
 import type { CreateSettingInput } from '$lib/api/settings.js';
 import * as api from '$lib/api/settings.js';
+import { extractErrorMessage } from '$lib/utils/error.js';
 
 let settings = $state<GroupedSettings>({});
 let loading = $state(false);
@@ -32,7 +33,7 @@ export async function loadSettings() {
 	try {
 		settings = await api.listSettings();
 	} catch (e) {
-		error = e instanceof Error ? e.message : 'Failed to load settings';
+		error = extractErrorMessage(e, 'Failed to load settings');
 	} finally {
 		loading = false;
 	}
