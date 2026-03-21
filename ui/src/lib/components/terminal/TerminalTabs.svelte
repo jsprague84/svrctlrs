@@ -31,7 +31,7 @@
 
 <div class="flex items-center bg-surface border-b border-border">
 	<!-- Tabs -->
-	<div class="flex items-center overflow-x-auto flex-1 min-w-0">
+	<div class="flex items-center overflow-x-auto flex-1 min-w-0" role="tablist">
 		{#each tabs as tab (tab.id)}
 			<div
 				class="flex items-center gap-1.5 px-2 py-1 md:px-3 md:py-1.5 text-xs border-r border-border whitespace-nowrap transition-colors cursor-pointer
@@ -49,6 +49,7 @@
 					class="ml-1 p-1 md:p-0.5 rounded-sm hover:bg-error/20 hover:text-error"
 					onclick={(e) => { e.stopPropagation(); onCloseTab(tab.id); }}
 					title="Close tab"
+					aria-label="Close tab"
 				>
 					<X class="w-3 h-3" />
 				</button>
