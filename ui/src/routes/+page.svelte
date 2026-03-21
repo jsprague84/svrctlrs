@@ -7,6 +7,7 @@
 	import CommandInput from '$lib/components/terminal/CommandInput.svelte';
 	import ConnectionBadge from '$lib/components/terminal/ConnectionBadge.svelte';
 	import TerminalPrefsPanel from '$lib/components/terminal/TerminalPrefsPanel.svelte';
+	import CommandPalette from '$lib/components/terminal/CommandPalette.svelte';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import type { TerminalMode, ConnectionStatus } from '$lib/types/index.js';
@@ -17,6 +18,7 @@
 	let searchOpen = $state(false);
 	let searchTerm = $state('');
 	let prefsOpen = $state(false);
+	let paletteOpen = $state(false);
 
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
@@ -63,6 +65,11 @@
 
 		// Keyboard shortcuts
 		function handleKeydown(e: KeyboardEvent) {
+			// Ctrl+K / Cmd+K — command palette
+			if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+				e.preventDefault();
+				paletteOpen = !paletteOpen;
+			}
 			// Ctrl+Shift+T — new tab
 			if (e.ctrlKey && e.shiftKey && e.key === 'T') {
 				e.preventDefault();
@@ -312,10 +319,21 @@
 						mode={tab.mode}
 						active={tab.slot !== null}
 						onStatusChange={handleStatusChange}
+						onOpenPalette={() => paletteOpen = true}
 					/>
 				</div>
 			{/each}
 		</SplitView>
 		<TerminalPrefsPanel open={prefsOpen} onClose={() => prefsOpen = false} />
+		<CommandPalette
+			open={paletteOpen}
+			onClose={() => paletteOpen = false}
+			onInjectCommand={(cmd) => {
+				if (activeTabId && paneRefs[activeTabId]) {
+					paneRefs[activeTabId].injectInput(cmd + '\n');
+				}
+			}}
+			serverId={activeTab?.serverId ?? null}
+		/>
 	</div>
 </div>

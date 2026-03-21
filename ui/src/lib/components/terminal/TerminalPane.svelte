@@ -22,9 +22,12 @@
 		mode: TerminalMode;
 		active?: boolean;
 		onStatusChange?: (tabId: string, status: ConnectionStatus) => void;
+		onOpenPalette?: () => void;
 	}
 
-	let { tabId, serverId, mode = 'pty', active = true, onStatusChange }: Props = $props();
+	let { tabId, serverId, mode = 'pty', active = true, onStatusChange, onOpenPalette }: Props = $props();
+
+	let lastTapTime = 0;
 
 	let containerEl: HTMLDivElement;
 	let terminal: Terminal | null = null;
@@ -423,6 +426,14 @@
 		sessionStorage.removeItem(`svrctlrs-term-buffer-${tabId}`);
 	}
 
+	/** Inject text into the terminal as if the user typed it (PTY mode) */
+	export function injectInput(data: string) {
+		if (socket?.readyState === WebSocket.OPEN && mode === 'pty') {
+			const req: PtyRequest = { type: 'input', data };
+			socket.send(JSON.stringify(req));
+		}
+	}
+
 	export function clear() {
 		terminal?.clear();
 		outputHistory = [];
@@ -558,8 +569,17 @@
 	});
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="h-full w-full bg-background"
 	class:hidden={!active}
 	bind:this={containerEl}
+	ontouchend={(e) => {
+		const now = Date.now();
+		if (now - lastTapTime < 300 && onOpenPalette) {
+			e.preventDefault();
+			onOpenPalette();
+		}
+		lastTapTime = now;
+	}}
 ></div>
