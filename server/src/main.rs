@@ -116,11 +116,18 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(true);
     info!(secure = session_secure, "Session cookie configuration");
 
-    let session_layer = SessionManagerLayer::new(session_store)
+    // When ALLOWED_ORIGINS is set (cross-origin/Tauri), use SameSite::None
+    // so cookies work across origins. Otherwise use default (Lax).
+    let has_cors = std::env::var("ALLOWED_ORIGINS").is_ok();
+    let mut session_layer = SessionManagerLayer::new(session_store)
         .with_secure(session_secure)
         .with_expiry(tower_sessions::Expiry::OnInactivity(time::Duration::hours(
             24,
         )));
+    if has_cors {
+        session_layer = session_layer.with_same_site(tower_sessions::cookie::SameSite::None);
+        info!("Session cookie SameSite=None for cross-origin access");
+    }
 
     // Build CORS layer
     let cors_layer = if let Ok(origins) = std::env::var("ALLOWED_ORIGINS") {
