@@ -1,155 +1,256 @@
 {
   "project": "SvrCtlRS",
-  "branchName": "ralph/mobile-responsive",
-  "description": "Make the SvelteKit terminal UI fully responsive for phone-first (375-430px) usage with hamburger drawer sidebar, bottom sheet preferences panel, forced single-pane layout, and touch-friendly targets — while preserving the desktop experience unchanged",
+  "branchName": "ralph/code-quality-audit",
+  "description": "Code quality, security, and accessibility improvements from comprehensive codebase audit — credential security hardening, query optimization, WebSocket cleanup, WCAG accessibility, error handling, and configuration fixes",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Convert sidebar to hamburger drawer on mobile",
-      "description": "As a mobile user, I want the sidebar hidden behind a hamburger menu so the full screen width is available for terminal content.",
+      "title": "Credential model security hardening",
+      "description": "As a developer, I want the Credential struct to never leak sensitive values in logs or debug output, and credential deletion checks to propagate errors properly.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'responsive breakpoints mobile-first hidden md:flex' and SvelteKit docs for 'reactive media query state management'. Use the latest patterns found.",
-        "Sidebar <aside> element: add 'hidden md:flex' so it is hidden below md (768px) and visible as flex on md+",
-        "Add a hamburger button (lucide Menu icon) in +layout.svelte visible only on < md screens ('md:hidden'). Position it fixed top-left (z-50) so it floats above page content",
-        "Add 'mobileOpen' boolean state to +layout.svelte, toggled by the hamburger button",
-        "When mobileOpen is true: sidebar renders as 'fixed inset-y-0 left-0 z-40 w-64 flex flex-col' with slide-in transition (translate-x)",
-        "Add backdrop div: 'fixed inset-0 bg-black/50 z-30' visible when mobileOpen is true, clicking it sets mobileOpen=false",
-        "Add close button (X icon) in sidebar header visible only on mobile overlay mode (when mobileOpen is true)",
-        "Auto-close sidebar (set mobileOpen=false) when any nav link <a> is clicked — use onclick handler on nav items",
-        "Desktop behavior completely unchanged: collapsed/expanded toggle, localStorage persistence, all existing props work",
-        "Typecheck passes (cd ui && npm run check)",
-        "Verify in browser using dev-browser skill at 375px viewport width"
+        "Remove `Debug` from the derive macro on `Credential` struct in `database/src/models/credential.rs`",
+        "Implement manual `std::fmt::Debug` for `Credential` that prints `value: \"[REDACTED]\"` instead of actual credential content — all other fields printed normally using `f.debug_struct(\"Credential\").field(...).finish()`",
+        "In `server/src/routes/api/credentials.rs`, replace `.unwrap_or(false)` on the `credential_in_use()` call with proper error propagation using `?` or `.map_err()` that returns a 500 Internal Server Error",
+        "Add comment on `get_credential()` in `database/src/queries/credentials.rs` documenting that it automatically decrypts credential values via `decrypt_credential()`",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Files: ui/src/routes/+layout.svelte, ui/src/lib/components/layout/Sidebar.svelte. The Sidebar component already accepts 'collapsed' and 'onToggle' props — add 'mobileOpen' and 'onMobileClose' props. Keep the existing desktop collapse mechanism (w-12/w-56 toggle) untouched. The hamburger button should use the same bg-surface styling as the toolbar. Use Tailwind's 'md:' prefix exclusively — no custom @media queries."
+      "notes": "Files: `database/src/models/credential.rs` (Credential struct derives Debug which prints SSH keys/passwords to logs), `server/src/routes/api/credentials.rs` (credential_in_use().unwrap_or(false) silently allows deletion if DB query fails — database error should become 500, not 'safe to delete'). The manual Debug impl pattern: `impl fmt::Debug for Credential { fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.debug_struct(\"Credential\").field(\"id\", &self.id).field(\"name\", &self.name).field(\"value\", &\"[REDACTED]\").field(\"credential_type\", &self.credential_type)...finish() } }`. Keep Serialize/Deserialize/Clone derives unchanged. Read the struct to see all fields."
     },
     {
       "id": "US-002",
-      "title": "Make terminal page toolbar responsive",
-      "description": "As a mobile user, I want the terminal toolbar to fit on my phone screen so I can select servers and access controls without horizontal overflow.",
+      "title": "Configuration cleanup and security defaults",
+      "description": "As an operator, I want the deployment configuration to require an encryption key and not reference deprecated features, so credentials are always encrypted and config is clear.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'flex-wrap responsive layout mobile toolbar pattern'. Use the latest patterns found.",
-        "Hide TerminalIcon and h1 'SvrCtlRS' text on < md screens: add 'hidden md:flex' or 'hidden md:block' to those elements",
-        "Toolbar container: change from 'flex items-center gap-3' to 'flex flex-wrap items-center gap-2 md:gap-3 md:flex-nowrap'",
-        "Server select: add 'flex-1 min-w-0 ml-0 md:ml-4' so it fills available space on mobile and has left margin on desktop",
-        "Mode select: add 'min-w-0' to allow shrinking",
-        "Connect/Disconnect button: keep as-is (already compact)",
-        "Action buttons div (ml-auto): change to 'flex items-center gap-1 md:gap-2' and move to a new row on mobile using 'w-full md:w-auto md:ml-auto' with 'justify-end' so icons right-align on second row",
-        "ConnectionBadge: stays in the action buttons group",
-        "Padding: 'px-2 md:px-4 py-2' on toolbar container",
-        "Desktop toolbar renders as single row unchanged",
-        "Typecheck passes (cd ui && npm run check)",
-        "Verify in browser using dev-browser skill at 375px viewport width"
+        "In `docker-compose.yml`, change `ENCRYPTION_KEY=${ENCRYPTION_KEY:-}` to `ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY environment variable must be set}` so docker-compose fails fast if not set",
+        "In `config/example.toml`, remove the entire `[plugins]` section (docker_enabled, updates_enabled, health_enabled, weather_enabled, speedtest_enabled) — this system was removed and replaced by the terminal-based architecture",
+        "Add a comment in `config/example.toml` noting that the application is now a terminal/SSH management tool",
+        "Verify `docker-compose.yml` parses correctly: `docker-compose config` or manual YAML syntax check",
+        "Verify `config/example.toml` is valid TOML syntax",
+        "`cargo clippy --workspace -- -D warnings` passes"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "File: ui/src/routes/+page.svelte (lines 181-243). The toolbar has: icon, title, server select, mode select, connect button, then ml-auto group with badge + 4 icon buttons. On mobile the icon+title are hidden; selects+button go on row 1; badge+icons wrap to row 2. Use flex-wrap to achieve this naturally."
+      "notes": "Files: `docker-compose.yml` (ENCRYPTION_KEY defaults to empty string, allowing plaintext credential storage — main.rs warns but continues), `config/example.toml` (references removed plugin system that no longer exists on this branch). The `${VAR:?message}` bash parameter expansion errors if VAR is unset or empty. Read both files first to understand full context before editing."
     },
     {
       "id": "US-003",
-      "title": "Convert TerminalPrefsPanel to mobile bottom sheet",
-      "description": "As a mobile user, I want the preferences panel to appear as a bottom sheet so I can easily view and dismiss it.",
+      "title": "Replace dynamic SQL string building in servers.rs with QueryBuilder",
+      "description": "As a developer, I want server update queries to use sqlx::QueryBuilder instead of manual string concatenation, so the code is safer and easier to maintain.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'fixed positioning responsive bottom sheet slide-up animation translate-y' and Svelte docs for 'transition animation CSS classes'. Use the latest patterns found.",
-        "On < md: panel renders as 'fixed bottom-0 left-0 right-0 z-30 h-[70vh] rounded-t-xl' with slide-up animation (translate-y-full to translate-y-0)",
-        "On >= md: panel keeps existing behavior — 'absolute right-0 top-0 bottom-0 w-72' with slide-right animation",
-        "Use Tailwind responsive classes to switch: 'fixed bottom-0 inset-x-0 h-[70vh] rounded-t-xl md:absolute md:right-0 md:top-0 md:bottom-0 md:h-auto md:w-72 md:rounded-none md:inset-x-auto'",
-        "Add a drag handle bar at top of panel on mobile: a centered 40px wide, 4px tall, rounded gray bar (decorative only, not functional drag)",
-        "Add backdrop overlay on mobile: 'fixed inset-0 bg-black/40 z-20 md:hidden' — visible when panel is open, tapping closes panel",
-        "Close button (X) visible in panel header on both mobile and desktop (already exists)",
-        "Panel body remains scrollable with overflow-y-auto on both layouts",
-        "z-index stack: backdrop z-20, panel z-30 (mobile); panel z-20 (desktop, existing)",
-        "Typecheck passes (cd ui && npm run check)",
-        "Verify in browser using dev-browser skill at 375px viewport width"
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query sqlx docs for 'QueryBuilder push push_bind conditional update SQLite'. Use the latest patterns found.",
+        "Replace the manual `String::push_str()` + `Vec<String>` parameter pattern in the `update_server()` function in `database/src/queries/servers.rs` with `sqlx::QueryBuilder`",
+        "Use `.push()` for SQL fragments and `.push_bind()` for all parameter values",
+        "Conditional field updates preserved: only SET fields that are `Some(...)` in the input struct",
+        "Remove the manual `Vec<String>` params accumulator and the for-loop that binds them one by one",
+        "Function behavior unchanged — same fields updated conditionally, same return type",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Files: ui/src/lib/components/terminal/TerminalPrefsPanel.svelte, ui/src/routes/+page.svelte. The panel is currently 'absolute right-0 top-0 bottom-0 w-72 z-20'. The backdrop should be a sibling element rendered conditionally. On +page.svelte, the panel sits inside a 'relative' container wrapping SplitView — on mobile it needs to break out of that container with 'fixed' positioning."
+      "notes": "File: `database/src/queries/servers.rs` (update_server function). Current anti-pattern: builds UPDATE with `String::from(\"UPDATE servers SET updated_at = CURRENT_TIMESTAMP\")` then `query.push_str(\", name = ?\")` for each present field, accumulates values in `Vec<String>`, then binds them in a loop. QueryBuilder pattern: `let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(\"UPDATE servers SET updated_at = CURRENT_TIMESTAMP\"); if let Some(name) = &input.name { qb.push(\", name = \").push_bind(name.clone()); }` ... `qb.push(\" WHERE id = \").push_bind(id); qb.build().execute(pool).await?;`. Import: `use sqlx::QueryBuilder;`. QueryBuilder handles parameter numbering automatically."
     },
     {
       "id": "US-004",
-      "title": "Force single layout and compact tabs on mobile",
-      "description": "As a mobile user, I want the terminal to always show a single pane and have compact tabs so the content is readable on my phone.",
+      "title": "Replace dynamic SQL string building in credentials.rs with QueryBuilder",
+      "description": "As a developer, I want credential update queries to use sqlx::QueryBuilder instead of manual string concatenation.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Svelte docs for 'reactive window matchMedia state derived' and Tailwind CSS v4 docs for 'responsive hidden flex grid mobile'. Use the latest patterns found.",
-        "Create a shared reactive mobile detection utility: a new file ui/src/lib/state/mobile.svelte.ts that exports 'isMobile()' using window.matchMedia('(max-width: 767px)') with a listener for changes — follows the same $state pattern as theme.svelte.ts",
-        "SplitView.svelte: import isMobile and override gridClass to always return 'grid-cols-1 grid-rows-1' when isMobile() is true, regardless of layout prop",
-        "TerminalTabs.svelte: hide layout selector buttons div on mobile with 'hidden md:flex' class",
-        "TerminalTabs.svelte: reduce tab item padding to 'px-2 py-1 md:px-3 md:py-1.5'",
-        "TerminalTabs.svelte: change tab label max-width to 'max-w-[60px] md:max-w-[120px]'",
-        "TerminalTabs.svelte: hide mode badge (CMD/PTY span) on mobile with 'hidden md:inline'",
-        "Tab close button: increase touch target with 'p-1 md:p-0.5' for easier tapping on mobile",
-        "New tab (+) button: increase touch target with 'p-2 md:p-1.5' on mobile",
-        "Desktop split layouts completely unchanged at >= md",
-        "Typecheck passes (cd ui && npm run check)",
-        "Verify in browser using dev-browser skill at 375px viewport width"
+        "Replace the manual `String::push_str()` + `Vec<String>` parameter pattern in the `update_credential()` function in `database/src/queries/credentials.rs` with `sqlx::QueryBuilder`",
+        "Use `.push()` for SQL fragments and `.push_bind()` for all parameter values",
+        "Conditional field updates preserved: only SET fields that are `Some(...)` in the input",
+        "Preserve existing encryption logic — if credential value is updated, it must still be encrypted before storage",
+        "Remove the manual `Vec<String>` params accumulator and binding loop",
+        "Function behavior unchanged",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Files: ui/src/lib/state/mobile.svelte.ts (NEW), ui/src/lib/components/terminal/SplitView.svelte, ui/src/lib/components/terminal/TerminalTabs.svelte. The mobile.svelte.ts module should be minimal — just a $state boolean that tracks matchMedia. SplitView uses CSS grid classes derived from layout prop; on mobile the derived class should ignore the prop entirely. Don't use CSS-only responsive grid because the Svelte $derived logic controls grid-cols/grid-rows."
+      "notes": "File: `database/src/queries/credentials.rs` (update_credential function). Same anti-pattern as US-003. Apply the same QueryBuilder fix. IMPORTANT: The credential value field may be encrypted before storage via `encrypt()` from `core/src/encryption.rs` — make sure to preserve that logic when switching to QueryBuilder. Read the full function to understand the encryption flow before refactoring."
     },
     {
       "id": "US-005",
-      "title": "Responsive search bar and command input",
-      "description": "As a mobile user, I want the search bar and command input to fit my screen width without buttons being pushed off-screen.",
+      "title": "Replace dynamic SQL string building in terminal_profiles.rs with QueryBuilder",
+      "description": "As a developer, I want terminal profile update queries to use sqlx::QueryBuilder instead of manual string concatenation.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'flex-wrap w-full responsive input width'. Use the latest patterns found.",
-        "Search bar container: change padding to 'px-2 md:px-4 py-1.5'",
-        "Search bar container: add 'flex-wrap' to the flex container",
-        "Search input: change width from 'w-64' to 'w-full md:w-64'",
-        "Search buttons (Prev, Next, Close): wrap to second line on mobile with 'flex gap-1 mt-1 md:mt-0 md:gap-2 md:flex-nowrap'",
-        "CommandInput component: verify input uses flex-1 to fill available width (read the component file first, then adjust if needed)",
-        "Desktop search bar layout unchanged (single row)",
-        "Typecheck passes (cd ui && npm run check)",
-        "Verify in browser using dev-browser skill at 375px viewport width"
+        "Replace the manual `String::push_str()` + `Vec<String>` parameter pattern in the `update_terminal_profile()` function in `database/src/queries/terminal_profiles.rs` with `sqlx::QueryBuilder`",
+        "Use `.push()` for SQL fragments and `.push_bind()` for all parameter values",
+        "Conditional field updates preserved",
+        "Fix the `serde_json::to_string().unwrap_or_default()` pattern — replace with proper error propagation using `?` or `.context()`",
+        "Remove the manual `Vec<String>` params accumulator",
+        "Function behavior unchanged",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
       ],
       "priority": 5,
       "passes": true,
-      "notes": "Files: ui/src/routes/+page.svelte (search bar at lines 246-258), ui/src/lib/components/terminal/CommandInput.svelte. The search bar has an input (w-64), then 3 buttons (Prev, Next, Close) all in a single flex row. On 375px the input alone nearly fills the screen. Fix: make input w-full, let buttons wrap below."
+      "notes": "File: `database/src/queries/terminal_profiles.rs` (update_terminal_profile function). Same anti-pattern as US-003 and US-004. Also fix the `unwrap_or_default()` on `serde_json::to_string()` for pane_configs_json — if serialization fails, it silently becomes empty string instead of returning an error. Replace with `.map(|v| serde_json::to_string(v)).transpose().context(\"Failed to serialize pane configs\")?`."
     },
     {
       "id": "US-006",
-      "title": "Responsive content pages (servers, credentials, settings)",
-      "description": "As a mobile user, I want the management pages to be usable on my phone with properly stacked layouts.",
+      "title": "Skip unnecessary credential decryption in list operations",
+      "description": "As a developer, I want credential listing to skip expensive decryption for values that will be redacted anyway, reducing CPU overhead.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'responsive grid card layout mobile stack' and Svelte docs for 'modal responsive max-height overflow'. Use the latest patterns found.",
-        "Servers page: card grid uses 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' (stack on mobile, 2-col on tablet, 3-col on desktop)",
-        "Servers page: action buttons (edit, delete, test) inside cards — icon-only on < md, icon+text on md+ (use 'hidden md:inline' on button text spans)",
-        "Credentials page: same grid pattern as servers — 'grid-cols-1 md:grid-cols-2'",
-        "Settings page: settings table/list uses full width on mobile; inline edit inputs use 'w-full'",
-        "All page headers: use 'flex flex-wrap items-center justify-between gap-2' so title and action button stack on narrow screens",
-        "Modal component (ui/src/lib/components/ui/Modal.svelte): add 'w-[calc(100%-1rem)] md:w-full max-w-lg mx-auto max-h-[90vh] overflow-y-auto' to the modal content wrapper to prevent overflow on mobile",
-        "Form inputs within modals: ensure all use 'w-full' (likely already the case — verify)",
-        "Desktop layouts unchanged at >= md",
-        "Typecheck passes (cd ui && npm run check)",
-        "Verify in browser using dev-browser skill at 375px viewport width"
+        "Modify `list_credentials()` in `database/src/queries/credentials.rs` to NOT call `decrypt_credential()` on each credential",
+        "Instead, set each credential's `value` field to `\"[REDACTED]\"` directly in the list function",
+        "Ensure `get_credential()` (single credential fetch by ID) still decrypts the value for actual use in SSH connections and terminal operations",
+        "Verify API routes that list credentials still work correctly — check `server/src/routes/api/credentials.rs` list endpoint",
+        "Verify terminal routes that need actual values still use `get_credential()` — check `server/src/routes/terminal.rs` and `terminal_pty.rs`",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
       ],
       "priority": 6,
       "passes": true,
-      "notes": "Files: ui/src/routes/servers/+page.svelte, ui/src/routes/credentials/+page.svelte, ui/src/routes/settings/+page.svelte, ui/src/lib/components/ui/Modal.svelte. Read each page file first to understand current layout before making changes. These pages use Button, Input, Select, Modal, Badge components from ui/src/lib/components/ui/. Focus on adding responsive Tailwind classes to the page-level layout — the UI components themselves are likely fine."
+      "notes": "File: `database/src/queries/credentials.rs` (list_credentials function). Current behavior: fetches all credentials then calls `decrypt_credential()` on each one, but the API endpoint immediately redacts the values anyway. The fix: skip `decrypt_credential()` in the list and set `value = \"[REDACTED]\".to_string()`. Keep `get_credential()` (single fetch) unchanged — it's used by terminal.rs and terminal_pty.rs to get actual SSH keys/passwords for connections."
     },
     {
       "id": "US-007",
-      "title": "Touch targets and general mobile polish",
-      "description": "As a mobile user, I want all buttons and interactive elements to be easy to tap accurately on a touchscreen.",
+      "title": "PTY terminal error logging and ssh.rs deprecation notice",
+      "description": "As a developer, I want PTY terminal WebSocket errors to be logged instead of silently dropped, and the deprecated ssh.rs module to be clearly marked.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'touch-action touch-manipulation safe-area-inset env()' and web accessibility docs for 'WCAG 2.5.5 target size minimum'. Use the latest patterns found.",
-        "Add 'touch-action: manipulation' to the <body> element in app.html or app.css to eliminate 300ms tap delay on mobile browsers",
-        "Icon-only buttons in terminal toolbar: change from 'p-1' to 'p-2 md:p-1' for larger mobile touch targets",
-        "Sidebar nav items: change from 'py-1.5' to 'py-2.5 md:py-1.5' for taller mobile touch targets",
-        "Sidebar server list buttons: change from 'py-1.5' to 'py-2.5 md:py-1.5'",
-        "Sidebar bottom buttons (theme toggle, logout): change from 'py-1.5' to 'py-2.5 md:py-1.5'",
-        "Select dropdowns in toolbar: change from 'py-1' to 'py-2 md:py-1' for taller targets",
-        "Update viewport meta tag in app.html: change to 'width=device-width, initial-scale=1, viewport-fit=cover' for notched phones",
-        "Add safe-area padding to sidebar mobile overlay: 'pl-[env(safe-area-inset-left)]' and bottom sheet: 'pb-[env(safe-area-inset-bottom)]'",
-        "Production build succeeds (cd ui && npm run build)",
-        "Typecheck passes (cd ui && npm run check)",
-        "Verify in browser using dev-browser skill at 375px viewport width"
+        "In `server/src/routes/terminal_pty.rs`, add `warn!()` or `debug!()` logging when WebSocket send fails in the output_task (currently just `break`s silently)",
+        "In `server/src/routes/terminal_pty.rs`, add logging when SSH channel operations fail",
+        "In `server/src/ssh.rs`, add a module-level doc comment `//! DEPRECATED: This module uses NoCheck for SSH host key verification.` and `//! Use terminal.rs or terminal_pty.rs which implement proper TOFU verification.`",
+        "Review all `#[allow(dead_code)]` annotations in `server/src/ssh.rs` and `server/src/state.rs` — remove annotations if the code IS used, or add deprecation comments if it's truly dead",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
       ],
       "priority": 7,
       "passes": true,
-      "notes": "Files: ui/src/app.html, ui/src/app.css, ui/src/routes/+page.svelte (toolbar buttons), ui/src/lib/components/layout/Sidebar.svelte (nav items, server list, bottom buttons), ui/src/lib/components/terminal/TerminalPrefsPanel.svelte (safe-area on bottom sheet). This is the final polish pass. All previous stories must be complete first. The key principle: use responsive padding increases (larger on mobile, normal on desktop) rather than changing element sizes. WCAG 2.5.5 recommends 44x44px minimum."
+      "notes": "Files: `server/src/routes/terminal_pty.rs` (output_task silently drops WebSocket send errors — should log), `server/src/ssh.rs` (uses `ServerCheckMethod::NoCheck` with TODO — terminal.rs has proper TOFU via server_host_keys table but ssh.rs does not), `server/src/state.rs` (has #[allow(dead_code)] annotations). The ssh.rs module appears to be used for the connection test API endpoint (`/api/v1/servers/{id}/test`) — if so, it should use TOFU verification too or document the security limitation."
+    },
+    {
+      "id": "US-008",
+      "title": "WebSocket cleanup and toast timer fixes",
+      "description": "As a user, I want the terminal to properly clean up WebSocket connections and timers on unmount so the app doesn't leak memory.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Svelte 5 docs for '$effect cleanup onMount return function timer clearTimeout'. Use the latest patterns found.",
+        "In `ui/src/lib/components/terminal/TerminalPane.svelte`, clear the `reconnectTimeout` in the onMount cleanup function alongside the existing `resizeTimer` and `resizeObserver` cleanup",
+        "In `ui/src/lib/state/toast.svelte.ts`, store setTimeout references in a Map keyed by toast ID",
+        "In `removeToast()`, clear the corresponding timer with `clearTimeout()` before removing the toast from the array",
+        "Ensure all timer handles are properly typed (`ReturnType<typeof setTimeout>`)",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Files: `ui/src/lib/components/terminal/TerminalPane.svelte` (onMount cleanup at ~line 501-514 clears resizeTimer and resizeObserver but NOT reconnectTimeout — if component unmounts during reconnect backoff, the timeout fires and tries to access a disposed terminal), `ui/src/lib/state/toast.svelte.ts` (addToast sets setTimeout but removeToast doesn't clear it — if toast is manually dismissed before auto-dismiss fires, the timer runs uselessly and tries to remove an already-removed toast). Both are resource cleanup issues."
+    },
+    {
+      "id": "US-009",
+      "title": "Error state display and API client error handling",
+      "description": "As a user, I want to see error messages when data fails to load, and as a developer I want the API client to handle errors consistently.",
+      "acceptanceCriteria": [
+        "In `ui/src/routes/servers/+page.svelte`, add error state display between loading and empty states: show `serversError` with red text when non-null",
+        "In `ui/src/routes/credentials/+page.svelte`, add same error state display pattern",
+        "In `ui/src/routes/settings/+page.svelte`, add same error state display pattern",
+        "In `ui/src/lib/api/client.ts`, replace the empty catch block on JSON parse with a fallback that returns `{ error: response.statusText }` or the raw text body",
+        "In `ui/src/lib/api/client.ts` logout function, replace the empty catch block with `console.warn('Logout request failed:', error)`",
+        "Create a shared `extractErrorMessage(e: unknown, fallback?: string): string` utility in `ui/src/lib/utils/error.ts` that handles Error instances, string errors, and unknown types",
+        "Use the utility in the three page components' catch blocks to replace repeated `e instanceof Error ? e.message : 'Operation failed'` pattern",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Files: `ui/src/routes/servers/+page.svelte` (has `serversError = $derived(serversState.getError())` but never displays it — loading/empty states shown but error state missing), same pattern in credentials and settings pages. `ui/src/lib/api/client.ts` has empty catch at JSON parse (~line 34) and logout (~line 69-70). Create new file `ui/src/lib/utils/error.ts` for the shared utility. Error display pattern: `{:else if error}<div class=\"text-center py-8\"><p class=\"text-error\">{error}</p><Button variant=\"secondary\" onclick={reload}>Retry</Button></div>{:else if items.length === 0}`."
+    },
+    {
+      "id": "US-010",
+      "title": "Modal focus trap implementation",
+      "description": "As a keyboard user, I want focus to stay trapped inside open modals so I can navigate modal content without accidentally interacting with the page behind it.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Svelte 5 docs for '$effect cleanup keydown event listener focus trap modal'. Use the latest patterns found.",
+        "Add focus trap logic to `ui/src/lib/components/ui/Modal.svelte` that activates when the modal is open",
+        "On modal open: save `document.activeElement` as the previously focused element, then focus the first focusable element inside the modal content",
+        "Tab from last focusable element wraps to first focusable element inside the modal",
+        "Shift+Tab from first focusable element wraps to last focusable element inside the modal",
+        "Escape key closes the modal via the `onClose` prop (check if already implemented — if so, keep existing logic)",
+        "When modal closes: restore focus to the previously saved element",
+        "Use `$effect` with a cleanup function to add/remove the keydown event listener",
+        "Focusable elements query: `button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex=\"-1\"])`",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "File: `ui/src/lib/components/ui/Modal.svelte`. Read the full component first to understand current structure. The modal likely has an `open` prop and `onClose` callback. The focus trap should: (1) on open, save activeElement and query all focusable elements inside the modal container div, (2) add keydown listener for Tab/Shift+Tab/Escape, (3) on close, remove listener and restore focus. Use `$effect(() => { if (open) { ... setup ... return () => { ... cleanup ... } } })` pattern."
+    },
+    {
+      "id": "US-011",
+      "title": "Fix color contrast and button focus/disabled states",
+      "description": "As a user with visual impairments, I want sufficient color contrast on muted text and visible focus indicators on buttons.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'focus-visible ring outline custom theme'. Use the latest patterns found.",
+        "Update `--color-text-muted` value in `ui/src/app.css` to meet WCAG AA 4.5:1 contrast ratio against `--color-background: #1a1b26` — use a value like `#787c9e` or `#7982a9` (verify luminance ratio >= 4.5:1)",
+        "Check if there's a light theme `--color-text-muted` that also needs updating for contrast against the light background",
+        "Add `:focus-visible` styling to `ui/src/lib/components/ui/Button.svelte` with a visible outline ring (e.g., `outline: 2px solid var(--color-accent); outline-offset: 2px`)",
+        "Add `cursor: not-allowed` to the disabled state in Button.svelte",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "Files: `ui/src/app.css` (--color-text-muted: #565f89 on background #1a1b26 gives ~3.5:1 ratio — below WCAG AA 4.5:1 minimum), `ui/src/lib/components/ui/Button.svelte` (missing :focus-visible styling and cursor:not-allowed on disabled). For contrast: relative luminance of #1a1b26 ≈ 0.02. Color #787c9e has luminance ≈ 0.15, giving ratio ≈ 5.2:1 which passes AA. Also check --color-warning (#e0af68) contrast — it's borderline at ~4.2:1."
+    },
+    {
+      "id": "US-012",
+      "title": "ARIA accessibility improvements",
+      "description": "As a screen reader user, I want icon-only buttons to have accessible labels, tab lists to have proper roles, and connection status changes to be announced.",
+      "acceptanceCriteria": [
+        "Add `aria-label` attributes to all icon-only buttons in the terminal toolbar in `ui/src/routes/+page.svelte` — Clear, Copy, Download, Settings/Preferences buttons",
+        "Add `aria-live=\"polite\"` wrapper around the ConnectionBadge component in `ui/src/routes/+page.svelte` so screen readers announce status changes",
+        "In `ui/src/lib/components/terminal/TerminalTabs.svelte`, add `role=\"tablist\"` to the tab container div, and add `aria-label=\"Close tab\"` to tab close buttons",
+        "Check sidebar icon-only buttons in `ui/src/lib/components/layout/Sidebar.svelte` — add `aria-label` to theme toggle, collapse toggle, and logout buttons if missing",
+        "Run `cd ui && npm run check` and verify no new a11y warnings from svelte-check",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "Files: `ui/src/routes/+page.svelte` (toolbar icon-only buttons have `title` but no `aria-label` — screen readers don't reliably read `title`), `ui/src/lib/components/terminal/TerminalTabs.svelte` (tab container uses role=\"tab\" on items but parent div doesn't have role=\"tablist\", close buttons lack aria-label), `ui/src/lib/components/layout/Sidebar.svelte` (bottom buttons — theme toggle, collapse, logout — may also need aria-label). Svelte 5 has built-in a11y checking via svelte-check."
+    },
+    {
+      "id": "US-013",
+      "title": "Replace inline SVGs with lucide-svelte icons",
+      "description": "As a developer, I want consistent icon usage across the app using the lucide-svelte library instead of hand-coded inline SVGs.",
+      "acceptanceCriteria": [
+        "In `ui/src/routes/+page.svelte`, replace all inline `<svg>` elements in the toolbar action buttons with equivalent lucide-svelte icon components",
+        "Identify the correct lucide icon names for: Clear/Trash (Trash2), Copy (Copy), Download (Download), Settings/Preferences (Settings or SlidersHorizontal), Search (Search)",
+        "Import icons at the top of the file: `import { Trash2, Copy, Download, Settings, Search } from 'lucide-svelte'`",
+        "Apply same `class=\"w-4 h-4\"` sizing as existing inline SVGs",
+        "Verify all toolbar buttons still look and function identically",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 13,
+      "passes": true,
+      "notes": "File: `ui/src/routes/+page.svelte` (toolbar action buttons use inline `<svg>` elements with raw paths). The rest of the app uses `lucide-svelte` consistently (Sidebar uses Menu, X, Terminal, Server, etc.). Check which lucide icons match the current inline SVGs by comparing the SVG paths. The lucide-svelte package is already installed in `ui/package.json`. Read the file first to find all inline SVGs — they're in the action buttons section of the toolbar."
+    },
+    {
+      "id": "US-014",
+      "title": "Final code quality audit and simplification",
+      "description": "As a developer, I want all changes from US-001 through US-013 reviewed for code quality, efficiency, consistency, and deduplication before the branch is finalized.",
+      "acceptanceCriteria": [
+        "Run `/simplify` skill to review ALL files changed by US-001 through US-013 for reuse opportunities, code quality, consistency, and efficiency",
+        "Review every Rust file changed in this branch for: unnecessary clones, redundant error handling, inconsistent naming, missing docs on public functions, dead code",
+        "Review every SvelteKit/TypeScript file changed in this branch for: duplicate logic that could be extracted, inconsistent patterns between components, unused imports, type safety gaps",
+        "Check for any regressions introduced by US-001–US-013: verify no functionality was accidentally broken",
+        "Verify all Rust code compiles and passes quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`",
+        "Verify all frontend code compiles and passes quality checks: `cd ui && npm run check && npm run build`",
+        "If any issues found by the audit, fix them in this story — do not leave TODOs",
+        "All fixes pass both backend and frontend quality checks"
+      ],
+      "priority": 14,
+      "passes": true,
+      "notes": "This is the final review step. Use `git diff ralph/mobile-responsive...HEAD --name-only` to get ALL files changed by the code-quality-audit branch. Then read each changed file fully and evaluate for: (1) Code duplication across files — extract shared utilities, (2) Consistency — naming conventions, error patterns, import styles match the rest of the codebase, (3) Efficiency — unnecessary allocations, redundant operations, over-engineering, (4) Correctness — edge cases, error propagation, type safety. Run the /simplify skill which reviews recently changed code for reuse, quality, and efficiency. Fix any issues found rather than just reporting them."
     }
   ]
 }
