@@ -16,6 +16,7 @@
 	import * as terminalPrefs from '$lib/state/terminalPrefs.svelte.js';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
+	import { getServerUrl } from '$lib/platform/index.js';
 	import type { TerminalMode, ConnectionStatus, CmdRequest, CmdResponse, PtyRequest, PtyResponse } from '$lib/types/index.js';
 
 	interface Props {
@@ -67,8 +68,15 @@
 	}
 
 	function getWsUrl(wsMode: TerminalMode): string {
-		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+		const serverUrl = getServerUrl();
 		const path = wsMode === 'pty' ? '/ws/terminal/pty' : '/ws/terminal';
+		if (serverUrl) {
+			// Tauri mode: convert http(s) URL to ws(s)
+			const wsBase = serverUrl.replace(/^http/, 'ws');
+			return `${wsBase}${path}`;
+		}
+		// Web mode: use current origin
+		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 		return `${protocol}//${window.location.host}${path}`;
 	}
 

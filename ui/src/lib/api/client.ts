@@ -1,4 +1,8 @@
-const API_BASE = '/api/v1';
+import { getServerUrl } from '$lib/platform/index.js';
+
+function getApiBase(): string {
+	return `${getServerUrl()}/api/v1`;
+}
 
 export class ApiError extends Error {
 	constructor(
@@ -12,9 +16,9 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-	const url = `${API_BASE}${path}`;
+	const url = `${getApiBase()}${path}`;
 	const res = await fetch(url, {
-		credentials: 'same-origin',
+		credentials: 'include',
 		headers: {
 			'Content-Type': 'application/json',
 			...options.headers
@@ -65,7 +69,7 @@ export function del<T>(path: string): Promise<T> {
 
 export async function logout(): Promise<void> {
 	try {
-		await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
+		await fetch(`${getServerUrl()}/auth/logout`, { method: 'POST', credentials: 'include' });
 	} catch (e) {
 		console.warn('Logout request failed:', e);
 	}
