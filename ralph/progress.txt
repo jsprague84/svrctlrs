@@ -24,3 +24,50 @@ Started: Thu Mar 20 2026
 - Implementation plan: docs/superpowers/plans/2026-03-20-phase1-foundation.md
 
 ---
+
+## 2026-03-21 - US-001: Upgrade all dependencies
+- xterm 5.5->6.0, Vite 7.3->8.0, vite-plugin-svelte 6.2->7.0, Svelte 5.53->5.54
+- Added @xterm/addon-serialize (new)
+- No breaking changes encountered
+
+## 2026-03-21 - US-002: Rewrite CLAUDE.md
+- Complete rewrite: 1,413 lines -> 156 lines
+- Documents terminal-first architecture, not old job system
+
+## 2026-03-21 - US-003: Database cleanup migration
+- Dropped 20+ legacy tables, FK ordering matters (notification tables before job tables)
+- **Learning:** SQLite with foreign_keys=ON enforces FK constraints during DROP TABLE — must drop leaf tables first
+
+## 2026-03-21 - US-004: QuickCommand model + capability cleanup
+- Created QuickCommand model/queries, extended PaneConfig with mode
+- Removed ServerCapability model + queries + API endpoint (table dropped)
+- **Learning:** Dropping a table requires removing all code that references it — models, queries, API routes, and tests
+
+## 2026-03-21 - US-005: REST API endpoints
+- Profiles + Quick Commands REST endpoints registered in api/mod.rs routes()
+- User authentication via tower-sessions USER_ID_KEY extraction
+
+## 2026-03-21 - US-006: Frontend types, API clients, state modules
+- Created profile types, API clients, state modules following existing patterns
+- Fixed servers.ts to remove capability references
+
+## 2026-03-21 - US-007: Session serialize/restore
+- @xterm/addon-serialize for buffer persistence to sessionStorage
+- Serialize on disconnect, visibilitychange, beforeunload; restore on connect
+- **Learning:** 512KB limit check before serialization prevents sessionStorage quota errors
+
+## 2026-03-21 - US-008: Command palette
+- CommandPalette.svelte: responsive overlay/bottom sheet with fuzzy search
+- Ctrl+K shortcut, double-tap gesture via onOpenPalette callback prop
+- injectInput() method on TerminalPane writes to PTY
+- **Learning:** Svelte 5 a11y warns about dialog elements without tabindex
+
+## 2026-03-21 - US-009: Terminal profiles UI
+- ProfileManager save dialog, Sidebar profiles section, load/delete
+- captureProfileState() and applyProfile() in terminal state
+- 'Save Layout as Profile' action in command palette
+
+## 2026-03-21 - US-010: Design system tokens
+- --density, --duration-*, --easing-default CSS tokens
+- Compact density auto-applied on mobile via $effect
+---

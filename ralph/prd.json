@@ -23,7 +23,7 @@
         "`cargo test --workspace` passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Run `npm outdated` first to see current vs latest versions. Key major bumps: xterm 5.5->6.0, vite 7.3->8.0, @sveltejs/vite-plugin-svelte 6.2->7.0. The @xterm/addon-serialize package is NOT currently installed — add it new. After upgrading, read the xterm.js, Vite, and vite-plugin-svelte changelogs to identify breaking changes. Common xterm 6 changes: Terminal constructor options, addon API signatures. Common Vite 8 changes: config file format, plugin API."
     },
     {
@@ -41,7 +41,7 @@
         "`cargo clippy --workspace -- -D warnings` passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "The current CLAUDE.md is 1,413 lines describing the old job-based automation system. Read the design spec at docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md section 6 for what the new CLAUDE.md should contain. Key sections: Project Purpose, Architecture (Frontend + Backend + Workspace Crates), Build Commands, Directory Structure, Key Patterns (State Management, Database Queries, Terminal Modes, Theme System, Mobile Breakpoint), Future Direction (Tauri v2). Keep it concise — under 200 lines."
     },
     {
@@ -59,7 +59,7 @@
         "`cargo test --workspace` passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Check migration files in database/migrations/ — 018 is the latest, so this is 019. Use DROP TABLE IF EXISTS for safety. The quick_commands table replaces the quick_commands TEXT field on terminal_profiles (which stored a flat Vec<String> — too limited). Leave the old column on terminal_profiles (SQLite DROP COLUMN compatibility). Tables to preserve: servers, credentials, users, settings, terminal_profiles, server_host_keys. Verify migration runs by checking `cargo test --workspace` which runs migrations on in-memory SQLite."
     },
     {
@@ -78,7 +78,7 @@
         "`cargo test --workspace` passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Follow the existing pattern in database/src/models/credential.rs and database/src/queries/credentials.rs. The models/mod.rs uses `pub use` re-exports — add `pub use quick_command::*;` to match. QuickCommand fields: id (i64), user_id (Option<i64>), name (String), command (String), server_id (Option<i64>), category (String), sort_order (i32), created_at/updated_at (DateTime<Utc>). All derive Debug, Clone, Serialize, Deserialize, FromRow."
     },
     {
@@ -96,7 +96,7 @@
         "`cargo test --workspace` passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Read server/src/routes/api/mod.rs to see how routes are registered — it has a `pub fn routes() -> Router<AppState>` function that nests sub-routers. Read server/src/routes/api/credentials.rs as the reference pattern for CRUD endpoints. Read server/src/routes/ui/auth.rs to understand how user_id is extracted from the session (look for session middleware, tower-sessions usage). Response format: JSON with appropriate status codes (200, 201, 404, 500)."
     },
     {
@@ -114,7 +114,7 @@
         "`cd ui && npm run build` passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Follow these existing patterns exactly: ui/src/lib/api/servers.ts for API client (thin wrappers around get/post/put/del from client.ts), ui/src/lib/state/servers.svelte.ts for state module ($state variables, exported getter functions, async loaders with try/catch using extractErrorMessage from $lib/utils/error.js). PaneConfig type: { server_id: number | null, mode: 'pty' | 'cmd' | null }. Use snake_case for API fields to match Rust serde defaults."
     },
     {
@@ -135,7 +135,7 @@
         "`cd ui && npm run build` passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "File: ui/src/lib/components/terminal/TerminalPane.svelte. The serialize addon API: `const data = serializeAddon.serialize()` returns a string, `terminal.write(data)` restores it. Storage key: `svrctlrs-term-buffer-${tabId}` where tabId comes from the component's props. The reconnect prompt is display-only — the serialized buffer shows what was on screen but the shell session cannot be resumed (PTY is stateless from the client side). The overlay should have two buttons: 'Reconnect' (calls connect()) and 'New Session' (calls disconnect then connect with fresh state). Use $effect for the visibilitychange listener with cleanup."
     },
     {
@@ -160,7 +160,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Read ui/src/routes/+page.svelte for the existing keyboard shortcut handler (lines 64-133 in onMount handleKeydown function — add Ctrl+K there). Read ui/src/lib/components/terminal/TerminalPrefsPanel.svelte for the bottom sheet mobile pattern (it uses fixed bottom-0 with backdrop). The TerminalPane component uses Svelte 5 callback props (e.g., onStatusChange) — use the same pattern for onOpenPalette, NOT createEventDispatcher. Import isMobile from '$lib/state/mobile.svelte.js'. For command history access: TerminalPane stores history in localStorage keyed per server — the palette can read from localStorage directly."
     },
     {
@@ -181,7 +181,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "Read ui/src/lib/components/layout/Sidebar.svelte for the existing nav items and server list pattern — profiles go below servers with the same styling. Read ui/src/lib/state/terminal.svelte.ts (230 lines) for tab management — captureProfileState() should iterate getTabs() and build PaneConfig[]. Read ui/src/routes/+page.svelte onMount to see where the initial empty tab is created — replace with default profile check. The profiles state module (from US-006) provides getProfiles(), loadProfiles(), etc. The Sidebar component uses collapsed/mobileOpen props — profile labels should follow the same visibility pattern."
     },
     {
@@ -199,7 +199,7 @@
         "All backend and frontend quality checks pass after fixes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Read ui/src/app.css for the existing @theme block structure — add the new tokens inside it. For the density scaling, start simple: just define the CSS variables and the compact override. Actual component padding adjustments can be incremental. In +layout.svelte, use a reactive effect: `$effect(() => { document.documentElement.dataset.density = isMobile() ? 'compact' : 'comfortable'; })`. Import isMobile from '$lib/state/mobile.svelte.js'. The /simplify skill reviews recently changed code for reuse, quality, and efficiency — run it after all other changes are committed."
     }
   ]
