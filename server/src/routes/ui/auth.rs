@@ -64,6 +64,8 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
                 if !token.is_empty() {
                     // Query the sessions table directly to validate the token
                     if let Some(pool) = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>() {
+                        tracing::info!(token_prefix = &token[..token.len().min(8)], "Looking up session token");
+
                         let valid: Option<(String,)> = svrctlrs_database::sqlx::query_as(
                             "SELECT data FROM tower_sessions WHERE id = ? AND expiry_date > datetime('now')"
                         )
@@ -72,10 +74,21 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
                         .await
                         .unwrap_or(None);
 
+                        tracing::info!(found = valid.is_some(), "Session lookup result");
+
                         if valid.is_some() {
                             tracing::info!("Authenticated via Bearer token");
                             return next.run(request).await;
                         }
+
+                        // Debug: check if ANY sessions exist
+                        let count: Option<(i64,)> = svrctlrs_database::sqlx::query_as(
+                            "SELECT COUNT(*) FROM tower_sessions"
+                        )
+                        .fetch_optional(pool)
+                        .await
+                        .unwrap_or(None);
+                        tracing::info!(session_count = ?count, "Total sessions in store");
                     }
                 }
             }
