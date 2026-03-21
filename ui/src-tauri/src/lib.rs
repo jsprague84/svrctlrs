@@ -1,3 +1,4 @@
+#[cfg(desktop)]
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -51,11 +52,11 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|window, event| {
+        .on_window_event(|_window, _event| {
             // Hide to tray on close instead of quitting (desktop only)
             #[cfg(desktop)]
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
+            if let tauri::WindowEvent::CloseRequested { api, .. } = _event {
+                let _ = _window.hide();
                 api.prevent_close();
             }
         })
