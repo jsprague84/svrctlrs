@@ -1,0 +1,155 @@
+{
+  "project": "SvrCtlRS",
+  "branchName": "ralph/mobile-responsive",
+  "description": "Make the SvelteKit terminal UI fully responsive for phone-first (375-430px) usage with hamburger drawer sidebar, bottom sheet preferences panel, forced single-pane layout, and touch-friendly targets — while preserving the desktop experience unchanged",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Convert sidebar to hamburger drawer on mobile",
+      "description": "As a mobile user, I want the sidebar hidden behind a hamburger menu so the full screen width is available for terminal content.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'responsive breakpoints mobile-first hidden md:flex' and SvelteKit docs for 'reactive media query state management'. Use the latest patterns found.",
+        "Sidebar <aside> element: add 'hidden md:flex' so it is hidden below md (768px) and visible as flex on md+",
+        "Add a hamburger button (lucide Menu icon) in +layout.svelte visible only on < md screens ('md:hidden'). Position it fixed top-left (z-50) so it floats above page content",
+        "Add 'mobileOpen' boolean state to +layout.svelte, toggled by the hamburger button",
+        "When mobileOpen is true: sidebar renders as 'fixed inset-y-0 left-0 z-40 w-64 flex flex-col' with slide-in transition (translate-x)",
+        "Add backdrop div: 'fixed inset-0 bg-black/50 z-30' visible when mobileOpen is true, clicking it sets mobileOpen=false",
+        "Add close button (X icon) in sidebar header visible only on mobile overlay mode (when mobileOpen is true)",
+        "Auto-close sidebar (set mobileOpen=false) when any nav link <a> is clicked — use onclick handler on nav items",
+        "Desktop behavior completely unchanged: collapsed/expanded toggle, localStorage persistence, all existing props work",
+        "Typecheck passes (cd ui && npm run check)",
+        "Verify in browser using dev-browser skill at 375px viewport width"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Files: ui/src/routes/+layout.svelte, ui/src/lib/components/layout/Sidebar.svelte. The Sidebar component already accepts 'collapsed' and 'onToggle' props — add 'mobileOpen' and 'onMobileClose' props. Keep the existing desktop collapse mechanism (w-12/w-56 toggle) untouched. The hamburger button should use the same bg-surface styling as the toolbar. Use Tailwind's 'md:' prefix exclusively — no custom @media queries."
+    },
+    {
+      "id": "US-002",
+      "title": "Make terminal page toolbar responsive",
+      "description": "As a mobile user, I want the terminal toolbar to fit on my phone screen so I can select servers and access controls without horizontal overflow.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'flex-wrap responsive layout mobile toolbar pattern'. Use the latest patterns found.",
+        "Hide TerminalIcon and h1 'SvrCtlRS' text on < md screens: add 'hidden md:flex' or 'hidden md:block' to those elements",
+        "Toolbar container: change from 'flex items-center gap-3' to 'flex flex-wrap items-center gap-2 md:gap-3 md:flex-nowrap'",
+        "Server select: add 'flex-1 min-w-0 ml-0 md:ml-4' so it fills available space on mobile and has left margin on desktop",
+        "Mode select: add 'min-w-0' to allow shrinking",
+        "Connect/Disconnect button: keep as-is (already compact)",
+        "Action buttons div (ml-auto): change to 'flex items-center gap-1 md:gap-2' and move to a new row on mobile using 'w-full md:w-auto md:ml-auto' with 'justify-end' so icons right-align on second row",
+        "ConnectionBadge: stays in the action buttons group",
+        "Padding: 'px-2 md:px-4 py-2' on toolbar container",
+        "Desktop toolbar renders as single row unchanged",
+        "Typecheck passes (cd ui && npm run check)",
+        "Verify in browser using dev-browser skill at 375px viewport width"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "File: ui/src/routes/+page.svelte (lines 181-243). The toolbar has: icon, title, server select, mode select, connect button, then ml-auto group with badge + 4 icon buttons. On mobile the icon+title are hidden; selects+button go on row 1; badge+icons wrap to row 2. Use flex-wrap to achieve this naturally."
+    },
+    {
+      "id": "US-003",
+      "title": "Convert TerminalPrefsPanel to mobile bottom sheet",
+      "description": "As a mobile user, I want the preferences panel to appear as a bottom sheet so I can easily view and dismiss it.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'fixed positioning responsive bottom sheet slide-up animation translate-y' and Svelte docs for 'transition animation CSS classes'. Use the latest patterns found.",
+        "On < md: panel renders as 'fixed bottom-0 left-0 right-0 z-30 h-[70vh] rounded-t-xl' with slide-up animation (translate-y-full to translate-y-0)",
+        "On >= md: panel keeps existing behavior — 'absolute right-0 top-0 bottom-0 w-72' with slide-right animation",
+        "Use Tailwind responsive classes to switch: 'fixed bottom-0 inset-x-0 h-[70vh] rounded-t-xl md:absolute md:right-0 md:top-0 md:bottom-0 md:h-auto md:w-72 md:rounded-none md:inset-x-auto'",
+        "Add a drag handle bar at top of panel on mobile: a centered 40px wide, 4px tall, rounded gray bar (decorative only, not functional drag)",
+        "Add backdrop overlay on mobile: 'fixed inset-0 bg-black/40 z-20 md:hidden' — visible when panel is open, tapping closes panel",
+        "Close button (X) visible in panel header on both mobile and desktop (already exists)",
+        "Panel body remains scrollable with overflow-y-auto on both layouts",
+        "z-index stack: backdrop z-20, panel z-30 (mobile); panel z-20 (desktop, existing)",
+        "Typecheck passes (cd ui && npm run check)",
+        "Verify in browser using dev-browser skill at 375px viewport width"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Files: ui/src/lib/components/terminal/TerminalPrefsPanel.svelte, ui/src/routes/+page.svelte. The panel is currently 'absolute right-0 top-0 bottom-0 w-72 z-20'. The backdrop should be a sibling element rendered conditionally. On +page.svelte, the panel sits inside a 'relative' container wrapping SplitView — on mobile it needs to break out of that container with 'fixed' positioning."
+    },
+    {
+      "id": "US-004",
+      "title": "Force single layout and compact tabs on mobile",
+      "description": "As a mobile user, I want the terminal to always show a single pane and have compact tabs so the content is readable on my phone.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Svelte docs for 'reactive window matchMedia state derived' and Tailwind CSS v4 docs for 'responsive hidden flex grid mobile'. Use the latest patterns found.",
+        "Create a shared reactive mobile detection utility: a new file ui/src/lib/state/mobile.svelte.ts that exports 'isMobile()' using window.matchMedia('(max-width: 767px)') with a listener for changes — follows the same $state pattern as theme.svelte.ts",
+        "SplitView.svelte: import isMobile and override gridClass to always return 'grid-cols-1 grid-rows-1' when isMobile() is true, regardless of layout prop",
+        "TerminalTabs.svelte: hide layout selector buttons div on mobile with 'hidden md:flex' class",
+        "TerminalTabs.svelte: reduce tab item padding to 'px-2 py-1 md:px-3 md:py-1.5'",
+        "TerminalTabs.svelte: change tab label max-width to 'max-w-[60px] md:max-w-[120px]'",
+        "TerminalTabs.svelte: hide mode badge (CMD/PTY span) on mobile with 'hidden md:inline'",
+        "Tab close button: increase touch target with 'p-1 md:p-0.5' for easier tapping on mobile",
+        "New tab (+) button: increase touch target with 'p-2 md:p-1.5' on mobile",
+        "Desktop split layouts completely unchanged at >= md",
+        "Typecheck passes (cd ui && npm run check)",
+        "Verify in browser using dev-browser skill at 375px viewport width"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Files: ui/src/lib/state/mobile.svelte.ts (NEW), ui/src/lib/components/terminal/SplitView.svelte, ui/src/lib/components/terminal/TerminalTabs.svelte. The mobile.svelte.ts module should be minimal — just a $state boolean that tracks matchMedia. SplitView uses CSS grid classes derived from layout prop; on mobile the derived class should ignore the prop entirely. Don't use CSS-only responsive grid because the Svelte $derived logic controls grid-cols/grid-rows."
+    },
+    {
+      "id": "US-005",
+      "title": "Responsive search bar and command input",
+      "description": "As a mobile user, I want the search bar and command input to fit my screen width without buttons being pushed off-screen.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'flex-wrap w-full responsive input width'. Use the latest patterns found.",
+        "Search bar container: change padding to 'px-2 md:px-4 py-1.5'",
+        "Search bar container: add 'flex-wrap' to the flex container",
+        "Search input: change width from 'w-64' to 'w-full md:w-64'",
+        "Search buttons (Prev, Next, Close): wrap to second line on mobile with 'flex gap-1 mt-1 md:mt-0 md:gap-2 md:flex-nowrap'",
+        "CommandInput component: verify input uses flex-1 to fill available width (read the component file first, then adjust if needed)",
+        "Desktop search bar layout unchanged (single row)",
+        "Typecheck passes (cd ui && npm run check)",
+        "Verify in browser using dev-browser skill at 375px viewport width"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Files: ui/src/routes/+page.svelte (search bar at lines 246-258), ui/src/lib/components/terminal/CommandInput.svelte. The search bar has an input (w-64), then 3 buttons (Prev, Next, Close) all in a single flex row. On 375px the input alone nearly fills the screen. Fix: make input w-full, let buttons wrap below."
+    },
+    {
+      "id": "US-006",
+      "title": "Responsive content pages (servers, credentials, settings)",
+      "description": "As a mobile user, I want the management pages to be usable on my phone with properly stacked layouts.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'responsive grid card layout mobile stack' and Svelte docs for 'modal responsive max-height overflow'. Use the latest patterns found.",
+        "Servers page: card grid uses 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3' (stack on mobile, 2-col on tablet, 3-col on desktop)",
+        "Servers page: action buttons (edit, delete, test) inside cards — icon-only on < md, icon+text on md+ (use 'hidden md:inline' on button text spans)",
+        "Credentials page: same grid pattern as servers — 'grid-cols-1 md:grid-cols-2'",
+        "Settings page: settings table/list uses full width on mobile; inline edit inputs use 'w-full'",
+        "All page headers: use 'flex flex-wrap items-center justify-between gap-2' so title and action button stack on narrow screens",
+        "Modal component (ui/src/lib/components/ui/Modal.svelte): add 'w-[calc(100%-1rem)] md:w-full max-w-lg mx-auto max-h-[90vh] overflow-y-auto' to the modal content wrapper to prevent overflow on mobile",
+        "Form inputs within modals: ensure all use 'w-full' (likely already the case — verify)",
+        "Desktop layouts unchanged at >= md",
+        "Typecheck passes (cd ui && npm run check)",
+        "Verify in browser using dev-browser skill at 375px viewport width"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Files: ui/src/routes/servers/+page.svelte, ui/src/routes/credentials/+page.svelte, ui/src/routes/settings/+page.svelte, ui/src/lib/components/ui/Modal.svelte. Read each page file first to understand current layout before making changes. These pages use Button, Input, Select, Modal, Badge components from ui/src/lib/components/ui/. Focus on adding responsive Tailwind classes to the page-level layout — the UI components themselves are likely fine."
+    },
+    {
+      "id": "US-007",
+      "title": "Touch targets and general mobile polish",
+      "description": "As a mobile user, I want all buttons and interactive elements to be easy to tap accurately on a touchscreen.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Before implementing, use the Context7 MCP tool to query Tailwind CSS v4 docs for 'touch-action touch-manipulation safe-area-inset env()' and web accessibility docs for 'WCAG 2.5.5 target size minimum'. Use the latest patterns found.",
+        "Add 'touch-action: manipulation' to the <body> element in app.html or app.css to eliminate 300ms tap delay on mobile browsers",
+        "Icon-only buttons in terminal toolbar: change from 'p-1' to 'p-2 md:p-1' for larger mobile touch targets",
+        "Sidebar nav items: change from 'py-1.5' to 'py-2.5 md:py-1.5' for taller mobile touch targets",
+        "Sidebar server list buttons: change from 'py-1.5' to 'py-2.5 md:py-1.5'",
+        "Sidebar bottom buttons (theme toggle, logout): change from 'py-1.5' to 'py-2.5 md:py-1.5'",
+        "Select dropdowns in toolbar: change from 'py-1' to 'py-2 md:py-1' for taller targets",
+        "Update viewport meta tag in app.html: change to 'width=device-width, initial-scale=1, viewport-fit=cover' for notched phones",
+        "Add safe-area padding to sidebar mobile overlay: 'pl-[env(safe-area-inset-left)]' and bottom sheet: 'pb-[env(safe-area-inset-bottom)]'",
+        "Production build succeeds (cd ui && npm run build)",
+        "Typecheck passes (cd ui && npm run check)",
+        "Verify in browser using dev-browser skill at 375px viewport width"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Files: ui/src/app.html, ui/src/app.css, ui/src/routes/+page.svelte (toolbar buttons), ui/src/lib/components/layout/Sidebar.svelte (nav items, server list, bottom buttons), ui/src/lib/components/terminal/TerminalPrefsPanel.svelte (safe-area on bottom sheet). This is the final polish pass. All previous stories must be complete first. The key principle: use responsive padding increases (larger on mobile, normal on desktop) rather than changing element sizes. WCAG 2.5.5 recommends 44x44px minimum."
+    }
+  ]
+}

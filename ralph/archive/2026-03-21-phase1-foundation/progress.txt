@@ -1,0 +1,73 @@
+# Ralph Progress Log
+Started: Thu Mar 20 2026
+
+## Codebase Patterns
+- Branch: ralph/phase1-foundation (from ralph/code-quality-audit) — terminal/SSH management tool
+- IMPORTANT: main branch is stale (old job system). Never use as base.
+- Rust workspace: core, database, server (scheduler exists but unused)
+- SvelteKit 5 frontend in `ui/` — Svelte 5 runes ($state, $derived, $effect), Tailwind CSS v4, adapter-static
+- State modules in `ui/src/lib/state/*.svelte.ts` export getter functions wrapping `$state` variables
+- Database queries in `database/src/queries/` — use `anyhow::Context` for errors, `sqlx::QueryBuilder` for dynamic SQL
+- Credential values encrypted at rest with AES-256-GCM via `core/src/encryption.rs`
+- Two SSH libraries: `async-ssh2-tokio` (non-interactive, terminal.rs) and `russh` (PTY/interactive, terminal_pty.rs)
+- ssh.rs uses NoCheck for host keys (DEPRECATED), terminal.rs implements proper TOFU
+- Backend quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`
+- Frontend quality checks: `cd ui && npm run check && npm run build`
+- Svelte 5 uses callback props (onSomething), NOT createEventDispatcher (Svelte 4)
+- API routes registered in `server/src/routes/api/mod.rs` routes() function, NOT in main.rs
+- Use Context7 MCP tool to research latest library patterns before implementing
+- Use /simplify skill after completing implementation for code quality review
+- Icon library: lucide-svelte
+- Mobile breakpoint: md (768px), detection via `ui/src/lib/state/mobile.svelte.ts`
+- Error handling: use `extractErrorMessage()` from `$lib/utils/error.js` in all catch blocks
+- Design spec: docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md
+- Implementation plan: docs/superpowers/plans/2026-03-20-phase1-foundation.md
+
+---
+
+## 2026-03-21 - US-001: Upgrade all dependencies
+- xterm 5.5->6.0, Vite 7.3->8.0, vite-plugin-svelte 6.2->7.0, Svelte 5.53->5.54
+- Added @xterm/addon-serialize (new)
+- No breaking changes encountered
+
+## 2026-03-21 - US-002: Rewrite CLAUDE.md
+- Complete rewrite: 1,413 lines -> 156 lines
+- Documents terminal-first architecture, not old job system
+
+## 2026-03-21 - US-003: Database cleanup migration
+- Dropped 20+ legacy tables, FK ordering matters (notification tables before job tables)
+- **Learning:** SQLite with foreign_keys=ON enforces FK constraints during DROP TABLE — must drop leaf tables first
+
+## 2026-03-21 - US-004: QuickCommand model + capability cleanup
+- Created QuickCommand model/queries, extended PaneConfig with mode
+- Removed ServerCapability model + queries + API endpoint (table dropped)
+- **Learning:** Dropping a table requires removing all code that references it — models, queries, API routes, and tests
+
+## 2026-03-21 - US-005: REST API endpoints
+- Profiles + Quick Commands REST endpoints registered in api/mod.rs routes()
+- User authentication via tower-sessions USER_ID_KEY extraction
+
+## 2026-03-21 - US-006: Frontend types, API clients, state modules
+- Created profile types, API clients, state modules following existing patterns
+- Fixed servers.ts to remove capability references
+
+## 2026-03-21 - US-007: Session serialize/restore
+- @xterm/addon-serialize for buffer persistence to sessionStorage
+- Serialize on disconnect, visibilitychange, beforeunload; restore on connect
+- **Learning:** 512KB limit check before serialization prevents sessionStorage quota errors
+
+## 2026-03-21 - US-008: Command palette
+- CommandPalette.svelte: responsive overlay/bottom sheet with fuzzy search
+- Ctrl+K shortcut, double-tap gesture via onOpenPalette callback prop
+- injectInput() method on TerminalPane writes to PTY
+- **Learning:** Svelte 5 a11y warns about dialog elements without tabindex
+
+## 2026-03-21 - US-009: Terminal profiles UI
+- ProfileManager save dialog, Sidebar profiles section, load/delete
+- captureProfileState() and applyProfile() in terminal state
+- 'Save Layout as Profile' action in command palette
+
+## 2026-03-21 - US-010: Design system tokens
+- --density, --duration-*, --easing-default CSS tokens
+- Compact density auto-applied on mobile via $effect
+---
