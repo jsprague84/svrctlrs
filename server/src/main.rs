@@ -3,6 +3,7 @@
 #![allow(non_snake_case)]
 
 mod config;
+mod health_monitor;
 mod routes;
 mod ssh;
 mod state;
@@ -210,6 +211,9 @@ async fn main() -> anyhow::Result<()> {
             ),
         ))
         .layer(cors_layer);
+
+    // Start background health monitor
+    health_monitor::start_health_monitor(state.clone());
 
     // Start server with graceful shutdown
     let listener = tokio::net::TcpListener::bind(&args.addr).await?;
