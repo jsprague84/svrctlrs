@@ -1,0 +1,63 @@
+# Ralph Progress Log — Phase 2: Mobile UX
+Started: Fri Mar 21 2026
+
+## Codebase Patterns
+- Branch: ralph/phase2-mobile-ux (from ralph/phase1-foundation)
+- IMPORTANT: main branch is stale (old job system). Never use as base.
+- Rust workspace: core, database, server (scheduler exists but unused)
+- SvelteKit 5 frontend in `ui/` — Svelte 5 runes, Tailwind CSS v4, adapter-static
+- State modules: `ui/src/lib/state/*.svelte.ts` — $state with exported getter functions
+- Error handling: use `extractErrorMessage()` from `$lib/utils/error.js`
+- Svelte 5: callback props (onSomething), NOT createEventDispatcher
+- API routes registered in `server/src/routes/api/mod.rs` routes(), NOT main.rs
+- Use sqlx::QueryBuilder for dynamic SQL, anyhow::Context for errors
+- Mobile breakpoint: md (768px), detection via `isMobile()` from `$lib/state/mobile.svelte.js`
+- viewport-fit=cover already set in app.html for safe-area support
+- touch-action: manipulation already set (no double-tap zoom)
+- Sidebar already uses safe-area-inset-left, TerminalPrefsPanel uses safe-area-inset-bottom
+- Terminal serialization: @xterm/addon-serialize saves to sessionStorage on disconnect/visibility change
+- Command palette: Ctrl+K (desktop) / double-tap (mobile), CommandPalette.svelte
+- Profiles: ProfileManager.svelte (save), Sidebar (load/delete), profiles.svelte.ts (state)
+- Backend quality: `cargo clippy --workspace -- -D warnings && cargo test --workspace`
+- Frontend quality: `cd ui && npm run check && npm run build`
+- Use Context7 MCP tool to research latest library patterns before implementing
+- Use /simplify skill after completing implementation for code quality review
+- Design spec: docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md
+
+---
+
+## 2026-03-21 - US-001/002: Mobile status bar + tab dots
+- MobileStatusBar replaces full toolbar on mobile (<768px)
+- TabDots component: color-coded dots, 2+ tabs only, overflow badge
+- toggle-sidebar event pattern for cross-component sidebar control
+
+## 2026-03-21 - US-003: Swipe tab navigation
+- Touch gesture on TerminalPane container: >50px horizontal, <30px vertical
+- Coexists with double-tap (timing vs distance discrimination)
+
+## 2026-03-21 - US-004: Extra keys row + keyboard detection
+- ExtraKeysRow: ESC, TAB, CTL, ALT, arrows, pipe with modifier toggle
+- platform/keyboard.ts: visualViewport resize heuristic (>150px = keyboard)
+- **Learning:** CTL/ALT as toggles that auto-clear after next keypress
+
+## 2026-03-21 - US-005: Reconnect overlay
+- Shows on max reconnect attempts, semi-transparent over preserved scrollback
+- Reconnect vs New Session buttons, auto-hides on connect()
+
+## 2026-03-21 - US-006: Hide desktop controls on mobile
+- Wrapped toolbar, search bar, CMD input, tab bar in isMobile() guards
+- Added server list, Clear, Copy, Download, Search, Connect, Disconnect to CommandPalette
+
+## 2026-03-21 - US-007: Gesture hint
+- First-visit hint with 5s auto-fade, localStorage persistence
+
+## 2026-03-21 - US-008: Safe-area fixes
+- Hamburger: safe-area-inset-top/left; Terminal: safe-area-inset-bottom when keyboard hidden
+
+## 2026-03-21 - US-009: Mobile connect flow
+- Server list in CommandPalette, 'Add Server' when empty
+
+## 2026-03-21 - US-010: Integration testing
+- Fixed: $derived.by bug, TabDots double-fire, CommandPalette modulo zero
+- All backend (clippy + tests) and frontend (check + build) pass
+---

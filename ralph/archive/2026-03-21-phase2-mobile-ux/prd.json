@@ -1,0 +1,207 @@
+{
+  "project": "SvrCtlRS",
+  "branchName": "ralph/phase2-mobile-ux",
+  "description": "Phase 2 Mobile UX — Invisible-until-needed terminal layout for phone screens with minimal status bar, tab dot indicators, swipe navigation, extra keys row, PTY session reconnect overlay, and safe-area support",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Mobile status bar component replacing toolbar",
+      "description": "As a mobile user, I want the bulky toolbar replaced with a minimal 20px status bar showing only server name, connection status, tab dots, and hamburger menu, so the terminal fills the entire screen.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Svelte 5 docs for '$effect reactive conditional rendering responsive layout' and Tailwind CSS v4 docs for 'safe-area-inset env responsive hidden'. Use latest patterns found.",
+        "Create `ui/src/lib/components/terminal/MobileStatusBar.svelte` with: connection dot (colored by status), server name (truncated with ellipsis), tab dot indicators (see US-002), and hamburger icon",
+        "Status bar height: ~20px, single row, fixed at top of terminal area",
+        "On mobile (< 768px / isMobile()): hide the full toolbar (TerminalTabs + action buttons row) and show MobileStatusBar instead",
+        "On desktop (>= 768px): show existing toolbar normally, hide MobileStatusBar",
+        "Status bar uses `pt-[max(0.25rem,env(safe-area-inset-top))]` for notch devices",
+        "Hamburger icon in status bar opens the sidebar (same behavior as existing hamburger in +layout.svelte)",
+        "Move the existing hamburger button from +layout.svelte to only show on non-terminal pages on mobile — the terminal page uses the status bar hamburger instead",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Files to modify: `ui/src/routes/+page.svelte` (conditionally render toolbar vs status bar based on isMobile()), `ui/src/routes/+layout.svelte` (coordinate hamburger with terminal page). Import isMobile from '$lib/state/mobile.svelte.js'. The existing toolbar at +page.svelte:192-256 has multiple rows of controls (server selector, mode, connect, icons) — all hidden on mobile. The MobileStatusBar replaces this with a single thin row. Props should include: serverId, serverName, connectionStatus, tabs (for dot indicators), onHamburgerClick. Use the terminal theme colors (bg-surface, border-border)."
+    },
+    {
+      "id": "US-002",
+      "title": "Tab dot indicators in mobile status bar",
+      "description": "As a mobile user, I want small dot indicators in the status bar showing my open tabs and their connection status, so I know what's open without a tab bar.",
+      "acceptanceCriteria": [
+        "Create `ui/src/lib/components/terminal/TabDots.svelte` — a minimal dot indicator component",
+        "Active tab: 6px dot in accent color (--color-accent)",
+        "Other tabs: 4px dots colored by connection status (--color-success for connected, --color-error for disconnected, --color-text-muted for idle)",
+        "Only render dots when 2+ tabs exist — single tab shows no dots (cleanest status bar)",
+        "Beyond 8 tabs, truncate dots and show count badge (e.g., `+3` in text-[9px])",
+        "Tapping the dots area dispatches an event to open a full tab list bottom sheet overlay",
+        "Integrate TabDots into MobileStatusBar component",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "The TabDots component receives props: tabs (TerminalTab[]), activeTabId (string|null), onTapDots (() => void). Render using flexbox with gap-[3px]. Active dot uses `w-1.5 h-1.5` (6px), others use `w-1 h-1` (4px). Status-to-color mapping: connected -> bg-success, connecting -> bg-warning animate-pulse, disconnected -> bg-text-muted, error -> bg-error. The tab list bottom sheet (opened on tap) can be a simple list of tab names with status colors and a close button — reuse the bottom sheet pattern from TerminalPrefsPanel.svelte."
+    },
+    {
+      "id": "US-003",
+      "title": "Swipe tab navigation on mobile",
+      "description": "As a mobile user, I want to swipe left/right on the terminal area to switch between tabs, so I don't need a visible tab bar.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Svelte 5 docs for 'touch events swipe gesture handler ontouchstart ontouchmove ontouchend'. Use latest patterns found.",
+        "Add horizontal swipe detection to the TerminalPane container div",
+        "Swipe left -> next tab (terminalState.nextTab())",
+        "Swipe right -> previous tab (terminalState.prevTab())",
+        "Minimum swipe distance: 50px horizontally, max 30px vertically (to distinguish from scroll)",
+        "Must NOT conflict with xterm.js scroll/text selection touch events",
+        "Approach: attach touchstart/touchend listeners to the container div (NOT the xterm canvas — xterm handles its own touch events). The container div wraps the canvas but the swipe gesture is detected at the container level",
+        "Only active on mobile (guard with isMobile())",
+        "Visual feedback: brief flash or subtle animation on tab switch (optional, not required)",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "File: `ui/src/lib/components/terminal/TerminalPane.svelte`. The container div already has ontouchend for double-tap detection. Add ontouchstart to capture the start position, then in ontouchend calculate the delta. Guard: only process swipe if `isMobile()` and the horizontal delta exceeds 50px while vertical delta is under 30px. Import isMobile from '$lib/state/mobile.svelte.js'. Call terminalState.nextTab()/prevTab() which already exist. The double-tap gesture (300ms threshold) should still work — swipe detection uses distance, double-tap uses timing, so they don't conflict."
+    },
+    {
+      "id": "US-004",
+      "title": "Extra keys row for mobile terminal input",
+      "description": "As a mobile user, I want an extra row of terminal-specific keys (ESC, TAB, CTL, ALT, arrows, pipe) above the on-screen keyboard, so I can send special keys that phone keyboards don't have.",
+      "acceptanceCriteria": [
+        "Create `ui/src/lib/components/terminal/ExtraKeysRow.svelte` — a thin row of terminal-specific keys",
+        "Keys: ESC, TAB, CTL, ALT, ↑, ↓, ←, →, | (pipe)",
+        "CTL and ALT are toggle modifier keys: tap CTL, it highlights, then next key tap sends Ctrl+[key]. Auto-clears after one keypress.",
+        "Visual: highlighted background when modifier is active (bg-accent/20 or similar)",
+        "Each key tap writes the appropriate escape sequence to the PTY via the parent's injectInput callback",
+        "Key mappings: ESC -> '\\x1b', TAB -> '\\t', arrows -> '\\x1b[A/B/C/D', pipe -> '|', CTL+c -> '\\x03', etc.",
+        "Height: ~28px, matches terminal theme (bg-surface-raised, border-border)",
+        "Only visible on mobile — controlled by parent based on isMobile()",
+        "Create `ui/src/lib/platform/keyboard.ts` — exports a reactive `keyboardVisible` state using visualViewport resize heuristic (>150px height decrease = keyboard shown). This is the web fallback; Tauri will override this in Phase 4.",
+        "ExtraKeysRow appears between terminal and keyboard ONLY when keyboard is visible",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "The ExtraKeysRow needs an onKeyPress callback prop that takes a string (the escape sequence to inject). The parent (+page.svelte or TerminalPane) calls paneRefs[activeTabId].injectInput(sequence). For CTL modifier: maintain local $state `ctlActive` boolean. When CTL is tapped, set true. When any other key is tapped, if ctlActive, convert the key to its Ctrl equivalent (e.g., 'c' -> '\\x03'). Same for ALT (prepend '\\x1b'). The keyboard.ts module: use `$state` for keyboardVisible, set up visualViewport resize listener in an init function called from onMount. Heuristic: store initial viewport height, if current height < (initial - 150px) then keyboard is visible. Also listen for focusin/focusout on input elements as secondary signal for iOS Safari."
+    },
+    {
+      "id": "US-005",
+      "title": "PTY session disconnect/reconnect overlay",
+      "description": "As a mobile user, when my PTY session drops (phone screen off, network change), I want to see my previous terminal output with a reconnect prompt overlay instead of a blank screen.",
+      "acceptanceCriteria": [
+        "When a PTY session disconnects unexpectedly (not intentional disconnect), show a reconnect overlay on top of the terminal pane",
+        "Overlay shows: 'Session disconnected' message with two buttons: [Reconnect] and [New Session]",
+        "The serialized terminal buffer (from US-007 Phase 1) remains visible behind the overlay — user can see their last output",
+        "Reconnect button: calls connect() which starts a fresh shell (PTY sessions cannot be resumed) but preserves the visible scrollback",
+        "New Session button: calls clear() then connect() for a clean start",
+        "Overlay only appears on unexpected disconnect (status changes to 'disconnected' or 'error' while the connection was previously 'connected')",
+        "Overlay disappears automatically when connection is re-established",
+        "Overlay is semi-transparent dark background with centered content, themed to match terminal",
+        "Works on both mobile and desktop",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "File: `ui/src/lib/components/terminal/TerminalPane.svelte`. Add a `showReconnectOverlay` $state boolean. Set it to true in the reconnection failure path (when max reconnect attempts exceeded) or when socket closes unexpectedly. Set it to false when connect() is called or when status becomes 'connected'. The overlay is a div positioned `absolute inset-0` over the terminal container with `bg-background/80 flex items-center justify-center z-10`. Content: icon, message, two Button components. The terminal output is still visible behind the semi-transparent overlay because the serialized buffer was restored."
+    },
+    {
+      "id": "US-006",
+      "title": "Hide desktop-only controls on mobile",
+      "description": "As a mobile user, I want the mode selector, server selector, and action icon buttons hidden from the toolbar, accessible only via the command palette and hamburger menu.",
+      "acceptanceCriteria": [
+        "On mobile (isMobile()): hide the server selector dropdown from the toolbar — server switching done via sidebar or command palette",
+        "On mobile: hide the mode selector (PTY/CMD) — PTY is default, CMD accessible via command palette 'Run Snippet'",
+        "On mobile: hide the action icon buttons (clear, copy, download, preferences) from the toolbar — all accessible via command palette",
+        "On mobile: hide the search bar toggle — search accessible via command palette action",
+        "Add these actions to CommandPalette if not already present: 'Search Output', 'Clear Terminal', 'Copy Output', 'Download Output'",
+        "The Connect/Disconnect functionality moves to the command palette on mobile (add 'Connect' and 'Disconnect' actions)",
+        "On mobile, the terminal page shows ONLY: MobileStatusBar + terminal pane (+ ExtraKeysRow when keyboard visible)",
+        "On desktop: everything renders as before — no changes to desktop layout",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "Files: `ui/src/routes/+page.svelte` (wrap toolbar sections in `{#if !isMobile()}` guards), `ui/src/lib/components/terminal/CommandPalette.svelte` (add missing mobile actions). The existing toolbar at +page.svelte:192-256 already has some `md:` responsive classes but still shows elements on mobile. Phase 2 makes mobile show NOTHING except the MobileStatusBar. Add to CommandPalette actions: { name: 'Clear Terminal', action: clear }, { name: 'Copy Output', action: copyOutput }, { name: 'Download Output', action: downloadOutput }, { name: 'Search Output', action: toggleSearch }, { name: 'Connect', action: connect }, { name: 'Disconnect', action: disconnect }. These need callbacks passed through props."
+    },
+    {
+      "id": "US-007",
+      "title": "Gesture hint and first-use experience",
+      "description": "As a new mobile user, I want a subtle hint showing available gestures (double-tap, swipe) that fades away after first use.",
+      "acceptanceCriteria": [
+        "On first visit to terminal page on mobile, show a small hint text at the bottom of the terminal area: 'double-tap for commands · swipe ← → tabs'",
+        "Hint text: text-[10px] text-text-muted, centered, with subtle opacity transition",
+        "Hint fades out (opacity 0) after 5 seconds, then removed from DOM",
+        "Once dismissed, set localStorage flag `svrctlrs-gesture-hint-seen` to prevent showing again",
+        "Hint only shows on mobile (isMobile())",
+        "Hint only shows when no terminal is connected yet (status === 'disconnected')",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "This can be a simple conditional div in +page.svelte template, rendered below the terminal area on mobile. Use $state for visibility, $effect with setTimeout for auto-dismiss. Check localStorage in onMount. Keep it minimal — just text, no complex UI. The hint provides discoverability for the invisible gesture-based UI."
+    },
+    {
+      "id": "US-008",
+      "title": "Safe-area inset fixes across all components",
+      "description": "As a user with a notched phone, I want all UI elements properly positioned to avoid the notch and home indicator areas.",
+      "acceptanceCriteria": [
+        "Hamburger button in +layout.svelte: position accounts for safe-area-inset-top and safe-area-inset-left on mobile",
+        "MobileStatusBar: uses `pt-[max(0.25rem,env(safe-area-inset-top))]` for top spacing",
+        "Terminal area on mobile: `pb-[env(safe-area-inset-bottom)]` when keyboard is NOT visible (for home indicator on iPhone)",
+        "ExtraKeysRow: no bottom safe-area needed (keyboard fills that space)",
+        "Sidebar already handles safe-area-inset-left — verify still works",
+        "TerminalPrefsPanel bottom sheet already handles safe-area-inset-bottom — verify still works",
+        "Modal footer already handles safe-area-inset-bottom — verify still works",
+        "Test both portrait and landscape orientations conceptually (landscape has safe-area-inset-left for notch)",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "This story audits and fixes safe-area support across the app. The viewport meta tag already has `viewport-fit=cover` (app.html:5). Some components already use safe-area-inset env variables (sidebar, prefs panel, modal footer). The main gaps from the exploration: hamburger button positioning (fixed top-2 left-2 without safe-area), toolbar area, and terminal bottom edge. Use Tailwind's `env()` via arbitrary values: `pt-[env(safe-area-inset-top)]` etc."
+    },
+    {
+      "id": "US-009",
+      "title": "Mobile-optimized connect flow",
+      "description": "As a mobile user, I want a streamlined connection flow where I can pick a server from the sidebar or command palette and immediately connect to a PTY session.",
+      "acceptanceCriteria": [
+        "When a server is tapped in the sidebar on mobile: create a PTY tab, auto-connect, and close the sidebar",
+        "The sidebar already has this behavior (onConnectServer in +layout.svelte) — verify it works correctly on mobile with the new status bar",
+        "When connecting via command palette: add a 'Connect to Server' action that shows a sub-list of available servers, selecting one creates a tab and connects",
+        "Default mode is always PTY on mobile — no mode selection step",
+        "If no servers are configured, command palette shows 'Add Server' action that navigates to /servers page",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "The sidebar connect flow already works via handleConnectServer() in +layout.svelte. The main new work is adding server list to CommandPalette. Extend the palette items to include a dynamic list of servers from serversState.getServers(). Each server appears as: { name: server.name, detail: server.hostname, category: 'server', action: () => createTab + autoConnect }. Pass serversState into CommandPalette or load servers from within the component."
+    },
+    {
+      "id": "US-010",
+      "title": "Integration testing and code quality review",
+      "description": "As a developer, I want all Phase 2 changes verified for quality, consistency, and correctness before marking complete.",
+      "acceptanceCriteria": [
+        "Run full backend quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`",
+        "Run full frontend quality checks: `cd ui && npm run check && npm run build`",
+        "Run /simplify skill to review all changed files for code quality, efficiency, and deduplication",
+        "Verify no regressions on desktop: toolbar, tab bar, split views, prefs panel all still work unchanged",
+        "Fix any issues found by the quality review",
+        "Update progress.txt with all learnings from Phase 2",
+        "All quality checks pass after fixes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Use `git diff ralph/phase1-foundation...HEAD --name-only` to get all changed files. Read each one and verify consistency with existing patterns. Run /simplify skill which dispatches three review agents (reuse, quality, efficiency). Fix issues rather than just reporting them."
+    }
+  ]
+}
