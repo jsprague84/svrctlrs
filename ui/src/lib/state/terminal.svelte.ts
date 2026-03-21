@@ -203,6 +203,40 @@ export function updateTabServer(id: string, serverId: number | null, serverName:
 	}
 }
 
+/** Capture the current layout as a profile-compatible state */
+export function captureProfileState(): { layout: LayoutMode; panes: Array<{ server_id: number | null; mode: string }> } {
+	return {
+		layout,
+		panes: tabs.map((t) => ({
+			server_id: t.serverId,
+			mode: t.mode
+		}))
+	};
+}
+
+/** Apply a profile: close all tabs and create new ones matching the profile */
+export function applyProfile(profileLayout: LayoutMode, panes: Array<{ server_id: number | null; mode: string | null }>, serverNames: Record<number, string>) {
+	// Close all existing tabs
+	while (tabs.length > 0) {
+		tabs.pop();
+	}
+	tabCounter = 0;
+	activeTabId = null;
+
+	// Set layout
+	layout = profileLayout;
+
+	// Create tabs for each pane
+	for (const pane of panes) {
+		const name = pane.server_id ? (serverNames[pane.server_id] ?? `Server ${pane.server_id}`) : null;
+		const mode = (pane.mode === 'cmd' ? 'cmd' : 'pty') as TerminalMode;
+		const tab = createTab(pane.server_id, name, mode);
+		if (tab && pane.server_id) {
+			pendingAutoConnect = tab.id;
+		}
+	}
+}
+
 /** Assign visible slot indices based on layout and active tab */
 function assignSlots() {
 	const maxSlots =

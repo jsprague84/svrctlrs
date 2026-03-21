@@ -4,8 +4,11 @@
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import * as serversState from '$lib/state/servers.svelte.js';
+	import * as profilesState from '$lib/state/profiles.svelte.js';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
-	import type { Server } from '$lib/types/index.js';
+	import * as toast from '$lib/state/toast.svelte.js';
+	import type { Server, TerminalProfile, LayoutMode } from '$lib/types/index.js';
+	import { extractErrorMessage } from '$lib/utils/error.js';
 	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
 	import { Menu } from 'lucide-svelte';
@@ -18,9 +21,11 @@
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
 	let serversError = $derived(serversState.getError());
+	let profiles = $derived(profilesState.getProfiles());
 
 	onMount(() => {
 		serversState.loadServers();
+		profilesState.loadProfiles();
 
 		// Load sidebar preference
 		const saved = localStorage.getItem('svrctlrs-sidebar-collapsed');
@@ -43,6 +48,28 @@
 			terminalState.setPendingAutoConnect(tab.id);
 		}
 		goto(`${base}/`);
+	}
+
+	function handleLoadProfile(profile: TerminalProfile) {
+		const serverNames: Record<number, string> = {};
+		for (const s of servers) {
+			serverNames[s.id] = s.name;
+		}
+		terminalState.applyProfile(
+			profile.layout as LayoutMode,
+			profile.pane_configs ?? [],
+			serverNames
+		);
+		goto(`${base}/`);
+	}
+
+	async function handleDeleteProfile(id: number) {
+		try {
+			await profilesState.deleteProfile(id);
+			toast.success('Profile deleted');
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Failed to delete profile'));
+		}
 	}
 </script>
 
@@ -68,6 +95,7 @@
 <div class="flex h-screen bg-background text-foreground">
 	<Sidebar
 		{servers}
+		{profiles}
 		loading={serversLoading}
 		error={serversError}
 		collapsed={sidebarCollapsed}
@@ -75,6 +103,8 @@
 		onToggle={toggleSidebar}
 		onMobileClose={closeMobileSidebar}
 		onConnectServer={handleConnectServer}
+		onLoadProfile={handleLoadProfile}
+		onDeleteProfile={handleDeleteProfile}
 	/>
 	<main class="flex-1 min-w-0 flex flex-col pl-12 md:pl-0">
 		{@render children()}

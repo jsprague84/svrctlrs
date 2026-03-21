@@ -17,10 +17,11 @@
 		open: boolean;
 		onClose: () => void;
 		onInjectCommand?: (cmd: string) => void;
+		onSaveProfile?: () => void;
 		serverId: number | null;
 	}
 
-	let { open, onClose, onInjectCommand, serverId }: Props = $props();
+	let { open, onClose, onInjectCommand, onSaveProfile, serverId }: Props = $props();
 
 	let query = $state('');
 	let selectedIndex = $state(0);
@@ -65,6 +66,13 @@
 					if (id) terminalState.closeTab(id);
 					onClose();
 				}
+			},
+			{
+				id: 'action-save-profile',
+				name: 'Save Layout as Profile',
+				detail: 'Save current tabs and layout',
+				category: 'action',
+				action: () => { onClose(); onSaveProfile?.(); }
 			},
 			{
 				id: 'action-toggle-theme',

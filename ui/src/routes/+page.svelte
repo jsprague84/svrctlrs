@@ -8,6 +8,7 @@
 	import ConnectionBadge from '$lib/components/terminal/ConnectionBadge.svelte';
 	import TerminalPrefsPanel from '$lib/components/terminal/TerminalPrefsPanel.svelte';
 	import CommandPalette from '$lib/components/terminal/CommandPalette.svelte';
+	import ProfileManager from '$lib/components/terminal/ProfileManager.svelte';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import type { TerminalMode, ConnectionStatus } from '$lib/types/index.js';
@@ -19,6 +20,7 @@
 	let searchTerm = $state('');
 	let prefsOpen = $state(false);
 	let paletteOpen = $state(false);
+	let profileSaveOpen = $state(false);
 
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
@@ -325,6 +327,11 @@
 			{/each}
 		</SplitView>
 		<TerminalPrefsPanel open={prefsOpen} onClose={() => prefsOpen = false} />
+		<ProfileManager
+			open={profileSaveOpen}
+			onClose={() => profileSaveOpen = false}
+			serverNames={Object.fromEntries(serversState.getServers().map(s => [s.id, s.name]))}
+		/>
 		<CommandPalette
 			open={paletteOpen}
 			onClose={() => paletteOpen = false}
@@ -333,6 +340,7 @@
 					paneRefs[activeTabId].injectInput(cmd + '\n');
 				}
 			}}
+			onSaveProfile={() => profileSaveOpen = true}
 			serverId={activeTab?.serverId ?? null}
 		/>
 	</div>

@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { base } from '$app/paths';
-	import { Terminal, Server, KeyRound, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, X } from 'lucide-svelte';
-	import type { Server as ServerType } from '$lib/types/index.js';
+	import { Terminal, Server, KeyRound, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, X, Layout, Trash2 } from 'lucide-svelte';
+	import type { Server as ServerType, TerminalProfile } from '$lib/types/index.js';
 	import { logout } from '$lib/api/client.js';
 	import * as themeState from '$lib/state/theme.svelte.js';
 
 	interface Props {
 		servers: ServerType[];
+		profiles?: TerminalProfile[];
 		loading?: boolean;
 		error?: string | null;
 		collapsed?: boolean;
@@ -15,9 +16,11 @@
 		onToggle: () => void;
 		onMobileClose?: () => void;
 		onConnectServer: (server: ServerType) => void;
+		onLoadProfile?: (profile: TerminalProfile) => void;
+		onDeleteProfile?: (id: number) => void;
 	}
 
-	let { servers, loading = false, error = null, collapsed = false, mobileOpen = false, onToggle, onMobileClose, onConnectServer }: Props = $props();
+	let { servers, profiles = [], loading = false, error = null, collapsed = false, mobileOpen = false, onToggle, onMobileClose, onConnectServer, onLoadProfile, onDeleteProfile }: Props = $props();
 
 	const navItems = [
 		{ href: `${base}/`, icon: Terminal, label: 'Terminal' },
@@ -131,6 +134,40 @@
 						{/each}
 					</div>
 				{/if}
+			</div>
+		</div>
+	{/if}
+
+	<!-- Profiles (not collapsed, or mobile open) -->
+	{#if (mobileOpen || !collapsed) && profiles.length > 0}
+		<div class="border-t border-sidebar-border">
+			<div class="px-3 py-2">
+				<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold mb-1.5">Profiles</h3>
+				<div class="flex flex-col gap-0.5">
+					{#each profiles as profile}
+						<div class="flex items-center gap-1 group">
+							<button
+								class="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm text-left flex-1 min-w-0
+									text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+								onclick={() => onLoadProfile?.(profile)}
+								title="Load {profile.name}"
+							>
+								<Layout class="w-3.5 h-3.5 flex-shrink-0" />
+								<span class="truncate">{profile.name}</span>
+								{#if profile.is_default}
+									<span class="text-[9px] text-accent ml-auto flex-shrink-0">default</span>
+								{/if}
+							</button>
+							<button
+								class="p-1 text-sidebar-muted hover:text-error opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+								onclick={() => { if (confirm('Delete this profile?')) onDeleteProfile?.(profile.id); }}
+								aria-label="Delete profile"
+							>
+								<Trash2 class="w-3 h-3" />
+							</button>
+						</div>
+					{/each}
+				</div>
 			</div>
 		</div>
 	{/if}
