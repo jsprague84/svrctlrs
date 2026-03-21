@@ -5,6 +5,7 @@
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import * as profilesState from '$lib/state/profiles.svelte.js';
+	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
 	import type { Server, TerminalProfile, LayoutMode } from '$lib/types/index.js';
@@ -22,6 +23,11 @@
 	let serversLoading = $derived(serversState.isLoading());
 	let serversError = $derived(serversState.getError());
 	let profiles = $derived(profilesState.getProfiles());
+
+	// Set compact density on mobile
+	$effect(() => {
+		document.documentElement.dataset.density = isMobile() ? 'compact' : 'comfortable';
+	});
 
 	onMount(() => {
 		serversState.loadServers();
