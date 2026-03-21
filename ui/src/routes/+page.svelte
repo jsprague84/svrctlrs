@@ -25,6 +25,7 @@
 	let prefsOpen = $state(false);
 	let paletteOpen = $state(false);
 	let profileSaveOpen = $state(false);
+	let showGestureHint = $state(false);
 
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
@@ -58,6 +59,15 @@
 	onMount(() => {
 		// Initialize keyboard detection for mobile extra keys row
 		if (isMobile()) initKeyboardDetection();
+
+		// Show gesture hint on first mobile visit
+		if (isMobile() && !localStorage.getItem('svrctlrs-gesture-hint-seen')) {
+			showGestureHint = true;
+			setTimeout(() => {
+				showGestureHint = false;
+				localStorage.setItem('svrctlrs-gesture-hint-seen', 'true');
+			}, 5000);
+		}
 
 		// Create initial tab
 		if (tabs.length === 0) {
@@ -347,6 +357,14 @@
 				</div>
 			{/each}
 		</SplitView>
+		<!-- Gesture hint (mobile, first visit only) -->
+		{#if showGestureHint}
+			<div class="absolute bottom-2 left-0 right-0 text-center text-[10px] text-text-muted transition-opacity duration-1000 z-10 pointer-events-none"
+				class:opacity-0={!showGestureHint}>
+				double-tap for commands · swipe ← → tabs
+			</div>
+		{/if}
+
 		<!-- Extra keys row (mobile only, when keyboard visible) -->
 		{#if isMobile() && isKeyboardVisible()}
 			<ExtraKeysRow onKeyPress={(seq) => {
