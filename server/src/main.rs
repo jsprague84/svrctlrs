@@ -138,7 +138,11 @@ async fn main() -> anyhow::Result<()> {
                 axum::http::Method::DELETE,
                 axum::http::Method::PATCH,
             ])
-            .allow_headers(tower_http::cors::Any)
+            .allow_headers([
+                axum::http::header::CONTENT_TYPE,
+                axum::http::header::AUTHORIZATION,
+                axum::http::header::COOKIE,
+            ])
             .allow_credentials(true)
     } else {
         info!("CORS configured for same-origin only (set ALLOWED_ORIGINS to allow cross-origin)");
