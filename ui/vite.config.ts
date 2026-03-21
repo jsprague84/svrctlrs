@@ -11,6 +11,8 @@ export default defineConfig({
 				target: 'http://localhost:8080',
 				ws: true
 			}
-		}
+		},
+		// Disable HMR WebSocket when running inside Tauri (crashes WebKitGTK)
+		hmr: process.env.TAURI_ENV_PLATFORM ? false : undefined
 	}
 });
