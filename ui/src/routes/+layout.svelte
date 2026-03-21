@@ -6,6 +6,8 @@
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import * as profilesState from '$lib/state/profiles.svelte.js';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
+	import { isTauri, hasServerUrl } from '$lib/platform/index.js';
+	import ServerUrlSetup from '$lib/components/ui/ServerUrlSetup.svelte';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
 	import type { Server, TerminalProfile, LayoutMode } from '$lib/types/index.js';
@@ -18,6 +20,7 @@
 
 	let sidebarCollapsed = $state(false);
 	let mobileOpen = $state(false);
+	let needsServerSetup = $state(false);
 
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
@@ -30,6 +33,12 @@
 	});
 
 	onMount(() => {
+		// Check if Tauri mode needs server URL configuration
+		if (isTauri() && !hasServerUrl()) {
+			needsServerSetup = true;
+			return; // Don't load data until server is configured
+		}
+
 		serversState.loadServers();
 		profilesState.loadProfiles();
 
@@ -84,6 +93,14 @@
 	}
 </script>
 
+{#if needsServerSetup}
+	<ServerUrlSetup onComplete={() => {
+		needsServerSetup = false;
+		serversState.loadServers();
+		profilesState.loadProfiles();
+	}} />
+{:else}
+
 <!-- Hamburger button (mobile only) -->
 <button
 	class="fixed top-[max(0.5rem,env(safe-area-inset-top))] left-[max(0.5rem,env(safe-area-inset-left))] z-50 p-2 rounded-md bg-surface border border-border text-foreground md:hidden"
@@ -122,3 +139,5 @@
 	</main>
 </div>
 <Toast />
+
+{/if}
