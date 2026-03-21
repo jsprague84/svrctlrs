@@ -30,7 +30,6 @@
 	<div
 		class="flex items-center gap-[3px] cursor-pointer px-1"
 		onclick={() => onTapDots?.()}
-		ontouchend={() => onTapDots?.()}
 		role="button"
 		tabindex="0"
 		aria-label="Open tab list ({tabs.length} tabs)"

@@ -173,7 +173,7 @@
 		if (open) {
 			query = '';
 			selectedIndex = 0;
-			quickCommandsState.loadCommands();
+			void quickCommandsState.loadCommands();
 			requestAnimationFrame(() => inputEl?.focus());
 		}
 	});
@@ -191,10 +191,10 @@
 			onClose();
 		} else if (e.key === 'ArrowDown') {
 			e.preventDefault();
-			selectedIndex = (selectedIndex + 1) % filtered.length;
+			if (filtered.length > 0) selectedIndex = (selectedIndex + 1) % filtered.length;
 		} else if (e.key === 'ArrowUp') {
 			e.preventDefault();
-			selectedIndex = (selectedIndex - 1 + filtered.length) % filtered.length;
+			if (filtered.length > 0) selectedIndex = (selectedIndex - 1 + filtered.length) % filtered.length;
 		} else if (e.key === 'Enter') {
 			e.preventDefault();
 			if (filtered[selectedIndex]) {
