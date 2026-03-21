@@ -38,27 +38,29 @@
 		document.documentElement.dataset.density = isMobile() ? 'compact' : 'comfortable';
 	});
 
-	onMount(() => {
-		// Auth pages don't need data loading
-		if (isAuthPage) return;
-
-		// Check if Tauri mode needs server URL configuration
+	// Load data reactively when navigating to non-auth pages
+	// (handles both initial load AND post-login goto('/') navigation)
+	let dataLoaded = $state(false);
+	$effect(() => {
+		if (isAuthPage || dataLoaded || needsServerSetup) return;
 		if (isTauri() && !hasServerUrl()) {
 			needsServerSetup = true;
 			return;
 		}
-
 		serversState.loadServers();
 		profilesState.loadProfiles();
+		dataLoaded = true;
+	});
+
+	onMount(() => {
+		// Load sidebar preference
+		const saved = localStorage.getItem('svrctlrs-sidebar-collapsed');
+		if (saved === 'true') sidebarCollapsed = true;
 
 		// Listen for toggle-sidebar events from child components (e.g., MobileStatusBar)
 		const handleToggleSidebar = () => { mobileOpen = !mobileOpen; };
 		window.addEventListener('toggle-sidebar', handleToggleSidebar);
 		return () => window.removeEventListener('toggle-sidebar', handleToggleSidebar);
-
-		// Load sidebar preference
-		const saved = localStorage.getItem('svrctlrs-sidebar-collapsed');
-		if (saved === 'true') sidebarCollapsed = true;
 	});
 
 	function toggleSidebar() {
