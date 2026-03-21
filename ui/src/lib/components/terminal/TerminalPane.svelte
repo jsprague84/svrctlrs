@@ -32,6 +32,7 @@
 	let lastTapTime = 0;
 	let touchStartX = 0;
 	let touchStartY = 0;
+	let showReconnectOverlay = $state(false);
 
 	let containerEl: HTMLDivElement;
 	let terminal: Terminal | null = null;
@@ -213,6 +214,7 @@
 	function attemptReconnect() {
 		if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
 			terminal?.writeln('\r\n\x1b[31m[Max reconnection attempts reached]\x1b[0m');
+			showReconnectOverlay = true;
 			return;
 		}
 		const delay = RECONNECT_DELAYS[Math.min(reconnectAttempt, RECONNECT_DELAYS.length - 1)];
@@ -227,6 +229,7 @@
 	/** Connect to the WebSocket for the current mode and serverId */
 	export function connect() {
 		if (!terminal || serverId === null) return;
+		showReconnectOverlay = false;
 
 		// Cancel any pending reconnect
 		if (reconnectTimeout) {
@@ -575,7 +578,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-	class="h-full w-full bg-background"
+	class="h-full w-full bg-background relative"
 	class:hidden={!active}
 	bind:this={containerEl}
 	ontouchstart={(e) => {
@@ -606,4 +609,24 @@
 			}
 		}
 	}}
-></div>
+>
+	{#if showReconnectOverlay}
+		<div class="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 gap-3">
+			<p class="text-text-muted text-sm">Session disconnected</p>
+			<div class="flex gap-2">
+				<button
+					class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-sm hover:opacity-90"
+					onclick={() => connect()}
+				>
+					Reconnect
+				</button>
+				<button
+					class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-sm hover:opacity-90"
+					onclick={() => { clear(); connect(); }}
+				>
+					New Session
+				</button>
+			</div>
+		</div>
+	{/if}
+</div>
