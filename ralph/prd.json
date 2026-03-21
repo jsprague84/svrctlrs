@@ -1,96 +1,126 @@
 {
   "project": "SvrCtlRS",
-  "branchName": "ralph/phase5-rstify",
-  "description": "Phase 5 — Rstify notification integration: push notifications for server health, command completion, and pattern matching via the user's self-hosted rstify platform",
+  "branchName": "ralph/phase6-advanced",
+  "description": "Phase 6 — Advanced features: local SSH on-device via Tauri russh backend, remote command execution via rstify webhooks, and command completion notifications",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Rstify notification client in core crate",
-      "description": "As a developer, I want a Rust HTTP client that can POST notifications to the rstify API using the Gotify/ntfy-compatible format.",
+      "title": "Tauri Rust backend SSH client (russh on-device)",
+      "description": "As a mobile/desktop user on the same network as my servers, I want to SSH directly from my device without routing through the SvrCtlRS server, for lower latency and offline-from-server capability.",
       "acceptanceCriteria": [
-        "Create `core/src/notifications.rs` with a `RstifyClient` struct",
-        "Constructor takes: base_url (String), api_token (String)",
-        "Method `send_notification(title, message, priority)` POSTs to rstify's Gotify-compatible endpoint",
-        "Gotify-compatible format: POST to `{base_url}/message` with JSON body `{title, message, priority}` and `X-Gotify-Key` header",
-        "Also support ntfy format as fallback: POST to `{base_url}/{topic}` with message body",
-        "Use reqwest with async/await",
-        "Add configuration struct: `NotificationConfig { enabled, provider (gotify|ntfy), url, token, topic }` ",
-        "Error handling via anyhow::Result",
-        "`cargo clippy --workspace -- -D warnings` passes",
-        "`cargo test --workspace` passes"
+        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'IPC commands Rust invoke frontend async channel'. Also query russh docs for 'client connect session channel exec shell'. Use latest patterns found.",
+        "Add russh as a dependency to ui/src-tauri/Cargo.toml",
+        "Create `ui/src-tauri/src/commands/ssh.rs` with Tauri IPC commands:",
+        "  - `local_ssh_connect(hostname, port, username, auth_method)` — establishes SSH connection, returns session ID",
+        "  - `local_ssh_execute(session_id, command)` — executes a command and returns output",
+        "  - `local_ssh_shell_start(session_id, cols, rows)` — starts interactive shell with PTY",
+        "  - `local_ssh_shell_input(session_id, data)` — sends input to the shell",
+        "  - `local_ssh_shell_resize(session_id, cols, rows)` — resizes the PTY",
+        "  - `local_ssh_disconnect(session_id)` — closes the connection",
+        "Manage active sessions in a HashMap<String, SshSession> behind a Mutex in Tauri state",
+        "Support SSH key auth (read from filesystem) and password auth",
+        "Register commands in lib.rs via `.invoke_handler(tauri::generate_handler![...])`",
+        "Desktop Tauri build still compiles: `cd ui && npx tauri build`",
+        "`cargo clippy --workspace -- -D warnings` passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "The core crate already has reqwest as a dependency (check server/Cargo.toml — it has dep:reqwest). Check if reqwest needs to be added to core/Cargo.toml. Rstify is compatible with both Gotify and ntfy formats. Gotify: POST /message with {title, message, priority} + X-Gotify-Key header. ntfy: POST /{topic} with message body + Title/Priority headers. The user's rstify instance handles FCM push delivery. Keep the client simple — just HTTP POST, no complex state."
+      "passes": false,
+      "notes": "This creates the Rust backend for local SSH. The frontend integration (US-003) connects this to the terminal UI. Tauri IPC commands are async Rust functions decorated with `#[tauri::command]`. They're called from JS via `invoke('command_name', { args })`. Session management: generate UUID for each connection, store in a Mutex<HashMap<String, SshSession>>. SshSession wraps a russh::client::Handle + Channel. For the shell, need a background task that reads from the channel and emits events to the frontend. Use Tauri's event system (`app.emit('ssh-output', data)`) for streaming output. Set env vars before building: JAVA_HOME, ANDROID_HOME, NDK_HOME."
     },
     {
       "id": "US-002",
-      "title": "Notification settings database and API",
-      "description": "As a user, I want to configure my rstify notification settings (URL, token, enabled events) through the settings API.",
+      "title": "Local SSH credential integration",
+      "description": "As a user, I want local SSH connections to use my existing SvrCtlRS credentials and server profiles, so I don't need to re-enter connection details.",
       "acceptanceCriteria": [
-        "Add notification settings to the existing settings table using key-value pairs: notification.enabled, notification.provider, notification.url, notification.token, notification.topic",
-        "Create API endpoints or use existing settings API to read/write these values",
-        "Seed default values in migration or settings initialization: notification.enabled = false",
-        "Settings are stored encrypted if they contain tokens (use existing encryption)",
-        "`cargo clippy --workspace -- -D warnings` passes",
-        "`cargo test --workspace` passes"
-      ],
-      "priority": 2,
-      "passes": true,
-      "notes": "The settings table already exists with key-value pairs (database/src/queries/settings.rs). Notification config can be stored as settings with the 'notification.' prefix. No new table needed — reuse existing settings infrastructure. The settings API at /api/v1/settings already supports CRUD. The frontend settings page already displays settings grouped by prefix. Just add the notification.* keys."
-    },
-    {
-      "id": "US-003",
-      "title": "Server health monitoring with notifications",
-      "description": "As a user, I want SvrCtlRS to periodically check if my servers are reachable via SSH and notify me through rstify when one goes down or comes back up.",
-      "acceptanceCriteria": [
-        "Create a background health check task that runs periodically (configurable interval, default 5 minutes)",
-        "For each enabled server: attempt an SSH connection test (reuse existing test_connection logic)",
-        "If a server transitions from reachable to unreachable: send rstify notification with priority 8 (high)",
-        "If a server transitions from unreachable to reachable: send rstify notification with priority 3 (normal)",
-        "Track server health state in memory (HashMap<server_id, bool>) — no database needed",
-        "Only send notifications if notification.enabled is true in settings",
-        "Health check runs as a background tokio task started in main.rs",
-        "Add setting: notification.health_check_interval_seconds (default 300)",
-        "`cargo clippy --workspace -- -D warnings` passes",
-        "`cargo test --workspace` passes"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "The server connection test already exists in server/src/routes/api/servers.rs (test_connection endpoint). Extract the SSH connection test logic into a reusable function. The health check task should: (1) load settings to check if notifications enabled, (2) load all enabled servers, (3) test each one, (4) compare with previous state, (5) send notification on state change. Use tokio::spawn with tokio::time::interval for periodic execution. The health state is ephemeral — just track in a RwLock<HashMap<i64, bool>>."
-    },
-    {
-      "id": "US-004",
-      "title": "Notification settings UI",
-      "description": "As a user, I want to configure rstify notifications through the web UI settings page.",
-      "acceptanceCriteria": [
-        "Add a 'Notifications' section to the settings page (ui/src/routes/settings/+page.svelte)",
-        "Fields: Enable/disable toggle, Provider selector (gotify/ntfy), Server URL, API Token/Topic, Health check interval",
-        "Test Notification button that sends a test message via a new API endpoint",
-        "Create POST /api/v1/notifications/test endpoint that sends a test notification using the configured settings",
-        "Show success/error toast after test",
+        "Create `ui/src-tauri/src/commands/credentials.rs` with a command to fetch credentials from the SvrCtlRS server API",
+        "When initiating a local SSH connection: look up the server's credential from the configured backend, or allow manual entry",
+        "Support reading SSH keys from the device filesystem (Tauri has fs access)",
+        "Support password auth with the credential's stored password",
+        "Add a 'Connect Locally' option in the command palette (alongside the existing 'Connect: servername' which goes through the server)",
+        "The 'Connect Locally' option only appears when isTauri() is true",
         "`cd ui && npm run check` passes",
         "`cd ui && npm run build` passes"
       ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Local SSH needs credentials. Two approaches: (1) Fetch from the SvrCtlRS server API (requires server URL configured), (2) Store locally in Tauri secure storage. For Phase 6, use approach 1 — fetch from server API. The credential API at /api/v1/credentials already exists but redacts values in list mode. The get_credential endpoint also redacts. We may need a special endpoint or use the terminal's existing SSH connection logic as reference. Alternative: let the user specify the SSH key path manually in a dialog."
+    },
+    {
+      "id": "US-003",
+      "title": "Frontend integration for local SSH terminal",
+      "description": "As a user, I want to use the same xterm.js terminal UI for local SSH connections as I do for server-proxied connections.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'invoke command frontend JavaScript async events listen emit'. Use latest patterns found.",
+        "Add a new connection mode to TerminalPane: 'local' (alongside existing 'pty' and 'cmd')",
+        "When mode is 'local': use Tauri invoke() instead of WebSocket to communicate with the SSH session",
+        "Terminal input: call `invoke('local_ssh_shell_input', { sessionId, data })` on xterm onData",
+        "Terminal output: listen for Tauri events `app.listen('ssh-output-{sessionId}', callback)` and write to xterm",
+        "Terminal resize: call `invoke('local_ssh_shell_resize', { sessionId, cols, rows })` on xterm onResize",
+        "Connection lifecycle: connect creates session via invoke, disconnect calls local_ssh_disconnect",
+        "Connection status updates work the same as WebSocket mode",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "The key architectural difference: WebSocket mode streams data bidirectionally over a single connection. Local SSH mode uses Tauri IPC invoke() for input (client->rust) and Tauri events (rust->client) for output. The TerminalPane needs to detect the mode and use the appropriate communication channel. Import `invoke` and `listen` from '@tauri-apps/api/core' and '@tauri-apps/api/event'. The sessionId links input/output — generate it on connect and pass to all invoke calls."
+    },
+    {
+      "id": "US-004",
+      "title": "Rstify webhook receiver for remote commands",
+      "description": "As a user, I want to trigger pre-approved quick commands on my servers by sending a webhook from rstify or another system.",
+      "acceptanceCriteria": [
+        "Create POST /api/v1/webhooks/execute endpoint that accepts a command execution request",
+        "Request format: `{ secret: string, command_name: string, server_name: string }` — identifies which quick command to run on which server",
+        "Security: validate `secret` against a configured webhook secret (stored in settings as `webhook.secret`)",
+        "Only execute commands that exist in the quick_commands table (allowlist enforcement)",
+        "Only execute on servers that exist and are enabled",
+        "Execute the command via the existing CMD mode SSH execution path",
+        "Send execution result (success/failure + output summary) back as a rstify notification",
+        "Add settings: `webhook.enabled` (boolean), `webhook.secret` (string)",
+        "Add migration seeding webhook settings",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
+      ],
       "priority": 4,
-      "passes": true,
-      "notes": "The settings page already shows settings grouped by prefix. The notification.* settings will appear in a 'notification' group. But we want a nicer UX than just key-value editing — add a dedicated section with proper form inputs. The test notification endpoint reads notification settings from DB, creates a RstifyClient, and sends a test message. This validates the configuration end-to-end."
+      "passes": false,
+      "notes": "This is a simple webhook endpoint, NOT a full rstify integration client. External systems (CI/CD, monitoring, rstify's outgoing webhooks) POST to this endpoint to trigger pre-approved commands. Security is critical: (1) webhook.secret must match, (2) only commands in quick_commands table can be executed (no arbitrary commands), (3) the server must exist and be enabled. The execution path: look up quick command by name -> look up server by name -> execute via SSH (reuse terminal.rs execution logic) -> send result notification via rstify. Rate limiting would be nice but not required for Phase 6."
     },
     {
       "id": "US-005",
-      "title": "Integration testing and documentation",
-      "description": "As a developer, I want Phase 5 verified and documented.",
+      "title": "Command completion notifications",
+      "description": "As a user running long commands in CMD mode, I want to get a push notification when the command completes.",
+      "acceptanceCriteria": [
+        "When a CMD mode command completes (job_run finishes), check if notifications are enabled",
+        "If the command took longer than a configurable threshold (default 30 seconds), send a notification",
+        "Notification includes: command name/snippet, server name, exit code, duration",
+        "Add setting: `notification.cmd_completion_threshold_seconds` (default 30)",
+        "Only notify for CMD mode completions, not PTY sessions",
+        "Integrate into the existing terminal WebSocket handler (terminal.rs)",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "The terminal.rs CMD mode handler already executes commands and gets exit codes. After command completion, check the elapsed time. If > threshold, load notification config and send via NotificationClient. Keep it simple: just add a few lines after the command execution completes in the WebSocket handler. The notification message: 'Command completed on {server}: exit code {code} ({duration}s)'. Priority: 3 for success (exit 0), 7 for failure (non-zero exit)."
+    },
+    {
+      "id": "US-006",
+      "title": "Integration testing and final documentation",
+      "description": "As a developer, I want all Phase 6 features verified and the project documentation finalized.",
       "acceptanceCriteria": [
         "Run full backend quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`",
         "Run full frontend quality checks: `cd ui && npm run check && npm run build`",
-        "Update CLAUDE.md with notification system documentation",
-        "Update progress.txt with learnings",
+        "Verify desktop Tauri build: `cd ui && npx tauri build`",
+        "Run /simplify skill to review all Phase 6 changes",
+        "Update CLAUDE.md with local SSH and webhook documentation",
+        "Update design spec status to reflect all phases complete",
         "Push all changes",
         "All quality checks pass"
       ],
-      "priority": 5,
-      "passes": true,
-      "notes": "Document the notification configuration keys, the health check system, and how rstify integration works in CLAUDE.md."
+      "priority": 6,
+      "passes": false,
+      "notes": "This is the final story for the entire design spec. After this, all 6 phases are complete. The design spec at docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md should have its status updated from 'Draft' to 'Implemented'. Set Tauri env vars before building: export JAVA_HOME=~/Development/android-studio/jbr && export ANDROID_HOME=$HOME/Android/Sdk && export NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198"
     }
   ]
 }

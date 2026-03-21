@@ -1,0 +1,96 @@
+{
+  "project": "SvrCtlRS",
+  "branchName": "ralph/phase5-rstify",
+  "description": "Phase 5 — Rstify notification integration: push notifications for server health, command completion, and pattern matching via the user's self-hosted rstify platform",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Rstify notification client in core crate",
+      "description": "As a developer, I want a Rust HTTP client that can POST notifications to the rstify API using the Gotify/ntfy-compatible format.",
+      "acceptanceCriteria": [
+        "Create `core/src/notifications.rs` with a `RstifyClient` struct",
+        "Constructor takes: base_url (String), api_token (String)",
+        "Method `send_notification(title, message, priority)` POSTs to rstify's Gotify-compatible endpoint",
+        "Gotify-compatible format: POST to `{base_url}/message` with JSON body `{title, message, priority}` and `X-Gotify-Key` header",
+        "Also support ntfy format as fallback: POST to `{base_url}/{topic}` with message body",
+        "Use reqwest with async/await",
+        "Add configuration struct: `NotificationConfig { enabled, provider (gotify|ntfy), url, token, topic }` ",
+        "Error handling via anyhow::Result",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "The core crate already has reqwest as a dependency (check server/Cargo.toml — it has dep:reqwest). Check if reqwest needs to be added to core/Cargo.toml. Rstify is compatible with both Gotify and ntfy formats. Gotify: POST /message with {title, message, priority} + X-Gotify-Key header. ntfy: POST /{topic} with message body + Title/Priority headers. The user's rstify instance handles FCM push delivery. Keep the client simple — just HTTP POST, no complex state."
+    },
+    {
+      "id": "US-002",
+      "title": "Notification settings database and API",
+      "description": "As a user, I want to configure my rstify notification settings (URL, token, enabled events) through the settings API.",
+      "acceptanceCriteria": [
+        "Add notification settings to the existing settings table using key-value pairs: notification.enabled, notification.provider, notification.url, notification.token, notification.topic",
+        "Create API endpoints or use existing settings API to read/write these values",
+        "Seed default values in migration or settings initialization: notification.enabled = false",
+        "Settings are stored encrypted if they contain tokens (use existing encryption)",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "The settings table already exists with key-value pairs (database/src/queries/settings.rs). Notification config can be stored as settings with the 'notification.' prefix. No new table needed — reuse existing settings infrastructure. The settings API at /api/v1/settings already supports CRUD. The frontend settings page already displays settings grouped by prefix. Just add the notification.* keys."
+    },
+    {
+      "id": "US-003",
+      "title": "Server health monitoring with notifications",
+      "description": "As a user, I want SvrCtlRS to periodically check if my servers are reachable via SSH and notify me through rstify when one goes down or comes back up.",
+      "acceptanceCriteria": [
+        "Create a background health check task that runs periodically (configurable interval, default 5 minutes)",
+        "For each enabled server: attempt an SSH connection test (reuse existing test_connection logic)",
+        "If a server transitions from reachable to unreachable: send rstify notification with priority 8 (high)",
+        "If a server transitions from unreachable to reachable: send rstify notification with priority 3 (normal)",
+        "Track server health state in memory (HashMap<server_id, bool>) — no database needed",
+        "Only send notifications if notification.enabled is true in settings",
+        "Health check runs as a background tokio task started in main.rs",
+        "Add setting: notification.health_check_interval_seconds (default 300)",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "The server connection test already exists in server/src/routes/api/servers.rs (test_connection endpoint). Extract the SSH connection test logic into a reusable function. The health check task should: (1) load settings to check if notifications enabled, (2) load all enabled servers, (3) test each one, (4) compare with previous state, (5) send notification on state change. Use tokio::spawn with tokio::time::interval for periodic execution. The health state is ephemeral — just track in a RwLock<HashMap<i64, bool>>."
+    },
+    {
+      "id": "US-004",
+      "title": "Notification settings UI",
+      "description": "As a user, I want to configure rstify notifications through the web UI settings page.",
+      "acceptanceCriteria": [
+        "Add a 'Notifications' section to the settings page (ui/src/routes/settings/+page.svelte)",
+        "Fields: Enable/disable toggle, Provider selector (gotify/ntfy), Server URL, API Token/Topic, Health check interval",
+        "Test Notification button that sends a test message via a new API endpoint",
+        "Create POST /api/v1/notifications/test endpoint that sends a test notification using the configured settings",
+        "Show success/error toast after test",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "The settings page already shows settings grouped by prefix. The notification.* settings will appear in a 'notification' group. But we want a nicer UX than just key-value editing — add a dedicated section with proper form inputs. The test notification endpoint reads notification settings from DB, creates a RstifyClient, and sends a test message. This validates the configuration end-to-end."
+    },
+    {
+      "id": "US-005",
+      "title": "Integration testing and documentation",
+      "description": "As a developer, I want Phase 5 verified and documented.",
+      "acceptanceCriteria": [
+        "Run full backend quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`",
+        "Run full frontend quality checks: `cd ui && npm run check && npm run build`",
+        "Update CLAUDE.md with notification system documentation",
+        "Update progress.txt with learnings",
+        "Push all changes",
+        "All quality checks pass"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Document the notification configuration keys, the health check system, and how rstify integration works in CLAUDE.md."
+    }
+  ]
+}

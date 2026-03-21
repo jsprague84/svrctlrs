@@ -1,0 +1,43 @@
+# Ralph Progress Log — Phase 5: Rstify Integration
+Started: Fri Mar 21 2026
+
+## Codebase Patterns
+- Branch: ralph/phase5-rstify (from ralph/phase4-tauri-mobile)
+- Settings stored as key-value pairs in `settings` table (database/src/queries/settings.rs)
+- Settings API: GET/PUT /api/v1/settings — existing CRUD
+- Settings page groups by key prefix (e.g., 'notification.' keys show as 'notification' group)
+- Server connection test exists in server/src/routes/api/servers.rs
+- reqwest available as dependency in server/Cargo.toml (behind feature flag)
+- Use anyhow::Context for errors, tracing for logging
+- Background tasks: use tokio::spawn with tokio::time::interval
+- Notification format: Gotify POST /message {title,message,priority} + X-Gotify-Key header
+- ntfy format: POST /{topic} with body + Title/Priority headers
+- Backend quality: `cargo clippy --workspace -- -D warnings && cargo test --workspace`
+- Frontend quality: `cd ui && npm run check && npm run build`
+
+---
+
+## 2026-03-21 - US-001: Notification client
+- NotificationClient in core/src/notifications.rs
+- Gotify: POST /message + X-Gotify-Key header (rstify compatible)
+- ntfy: POST /{topic} with Title/Priority headers
+- reqwest with rustls-tls added to core
+
+## 2026-03-21 - US-002: Settings + config builder
+- Migration 020 seeds notification.* settings keys
+- get_notification_config() builds NotificationConfig from settings table
+
+## 2026-03-21 - US-003: Health monitor + test endpoint
+- Background tokio task in health_monitor.rs
+- TCP connection test per server, sends notification on state change
+- POST /api/v1/notifications/test for testing config
+- **Learning:** Use `matches!()` macro instead of match+true/false (clippy)
+
+## 2026-03-21 - US-004: Settings UI
+- Test button in notification settings group header
+- Hits test endpoint, shows toast result
+
+## 2026-03-21 - US-005: Integration testing
+- CLAUDE.md updated with rstify docs
+- All checks pass
+---
