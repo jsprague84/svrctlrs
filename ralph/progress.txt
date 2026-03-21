@@ -19,3 +19,40 @@ Started: Fri Mar 21 2026
 - Design spec: docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md
 
 ---
+
+## 2026-03-21 - US-001: Tauri CLI install
+- @tauri-apps/cli 2.10.1, system deps: webkit2gtk4.1, libsoup3, openssl, librsvg2, libayatana-appindicator-gtk3
+- **Learning:** Need both runtime AND -devel packages for bundling on Fedora
+
+## 2026-03-21 - US-002: Tauri project init
+- `tauri init` creates ui/src-tauri/ with Rust code + config
+- Must exclude ui/src-tauri from root Cargo workspace (separate project)
+- Build: 9.2MB binary, 3.2MB .deb/.rpm, AppImage fails (linuxdeploy issue, non-critical)
+
+## 2026-03-21 - US-003/004: Platform detection + backend URL
+- platform/index.ts: isWeb(), isTauri(), getServerUrl(), setServerUrl()
+- API client uses getServerUrl() prefix in Tauri mode, empty string for web
+- WebSocket URLs: convert http->ws for Tauri, use window.location for web
+- Changed credentials from 'same-origin' to 'include' for cross-origin Tauri
+
+## 2026-03-21 - US-005: Server URL setup UI
+- ServerUrlSetup.svelte: full-page setup shown on first Tauri launch
+- Test Connection hits /api/v1/health before allowing save
+- Integrated into +layout.svelte with needsServerSetup gate
+
+## 2026-03-21 - US-006: System tray
+- tray-icon feature, Show/Hide + Quit menu
+- Close button hides to tray on desktop (#[cfg(desktop)])
+- Requires libayatana-appindicator-gtk3 at runtime on Linux
+
+## 2026-03-21 - US-007: Desktop build verification
+- Updated CLAUDE.md with Tauri docs, platform detection, build commands
+- Binary + .deb + .rpm all verified
+
+## 2026-03-21 - US-008: Android mobile spike
+- Android SDK not installed — documented prerequisites for Phase 4
+- Desktop build works perfectly, mobile blocked only by toolchain
+
+## 2026-03-21 - US-009: Integration testing
+- All backend (clippy + 18 tests) and frontend (check + build) pass
+---
