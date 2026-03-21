@@ -165,64 +165,67 @@
 	}
 </script>
 
-{#if open}
-	<!-- Backdrop -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div
-		class="fixed inset-0 bg-black/40 z-40"
-		onclick={(e) => { e.stopPropagation(); closePalette(); }}
-		onkeydown={() => {}}
-		role="presentation"
-	></div>
+<!-- Always in DOM, toggle visibility via CSS to avoid WebKitGTK layout corruption -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+	class="fixed inset-0 bg-black/40 z-40 transition-opacity duration-100
+		{open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
+	onclick={(e) => { e.stopPropagation(); closePalette(); }}
+	onkeydown={() => {}}
+	role="presentation"
+></div>
 
-	<!-- Palette -->
-	<div
-		class="fixed z-50 {isMobile()
+<div
+	class="fixed z-50 bg-surface border border-border shadow-lg flex flex-col overflow-hidden transition-opacity duration-100
+		{isMobile()
 			? 'bottom-0 inset-x-0 rounded-t-lg max-h-[60vh]'
 			: 'top-[20%] left-1/2 -translate-x-1/2 w-full max-w-md rounded-lg'
-		} bg-surface border border-border shadow-lg flex flex-col overflow-hidden"
-		role="dialog"
-		aria-label="Command palette"
-		tabindex="-1"
-		onkeydown={handleKeydown}
-	>
-		<!-- Search input -->
-		<div class="flex items-center gap-2 px-3 py-2 border-b border-border">
-			<Search class="w-4 h-4 text-text-muted flex-shrink-0" />
-			<input
-				bind:this={inputEl}
-				bind:value={query}
-				type="text"
-				class="flex-1 bg-transparent text-text-primary text-sm placeholder:text-text-muted outline-none"
-				placeholder="Type a command or action..."
-			/>
-		</div>
-
-		<!-- Results list -->
-		<div class="overflow-y-auto max-h-[50vh] py-1">
-			{#if filtered.length === 0}
-				<div class="px-3 py-4 text-center text-text-muted text-sm">No matches found</div>
-			{:else}
-				{#each filtered as item, i (item.id)}
-					<button
-						class="w-full text-left px-3 py-2 flex items-center gap-3 text-sm transition-colors
-							{i === selectedIndex ? 'bg-accent/10 text-text-primary' : 'text-text-secondary hover:bg-surface-raised'}"
-						onclick={(e) => { e.stopPropagation(); selectItem(item); }}
-						role="option"
-						aria-selected={i === selectedIndex}
-					>
-						<span class="flex-1 truncate">
-							<span class="font-medium">{item.name}</span>
-							{#if item.detail && item.category === 'command'}
-								<span class="text-text-muted ml-2 font-mono text-xs">{item.detail}</span>
-							{/if}
-						</span>
-						<span class="text-[10px] uppercase text-text-muted flex-shrink-0">
-							{item.category === 'command' ? 'cmd' : 'action'}
-						</span>
-					</button>
-				{/each}
-			{/if}
-		</div>
+		}
+		{open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
+	role="dialog"
+	aria-label="Command palette"
+	aria-hidden={!open}
+	tabindex="-1"
+	onkeydown={handleKeydown}
+>
+	<!-- Search input -->
+	<div class="flex items-center gap-2 px-3 py-2 border-b border-border">
+		<Search class="w-4 h-4 text-text-muted flex-shrink-0" />
+		<input
+			bind:this={inputEl}
+			bind:value={query}
+			type="text"
+			class="flex-1 bg-transparent text-text-primary text-sm placeholder:text-text-muted outline-none"
+			placeholder="Type a command or action..."
+		/>
 	</div>
-{/if}
+
+	<!-- Results list -->
+	<div class="overflow-y-auto max-h-[50vh] py-1">
+		{#if !open}
+			<!-- empty when hidden -->
+		{:else if filtered.length === 0}
+			<div class="px-3 py-4 text-center text-text-muted text-sm">No matches found</div>
+		{:else}
+			{#each filtered as item, i (item.id)}
+				<button
+					class="w-full text-left px-3 py-2 flex items-center gap-3 text-sm transition-colors
+						{i === selectedIndex ? 'bg-accent/10 text-text-primary' : 'text-text-secondary hover:bg-surface-raised'}"
+					onclick={(e) => { e.stopPropagation(); selectItem(item); }}
+					role="option"
+					aria-selected={i === selectedIndex}
+				>
+					<span class="flex-1 truncate">
+						<span class="font-medium">{item.name}</span>
+						{#if item.detail && item.category === 'command'}
+							<span class="text-text-muted ml-2 font-mono text-xs">{item.detail}</span>
+						{/if}
+					</span>
+					<span class="text-[10px] uppercase text-text-muted flex-shrink-0">
+						{item.category === 'command' ? 'cmd' : 'action'}
+					</span>
+				</button>
+			{/each}
+		{/if}
+	</div>
+</div>
