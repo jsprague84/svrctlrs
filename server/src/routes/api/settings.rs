@@ -180,7 +180,7 @@ struct UpdateSettingInput {
     value: String,
 }
 
-/// Update a setting value
+/// Update (or create) a setting value — upsert behavior
 #[instrument(skip(state, input))]
 async fn update_setting(
     State(state): State<AppState>,
@@ -189,38 +189,8 @@ async fn update_setting(
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     info!(key = %key, "Updating setting");
 
-    // Verify setting exists
-    let existing = settings::get_setting(&state.pool, &key)
-        .await
-        .map_err(|_| ApiError::not_found("Setting"))?;
-
-    // Validate value type
-    match existing.value_type.as_str() {
-        "boolean" => {
-            if input.value != "true" && input.value != "false" {
-                return Err(ApiError::bad_request(
-                    "Boolean setting must be 'true' or 'false'",
-                ));
-            }
-        }
-        "number" => {
-            if input.value.parse::<f64>().is_err() {
-                return Err(ApiError::bad_request(
-                    "Number setting must be a valid number",
-                ));
-            }
-        }
-        "json" => {
-            if serde_json::from_str::<serde_json::Value>(&input.value).is_err() {
-                return Err(ApiError::bad_request("JSON setting must be valid JSON"));
-            }
-        }
-        _ => {}
-    }
-
-    let update = svrctlrs_database::UpdateSetting { value: input.value };
-
-    settings::update_setting(&state.pool, &key, &update)
+    // Use set_setting (upsert) — creates if missing, updates if exists
+    settings::set_setting(&state.pool, &key, &input.value)
         .await
         .map_err(|e| {
             error!(error = %e, key = %key, "Failed to update setting");
