@@ -186,6 +186,7 @@
 	});
 
 	function handleKeydown(e: KeyboardEvent) {
+		e.stopPropagation(); // Prevent window-level shortcuts from firing
 		if (e.key === 'Escape') {
 			e.preventDefault();
 			onClose();

@@ -102,7 +102,11 @@
 			if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
 				e.preventDefault();
 				paletteOpen = !paletteOpen;
+				return;
 			}
+			// Skip all other shortcuts when palette or modals are open
+			if (paletteOpen || profileSaveOpen) return;
+
 			// Ctrl+Shift+T — new tab
 			if (e.ctrlKey && e.shiftKey && e.key === 'T') {
 				e.preventDefault();
