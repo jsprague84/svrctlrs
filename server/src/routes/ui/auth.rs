@@ -54,54 +54,29 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
     // Fallback: check Authorization header for token-based auth
     // (WebKitGTK doesn't reliably send cross-origin cookies, so Tauri
     // clients send the session ID as a Bearer token instead)
-    let has_auth = request.headers().get(axum::http::header::AUTHORIZATION).is_some();
-    let has_pool = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>().is_some();
-    tracing::info!(has_auth_header = has_auth, has_pool_ext = has_pool, "Token auth check");
-
+    // Fallback: check Authorization header for token-based auth
+    // (WebKitGTK doesn't reliably send cross-origin cookies, so Tauri
+    // clients send the session ID as a Bearer token instead)
     if let Some(auth_header) = request.headers().get(axum::http::header::AUTHORIZATION) {
         if let Ok(auth_str) = auth_header.to_str() {
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 if !token.is_empty() {
-                    // Query the sessions table directly to validate the token
                     if let Some(pool) = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>() {
-                        tracing::info!(token_prefix = &token[..token.len().min(8)], "Looking up session token");
-
-                        let result = svrctlrs_database::sqlx::query(
-                            "SELECT id FROM tower_sessions WHERE id = ?"
+                        // Check if session exists in the store (use query(), not query_as —
+                        // the data column is BLOB which can't be decoded as String)
+                        let exists = svrctlrs_database::sqlx::query(
+                            "SELECT 1 FROM tower_sessions WHERE id = ?"
                         )
                         .bind(token)
                         .fetch_optional(pool)
-                        .await;
+                        .await
+                        .ok()
+                        .flatten()
+                        .is_some();
 
-                        match &result {
-                            Ok(Some(_)) => tracing::info!("Session found in DB!"),
-                            Ok(None) => tracing::warn!("Session NOT found — id match failed"),
-                            Err(e) => tracing::error!(error = %e, "Session query ERROR"),
-                        };
-
-                        let valid = result.ok().flatten();
-
-                        tracing::info!(found = valid.is_some(), "Session lookup result");
-
-                        if valid.is_some() {
-                            tracing::info!("Authenticated via Bearer token");
+                        if exists {
                             return next.run(request).await;
                         }
-
-                        // Debug: compare token format with actual DB IDs
-                        let latest: Option<(String,)> = svrctlrs_database::sqlx::query_as(
-                            "SELECT id FROM tower_sessions ORDER BY expiry_date DESC LIMIT 1"
-                        )
-                        .fetch_optional(pool)
-                        .await
-                        .unwrap_or(None);
-                        tracing::info!(
-                            token_value = token,
-                            token_len = token.len(),
-                            db_id_sample = ?latest.as_ref().map(|r| &r.0),
-                            db_id_len = latest.as_ref().map(|r| r.0.len()),
-                            "Token vs DB format comparison"
-                        );
                     }
                 }
             }
@@ -307,7 +282,6 @@ async fn login_json(
     // Return session ID so Tauri clients can use token-based auth
     // (WebKitGTK doesn't reliably send cross-origin cookies)
     let session_id = session.id().map(|id| id.to_string()).unwrap_or_default();
-    tracing::info!(session_id_len = session_id.len(), "Session saved, returning token");
 
     tracing::info!(username = %user.username, user_id = user.id, "User logged in (JSON)");
     Ok(Json(serde_json::json!({"success": true, "user_id": user.id, "session_id": session_id})))
