@@ -14,6 +14,8 @@
 	import { tokyoNightTheme, lightTheme } from './terminal-theme.js';
 	import * as themeState from '$lib/state/theme.svelte.js';
 	import * as terminalPrefs from '$lib/state/terminalPrefs.svelte.js';
+	import * as terminalState from '$lib/state/terminal.svelte.js';
+	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import type { TerminalMode, ConnectionStatus, CmdRequest, CmdResponse, PtyRequest, PtyResponse } from '$lib/types/index.js';
 
 	interface Props {
@@ -28,6 +30,8 @@
 	let { tabId, serverId, mode = 'pty', active = true, onStatusChange, onOpenPalette }: Props = $props();
 
 	let lastTapTime = 0;
+	let touchStartX = 0;
+	let touchStartY = 0;
 
 	let containerEl: HTMLDivElement;
 	let terminal: Terminal | null = null;
@@ -574,12 +578,32 @@
 	class="h-full w-full bg-background"
 	class:hidden={!active}
 	bind:this={containerEl}
+	ontouchstart={(e) => {
+		if (e.touches.length === 1) {
+			touchStartX = e.touches[0].clientX;
+			touchStartY = e.touches[0].clientY;
+		}
+	}}
 	ontouchend={(e) => {
 		const now = Date.now();
+		// Double-tap detection (command palette)
 		if (now - lastTapTime < 300 && onOpenPalette) {
 			e.preventDefault();
 			onOpenPalette();
+			lastTapTime = 0;
+			return;
 		}
 		lastTapTime = now;
+
+		// Swipe detection (tab switching) — mobile only
+		if (isMobile() && e.changedTouches.length === 1) {
+			const dx = e.changedTouches[0].clientX - touchStartX;
+			const dy = e.changedTouches[0].clientY - touchStartY;
+			if (Math.abs(dx) > 50 && Math.abs(dy) < 30) {
+				e.preventDefault();
+				if (dx < 0) terminalState.nextTab();
+				else terminalState.prevTab();
+			}
+		}
 	}}
 ></div>
