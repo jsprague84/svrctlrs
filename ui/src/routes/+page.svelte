@@ -13,6 +13,7 @@
 	import ExtraKeysRow from '$lib/components/terminal/ExtraKeysRow.svelte';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as serversState from '$lib/state/servers.svelte.js';
+	import * as profilesState from '$lib/state/profiles.svelte.js';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import { isKeyboardVisible, initKeyboardDetection, destroyKeyboardDetection } from '$lib/platform/keyboard.svelte.js';
 	import type { TerminalMode, ConnectionStatus } from '$lib/types/index.js';
@@ -69,9 +70,23 @@
 			}, 5000);
 		}
 
-		// Create initial tab
+		// Create initial tab — either from default profile or empty
 		if (tabs.length === 0) {
-			terminalState.createTab(null, null, 'pty');
+			const allProfiles = profilesState.getProfiles();
+			const defaultProfile = allProfiles.find(p => p.is_default);
+			if (defaultProfile && defaultProfile.pane_configs) {
+				const serverNames: Record<number, string> = {};
+				for (const s of serversState.getServers()) {
+					serverNames[s.id] = s.name;
+				}
+				terminalState.applyProfile(
+					defaultProfile.layout as import('$lib/types/index.js').LayoutMode,
+					defaultProfile.pane_configs,
+					serverNames
+				);
+			} else {
+				terminalState.createTab(null, null, 'pty');
+			}
 		}
 
 		// Focus the terminal pane for a given tab id
