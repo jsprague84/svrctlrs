@@ -56,13 +56,25 @@
 		}
 
 		// Server connections (for mobile — connect directly from palette)
-		for (const server of serversState.getServers()) {
+		const servers = serversState.getServers();
+		for (const server of servers) {
 			result.push({
 				id: `server-${server.id}`,
 				name: `Connect: ${server.name}`,
 				detail: server.hostname ?? 'local',
 				category: 'action',
 				action: () => { onConnectServer?.(server.id, server.name); onClose(); }
+			});
+		}
+
+		// If no servers configured, offer to add one
+		if (servers.length === 0) {
+			result.push({
+				id: 'action-add-server',
+				name: 'Add Server',
+				detail: 'Configure a new server',
+				category: 'action',
+				action: () => { onClose(); window.location.href = '/servers'; }
 			});
 		}
 
