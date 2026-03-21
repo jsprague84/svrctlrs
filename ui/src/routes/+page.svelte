@@ -14,7 +14,7 @@
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
-	import { isKeyboardVisible, initKeyboardDetection, destroyKeyboardDetection } from '$lib/platform/keyboard.js';
+	import { isKeyboardVisible, initKeyboardDetection, destroyKeyboardDetection } from '$lib/platform/keyboard.svelte.js';
 	import type { TerminalMode, ConnectionStatus } from '$lib/types/index.js';
 
 	let selectedServerId = $state<number | null>(null);
