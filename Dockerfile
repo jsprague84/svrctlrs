@@ -8,8 +8,7 @@ FROM node:22-slim AS frontend
 
 WORKDIR /app/ui
 COPY ui/package.json ui/package-lock.json ./
-# Clean install — no cache reuse for node_modules
-RUN rm -rf node_modules && npm ci
+RUN npm ci
 COPY ui/ ./
 RUN npm run build
 

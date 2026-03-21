@@ -52,7 +52,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=dev-branch-v2
-          cache-to: type=gha,mode=max,scope=dev-branch-v2
+          cache-from: type=gha,scope=dev-branch
+          cache-to: type=gha,mode=max,scope=dev-branch
           build-args: |
             BUILDKIT_INLINE_CACHE=1
