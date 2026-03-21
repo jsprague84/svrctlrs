@@ -21,7 +21,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Files to modify: `ui/src/routes/+page.svelte` (conditionally render toolbar vs status bar based on isMobile()), `ui/src/routes/+layout.svelte` (coordinate hamburger with terminal page). Import isMobile from '$lib/state/mobile.svelte.js'. The existing toolbar at +page.svelte:192-256 has multiple rows of controls (server selector, mode, connect, icons) — all hidden on mobile. The MobileStatusBar replaces this with a single thin row. Props should include: serverId, serverName, connectionStatus, tabs (for dot indicators), onHamburgerClick. Use the terminal theme colors (bg-surface, border-border)."
     },
     {
@@ -41,7 +41,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "The TabDots component receives props: tabs (TerminalTab[]), activeTabId (string|null), onTapDots (() => void). Render using flexbox with gap-[3px]. Active dot uses `w-1.5 h-1.5` (6px), others use `w-1 h-1` (4px). Status-to-color mapping: connected -> bg-success, connecting -> bg-warning animate-pulse, disconnected -> bg-text-muted, error -> bg-error. The tab list bottom sheet (opened on tap) can be a simple list of tab names with status colors and a close button — reuse the bottom sheet pattern from TerminalPrefsPanel.svelte."
     },
     {
@@ -62,7 +62,7 @@
         "`cd ui && npm run build` passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "File: `ui/src/lib/components/terminal/TerminalPane.svelte`. The container div already has ontouchend for double-tap detection. Add ontouchstart to capture the start position, then in ontouchend calculate the delta. Guard: only process swipe if `isMobile()` and the horizontal delta exceeds 50px while vertical delta is under 30px. Import isMobile from '$lib/state/mobile.svelte.js'. Call terminalState.nextTab()/prevTab() which already exist. The double-tap gesture (300ms threshold) should still work — swipe detection uses distance, double-tap uses timing, so they don't conflict."
     },
     {
@@ -85,7 +85,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "The ExtraKeysRow needs an onKeyPress callback prop that takes a string (the escape sequence to inject). The parent (+page.svelte or TerminalPane) calls paneRefs[activeTabId].injectInput(sequence). For CTL modifier: maintain local $state `ctlActive` boolean. When CTL is tapped, set true. When any other key is tapped, if ctlActive, convert the key to its Ctrl equivalent (e.g., 'c' -> '\\x03'). Same for ALT (prepend '\\x1b'). The keyboard.ts module: use `$state` for keyboardVisible, set up visualViewport resize listener in an init function called from onMount. Heuristic: store initial viewport height, if current height < (initial - 150px) then keyboard is visible. Also listen for focusin/focusout on input elements as secondary signal for iOS Safari."
     },
     {
@@ -107,7 +107,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "File: `ui/src/lib/components/terminal/TerminalPane.svelte`. Add a `showReconnectOverlay` $state boolean. Set it to true in the reconnection failure path (when max reconnect attempts exceeded) or when socket closes unexpectedly. Set it to false when connect() is called or when status becomes 'connected'. The overlay is a div positioned `absolute inset-0` over the terminal container with `bg-background/80 flex items-center justify-center z-10`. Content: icon, message, two Button components. The terminal output is still visible behind the semi-transparent overlay because the serialized buffer was restored."
     },
     {
@@ -128,7 +128,7 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Files: `ui/src/routes/+page.svelte` (wrap toolbar sections in `{#if !isMobile()}` guards), `ui/src/lib/components/terminal/CommandPalette.svelte` (add missing mobile actions). The existing toolbar at +page.svelte:192-256 already has some `md:` responsive classes but still shows elements on mobile. Phase 2 makes mobile show NOTHING except the MobileStatusBar. Add to CommandPalette actions: { name: 'Clear Terminal', action: clear }, { name: 'Copy Output', action: copyOutput }, { name: 'Download Output', action: downloadOutput }, { name: 'Search Output', action: toggleSearch }, { name: 'Connect', action: connect }, { name: 'Disconnect', action: disconnect }. These need callbacks passed through props."
     },
     {
@@ -146,7 +146,7 @@
         "`cd ui && npm run build` passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "This can be a simple conditional div in +page.svelte template, rendered below the terminal area on mobile. Use $state for visibility, $effect with setTimeout for auto-dismiss. Check localStorage in onMount. Keep it minimal — just text, no complex UI. The hint provides discoverability for the invisible gesture-based UI."
     },
     {
@@ -166,7 +166,7 @@
         "`cd ui && npm run build` passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "This story audits and fixes safe-area support across the app. The viewport meta tag already has `viewport-fit=cover` (app.html:5). Some components already use safe-area-inset env variables (sidebar, prefs panel, modal footer). The main gaps from the exploration: hamburger button positioning (fixed top-2 left-2 without safe-area), toolbar area, and terminal bottom edge. Use Tailwind's `env()` via arbitrary values: `pt-[env(safe-area-inset-top)]` etc."
     },
     {
@@ -183,7 +183,7 @@
         "`cd ui && npm run build` passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "The sidebar connect flow already works via handleConnectServer() in +layout.svelte. The main new work is adding server list to CommandPalette. Extend the palette items to include a dynamic list of servers from serversState.getServers(). Each server appears as: { name: server.name, detail: server.hostname, category: 'server', action: () => createTab + autoConnect }. Pass serversState into CommandPalette or load servers from within the component."
     },
     {
@@ -200,7 +200,7 @@
         "All quality checks pass after fixes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Use `git diff ralph/phase1-foundation...HEAD --name-only` to get all changed files. Read each one and verify consistency with existing patterns. Run /simplify skill which dispatches three review agents (reuse, quality, efficiency). Fix issues rather than just reporting them."
     }
   ]
