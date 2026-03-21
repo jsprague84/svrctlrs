@@ -119,3 +119,24 @@ pub async fn delete_setting(pool: &Pool<Sqlite>, key: &str) -> Result<()> {
 
     Ok(())
 }
+
+/// Build a NotificationConfig from settings in the database
+pub async fn get_notification_config(
+    pool: &Pool<Sqlite>,
+) -> Result<svrctlrs_core::notifications::NotificationConfig> {
+    use svrctlrs_core::notifications::{NotificationConfig, NotificationProvider};
+
+    let enabled = get_setting_value_or(pool, "notification.enabled", "false").await?;
+    let provider = get_setting_value_or(pool, "notification.provider", "gotify").await?;
+    let url = get_setting_value_or(pool, "notification.url", "").await?;
+    let token = get_setting_value_or(pool, "notification.token", "").await?;
+    let topic = get_setting_value_or(pool, "notification.topic", "svrctlrs").await?;
+
+    Ok(NotificationConfig {
+        enabled: enabled == "true",
+        provider: NotificationProvider::parse(&provider),
+        url,
+        token,
+        topic,
+    })
+}
