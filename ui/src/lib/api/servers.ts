@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client.js';
-import type { Server, ServerWithDetails, CreateServer, UpdateServer, TestConnectionResult } from '$lib/types/index.js';
+import type { Server, CreateServer, UpdateServer, TestConnectionResult } from '$lib/types/index.js';
 
 interface ServersListResponse {
 	servers: Server[];
@@ -7,15 +7,6 @@ interface ServersListResponse {
 
 interface ServerDetailResponse {
 	server: Server;
-	tags: string[];
-	capabilities: Array<{
-		id: number;
-		server_id: number;
-		capability: string;
-		available: boolean;
-		version: string | null;
-		detected_at: string;
-	}>;
 }
 
 interface MutationResponse {
@@ -28,13 +19,9 @@ export async function listServers(): Promise<Server[]> {
 	return res.servers;
 }
 
-export async function getServer(id: number): Promise<ServerWithDetails> {
+export async function getServer(id: number): Promise<Server> {
 	const res = await get<ServerDetailResponse>(`/servers/${id}`);
-	return {
-		server: res.server,
-		tags: res.tags,
-		capabilities: res.capabilities
-	};
+	return res.server;
 }
 
 export async function createServer(input: CreateServer): Promise<number> {
