@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Settings, Save, Plus } from 'lucide-svelte';
+	import { Settings, Save, Plus, Bell } from 'lucide-svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Modal from '$lib/components/ui/Modal.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -8,6 +8,22 @@
 	import * as settingsState from '$lib/state/settings.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
 	import { extractErrorMessage } from '$lib/utils/error.js';
+	import { post } from '$lib/api/client.js';
+	import { isTauri } from '$lib/platform/index.js';
+
+	let testingNotification = $state(false);
+
+	async function testNotification() {
+		testingNotification = true;
+		try {
+			await post('/notifications/test');
+			toast.success('Test notification sent!');
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Failed to send test notification'));
+		} finally {
+			testingNotification = false;
+		}
+	}
 	import type { Setting, SettingValueType } from '$lib/types/index.js';
 
 	let editingKey = $state<string | null>(null);
@@ -89,9 +105,17 @@
 		{:else}
 			{#each Object.entries(settings) as [group, items]}
 				<div class="mb-6">
-					<h2 class="text-sm font-semibold text-text-primary capitalize mb-3 pb-1 border-b border-border/50">
-						{group.replace(/_/g, ' ')}
-					</h2>
+					<div class="flex items-center justify-between mb-3 pb-1 border-b border-border/50">
+						<h2 class="text-sm font-semibold text-text-primary capitalize">
+							{group.replace(/_/g, ' ')}
+						</h2>
+						{#if group === 'notification'}
+							<Button size="sm" variant="secondary" onclick={testNotification} disabled={testingNotification}>
+								<Bell class="w-3.5 h-3.5" />
+								{testingNotification ? 'Sending...' : 'Test'}
+							</Button>
+						{/if}
+					</div>
 					<div class="flex flex-col gap-2">
 						{#each items as setting}
 							<div class="flex flex-col md:flex-row md:items-start gap-2 md:gap-4 px-3 py-2 rounded-sm hover:bg-surface-raised/30">
