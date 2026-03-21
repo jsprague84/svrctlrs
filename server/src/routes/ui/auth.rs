@@ -51,46 +51,60 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
         return next.run(request).await;
     }
 
-    // Fallback: check Authorization header for token-based auth
-    // (WebKitGTK doesn't reliably send cross-origin cookies, so Tauri
-    // clients send the session ID as a Bearer token instead)
-    // Fallback: check Authorization header for token-based auth
-    // (WebKitGTK doesn't reliably send cross-origin cookies, so Tauri
-    // clients send the session ID as a Bearer token instead)
-    if let Some(auth_header) = request.headers().get(axum::http::header::AUTHORIZATION) {
-        if let Ok(auth_str) = auth_header.to_str() {
-            if let Some(token) = auth_str.strip_prefix("Bearer ") {
-                if !token.is_empty() {
-                    if let Some(pool) = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>() {
-                        // Verify session exists in the store
-                        let exists = svrctlrs_database::sqlx::query(
-                            "SELECT id FROM tower_sessions WHERE id = ?"
-                        )
-                        .bind(token)
-                        .fetch_optional(pool)
-                        .await
-                        .ok()
-                        .flatten()
-                        .is_some();
+    // Fallback: token-based auth for Tauri clients
+    // (WebKitGTK doesn't send cross-origin cookies)
+    // Check Authorization header first, then query params (for WebSocket which can't send headers)
+    let (token, uid_str) = {
+        // Try Authorization header + X-User-Id header
+        let header_token = request
+            .headers()
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.strip_prefix("Bearer "))
+            .filter(|t| !t.is_empty())
+            .map(String::from);
+        let header_uid = request
+            .headers()
+            .get("x-user-id")
+            .and_then(|v| v.to_str().ok())
+            .map(String::from);
 
-                        if exists {
-                            // Session token is valid — read user_id from X-User-Id header
-                            // (sent alongside the token; trusted because token was verified first)
-                            if let Some(uid_header) = request.headers().get("x-user-id") {
-                                if let Ok(uid_str) = uid_header.to_str() {
-                                    if let Ok(uid) = uid_str.parse::<i64>() {
-                                        let _ = session.insert(USER_ID_KEY, uid).await;
-                                        tracing::info!(user_id = uid, "Authenticated via Bearer token");
-                                        return next.run(request).await;
-                                    }
-                                }
-                            }
-                            // Token valid but no user_id header — allow through anyway
-                            tracing::warn!("Bearer token valid but missing X-User-Id header");
-                            return next.run(request).await;
-                        }
-                    }
+        if header_token.is_some() {
+            (header_token, header_uid)
+        } else {
+            // Try query params (?token=...&user_id=...) for WebSocket connections
+            let query = request.uri().query().unwrap_or("");
+            let params: std::collections::HashMap<String, String> = query
+                .split('&')
+                .filter_map(|pair| {
+                    let mut parts = pair.splitn(2, '=');
+                    Some((parts.next()?.to_string(), parts.next().unwrap_or("").to_string()))
+                })
+                .collect();
+            (
+                params.get("token").cloned().filter(|t| !t.is_empty()),
+                params.get("user_id").cloned(),
+            )
+        }
+    };
+
+    if let Some(token) = token {
+        if let Some(pool) = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>() {
+            let exists = svrctlrs_database::sqlx::query(
+                "SELECT id FROM tower_sessions WHERE id = ?"
+            )
+            .bind(&token)
+            .fetch_optional(pool)
+            .await
+            .ok()
+            .flatten()
+            .is_some();
+
+            if exists {
+                if let Some(uid) = uid_str.and_then(|s| s.parse::<i64>().ok()) {
+                    let _ = session.insert(USER_ID_KEY, uid).await;
                 }
+                return next.run(request).await;
             }
         }
     }

@@ -70,14 +70,22 @@
 	function getWsUrl(wsMode: TerminalMode): string {
 		const serverUrl = getServerUrl();
 		const path = wsMode === 'pty' ? '/ws/terminal/pty' : '/ws/terminal';
+		let url: string;
 		if (serverUrl) {
-			// Tauri mode: convert http(s) URL to ws(s)
 			const wsBase = serverUrl.replace(/^http/, 'ws');
-			return `${wsBase}${path}`;
+			url = `${wsBase}${path}`;
+		} else {
+			const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+			url = `${protocol}//${window.location.host}${path}`;
 		}
-		// Web mode: use current origin
-		const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-		return `${protocol}//${window.location.host}${path}`;
+		// Append auth token as query param (WebSocket API doesn't support custom headers)
+		const token = localStorage.getItem('svrctlrs-session-token');
+		const userId = localStorage.getItem('svrctlrs-user-id');
+		if (token) {
+			url += `?token=${encodeURIComponent(token)}`;
+			if (userId) url += `&user_id=${encodeURIComponent(userId)}`;
+		}
+		return url;
 	}
 
 	function loadHistory() {
