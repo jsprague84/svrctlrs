@@ -62,20 +62,31 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 if !token.is_empty() {
                     if let Some(pool) = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>() {
-                        let result = svrctlrs_database::sqlx::query(
-                            "SELECT id FROM tower_sessions WHERE id = ?"
+                        // Look up session and extract user_id from the stored data
+                        let result: Option<(Vec<u8>,)> = svrctlrs_database::sqlx::query_as(
+                            "SELECT data FROM tower_sessions WHERE id = ?"
                         )
                         .bind(token)
                         .fetch_optional(pool)
-                        .await;
+                        .await
+                        .unwrap_or(None);
 
-                        match &result {
-                            Ok(Some(_)) => {
-                                tracing::info!("Authenticated via Bearer token");
-                                return next.run(request).await;
+                        if let Some((data,)) = result {
+                            // Parse session data to extract user_id
+                            // tower-sessions stores data as JSON: {"user_id": N}
+                            if let Ok(json_str) = String::from_utf8(data) {
+                                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                                    if let Some(uid) = parsed.get("user_id").and_then(|v| v.as_i64()) {
+                                        // Insert user_id into the current session so handlers can read it
+                                        let _ = session.insert(USER_ID_KEY, uid).await;
+                                        tracing::info!(user_id = uid, "Authenticated via Bearer token");
+                                        return next.run(request).await;
+                                    }
+                                }
                             }
-                            Ok(None) => tracing::warn!("Bearer token not found in sessions"),
-                            Err(e) => tracing::error!(error = %e, "Session query error"),
+                            // If data parsing failed, still allow through (session exists)
+                            tracing::warn!("Bearer token valid but couldn't extract user_id from session data");
+                            return next.run(request).await;
                         }
                     }
                 }
