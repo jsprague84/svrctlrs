@@ -14,7 +14,7 @@
         "`cargo test --workspace` passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "See plan Task 1"
     },
     {
@@ -31,7 +31,7 @@
         "`cd ui && npm run check && npm run build` passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "See plan Task 2. Import isMobile from '$lib/state/mobile.svelte.js'. Use flex border-b border-border for tab bar."
     },
     {
@@ -48,7 +48,7 @@
         "`cd ui && npm run check && npm run build` passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "See plan Task 3. For default profile, use the settings API set_setting() for upsert."
     },
     {
@@ -65,7 +65,7 @@
         "`cd ui && npm run check && npm run build` passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "See plan Task 4. Use extractErrorMessage for errors, toast for feedback."
     },
     {
@@ -84,7 +84,7 @@
         "`cd ui && npm run check && npm run build` passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "See plan Task 5. Import serversState directly for server dropdown data."
     },
     {
@@ -100,7 +100,7 @@
         "`cd ui && npm run check && npm run build` passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "See plan Task 6. Use get() from API client for health check. Shortcuts are hardcoded data."
     },
     {
@@ -116,7 +116,7 @@
         "`cd ui && npm run check && npm run build` passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "See plan Task 7. This is metadata-only edit, NOT re-capturing terminal layout."
     },
     {
@@ -131,7 +131,7 @@
         "`cd ui && npm run check && npm run build` passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "See plan Task 8. Import profilesState and LayoutMode. The $effect avoids the async race condition."
     },
     {
@@ -147,7 +147,7 @@
         "Push all changes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "See plan Task 9."
     }
   ]
