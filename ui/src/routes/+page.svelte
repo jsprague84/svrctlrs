@@ -14,6 +14,7 @@
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import * as profilesState from '$lib/state/profiles.svelte.js';
+	import * as toast from '$lib/state/toast.svelte.js';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import { isKeyboardVisible, initKeyboardDetection, destroyKeyboardDetection } from '$lib/platform/keyboard.svelte.js';
 	import type { TerminalMode, ConnectionStatus } from '$lib/types/index.js';
@@ -225,7 +226,7 @@
 	}
 </script>
 
-<div class="flex flex-col h-screen">
+<div class="flex flex-col h-screen overflow-x-hidden">
 	<!-- Mobile: minimal status bar -->
 	{#if isMobile()}
 		<MobileStatusBar
@@ -402,8 +403,10 @@
 			open={paletteOpen}
 			onClose={() => paletteOpen = false}
 			onInjectCommand={(cmd) => {
-				if (activeTabId && paneRefs[activeTabId]) {
+				if (activeTabId && paneRefs[activeTabId] && activeTab?.status === 'connected') {
 					paneRefs[activeTabId].injectInput(cmd + '\n');
+				} else {
+					toast.warning('Connect to a server first');
 				}
 			}}
 			onSaveProfile={() => profileSaveOpen = true}
