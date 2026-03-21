@@ -1,93 +1,96 @@
 {
   "project": "SvrCtlRS",
-  "branchName": "ralph/phase4-tauri-mobile",
-  "description": "Phase 4 — Tauri v2 mobile app for Android with keyboard management, extra keys integration, biometric auth, and mobile gesture refinements",
+  "branchName": "ralph/phase5-rstify",
+  "description": "Phase 5 — Rstify notification integration: push notifications for server health, command completion, and pattern matching via the user's self-hosted rstify platform",
   "userStories": [
     {
       "id": "US-001",
-      "title": "Initialize Tauri Android target",
-      "description": "As a developer, I want the Tauri project configured for Android builds so I can produce an APK.",
+      "title": "Rstify notification client in core crate",
+      "description": "As a developer, I want a Rust HTTP client that can POST notifications to the rstify API using the Gotify/ntfy-compatible format.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'android init setup configuration mobile prerequisites'. Use latest patterns found.",
-        "Set Android env vars in the build environment: JAVA_HOME, ANDROID_HOME, NDK_HOME",
-        "Run `cd ui && npx tauri android init` to generate the Android project in src-tauri/gen/android/",
-        "Verify the generated Android project structure exists",
-        "Run `cd ui && npx tauri android build --debug` to produce a debug APK",
-        "Document the APK location and size",
-        "If build fails, document the error and attempt to fix — common issues: NDK version mismatch, missing SDK platform, Gradle version"
+        "Create `core/src/notifications.rs` with a `RstifyClient` struct",
+        "Constructor takes: base_url (String), api_token (String)",
+        "Method `send_notification(title, message, priority)` POSTs to rstify's Gotify-compatible endpoint",
+        "Gotify-compatible format: POST to `{base_url}/message` with JSON body `{title, message, priority}` and `X-Gotify-Key` header",
+        "Also support ntfy format as fallback: POST to `{base_url}/{topic}` with message body",
+        "Use reqwest with async/await",
+        "Add configuration struct: `NotificationConfig { enabled, provider (gotify|ntfy), url, token, topic }` ",
+        "Error handling via anyhow::Result",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "IMPORTANT: Must set env vars before running tauri commands. Use: export JAVA_HOME=/usr/lib/jvm/java-21-openjdk && export ANDROID_HOME=$HOME/Android/Sdk && export NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198 && export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin. The Rust Android targets (aarch64-linux-android, etc.) are already installed. The `tauri android init` generates a Gradle-based Android project in src-tauri/gen/android/. The `tauri android build --debug` compiles both the Rust code (cross-compiled) and the Android wrapper."
+      "passes": false,
+      "notes": "The core crate already has reqwest as a dependency (check server/Cargo.toml — it has dep:reqwest). Check if reqwest needs to be added to core/Cargo.toml. Rstify is compatible with both Gotify and ntfy formats. Gotify: POST /message with {title, message, priority} + X-Gotify-Key header. ntfy: POST /{topic} with message body + Title/Priority headers. The user's rstify instance handles FCM push delivery. Keep the client simple — just HTTP POST, no complex state."
     },
     {
       "id": "US-002",
-      "title": "Tauri keyboard plugin for mobile",
-      "description": "As a mobile user, I want the app to properly detect keyboard show/hide events so the terminal and extra keys row resize correctly.",
+      "title": "Notification settings database and API",
+      "description": "As a user, I want to configure my rstify notification settings (URL, token, enabled events) through the settings API.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'keyboard plugin mobile show hide height'. Use latest patterns found.",
-        "Research if tauri-plugin-keyboard exists for Tauri v2 — if not, document alternative approaches",
-        "If plugin exists: install it, add to Cargo.toml and tauri.conf.json, wire into platform/keyboard.ts",
-        "If no plugin: the web fallback (visualViewport heuristic from Phase 2) will be used on mobile too — verify it works in Android WebView",
-        "Update platform/keyboard.ts to prefer Tauri keyboard API when available, fall back to web heuristic",
-        "`cd ui && npm run check` passes",
-        "`cd ui && npm run build` passes"
+        "Add notification settings to the existing settings table using key-value pairs: notification.enabled, notification.provider, notification.url, notification.token, notification.topic",
+        "Create API endpoints or use existing settings API to read/write these values",
+        "Seed default values in migration or settings initialization: notification.enabled = false",
+        "Settings are stored encrypted if they contain tokens (use existing encryption)",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Tauri v2 mobile keyboard handling may not have a dedicated plugin yet. The web fallback (visualViewport resize heuristic from Phase 2 platform/keyboard.ts) should work in Android's WebView. The key question is whether Tauri provides a native keyboard API or if we rely on the web fallback. Check @tauri-apps/plugin-* packages on npm and the Tauri plugins repository. If no native plugin, the web fallback is sufficient for Phase 4."
+      "passes": false,
+      "notes": "The settings table already exists with key-value pairs (database/src/queries/settings.rs). Notification config can be stored as settings with the 'notification.' prefix. No new table needed — reuse existing settings infrastructure. The settings API at /api/v1/settings already supports CRUD. The frontend settings page already displays settings grouped by prefix. Just add the notification.* keys."
     },
     {
       "id": "US-003",
-      "title": "Biometric authentication plugin",
-      "description": "As a mobile user, I want to unlock the app with fingerprint or face recognition instead of typing my password every time.",
+      "title": "Server health monitoring with notifications",
+      "description": "As a user, I want SvrCtlRS to periodically check if my servers are reachable via SSH and notify me through rstify when one goes down or comes back up.",
       "acceptanceCriteria": [
-        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'biometric authentication mobile plugin fingerprint'. Use latest patterns found.",
-        "Research available Tauri v2 biometric plugins (official or community)",
-        "If plugin exists: install and configure for Android",
-        "If no plugin: document the gap and create a placeholder in platform/biometrics.ts that returns 'not available'",
-        "Create `ui/src/lib/platform/biometrics.ts` with: checkBiometricAvailability(), authenticate() functions",
-        "Both functions return graceful 'not available' responses on web (no-op)",
-        "`cd ui && npm run check` passes",
-        "`cd ui && npm run build` passes"
+        "Create a background health check task that runs periodically (configurable interval, default 5 minutes)",
+        "For each enabled server: attempt an SSH connection test (reuse existing test_connection logic)",
+        "If a server transitions from reachable to unreachable: send rstify notification with priority 8 (high)",
+        "If a server transitions from unreachable to reachable: send rstify notification with priority 3 (normal)",
+        "Track server health state in memory (HashMap<server_id, bool>) — no database needed",
+        "Only send notifications if notification.enabled is true in settings",
+        "Health check runs as a background tokio task started in main.rs",
+        "Add setting: notification.health_check_interval_seconds (default 300)",
+        "`cargo clippy --workspace -- -D warnings` passes",
+        "`cargo test --workspace` passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Biometric auth on Tauri mobile is less mature than React Native. Check for: tauri-plugin-biometric, tauri-plugin-authenticator, or community plugins. If nothing exists, create the interface (biometrics.ts) with no-op implementations so Phase 5+ can fill in the native code later. The biometric flow: app launch -> check if enabled -> prompt fingerprint/face -> on success, retrieve session token from secure storage -> continue to app."
+      "passes": false,
+      "notes": "The server connection test already exists in server/src/routes/api/servers.rs (test_connection endpoint). Extract the SSH connection test logic into a reusable function. The health check task should: (1) load settings to check if notifications enabled, (2) load all enabled servers, (3) test each one, (4) compare with previous state, (5) send notification on state change. Use tokio::spawn with tokio::time::interval for periodic execution. The health state is ephemeral — just track in a RwLock<HashMap<i64, bool>>."
     },
     {
       "id": "US-004",
-      "title": "Mobile-specific Tauri configuration",
-      "description": "As a mobile user, I want the Android app properly configured with correct permissions, screen orientation support, and status bar handling.",
+      "title": "Notification settings UI",
+      "description": "As a user, I want to configure rstify notifications through the web UI settings page.",
       "acceptanceCriteria": [
-        "Configure Android permissions in tauri.conf.json or AndroidManifest: INTERNET (required for WebSocket/API)",
-        "Set app to support both portrait and landscape orientations",
-        "Configure the Android status bar to be transparent/immersive for maximum terminal space",
-        "Set minimum SDK version to API 24 (Android 7.0) in the Tauri Android config",
-        "Verify the app identifier matches: app.js-node.svrctlrs",
-        "`cd ui && npx tauri android build --debug` succeeds (with env vars set)"
+        "Add a 'Notifications' section to the settings page (ui/src/routes/settings/+page.svelte)",
+        "Fields: Enable/disable toggle, Provider selector (gotify/ntfy), Server URL, API Token/Topic, Health check interval",
+        "Test Notification button that sends a test message via a new API endpoint",
+        "Create POST /api/v1/notifications/test endpoint that sends a test notification using the configured settings",
+        "Show success/error toast after test",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "The tauri.conf.json may need Android-specific sections. Check the generated AndroidManifest.xml in src-tauri/gen/android/ for permissions. INTERNET permission is usually auto-included. Screen orientation is configured in the activity tag. Status bar immersive mode can be set via Android theme in styles.xml or via Tauri window config. Set env vars before running: export JAVA_HOME=/usr/lib/jvm/java-21-openjdk && export ANDROID_HOME=$HOME/Android/Sdk && export NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198"
+      "passes": false,
+      "notes": "The settings page already shows settings grouped by prefix. The notification.* settings will appear in a 'notification' group. But we want a nicer UX than just key-value editing — add a dedicated section with proper form inputs. The test notification endpoint reads notification settings from DB, creates a RstifyClient, and sends a test message. This validates the configuration end-to-end."
     },
     {
       "id": "US-005",
       "title": "Integration testing and documentation",
-      "description": "As a developer, I want Phase 4 verified and documented.",
+      "description": "As a developer, I want Phase 5 verified and documented.",
       "acceptanceCriteria": [
-        "Run full frontend quality checks: `cd ui && npm run check && npm run build`",
         "Run full backend quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`",
-        "Verify desktop build still works: `cd ui && npx tauri build` (with env vars)",
-        "Verify Android debug APK builds: `cd ui && npx tauri android build --debug` (with env vars)",
-        "Document APK size, build time, and any known issues in progress.txt",
-        "Update CLAUDE.md with Android build commands and mobile notes",
+        "Run full frontend quality checks: `cd ui && npm run check && npm run build`",
+        "Update CLAUDE.md with notification system documentation",
+        "Update progress.txt with learnings",
         "Push all changes",
         "All quality checks pass"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Set env vars before all tauri commands: export JAVA_HOME=/usr/lib/jvm/java-21-openjdk && export ANDROID_HOME=$HOME/Android/Sdk && export NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198 && export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin"
+      "passes": false,
+      "notes": "Document the notification configuration keys, the health check system, and how rstify integration works in CLAUDE.md."
     }
   ]
 }

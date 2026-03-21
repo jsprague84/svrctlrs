@@ -1,0 +1,93 @@
+{
+  "project": "SvrCtlRS",
+  "branchName": "ralph/phase4-tauri-mobile",
+  "description": "Phase 4 — Tauri v2 mobile app for Android with keyboard management, extra keys integration, biometric auth, and mobile gesture refinements",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Initialize Tauri Android target",
+      "description": "As a developer, I want the Tauri project configured for Android builds so I can produce an APK.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'android init setup configuration mobile prerequisites'. Use latest patterns found.",
+        "Set Android env vars in the build environment: JAVA_HOME, ANDROID_HOME, NDK_HOME",
+        "Run `cd ui && npx tauri android init` to generate the Android project in src-tauri/gen/android/",
+        "Verify the generated Android project structure exists",
+        "Run `cd ui && npx tauri android build --debug` to produce a debug APK",
+        "Document the APK location and size",
+        "If build fails, document the error and attempt to fix — common issues: NDK version mismatch, missing SDK platform, Gradle version"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "IMPORTANT: Must set env vars before running tauri commands. Use: export JAVA_HOME=/usr/lib/jvm/java-21-openjdk && export ANDROID_HOME=$HOME/Android/Sdk && export NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198 && export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin. The Rust Android targets (aarch64-linux-android, etc.) are already installed. The `tauri android init` generates a Gradle-based Android project in src-tauri/gen/android/. The `tauri android build --debug` compiles both the Rust code (cross-compiled) and the Android wrapper."
+    },
+    {
+      "id": "US-002",
+      "title": "Tauri keyboard plugin for mobile",
+      "description": "As a mobile user, I want the app to properly detect keyboard show/hide events so the terminal and extra keys row resize correctly.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'keyboard plugin mobile show hide height'. Use latest patterns found.",
+        "Research if tauri-plugin-keyboard exists for Tauri v2 — if not, document alternative approaches",
+        "If plugin exists: install it, add to Cargo.toml and tauri.conf.json, wire into platform/keyboard.ts",
+        "If no plugin: the web fallback (visualViewport heuristic from Phase 2) will be used on mobile too — verify it works in Android WebView",
+        "Update platform/keyboard.ts to prefer Tauri keyboard API when available, fall back to web heuristic",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Tauri v2 mobile keyboard handling may not have a dedicated plugin yet. The web fallback (visualViewport resize heuristic from Phase 2 platform/keyboard.ts) should work in Android's WebView. The key question is whether Tauri provides a native keyboard API or if we rely on the web fallback. Check @tauri-apps/plugin-* packages on npm and the Tauri plugins repository. If no native plugin, the web fallback is sufficient for Phase 4."
+    },
+    {
+      "id": "US-003",
+      "title": "Biometric authentication plugin",
+      "description": "As a mobile user, I want to unlock the app with fingerprint or face recognition instead of typing my password every time.",
+      "acceptanceCriteria": [
+        "CONTEXT7 RESEARCH: Use Context7 MCP tool to query Tauri v2 docs for 'biometric authentication mobile plugin fingerprint'. Use latest patterns found.",
+        "Research available Tauri v2 biometric plugins (official or community)",
+        "If plugin exists: install and configure for Android",
+        "If no plugin: document the gap and create a placeholder in platform/biometrics.ts that returns 'not available'",
+        "Create `ui/src/lib/platform/biometrics.ts` with: checkBiometricAvailability(), authenticate() functions",
+        "Both functions return graceful 'not available' responses on web (no-op)",
+        "`cd ui && npm run check` passes",
+        "`cd ui && npm run build` passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Biometric auth on Tauri mobile is less mature than React Native. Check for: tauri-plugin-biometric, tauri-plugin-authenticator, or community plugins. If nothing exists, create the interface (biometrics.ts) with no-op implementations so Phase 5+ can fill in the native code later. The biometric flow: app launch -> check if enabled -> prompt fingerprint/face -> on success, retrieve session token from secure storage -> continue to app."
+    },
+    {
+      "id": "US-004",
+      "title": "Mobile-specific Tauri configuration",
+      "description": "As a mobile user, I want the Android app properly configured with correct permissions, screen orientation support, and status bar handling.",
+      "acceptanceCriteria": [
+        "Configure Android permissions in tauri.conf.json or AndroidManifest: INTERNET (required for WebSocket/API)",
+        "Set app to support both portrait and landscape orientations",
+        "Configure the Android status bar to be transparent/immersive for maximum terminal space",
+        "Set minimum SDK version to API 24 (Android 7.0) in the Tauri Android config",
+        "Verify the app identifier matches: app.js-node.svrctlrs",
+        "`cd ui && npx tauri android build --debug` succeeds (with env vars set)"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "The tauri.conf.json may need Android-specific sections. Check the generated AndroidManifest.xml in src-tauri/gen/android/ for permissions. INTERNET permission is usually auto-included. Screen orientation is configured in the activity tag. Status bar immersive mode can be set via Android theme in styles.xml or via Tauri window config. Set env vars before running: export JAVA_HOME=/usr/lib/jvm/java-21-openjdk && export ANDROID_HOME=$HOME/Android/Sdk && export NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198"
+    },
+    {
+      "id": "US-005",
+      "title": "Integration testing and documentation",
+      "description": "As a developer, I want Phase 4 verified and documented.",
+      "acceptanceCriteria": [
+        "Run full frontend quality checks: `cd ui && npm run check && npm run build`",
+        "Run full backend quality checks: `cargo clippy --workspace -- -D warnings && cargo test --workspace`",
+        "Verify desktop build still works: `cd ui && npx tauri build` (with env vars)",
+        "Verify Android debug APK builds: `cd ui && npx tauri android build --debug` (with env vars)",
+        "Document APK size, build time, and any known issues in progress.txt",
+        "Update CLAUDE.md with Android build commands and mobile notes",
+        "Push all changes",
+        "All quality checks pass"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "Set env vars before all tauri commands: export JAVA_HOME=/usr/lib/jvm/java-21-openjdk && export ANDROID_HOME=$HOME/Android/Sdk && export NDK_HOME=$ANDROID_HOME/ndk/30.0.14904198 && export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/cmdline-tools/latest/bin"
+    }
+  ]
+}
