@@ -189,10 +189,11 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .merge(http_routes)
         .merge(ws_routes)
-        // Auth middleware
+        // Auth middleware (needs pool for token auth fallback)
         .layer(axum::middleware::from_fn(
             routes::ui::auth::require_auth,
         ))
+        .layer(axum::Extension(state.pool.clone()))
         .layer(session_layer)
         .layer(
             tower_http::trace::TraceLayer::new_for_http().make_span_with(

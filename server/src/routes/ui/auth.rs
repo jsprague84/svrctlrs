@@ -44,11 +44,38 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
         return next.run(request).await;
     }
 
-    // Check session for authenticated user
+    // Check session cookie for authenticated user
     let user_id: Option<i64> = session.get(USER_ID_KEY).await.unwrap_or(None);
 
     if user_id.is_some() {
         return next.run(request).await;
+    }
+
+    // Fallback: check Authorization header for token-based auth
+    // (WebKitGTK doesn't reliably send cross-origin cookies, so Tauri
+    // clients send the session ID as a Bearer token instead)
+    if let Some(auth_header) = request.headers().get(axum::http::header::AUTHORIZATION) {
+        if let Ok(auth_str) = auth_header.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                if !token.is_empty() {
+                    // Query the sessions table directly to validate the token
+                    if let Some(pool) = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>() {
+                        let valid: Option<(String,)> = svrctlrs_database::sqlx::query_as(
+                            "SELECT data FROM tower_sessions WHERE id = ? AND expiry_date > datetime('now')"
+                        )
+                        .bind(token)
+                        .fetch_optional(pool)
+                        .await
+                        .unwrap_or(None);
+
+                        if valid.is_some() {
+                            tracing::debug!("Authenticated via Bearer token");
+                            return next.run(request).await;
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Unauthenticated — determine response type
@@ -241,8 +268,12 @@ async fn login_json(
         (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Session error"})))
     })?;
 
+    // Return session ID so Tauri clients can use token-based auth
+    // (WebKitGTK doesn't reliably send cross-origin cookies)
+    let session_id = session.id().map(|id| id.to_string()).unwrap_or_default();
+
     tracing::info!(username = %user.username, user_id = user.id, "User logged in (JSON)");
-    Ok(Json(serde_json::json!({"success": true, "user_id": user.id})))
+    Ok(Json(serde_json::json!({"success": true, "user_id": user.id, "session_id": session_id})))
 }
 
 /// Logout handler

@@ -1,7 +1,15 @@
-import { getServerUrl } from '$lib/platform/index.js';
+import { getServerUrl, isTauri } from '$lib/platform/index.js';
 
 function getApiBase(): string {
 	return `${getServerUrl()}/api/v1`;
+}
+
+/** Get auth headers — includes Bearer token for Tauri mode */
+function getAuthHeaders(): Record<string, string> {
+	if (!isTauri()) return {};
+	const token = localStorage.getItem('svrctlrs-session-token');
+	if (!token) return {};
+	return { Authorization: `Bearer ${token}` };
 }
 
 export class ApiError extends Error {
@@ -21,6 +29,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		credentials: 'include',
 		headers: {
 			'Content-Type': 'application/json',
+			...getAuthHeaders(),
 			...options.headers
 		},
 		...options
@@ -75,10 +84,15 @@ export function del<T>(path: string): Promise<T> {
 
 export async function logout(): Promise<void> {
 	try {
-		await fetch(`${getServerUrl()}/auth/logout`, { method: 'POST', credentials: 'include' });
+		await fetch(`${getServerUrl()}/auth/logout`, {
+			method: 'POST',
+			credentials: 'include',
+			headers: { ...getAuthHeaders() }
+		});
 	} catch (e) {
 		console.warn('Logout request failed:', e);
 	}
+	localStorage.removeItem('svrctlrs-session-token');
 	try {
 		const { goto } = await import('$app/navigation');
 		goto('/auth/login');

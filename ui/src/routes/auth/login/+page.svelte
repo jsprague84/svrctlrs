@@ -25,7 +25,11 @@
 			});
 
 			if (res.ok) {
-				// Use SvelteKit navigation (not full reload) to preserve cookie jar in WebKitGTK
+				const data = await res.json().catch(() => ({}));
+				// Store session token for Tauri mode (WebKitGTK can't send cross-origin cookies)
+				if (data.session_id) {
+					localStorage.setItem('svrctlrs-session-token', data.session_id);
+				}
 				goto('/');
 			} else {
 				const data = await res.json().catch(() => ({ error: 'Login failed' }));
