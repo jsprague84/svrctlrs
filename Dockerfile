@@ -8,7 +8,7 @@ FROM node:22-slim AS frontend
 
 WORKDIR /app/ui
 COPY ui/package.json ui/package-lock.json ./
-RUN npm ci
+RUN npm ci --ignore-scripts && npm rebuild
 COPY ui/ ./
 RUN npm run build
 
