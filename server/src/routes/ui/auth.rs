@@ -62,19 +62,17 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
             if let Some(token) = auth_str.strip_prefix("Bearer ") {
                 if !token.is_empty() {
                     if let Some(pool) = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>() {
-                        // Check if session exists in the store (use query(), not query_as —
-                        // the data column is BLOB which can't be decoded as String)
-                        let exists = svrctlrs_database::sqlx::query(
-                            "SELECT 1 FROM tower_sessions WHERE id = ?"
+                        // Validate token against sessions table
+                        // (use query() not query_as — data column is BLOB, not TEXT)
+                        let result = svrctlrs_database::sqlx::query(
+                            "SELECT id FROM tower_sessions WHERE id = ?"
                         )
                         .bind(token)
                         .fetch_optional(pool)
-                        .await
-                        .ok()
-                        .flatten()
-                        .is_some();
+                        .await;
 
-                        if exists {
+                        if result.as_ref().is_ok_and(|r| r.is_some()) {
+                            tracing::debug!("Authenticated via Bearer token");
                             return next.run(request).await;
                         }
                     }
