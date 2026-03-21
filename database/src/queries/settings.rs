@@ -65,6 +65,9 @@ pub async fn update_setting(pool: &Pool<Sqlite>, key: &str, update: &UpdateSetti
 }
 
 /// Set setting (insert or update)
+///
+/// On insert: creates with value_type 'string'.
+/// On conflict: updates only the value, preserving existing value_type and description.
 pub async fn set_setting(pool: &Pool<Sqlite>, key: &str, value: &str) -> Result<()> {
     sqlx::query(
         r#"
