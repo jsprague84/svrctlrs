@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Settings, Bell, TerminalSquare, Info } from 'lucide-svelte';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
+	import GeneralSettings from '$lib/components/settings/GeneralSettings.svelte';
 
 	type TabId = 'general' | 'notifications' | 'commands' | 'about';
 
@@ -40,7 +41,7 @@
 	<!-- Tab content -->
 	<div class="flex-1 overflow-y-auto p-4 md:p-6">
 		{#if activeTab === 'general'}
-			<div class="text-text-muted text-sm">General settings — coming soon</div>
+			<GeneralSettings />
 		{:else if activeTab === 'notifications'}
 			<div class="text-text-muted text-sm">Notification settings — coming soon</div>
 		{:else if activeTab === 'commands'}
