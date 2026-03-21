@@ -331,7 +331,7 @@
 	{/if}
 
 	<!-- Terminal panes -->
-	<div class="flex-1 min-h-0 relative">
+	<div class="flex-1 min-h-0 relative" style:padding-bottom={isMobile() && !isKeyboardVisible() ? 'env(safe-area-inset-bottom)' : '0'}>
 		<SplitView {layout} slotCount={visibleTabs.length}>
 			{#each tabs as tab (tab.id)}
 				<div

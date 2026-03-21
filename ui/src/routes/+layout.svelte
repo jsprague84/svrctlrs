@@ -86,7 +86,7 @@
 
 <!-- Hamburger button (mobile only) -->
 <button
-	class="fixed top-2 left-2 z-50 p-2 rounded-md bg-surface border border-border text-foreground md:hidden"
+	class="fixed top-[max(0.5rem,env(safe-area-inset-top))] left-[max(0.5rem,env(safe-area-inset-left))] z-50 p-2 rounded-md bg-surface border border-border text-foreground md:hidden"
 	onclick={() => (mobileOpen = !mobileOpen)}
 	aria-label={mobileOpen ? 'Close sidebar' : 'Open sidebar'}
 >
