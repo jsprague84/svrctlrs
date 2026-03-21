@@ -7,6 +7,7 @@
 	import Select from '$lib/components/ui/Select.svelte';
 	import * as settingsState from '$lib/state/settings.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '$lib/utils/error.js';
 	import type { Setting, SettingValueType } from '$lib/types/index.js';
 
 	let editingKey = $state<string | null>(null);
@@ -21,6 +22,7 @@
 
 	let settings = $derived(settingsState.getSettings());
 	let loading = $derived(settingsState.isLoading());
+	let settingsError = $derived(settingsState.getError());
 
 	onMount(() => {
 		settingsState.loadSettings();
@@ -42,7 +44,7 @@
 			toast.success('Setting updated');
 			editingKey = null;
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Failed to update setting');
+			toast.error(extractErrorMessage(e, 'Failed to update setting'));
 		}
 	}
 
@@ -62,7 +64,7 @@
 			toast.success('Setting created');
 			showCreate = false;
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Failed to create setting');
+			toast.error(extractErrorMessage(e, 'Failed to create setting'));
 		}
 	}
 </script>
@@ -79,6 +81,11 @@
 	<div class="flex-1 overflow-y-auto p-4 md:p-6">
 		{#if loading}
 			<div class="text-text-muted">Loading...</div>
+		{:else if settingsError}
+			<div class="text-center py-8">
+				<p class="text-error">{settingsError}</p>
+				<Button variant="secondary" class="mt-3" onclick={() => settingsState.loadSettings()}>Retry</Button>
+			</div>
 		{:else}
 			{#each Object.entries(settings) as [group, items]}
 				<div class="mb-6">

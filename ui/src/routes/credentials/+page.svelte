@@ -8,6 +8,7 @@
 	import Badge from '$lib/components/ui/Badge.svelte';
 	import * as credState from '$lib/state/credentials.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '$lib/utils/error.js';
 	import type { CredentialType, CreateCredential, UpdateCredential } from '$lib/types/index.js';
 	import { CREDENTIAL_TYPE_LABELS } from '$lib/types/credential.js';
 
@@ -24,6 +25,7 @@
 
 	let credentials = $derived(credState.getCredentials());
 	let loading = $derived(credState.isLoading());
+	let credError = $derived(credState.getError());
 
 	onMount(() => {
 		credState.loadCredentials();
@@ -73,7 +75,7 @@
 			}
 			showModal = false;
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Operation failed');
+			toast.error(extractErrorMessage(e, 'Operation failed'));
 		}
 	}
 
@@ -83,7 +85,7 @@
 			await credState.deleteCredential(id);
 			toast.success('Credential deleted');
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Delete failed (may be in use by a server)');
+			toast.error(extractErrorMessage(e, 'Delete failed (may be in use by a server)'));
 		}
 	}
 
@@ -108,6 +110,11 @@
 	<div class="flex-1 overflow-y-auto p-4 md:p-6">
 		{#if loading}
 			<div class="text-text-muted">Loading...</div>
+		{:else if credError}
+			<div class="text-center py-8">
+				<p class="text-error">{credError}</p>
+				<Button variant="secondary" class="mt-3" onclick={() => credState.loadCredentials()}>Retry</Button>
+			</div>
 		{:else if credentials.length === 0}
 			<div class="text-center text-text-muted">
 				<p>No credentials configured yet.</p>

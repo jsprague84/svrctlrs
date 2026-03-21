@@ -32,7 +32,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		try {
 			body = await res.json();
 		} catch {
-			// ignore parse errors
+			body = { error: res.statusText };
 		}
 		throw new ApiError(res.status, res.statusText, body);
 	}
@@ -66,8 +66,8 @@ export function del<T>(path: string): Promise<T> {
 export async function logout(): Promise<void> {
 	try {
 		await fetch('/auth/logout', { method: 'POST', credentials: 'same-origin' });
-	} catch {
-		// ignore errors
+	} catch (e) {
+		console.warn('Logout request failed:', e);
 	}
 	window.location.href = '/auth/login';
 }

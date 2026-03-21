@@ -9,6 +9,7 @@
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import * as credState from '$lib/state/credentials.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '$lib/utils/error.js';
 	import type { CreateServer, UpdateServer, TestConnectionResult } from '$lib/types/index.js';
 
 	let showModal = $state(false);
@@ -28,6 +29,7 @@
 
 	let servers = $derived(serversState.getServers());
 	let loading = $derived(serversState.isLoading());
+	let serversError = $derived(serversState.getError());
 	let credentials = $derived(credState.getCredentials());
 
 	onMount(() => {
@@ -72,7 +74,7 @@
 			}
 			showModal = false;
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Operation failed');
+			toast.error(extractErrorMessage(e, 'Operation failed'));
 		}
 	}
 
@@ -82,7 +84,7 @@
 			await serversState.deleteServer(id);
 			toast.success('Server deleted');
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Delete failed');
+			toast.error(extractErrorMessage(e, 'Delete failed'));
 		}
 	}
 
@@ -98,7 +100,7 @@
 				toast.error(testResult.message);
 			}
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Connection test failed');
+			toast.error(extractErrorMessage(e, 'Connection test failed'));
 		} finally {
 			testing = null;
 		}
@@ -118,6 +120,11 @@
 	<div class="flex-1 overflow-y-auto p-4 md:p-6">
 		{#if loading}
 			<div class="text-text-muted">Loading...</div>
+		{:else if serversError}
+			<div class="text-center py-8">
+				<p class="text-error">{serversError}</p>
+				<Button variant="secondary" class="mt-3" onclick={() => serversState.loadServers()}>Retry</Button>
+			</div>
 		{:else if servers.length === 0}
 			<div class="text-center text-text-muted">
 				<p>No servers configured yet.</p>
