@@ -36,6 +36,7 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
     let path_lower = path.to_ascii_lowercase();
     if path_lower == "/auth/login"
         || path_lower == "/auth/logout"
+        || path_lower == "/api/v1/auth/login"
         || path_lower == "/api/v1/health"
         // SPA static assets (SvelteKit immutable hashed chunks)
         || path_lower.starts_with("/_app/")
@@ -80,6 +81,7 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/auth/login", get(login_page).post(login))
+        .route("/api/v1/auth/login", post(login_json))
         .route("/auth/logout", post(logout))
 }
 
@@ -201,6 +203,46 @@ async fn login(
 
     tracing::info!(username = %user.username, user_id = user.id, "User logged in");
     Ok(Redirect::to("/").into_response())
+}
+
+/// JSON login handler for Tauri/SPA clients (no redirect, returns JSON)
+async fn login_json(
+    State(state): State<AppState>,
+    session: Session,
+    Json(creds): Json<LoginForm>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    use svrctlrs_database::queries::users;
+
+    let user = users::get_user_by_username(&state.pool, &creds.username)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Database error during login");
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})))
+        })?;
+
+    let user = match user {
+        Some(u) => u,
+        None => {
+            return Err((StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid username or password"}))));
+        }
+    };
+
+    let valid = users::verify_password(&creds.password, &user.password_hash).map_err(|e| {
+        tracing::error!(error = %e, "Password verification error");
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})))
+    })?;
+
+    if !valid {
+        return Err((StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid username or password"}))));
+    }
+
+    session.insert(USER_ID_KEY, user.id).await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to store session");
+        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Session error"})))
+    })?;
+
+    tracing::info!(username = %user.username, user_id = user.id, "User logged in (JSON)");
+    Ok(Json(serde_json::json!({"success": true, "user_id": user.id})))
 }
 
 /// Logout handler

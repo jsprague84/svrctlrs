@@ -149,6 +149,10 @@ async fn main() -> anyhow::Result<()> {
                 axum::http::header::CONTENT_TYPE,
                 axum::http::header::AUTHORIZATION,
                 axum::http::header::COOKIE,
+                axum::http::header::ACCEPT,
+            ])
+            .expose_headers([
+                axum::http::header::SET_COOKIE,
             ])
             .allow_credentials(true)
     } else {

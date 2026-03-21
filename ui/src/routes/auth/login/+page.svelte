@@ -16,19 +16,18 @@
 
 		try {
 			const serverUrl = getServerUrl();
-			const res = await fetch(`${serverUrl}/auth/login`, {
+			const res = await fetch(`${serverUrl}/api/v1/auth/login`, {
 				method: 'POST',
 				credentials: 'include',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-				body: new URLSearchParams({ username, password })
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ username, password })
 			});
 
-			if (res.ok || res.redirected) {
-				// Login successful — navigate to home
+			if (res.ok) {
 				window.location.href = '/';
 			} else {
-				const text = await res.text();
-				toast.error(text.includes('Invalid') ? 'Invalid username or password' : 'Login failed');
+				const data = await res.json().catch(() => ({ error: 'Login failed' }));
+				toast.error(data.error || 'Login failed');
 			}
 		} catch (e) {
 			toast.error(extractErrorMessage(e, 'Connection failed'));
