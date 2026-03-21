@@ -196,6 +196,25 @@ cd ui && npm run tauri android build -- --debug
 - `ui/src/lib/platform/keyboard.ts` — Keyboard visibility detection (web heuristic)
 - Mobile UX: invisible-until-needed (status bar, swipe tabs, double-tap command palette, extra keys row)
 
+## Rstify Notifications
+
+SvrCtlRS integrates with rstify (self-hosted, Gotify/ntfy-compatible) for push notifications.
+
+**Configuration:** Settings page → notification group:
+- `notification.enabled` — Enable/disable
+- `notification.provider` — `gotify` (default) or `ntfy`
+- `notification.url` — Rstify server URL
+- `notification.token` — Application token (create in rstify web UI)
+- `notification.topic` — Topic (ntfy only)
+- `notification.health_check_enabled` — Enable server health monitoring
+- `notification.health_check_interval_seconds` — Check interval (default 300)
+
+**API:** POST `/api/v1/notifications/test` — sends a test notification
+
+**Health Monitor:** Background task checks SSH connectivity to all enabled servers. Sends notifications on state changes (server down/up). Started automatically in `main.rs`.
+
+**Core client:** `core/src/notifications.rs` — `NotificationClient` with Gotify and ntfy support.
+
 ## Future Direction
 
-Push notifications via rstify (self-hosted, Gotify/ntfy compatible). Tauri mobile app (iOS/Android) planned for Phase 4. See `docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md` for the full design specification.
+Local SSH on-device via Tauri (russh), remote commands via rstify (self-hosted, Gotify/ntfy compatible). Tauri mobile app (iOS/Android) planned for Phase 4. See `docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md` for the full design specification.
