@@ -13,6 +13,7 @@ export default defineConfig({
 			}
 		},
 		// Disable HMR WebSocket when running inside Tauri (crashes WebKitGTK)
-		hmr: process.env.TAURI_ENV_PLATFORM ? false : undefined
+		// @ts-ignore -- process.env exists at build time in Node
+		hmr: !!process.env.TAURI_ENV_PLATFORM ? false : undefined
 	}
 });

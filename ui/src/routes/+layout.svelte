@@ -6,7 +6,7 @@
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import * as profilesState from '$lib/state/profiles.svelte.js';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
-	import { isTauri, hasServerUrl } from '$lib/platform/index.js';
+	import { isTauri, hasServerUrl, getServerUrl } from '$lib/platform/index.js';
 	import ServerUrlSetup from '$lib/components/ui/ServerUrlSetup.svelte';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
@@ -25,6 +25,7 @@
 	let sidebarCollapsed = $state(false);
 	let mobileOpen = $state(false);
 	let needsServerSetup = $state(false);
+	let appReady = $state(false);
 
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
@@ -40,11 +41,30 @@
 		// Check if Tauri mode needs server URL configuration
 		if (isTauri() && !hasServerUrl()) {
 			needsServerSetup = true;
-			return; // Don't load data until server is configured
+			return;
 		}
 
-		serversState.loadServers();
-		profilesState.loadProfiles();
+		// Verify auth before showing the app (prevents sidebar flash on 401)
+		if (isTauri()) {
+			fetch(`${getServerUrl()}/api/v1/health`, { credentials: 'include' })
+				.then((res) => {
+					if (res.status === 401) {
+						window.location.href = '/auth/login';
+					} else {
+						serversState.loadServers();
+						profilesState.loadProfiles();
+						appReady = true;
+					}
+				})
+				.catch(() => {
+					window.location.href = '/auth/login';
+				});
+		} else {
+			// Web mode — server handles auth via redirects
+			serversState.loadServers();
+			profilesState.loadProfiles();
+			appReady = true;
+		}
 
 		// Listen for toggle-sidebar events from child components (e.g., MobileStatusBar)
 		const handleToggleSidebar = () => { mobileOpen = !mobileOpen; };
@@ -98,15 +118,19 @@
 </script>
 
 {#if needsServerSetup}
-	<ServerUrlSetup onComplete={() => {
+	<ServerUrlSetup onComplete={async () => {
 		needsServerSetup = false;
 		serversState.loadServers();
 		profilesState.loadProfiles();
+		appReady = true;
 	}} />
 {:else if isAuthPage}
 	<!-- Auth pages render without sidebar/chrome -->
 	{@render children()}
 	<Toast />
+{:else if !appReady}
+	<!-- Wait for auth check before rendering (prevents sidebar flash) -->
+	<div class="min-h-screen bg-background"></div>
 {:else}
 
 <!-- Hamburger button (mobile only) -->
