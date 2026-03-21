@@ -151,6 +151,30 @@ CSS variables defined in `app.css` `@theme` block. Dark (Tokyo Night) and light 
 - **Encryption:** `ENCRYPTION_KEY` env var (required — 64 hex chars for AES-256-GCM)
 - **Session:** `SESSION_SECURE=true/false` (set false for local dev without HTTPS)
 
+## Tauri Desktop App
+
+The SvelteKit SPA is wrapped in Tauri v2 for native desktop builds. The Tauri project lives in `ui/src-tauri/` (excluded from the root Cargo workspace).
+
+```bash
+# Development (opens native window with Vite HMR)
+cd ui && npm run tauri:dev
+
+# Production build (produces binary + .deb + .rpm)
+cd ui && npm run tauri:build
+```
+
+**System requirements (Fedora):** `webkit2gtk4.1-devel`, `libsoup3-devel`, `openssl-devel`, `librsvg2-devel`, `libayatana-appindicator-gtk3-devel`
+
+### Platform Detection
+- `ui/src/lib/platform/index.ts` — `isWeb()`, `isTauri()`, `isTauriMobile()`, `isTauriDesktop()`
+- `ui/src/lib/platform/keyboard.ts` — mobile keyboard visibility detection (web fallback)
+- In Tauri mode, API calls use a configurable server URL from localStorage (`svrctlrs-server-url`)
+- In web mode, relative URLs (same-origin) — no configuration needed
+
+### Key Differences (Web vs Tauri)
+- **Web:** SPA served by Axum, API same-origin, credentials: 'same-origin'
+- **Tauri:** SPA loaded from filesystem, API to remote server, credentials: 'include', requires server URL setup on first launch
+
 ## Future Direction
 
-Tauri v2 integration planned for desktop (macOS/Windows/Linux) and mobile (iOS/Android) native apps from the same SvelteKit codebase. Push notifications via rstify (self-hosted, Gotify/ntfy compatible). See `docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md` for the full design specification.
+Push notifications via rstify (self-hosted, Gotify/ntfy compatible). Tauri mobile app (iOS/Android) planned for Phase 4. See `docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md` for the full design specification.
