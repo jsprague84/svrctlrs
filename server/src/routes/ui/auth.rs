@@ -27,6 +27,11 @@ const USER_ID_KEY: &str = "user_id";
 pub async fn require_auth(session: Session, request: Request, next: Next) -> Response {
     let path = request.uri().path();
 
+    // Let CORS preflight requests through (OPTIONS method)
+    if request.method() == axum::http::Method::OPTIONS {
+        return next.run(request).await;
+    }
+
     // Exempt routes - no auth required (case-insensitive comparison)
     let path_lower = path.to_ascii_lowercase();
     if path_lower == "/auth/login"
