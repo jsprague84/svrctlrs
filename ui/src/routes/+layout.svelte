@@ -70,12 +70,17 @@
 	}
 
 	function handleConnectServer(server: Server) {
-		// Navigate to terminal page and create a tab for this server
+		// Create a tab for this server and auto-connect
 		const tab = terminalState.createTab(server.id, server.name, 'pty');
 		if (tab) {
 			terminalState.setPendingAutoConnect(tab.id);
 		}
-		goto(`${base}/`);
+		// Close sidebar on mobile, navigate to terminal if not already there
+		mobileOpen = false;
+		const currentPath = page.url?.pathname ?? '';
+		if (currentPath !== '/') {
+			goto(`${base}/`);
+		}
 	}
 
 	function handleLoadProfile(profile: TerminalProfile) {
@@ -113,17 +118,6 @@
 	<Toast />
 {:else}
 
-<!-- Hamburger button (mobile only, hidden on terminal page which has its own in MobileStatusBar) -->
-{#if !isTerminalPage}
-<button
-	class="fixed top-[max(0.5rem,env(safe-area-inset-top))] left-[max(0.5rem,env(safe-area-inset-left))] z-50 p-2 rounded-md bg-surface border border-border text-foreground md:hidden"
-	onclick={() => (mobileOpen = !mobileOpen)}
-	aria-label={mobileOpen ? 'Close sidebar' : 'Open sidebar'}
->
-	<Menu class="w-5 h-5" />
-</button>
-{/if}
-
 <!-- Mobile backdrop -->
 {#if mobileOpen}
 	<button
@@ -154,7 +148,21 @@
 		profile={editingProfile}
 		onClose={() => editingProfile = null}
 	/>
-	<main class="flex-1 min-w-0 flex flex-col" class:pl-12={!isMobile()} class:pl-14={isMobile() && !isTerminalPage}>
+	<main
+		class="flex-1 min-w-0 flex flex-col"
+		style:padding-bottom={isMobile() && !isTerminalPage ? 'env(safe-area-inset-bottom, 0px)' : undefined}
+	>
+		{#if isMobile() && !isTerminalPage}
+			<div class="flex items-center px-2 pt-[env(safe-area-inset-top,0px)] bg-surface z-50 relative">
+				<button
+					class="p-2 rounded-md bg-surface border border-border text-foreground"
+					onclick={() => (mobileOpen = !mobileOpen)}
+					aria-label={mobileOpen ? 'Close sidebar' : 'Open sidebar'}
+				>
+					<Menu class="w-5 h-5" />
+				</button>
+			</div>
+		{/if}
 		{@render children()}
 	</main>
 </div>

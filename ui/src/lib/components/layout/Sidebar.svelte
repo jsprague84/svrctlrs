@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { base } from '$app/paths';
-	import { Terminal, Server, KeyRound, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, X, Layout, Trash2, Pencil } from 'lucide-svelte';
+	import { Terminal, Server, KeyRound, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, X, Layout, Trash2, Pencil, Plus } from 'lucide-svelte';
 	import type { Server as ServerType, TerminalProfile } from '$lib/types/index.js';
 	import { logout } from '$lib/api/client.js';
 	import * as themeState from '$lib/state/theme.svelte.js';
+	import { isMobile } from '$lib/state/mobile.svelte.js';
 
 	interface Props {
 		servers: ServerType[];
@@ -44,13 +45,24 @@
 		onMobileClose?.();
 		onConnectServer(server);
 	}
+
+	function handleSaveProfile() {
+		onMobileClose?.();
+		// Navigate to terminal page and trigger profile save modal
+		const path = page.url?.pathname ?? '';
+		if (path !== '/' && path !== base) {
+			window.location.href = `${base}/`;
+		}
+		// Dispatch event for terminal page to open ProfileManager
+		setTimeout(() => window.dispatchEvent(new CustomEvent('save-profile')), 100);
+	}
 </script>
 
 <aside
 	class="flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200
 		{mobileOpen
 			? 'fixed inset-y-0 left-0 z-40 w-64 flex translate-x-0 pl-[env(safe-area-inset-left)] pt-[calc(env(safe-area-inset-top)/2)] pb-[env(safe-area-inset-bottom)]'
-			: 'hidden md:flex'} {!mobileOpen && collapsed ? 'w-12' : !mobileOpen ? 'w-56' : ''}"
+			: isMobile() ? 'hidden' : 'hidden md:flex'} {!mobileOpen && collapsed ? 'w-12' : !mobileOpen ? 'w-56' : ''}"
 	aria-label="Sidebar"
 >
 	<!-- Logo / Toggle -->
@@ -139,43 +151,57 @@
 		</div>
 	{/if}
 
-	<!-- Profiles (not collapsed, or mobile open) -->
-	{#if (mobileOpen || !collapsed) && profiles.length > 0}
+	<!-- Profiles (desktop only — layouts not useful on mobile single-pane) -->
+	{#if !isMobile() && (mobileOpen || !collapsed)}
 		<div class="border-t border-sidebar-border">
 			<div class="px-3 py-2">
-				<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold mb-1.5">Profiles</h3>
-				<div class="flex flex-col gap-0.5">
-					{#each profiles as profile}
-						<div class="flex items-center gap-1 group">
-							<button
-								class="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm text-left flex-1 min-w-0
-									text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
-								onclick={() => onLoadProfile?.(profile)}
-								title="Load {profile.name}"
-							>
-								<Layout class="w-3.5 h-3.5 flex-shrink-0" />
-								<span class="truncate">{profile.name}</span>
-								{#if profile.is_default}
-									<span class="text-[9px] text-accent ml-auto flex-shrink-0">default</span>
-								{/if}
-							</button>
-							<button
-								class="p-1 text-sidebar-muted hover:text-sidebar-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-								onclick={() => onEditProfile?.(profile)}
-								aria-label="Edit profile"
-							>
-								<Pencil class="w-3 h-3" />
-							</button>
-							<button
-								class="p-1 text-sidebar-muted hover:text-error opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-								onclick={() => { if (confirm('Delete this profile?')) onDeleteProfile?.(profile.id); }}
-								aria-label="Delete profile"
-							>
-								<Trash2 class="w-3 h-3" />
-							</button>
-						</div>
-					{/each}
+				<div class="flex items-center justify-between mb-1.5">
+					<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold">Profiles</h3>
+					<button
+						class="p-0.5 text-sidebar-muted hover:text-sidebar-foreground transition-colors"
+						onclick={handleSaveProfile}
+						title="Save current layout as profile"
+						aria-label="Save current layout as profile"
+					>
+						<Plus class="w-3 h-3" />
+					</button>
 				</div>
+				{#if profiles.length > 0}
+					<div class="flex flex-col gap-0.5">
+						{#each profiles as profile}
+							<div class="flex items-center gap-1 group">
+								<button
+									class="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm text-left flex-1 min-w-0
+										text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
+									onclick={() => onLoadProfile?.(profile)}
+									title="Load {profile.name}"
+								>
+									<Layout class="w-3.5 h-3.5 flex-shrink-0" />
+									<span class="truncate">{profile.name}</span>
+									{#if profile.is_default}
+										<span class="text-[9px] text-accent ml-auto flex-shrink-0">default</span>
+									{/if}
+								</button>
+								<button
+									class="p-1 text-sidebar-muted hover:text-sidebar-foreground opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+									onclick={() => onEditProfile?.(profile)}
+									aria-label="Edit profile"
+								>
+									<Pencil class="w-3 h-3" />
+								</button>
+								<button
+									class="p-1 text-sidebar-muted hover:text-error opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+									onclick={() => { if (confirm('Delete this profile?')) onDeleteProfile?.(profile.id); }}
+									aria-label="Delete profile"
+								>
+									<Trash2 class="w-3 h-3" />
+								</button>
+							</div>
+						{/each}
+					</div>
+				{:else}
+					<p class="text-[10px] text-sidebar-muted italic px-2">No saved profiles</p>
+				{/if}
 			</div>
 		</div>
 	{/if}

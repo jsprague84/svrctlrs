@@ -19,6 +19,6 @@
 	});
 </script>
 
-<div class="grid h-full w-full gap-px bg-border {gridClass}">
+<div class="grid h-full w-full gap-px bg-border overflow-hidden {gridClass}">
 	{@render children()}
 </div>

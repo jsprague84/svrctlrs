@@ -30,10 +30,62 @@
 
 	let { tabId, serverId, mode = 'pty', active = true, onStatusChange, onOpenPalette }: Props = $props();
 
-	let lastTapTime = 0;
 	let touchStartX = 0;
 	let touchStartY = 0;
+	let lastTouchY = 0;
+	let scrollAccumulator = 0;
 	let showReconnectOverlay = $state(false);
+
+	// Mobile touch overlay handlers — intercept touch before xterm.js
+	const SCROLL_PX_PER_LINE = 18;
+	const SWIPE_MIN_DIST = 40;
+	const TAP_MAX_MOVE = 25;
+
+	function onOverlayTouchStart(e: TouchEvent) {
+		if (e.touches.length === 1) {
+			touchStartX = e.touches[0].clientX;
+			touchStartY = e.touches[0].clientY;
+			lastTouchY = e.touches[0].clientY;
+			scrollAccumulator = 0;
+		}
+	}
+
+	function onOverlayTouchMove(e: TouchEvent) {
+		if (!terminal || e.touches.length !== 1) return;
+		const touchY = e.touches[0].clientY;
+		const totalDx = Math.abs(e.touches[0].clientX - touchStartX);
+		const totalDy = Math.abs(touchY - touchStartY);
+
+		if (totalDy > totalDx && totalDy > 10) {
+			const delta = lastTouchY - touchY;
+			scrollAccumulator += delta;
+			const lines = Math.trunc(scrollAccumulator / SCROLL_PX_PER_LINE);
+			if (lines !== 0) {
+				terminal.scrollLines(lines);
+				scrollAccumulator = 0;
+			}
+		}
+		lastTouchY = touchY;
+	}
+
+	function onOverlayTouchEnd(e: TouchEvent) {
+		if (e.changedTouches.length !== 1) return;
+		const dx = e.changedTouches[0].clientX - touchStartX;
+		const dy = e.changedTouches[0].clientY - touchStartY;
+		const absDx = Math.abs(dx);
+		const absDy = Math.abs(dy);
+		const totalMove = Math.max(absDx, absDy);
+
+		if (totalMove < TAP_MAX_MOVE) {
+			// Single tap — focus terminal for keyboard input
+			terminal?.focus();
+		} else if (absDx > SWIPE_MIN_DIST && absDx > absDy) {
+			// Horizontal swipe — switch tabs
+			if (dx < 0) terminalState.nextTab();
+			else terminalState.prevTab();
+		}
+		// Vertical scroll already handled in touchmove
+	}
 
 	let containerEl: HTMLDivElement;
 	let terminal: Terminal | null = null;
@@ -596,36 +648,21 @@
 <div
 	class="h-full w-full bg-background relative"
 	class:hidden={!active}
-	bind:this={containerEl}
-	ontouchstart={(e) => {
-		if (e.touches.length === 1) {
-			touchStartX = e.touches[0].clientX;
-			touchStartY = e.touches[0].clientY;
-		}
-	}}
-	ontouchend={(e) => {
-		const now = Date.now();
-		// Double-tap detection (command palette)
-		if (now - lastTapTime < 300 && onOpenPalette) {
-			e.preventDefault();
-			onOpenPalette();
-			lastTapTime = 0;
-			return;
-		}
-		lastTapTime = now;
-
-		// Swipe detection (tab switching) — mobile only
-		if (isMobile() && e.changedTouches.length === 1) {
-			const dx = e.changedTouches[0].clientX - touchStartX;
-			const dy = e.changedTouches[0].clientY - touchStartY;
-			if (Math.abs(dx) > 50 && Math.abs(dy) < 30) {
-				e.preventDefault();
-				if (dx < 0) terminalState.nextTab();
-				else terminalState.prevTab();
-			}
-		}
-	}}
 >
+	<div class="h-full w-full" bind:this={containerEl}></div>
+
+	<!-- Mobile: transparent touch overlay intercepts gestures before xterm.js -->
+	{#if isMobile()}
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="absolute inset-0 z-[5]"
+			style:touch-action="none"
+			ontouchstart={onOverlayTouchStart}
+			ontouchmove={onOverlayTouchMove}
+			ontouchend={onOverlayTouchEnd}
+		></div>
+	{/if}
+
 	{#if showReconnectOverlay}
 		<div class="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 gap-3">
 			<p class="text-text-muted text-sm">Session disconnected</p>

@@ -5,6 +5,8 @@ import { defineConfig } from 'vite';
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	server: {
+		// Bind to all interfaces when TAURI_DEV_HOST is set (needed for mobile dev)
+		host: process.env.TAURI_DEV_HOST || 'localhost',
 		proxy: {
 			'/api': 'http://localhost:8080',
 			'/ws': {

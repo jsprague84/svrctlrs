@@ -1,4 +1,5 @@
 import type { TerminalTab, TerminalMode, ConnectionStatus, LayoutMode } from '$lib/types/index.js';
+import { isMobile } from '$lib/state/mobile.svelte.js';
 
 let tabs = $state<TerminalTab[]>([]);
 let activeTabId = $state<string | null>(null);
@@ -239,7 +240,8 @@ export function applyProfile(profileLayout: LayoutMode, panes: Array<{ server_id
 
 /** Assign visible slot indices based on layout and active tab */
 function assignSlots() {
-	const maxSlots =
+	// Mobile: always single pane regardless of layout setting
+	const maxSlots = isMobile() ? 1 :
 		layout === 'single' ? 1 : layout === 'split-h' || layout === 'split-v' ? 2 : 4;
 
 	// Reset all slots

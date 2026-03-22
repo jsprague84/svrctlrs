@@ -16,7 +16,7 @@
 	import * as profilesState from '$lib/state/profiles.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
-	import { isKeyboardVisible, initKeyboardDetection, destroyKeyboardDetection } from '$lib/platform/keyboard.svelte.js';
+	import { initKeyboardDetection, destroyKeyboardDetection } from '$lib/platform/keyboard.svelte.js';
 	import type { TerminalMode, ConnectionStatus } from '$lib/types/index.js';
 
 	let selectedServerId = $state<number | null>(null);
@@ -28,6 +28,8 @@
 	let paletteOpen = $state(false);
 	let profileSaveOpen = $state(false);
 	let showGestureHint = $state(false);
+	let mobileViewHeight = $state(0);
+	let mobileKeyboardOpen = $state(false);
 
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
@@ -69,6 +71,19 @@
 				showGestureHint = false;
 				localStorage.setItem('svrctlrs-gesture-hint-seen', 'true');
 			}, 5000);
+		}
+
+		// Track actual viewport height on mobile (100vh doesn't update with Android keyboard)
+		if (isMobile()) {
+			const initialHeight = window.visualViewport?.height ?? window.innerHeight;
+			const updateViewHeight = () => {
+				const vvHeight = window.visualViewport?.height ?? window.innerHeight;
+				mobileKeyboardOpen = initialHeight - vvHeight > 150;
+				mobileViewHeight = vvHeight;
+			};
+			updateViewHeight();
+			window.addEventListener('resize', updateViewHeight);
+			window.visualViewport?.addEventListener('resize', updateViewHeight);
 		}
 
 		// Create initial tab — either from default profile or empty
@@ -177,9 +192,14 @@
 			}
 		}
 
+		// Listen for save-profile events from sidebar
+		const handleSaveProfile = () => { profileSaveOpen = true; };
+		window.addEventListener('save-profile', handleSaveProfile);
+
 		window.addEventListener('keydown', handleKeydown, true);
 		return () => {
 			window.removeEventListener('keydown', handleKeydown, true);
+			window.removeEventListener('save-profile', handleSaveProfile);
 			destroyKeyboardDetection();
 		};
 	});
@@ -226,7 +246,11 @@
 	}
 </script>
 
-<div class="flex flex-col h-screen overflow-x-hidden">
+<div
+	class="flex flex-col overflow-hidden"
+	class:h-screen={!isMobile()}
+	style:height={isMobile() && mobileViewHeight > 0 ? `${mobileViewHeight}px` : undefined}
+>
 	<!-- Mobile: minimal status bar -->
 	{#if isMobile()}
 		<MobileStatusBar
@@ -234,6 +258,16 @@
 			connectionStatus={activeTab?.status ?? 'disconnected'}
 			{tabs}
 			{activeTabId}
+			onNewTab={handleNewTab}
+			onCloseTab={() => {
+				if (!activeTabId) return;
+				const tab = tabs.find(t => t.id === activeTabId);
+				if (tab?.status === 'connected' && !confirm('Terminal is connected. Close anyway?')) return;
+				paneRefs[activeTabId]?.disconnect();
+				delete paneRefs[activeTabId];
+				terminalState.closeTab(activeTabId);
+			}}
+			onOpenPalette={() => paletteOpen = true}
 		/>
 	{:else}
 	<!-- Desktop: full toolbar -->
@@ -351,7 +385,7 @@
 	{/if}
 
 	<!-- Terminal panes -->
-	<div class="flex-1 min-h-0 relative" style:padding-bottom={isMobile() && !isKeyboardVisible() ? 'env(safe-area-inset-bottom)' : '0'}>
+	<div class="flex-1 min-h-0 relative">
 		<SplitView {layout} slotCount={visibleTabs.length}>
 			{#each tabs as tab (tab.id)}
 				<div
@@ -385,14 +419,6 @@
 			</div>
 		{/if}
 
-		<!-- Extra keys row (mobile only, when keyboard visible) -->
-		{#if isMobile() && isKeyboardVisible()}
-			<ExtraKeysRow onKeyPress={(seq) => {
-				if (activeTabId && paneRefs[activeTabId]) {
-					paneRefs[activeTabId].injectInput(seq);
-				}
-			}} />
-		{/if}
 		<TerminalPrefsPanel open={prefsOpen} onClose={() => prefsOpen = false} />
 		<ProfileManager
 			open={profileSaveOpen}
@@ -423,4 +449,15 @@
 			serverId={activeTab?.serverId ?? null}
 		/>
 	</div>
+
+	<!-- Extra keys row (mobile only, in flex flow so it stays above keyboard) -->
+	{#if isMobile()}
+		<div class="flex-shrink-0" style:padding-bottom={!mobileKeyboardOpen ? 'env(safe-area-inset-bottom, 0px)' : undefined}>
+			<ExtraKeysRow onKeyPress={(seq) => {
+				if (activeTabId && paneRefs[activeTabId]) {
+					paneRefs[activeTabId].injectInput(seq);
+				}
+			}} />
+		</div>
+	{/if}
 </div>
