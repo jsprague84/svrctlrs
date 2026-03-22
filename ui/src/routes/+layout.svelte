@@ -22,6 +22,7 @@
 
 	// Auth pages render without sidebar/chrome
 	let isAuthPage = $derived(page.url?.pathname?.startsWith('/auth') ?? false);
+	let isTerminalPage = $derived(page.url?.pathname === '/');
 
 	let sidebarCollapsed = $state(false);
 	let mobileOpen = $state(false);
@@ -112,7 +113,8 @@
 	<Toast />
 {:else}
 
-<!-- Hamburger button (mobile only) -->
+<!-- Hamburger button (mobile only, hidden on terminal page which has its own in MobileStatusBar) -->
+{#if !isTerminalPage}
 <button
 	class="fixed top-[max(0.5rem,env(safe-area-inset-top))] left-[max(0.5rem,env(safe-area-inset-left))] z-50 p-2 rounded-md bg-surface border border-border text-foreground md:hidden"
 	onclick={() => (mobileOpen = !mobileOpen)}
@@ -120,6 +122,7 @@
 >
 	<Menu class="w-5 h-5" />
 </button>
+{/if}
 
 <!-- Mobile backdrop -->
 {#if mobileOpen}
