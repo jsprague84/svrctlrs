@@ -1,0 +1,32 @@
+app-id: cc.js-node.svrctlrs
+runtime: org.gnome.Platform
+runtime-version: '46'
+sdk: org.gnome.Sdk
+command: svrctlrs-desktop
+
+finish-args:
+  # Network access (SSH connections, API calls)
+  - --share=network
+  # Display
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  # GPU rendering (WebGL for xterm.js)
+  - --device=dri
+  # SSH keys access (read-only)
+  - --filesystem=~/.ssh:ro
+
+modules:
+  - name: svrctlrs
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 svrctlrs-desktop /app/bin/svrctlrs-desktop
+      - install -Dm644 cc.js-node.svrctlrs.desktop /app/share/applications/cc.js-node.svrctlrs.desktop
+      - install -Dm644 icon.png /app/share/icons/hicolor/256x256/apps/cc.js-node.svrctlrs.png
+    sources:
+      - type: file
+        path: svrctlrs-desktop
+      - type: file
+        path: cc.js-node.svrctlrs.desktop
+      - type: file
+        path: icon.png

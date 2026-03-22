@@ -1,0 +1,92 @@
+# SvrCtlRS CI Pipeline
+#
+# Runs lint, test, and frontend checks on push/PR.
+# Uses svrctlrs-ci image (Rust + Node.js) with sccache for fast builds.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop, 'ralph/**']
+  pull_request:
+    branches: [main, master, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Lint: fmt + clippy
+  # ──────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: docker
+    container:
+      image: git.js-node.cc/jsprague/svrctlrs-ci:latest
+      volumes:
+        - /ci-cache/sccache:/sccache
+        - /ci-cache/cargo-registry:/usr/local/cargo/registry
+    steps:
+      - name: Checkout
+        run: |
+          git clone --depth=1 --branch=${GITHUB_REF_NAME} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . 2>/dev/null || \
+          (git clone --depth=50 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . && git checkout ${GITHUB_SHA})
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Cache stats
+        run: sccache --show-stats
+
+  # ──────────────────────────────────────────────
+  # Test: cargo test
+  # ──────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: docker
+    needs: lint
+    container:
+      image: git.js-node.cc/jsprague/svrctlrs-ci:latest
+      volumes:
+        - /ci-cache/sccache:/sccache
+        - /ci-cache/cargo-registry:/usr/local/cargo/registry
+    steps:
+      - name: Checkout
+        run: |
+          git clone --depth=1 --branch=${GITHUB_REF_NAME} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . 2>/dev/null || \
+          (git clone --depth=50 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . && git checkout ${GITHUB_SHA})
+
+      - name: Run tests
+        run: cargo test --workspace --all-features --verbose
+
+      - name: Cache stats
+        run: sccache --show-stats
+
+  # ──────────────────────────────────────────────
+  # Frontend: svelte-check + build
+  # ──────────────────────────────────────────────
+  frontend:
+    name: Frontend
+    runs-on: docker
+    container:
+      image: git.js-node.cc/jsprague/svrctlrs-ci:latest
+      volumes:
+        - /ci-cache/npm-cache:/root/.npm
+    steps:
+      - name: Checkout
+        run: |
+          git clone --depth=1 --branch=${GITHUB_REF_NAME} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . 2>/dev/null || \
+          (git clone --depth=50 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . && git checkout ${GITHUB_SHA})
+
+      - name: Install dependencies
+        run: cd ui && npm ci
+
+      - name: Svelte check
+        run: cd ui && npm run check
+
+      - name: Build
+        run: cd ui && npm run build

@@ -1,0 +1,119 @@
+# SvrCtlRS Tauri Desktop Build (Linux)
+#
+# Builds .deb, .rpm, and .AppImage packages.
+# Triggered on version tags. Attaches artifacts to the Forgejo release.
+
+name: Desktop
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  desktop:
+    name: Linux Desktop
+    runs-on: docker
+    container:
+      image: git.js-node.cc/jsprague/tauri-desktop-ci:latest
+      volumes:
+        - /ci-cache/sccache:/sccache
+        - /ci-cache/cargo-registry:/usr/local/cargo/registry
+        - /ci-cache/npm-cache:/root/.npm
+    steps:
+      - name: Checkout
+        run: |
+          git clone --depth=1 --branch=${GITHUB_REF_NAME} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . 2>/dev/null || \
+          (git clone --depth=50 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . && git checkout ${GITHUB_SHA})
+
+      - name: Install frontend dependencies
+        run: cd ui && npm ci
+
+      - name: Build Tauri desktop
+        run: cd ui && npm run tauri build
+
+      - name: Build Flatpak
+        run: |
+          # Find the Tauri binary
+          BINARY=$(find ui/src-tauri/target/release -maxdepth 1 -name "svrctlrs*" -type f -executable | head -1)
+          if [ -z "$BINARY" ]; then
+            echo "Warning: Tauri binary not found, skipping Flatpak"
+          else
+            # Stage files for Flatpak build
+            FLATPAK_DIR=$(mktemp -d)
+            cp "$BINARY" "$FLATPAK_DIR/svrctlrs-desktop"
+            cp .forgejo/cc.js-node.svrctlrs.desktop "$FLATPAK_DIR/"
+            # Use Tauri icon or generate placeholder
+            ICON=$(find ui/src-tauri/icons -name "icon.png" -o -name "128x128.png" -o -name "256x256.png" | head -1)
+            if [ -n "$ICON" ]; then
+              cp "$ICON" "$FLATPAK_DIR/icon.png"
+            else
+              convert -size 256x256 xc:#1a1b26 "$FLATPAK_DIR/icon.png" 2>/dev/null || \
+              touch "$FLATPAK_DIR/icon.png"
+            fi
+
+            # Build Flatpak
+            cd "$FLATPAK_DIR"
+            cp $GITHUB_WORKSPACE/.forgejo/cc.js-node.svrctlrs.yaml .
+            flatpak-builder --force-clean --repo=repo builddir cc.js-node.svrctlrs.yaml
+            flatpak build-bundle repo svrctlrs.flatpak cc.js-node.svrctlrs
+
+            # Copy back to workspace
+            cp svrctlrs.flatpak $GITHUB_WORKSPACE/ui/src-tauri/target/release/bundle/
+            echo "Flatpak built: $(ls -lh svrctlrs.flatpak)"
+          fi
+
+      - name: List artifacts
+        run: |
+          echo "=== Built packages ==="
+          find ui/src-tauri/target/release/bundle -type f \( -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" -o -name "*.flatpak" \) | sort
+          ls -lh ui/src-tauri/target/release/bundle/deb/*.deb 2>/dev/null || true
+          ls -lh ui/src-tauri/target/release/bundle/rpm/*.rpm 2>/dev/null || true
+          ls -lh ui/src-tauri/target/release/bundle/appimage/*.AppImage 2>/dev/null || true
+          ls -lh ui/src-tauri/target/release/bundle/*.flatpak 2>/dev/null || true
+
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          API="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}"
+
+          # Get release ID (created by docker workflow)
+          RELEASE_ID=$(curl -sf "${API}/releases/tags/${TAG}" \
+            -H "Authorization: token ${TOKEN}" | jq -r '.id')
+
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            echo "Release not found for ${TAG}, creating..."
+            RELEASE_ID=$(curl -sf -X POST "${API}/releases" \
+              -H "Authorization: token ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"tag_name\":\"${TAG}\",\"name\":\"SvrCtlRS ${TAG}\",\"draft\":false,\"prerelease\":false}" \
+              | jq -r '.id')
+          fi
+
+          echo "Uploading to release ${RELEASE_ID}..."
+
+          # Upload each package
+          for pkg in ui/src-tauri/target/release/bundle/deb/*.deb \
+                     ui/src-tauri/target/release/bundle/rpm/*.rpm \
+                     ui/src-tauri/target/release/bundle/appimage/*.AppImage \
+                     ui/src-tauri/target/release/bundle/*.flatpak; do
+            [ -f "$pkg" ] || continue
+            NAME=$(basename "$pkg")
+            echo "  Uploading ${NAME}..."
+            curl -sf -X POST "${API}/releases/${RELEASE_ID}/assets?name=${NAME}" \
+              -H "Authorization: token ${TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"${pkg}"
+          done
+
+          echo "Desktop artifacts uploaded."
+
+      - name: Cache stats
+        run: sccache --show-stats

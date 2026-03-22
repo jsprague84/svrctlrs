@@ -1,0 +1,54 @@
+# syntax=docker/dockerfile:1
+#
+# Tauri Android CI image — builds APK/AAB
+#
+# Adds Android SDK, NDK, Java, and Rust Android targets.
+# Large image (~6GB) — build once, cache on registry.
+#
+# Build and push:
+#   docker buildx build -t git.js-node.cc/jsprague/tauri-android-ci:latest -f .forgejo/Dockerfile.tauri-android .
+#   docker login git.js-node.cc && docker push git.js-node.cc/jsprague/tauri-android-ci:latest
+
+FROM git.js-node.cc/jsprague/svrctlrs-ci:latest
+
+# Java (OpenJDK 17 — required by Gradle/Android toolchain)
+RUN apt-get update -qq && apt-get install -y --no-install-recommends \
+    openjdk-17-jdk-headless \
+    unzip \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+
+# Android SDK
+ENV ANDROID_HOME=/opt/android-sdk
+ENV ANDROID_SDK_ROOT=$ANDROID_HOME
+ENV PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+
+RUN mkdir -p $ANDROID_HOME/cmdline-tools \
+    && cd /tmp \
+    && curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip \
+    && unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools \
+    && mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest \
+    && rm cmdline-tools.zip
+
+# Accept licenses and install SDK components
+RUN yes | sdkmanager --licenses > /dev/null 2>&1 \
+    && sdkmanager --install \
+    "platform-tools" \
+    "platforms;android-34" \
+    "build-tools;34.0.0" \
+    "ndk;27.0.12077973"
+
+ENV NDK_HOME=$ANDROID_HOME/ndk/27.0.12077973
+
+# Rust Android targets
+RUN rustup target add \
+    aarch64-linux-android \
+    armv7-linux-androideabi \
+    x86_64-linux-android \
+    i686-linux-android
+
+# Install Tauri CLI
+RUN npm install -g @tauri-apps/cli
+
+WORKDIR /workspace

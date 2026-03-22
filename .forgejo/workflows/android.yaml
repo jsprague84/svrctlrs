@@ -1,0 +1,103 @@
+# SvrCtlRS Tauri Android Build
+#
+# Builds debug APK (all pushes to main) and signed APK/AAB (tags).
+# Attaches artifacts to the Forgejo release on version tags.
+
+name: Android
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: docker
+    container:
+      image: git.js-node.cc/jsprague/tauri-android-ci:latest
+      volumes:
+        - /ci-cache/sccache:/sccache
+        - /ci-cache/cargo-registry:/usr/local/cargo/registry
+        - /ci-cache/npm-cache:/root/.npm
+        - /ci-cache/gradle:/root/.gradle
+    steps:
+      - name: Checkout
+        run: |
+          git clone --depth=1 --branch=${GITHUB_REF_NAME} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . 2>/dev/null || \
+          (git clone --depth=50 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . && git checkout ${GITHUB_SHA})
+
+      - name: Install frontend dependencies
+        run: cd ui && npm ci
+
+      - name: Build debug APK
+        if: "!startsWith(github.ref, 'refs/tags/v')"
+        run: cd ui && npm run tauri android build -- --debug
+
+      - name: Build release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          cd ui
+          # Build unsigned release APK
+          npm run tauri android build
+          # Sign if keystore is available
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > /tmp/release.keystore
+            UNSIGNED=$(find src-tauri/gen/android -name "*-unsigned.apk" -o -name "*.apk" | head -1)
+            if [ -f "$UNSIGNED" ]; then
+              $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+                --ks /tmp/release.keystore \
+                --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
+                --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} \
+                --out src-tauri/gen/android/app/build/outputs/apk/release/svrctlrs-signed.apk \
+                "$UNSIGNED"
+            fi
+            rm -f /tmp/release.keystore
+          fi
+
+      - name: List artifacts
+        run: |
+          echo "=== Built APKs ==="
+          find ui/src-tauri/gen/android -name "*.apk" -o -name "*.aab" | sort
+          find ui/src-tauri/gen/android -name "*.apk" -exec ls -lh {} \;
+
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          API="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}"
+
+          # Get or create release
+          RELEASE_ID=$(curl -sf "${API}/releases/tags/${TAG}" \
+            -H "Authorization: token ${TOKEN}" | jq -r '.id')
+
+          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
+            RELEASE_ID=$(curl -sf -X POST "${API}/releases" \
+              -H "Authorization: token ${TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"tag_name\":\"${TAG}\",\"name\":\"SvrCtlRS ${TAG}\",\"draft\":false,\"prerelease\":false}" \
+              | jq -r '.id')
+          fi
+
+          echo "Uploading to release ${RELEASE_ID}..."
+
+          for apk in $(find ui/src-tauri/gen/android -name "*.apk" | grep -v "intermediates"); do
+            NAME=$(basename "$apk")
+            echo "  Uploading ${NAME}..."
+            curl -sf -X POST "${API}/releases/${RELEASE_ID}/assets?name=${NAME}" \
+              -H "Authorization: token ${TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"${apk}"
+          done
+
+          echo "Android artifacts uploaded."
+
+      - name: Cache stats
+        run: sccache --show-stats

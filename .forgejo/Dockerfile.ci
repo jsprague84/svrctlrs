@@ -1,0 +1,19 @@
+# syntax=docker/dockerfile:1
+#
+# SvrCtlRS CI image — Rust + Node.js for lint, test, clippy, frontend check
+#
+# Extends the shared rust-ci image with Node.js for frontend builds.
+#
+# Build and push:
+#   docker buildx build -t git.js-node.cc/jsprague/svrctlrs-ci:latest -f .forgejo/Dockerfile.ci .
+#   docker login git.js-node.cc && docker push git.js-node.cc/jsprague/svrctlrs-ci:latest
+
+FROM git.js-node.cc/jsprague/rust-ci:latest
+
+# Install Node.js 22 (matches project requirement)
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/* \
+    && node --version && npm --version
+
+WORKDIR /workspace
