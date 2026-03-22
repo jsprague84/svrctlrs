@@ -154,7 +154,7 @@
 		profile={editingProfile}
 		onClose={() => editingProfile = null}
 	/>
-	<main class="flex-1 min-w-0 flex flex-col pl-12 md:pl-0">
+	<main class="flex-1 min-w-0 flex flex-col pl-0 md:pl-12">
 		{@render children()}
 	</main>
 </div>
