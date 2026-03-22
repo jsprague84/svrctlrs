@@ -115,6 +115,19 @@ body {
 	padding-right: env(safe-area-inset-right, 0px);
 }
 
+/* Terminal gesture isolation — prevents scroll chaining and browser touch takeover */
+.terminal-shell {
+	touch-action: none;
+	overscroll-behavior: contain;
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.terminal-viewport {
+	overflow: hidden;
+	overscroll-behavior: contain;
+}
+
 /* Monospace for technical content */
 code, pre, .font-mono {
 	font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;

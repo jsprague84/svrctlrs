@@ -118,7 +118,10 @@
 			selectedIndex = 0;
 			pendingAction = null;
 			void quickCommandsState.loadCommands();
-			requestAnimationFrame(() => inputEl?.focus());
+			// Only auto-focus search input on desktop — on mobile it opens the keyboard
+			if (!isMobile()) {
+				requestAnimationFrame(() => inputEl?.focus());
+			}
 		}
 	});
 

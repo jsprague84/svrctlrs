@@ -30,61 +30,124 @@
 
 	let { tabId, serverId, mode = 'pty', active = true, onStatusChange, onOpenPalette }: Props = $props();
 
-	let touchStartX = 0;
-	let touchStartY = 0;
-	let lastTouchY = 0;
-	let scrollAccumulator = 0;
 	let showReconnectOverlay = $state(false);
+	let shellEl: HTMLDivElement;
 
-	// Mobile touch overlay handlers — intercept touch before xterm.js
-	const SCROLL_PX_PER_LINE = 18;
-	const SWIPE_MIN_DIST = 40;
-	const TAP_MAX_MOVE = 25;
+	// ── Gesture state machine (PointerEvent-based, capture phase) ───────
+	// Capture phase intercepts touch events BEFORE xterm.js sees them.
+	// Mouse events pass through untouched for native selection/scrolling.
+	// Touch events: tap → focus, double-tap → palette, vertical → scroll,
+	// horizontal → tab swipe. Axis locks early and never switches.
+	type GestureMode = 'idle' | 'pending' | 'vertical-scroll' | 'horizontal-swipe';
 
-	function onOverlayTouchStart(e: TouchEvent) {
-		if (e.touches.length === 1) {
-			touchStartX = e.touches[0].clientX;
-			touchStartY = e.touches[0].clientY;
-			lastTouchY = e.touches[0].clientY;
-			scrollAccumulator = 0;
-		}
+	let gestureMode: GestureMode = 'idle';
+	let startX = 0;
+	let startY = 0;
+	let lastX = 0;
+	let lastY = 0;
+	let startTime = 0;
+	let lastTapTime = 0;
+	let tapFocusTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	const TAP_MAX_MS = 220;       // max pointer-down duration to count as a tap (not a drag)
+	const DOUBLE_TAP_MS = 350;    // window between taps for double-tap detection
+	const FOCUS_DELAY_MS = 380;   // delay focus slightly longer than double-tap window
+	const LOCK_DISTANCE = 10;
+	const AXIS_BIAS = 1.2;
+	const SWIPE_COMMIT_PX = 60;
+	const CELL_HEIGHT_FALLBACK = 18;
+
+	function getCellHeight(): number {
+		try {
+			const dims = (terminal as any)?.['_core']?.['_renderService']?.['dimensions'];
+			if (dims?.css?.cell?.height) return dims.css.cell.height;
+		} catch { /* ignore */ }
+		return CELL_HEIGHT_FALLBACK;
 	}
 
-	function onOverlayTouchMove(e: TouchEvent) {
-		if (!terminal || e.touches.length !== 1) return;
-		const touchY = e.touches[0].clientY;
-		const totalDx = Math.abs(e.touches[0].clientX - touchStartX);
-		const totalDy = Math.abs(touchY - touchStartY);
+	function handlePointerDown(e: PointerEvent) {
+		if (e.pointerType !== 'touch') return;
+		e.stopPropagation(); // prevent xterm.js from seeing this touch
+		gestureMode = 'pending';
+		startX = lastX = e.clientX;
+		startY = lastY = e.clientY;
+		startTime = performance.now();
+		shellEl.setPointerCapture(e.pointerId);
+	}
 
-		if (totalDy > totalDx && totalDy > 10) {
-			const delta = lastTouchY - touchY;
-			scrollAccumulator += delta;
-			const lines = Math.trunc(scrollAccumulator / SCROLL_PX_PER_LINE);
-			if (lines !== 0) {
-				terminal.scrollLines(lines);
-				scrollAccumulator = 0;
+	function handlePointerMove(e: PointerEvent) {
+		if (e.pointerType !== 'touch' || gestureMode === 'idle') return;
+		e.stopPropagation();
+
+		const dx = e.clientX - startX;
+		const dy = e.clientY - startY;
+		const adx = Math.abs(dx);
+		const ady = Math.abs(dy);
+
+		if (gestureMode === 'pending') {
+			if (adx < LOCK_DISTANCE && ady < LOCK_DISTANCE) return;
+
+			if (ady > adx * AXIS_BIAS) {
+				gestureMode = 'vertical-scroll';
+			} else if (adx > ady * AXIS_BIAS) {
+				gestureMode = 'horizontal-swipe';
+			} else {
+				return;
 			}
 		}
-		lastTouchY = touchY;
+
+		if (gestureMode === 'vertical-scroll' && terminal) {
+			const deltaY = e.clientY - lastY;
+			const cellH = getCellHeight();
+			const lines = Math.round(-deltaY / cellH);
+			if (lines !== 0) {
+				terminal.scrollLines(lines);
+			}
+			e.preventDefault();
+		}
+
+		if (gestureMode === 'horizontal-swipe') {
+			e.preventDefault();
+		}
+
+		lastX = e.clientX;
+		lastY = e.clientY;
 	}
 
-	function onOverlayTouchEnd(e: TouchEvent) {
-		if (e.changedTouches.length !== 1) return;
-		const dx = e.changedTouches[0].clientX - touchStartX;
-		const dy = e.changedTouches[0].clientY - touchStartY;
-		const absDx = Math.abs(dx);
-		const absDy = Math.abs(dy);
-		const totalMove = Math.max(absDx, absDy);
+	function handlePointerUp(e: PointerEvent) {
+		if (e.pointerType !== 'touch') return;
+		e.stopPropagation();
 
-		if (totalMove < TAP_MAX_MOVE) {
-			// Single tap — focus terminal for keyboard input
-			terminal?.focus();
-		} else if (absDx > SWIPE_MIN_DIST && absDx > absDy) {
-			// Horizontal swipe — switch tabs
-			if (dx < 0) terminalState.nextTab();
-			else terminalState.prevTab();
+		const elapsed = performance.now() - startTime;
+		const moved = Math.hypot(e.clientX - startX, e.clientY - startY);
+
+		if (gestureMode === 'pending' && elapsed <= TAP_MAX_MS && moved < LOCK_DISTANCE) {
+			const now = performance.now();
+			if (now - lastTapTime <= DOUBLE_TAP_MS) {
+				// Double-tap → cancel pending focus, open command palette
+				if (tapFocusTimeout) { clearTimeout(tapFocusTimeout); tapFocusTimeout = null; }
+				onOpenPalette?.();
+				lastTapTime = 0;
+			} else {
+				// Single tap → delay focus so double-tap can cancel it
+				lastTapTime = now;
+				if (tapFocusTimeout) clearTimeout(tapFocusTimeout);
+				tapFocusTimeout = setTimeout(() => {
+					terminal?.focus();
+					tapFocusTimeout = null;
+				}, FOCUS_DELAY_MS);
+			}
 		}
-		// Vertical scroll already handled in touchmove
+
+		if (gestureMode === 'horizontal-swipe') {
+			const totalDx = e.clientX - startX;
+			if (Math.abs(totalDx) > SWIPE_COMMIT_PX) {
+				if (totalDx < 0) terminalState.nextTab();
+				else terminalState.prevTab();
+			}
+		}
+
+		gestureMode = 'idle';
 	}
 
 	let containerEl: HTMLDivElement;
@@ -618,6 +681,25 @@
 		loadHistory();
 		initTerminal();
 
+		// Capture-phase pointer listeners on the shell — intercepts touch
+		// BEFORE xterm.js can handle it and focus the hidden textarea.
+		// Mouse events are ignored (pointerType check) so xterm.js handles them.
+		shellEl.addEventListener('pointerdown', handlePointerDown, { capture: true });
+		shellEl.addEventListener('pointermove', handlePointerMove, { capture: true });
+		shellEl.addEventListener('pointerup', handlePointerUp, { capture: true });
+		shellEl.addEventListener('pointercancel', handlePointerUp, { capture: true });
+
+		// Suppress TouchEvents in capture phase — they're SEPARATE from PointerEvents.
+		// stopPropagation: prevents xterm.js from seeing touch events.
+		// preventDefault: prevents browser from generating synthetic mouse events
+		//   (mousedown/mouseup/click) which would also reach xterm.js and trigger focus.
+		// passive: false is REQUIRED — browsers default touchstart to passive,
+		//   which silently ignores preventDefault().
+		const suppressTouch = (e: Event) => { e.stopPropagation(); e.preventDefault(); };
+		shellEl.addEventListener('touchstart', suppressTouch, { capture: true, passive: false });
+		shellEl.addEventListener('touchmove', suppressTouch, { capture: true, passive: false });
+		shellEl.addEventListener('touchend', suppressTouch, { capture: true, passive: false });
+
 		// Serialize buffer when tab is hidden or page is unloading
 		const handleVisibilityChange = () => {
 			if (document.hidden) serializeBuffer();
@@ -627,6 +709,14 @@
 		window.addEventListener('beforeunload', handleBeforeUnload);
 
 		return () => {
+			if (tapFocusTimeout) clearTimeout(tapFocusTimeout);
+			shellEl.removeEventListener('pointerdown', handlePointerDown, { capture: true });
+			shellEl.removeEventListener('pointermove', handlePointerMove, { capture: true });
+			shellEl.removeEventListener('pointerup', handlePointerUp, { capture: true });
+			shellEl.removeEventListener('pointercancel', handlePointerUp, { capture: true });
+			shellEl.removeEventListener('touchstart', suppressTouch, { capture: true });
+			shellEl.removeEventListener('touchmove', suppressTouch, { capture: true });
+			shellEl.removeEventListener('touchend', suppressTouch, { capture: true });
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
 			window.removeEventListener('beforeunload', handleBeforeUnload);
 			disconnect();
@@ -644,24 +734,14 @@
 	});
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- Terminal shell: owns touch gesture recognition via capture-phase listeners.
+     Mouse passes through to xterm.js. Touch is intercepted before xterm.js sees it. -->
 <div
-	class="h-full w-full bg-background relative"
+	class="terminal-shell h-full w-full bg-background relative"
 	class:hidden={!active}
+	bind:this={shellEl}
 >
-	<div class="h-full w-full" bind:this={containerEl}></div>
-
-	<!-- Mobile: transparent touch overlay intercepts gestures before xterm.js -->
-	{#if isMobile()}
-		<!-- svelte-ignore a11y_no_static_element_interactions -->
-		<div
-			class="absolute inset-0 z-[5]"
-			style:touch-action="none"
-			ontouchstart={onOverlayTouchStart}
-			ontouchmove={onOverlayTouchMove}
-			ontouchend={onOverlayTouchEnd}
-		></div>
-	{/if}
+	<div class="terminal-viewport h-full w-full" bind:this={containerEl}></div>
 
 	{#if showReconnectOverlay}
 		<div class="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 gap-3">

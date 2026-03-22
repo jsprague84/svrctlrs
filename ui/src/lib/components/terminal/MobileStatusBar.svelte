@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Menu, Plus, X, ChevronUp } from 'lucide-svelte';
+	import { Menu, Plus, X } from 'lucide-svelte';
 	import TabDots from './TabDots.svelte';
 	import type { TerminalTab, ConnectionStatus } from '$lib/types/index.js';
 
@@ -11,10 +11,9 @@
 		onTapDots?: () => void;
 		onNewTab?: () => void;
 		onCloseTab?: () => void;
-		onOpenPalette?: () => void;
 	}
 
-	let { serverName, connectionStatus, tabs, activeTabId, onTapDots, onNewTab, onCloseTab, onOpenPalette }: Props = $props();
+	let { serverName, connectionStatus, tabs, activeTabId, onTapDots, onNewTab, onCloseTab }: Props = $props();
 
 	function toggleSidebar() {
 		window.dispatchEvent(new CustomEvent('toggle-sidebar'));
@@ -48,13 +47,6 @@
 
 	<!-- Right: actions + tab dots -->
 	<div class="flex items-center gap-1 flex-shrink-0">
-		<button
-			class="p-1 text-text-muted hover:text-accent"
-			onclick={onOpenPalette}
-			aria-label="Command palette"
-		>
-			<ChevronUp class="w-3.5 h-3.5" />
-		</button>
 		<button
 			class="p-1 text-text-muted hover:text-text-primary"
 			onclick={onNewTab}

@@ -267,7 +267,6 @@
 				delete paneRefs[activeTabId];
 				terminalState.closeTab(activeTabId);
 			}}
-			onOpenPalette={() => paletteOpen = true}
 		/>
 	{:else}
 	<!-- Desktop: full toolbar -->
