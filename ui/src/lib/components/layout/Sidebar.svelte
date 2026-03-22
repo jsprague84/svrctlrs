@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { base } from '$app/paths';
+	import { goto } from '$app/navigation';
 	import { Terminal, Server, KeyRound, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, X, Layout, Trash2, Pencil, Plus } from 'lucide-svelte';
 	import type { Server as ServerType, TerminalProfile } from '$lib/types/index.js';
 	import { logout } from '$lib/api/client.js';
@@ -37,8 +38,10 @@
 		return path.startsWith(href);
 	}
 
-	function handleNavClick() {
+	function handleNavClick(e: MouseEvent, href: string) {
+		e.preventDefault(); // prevent full page reload in Tauri WebView
 		onMobileClose?.();
+		goto(href);
 	}
 
 	function handleServerConnect(server: ServerType) {
@@ -48,13 +51,8 @@
 
 	function handleSaveProfile() {
 		onMobileClose?.();
-		// Navigate to terminal page and trigger profile save modal
-		const path = page.url?.pathname ?? '';
-		if (path !== '/' && path !== base) {
-			window.location.href = `${base}/`;
-		}
-		// Dispatch event for terminal page to open ProfileManager
-		setTimeout(() => window.dispatchEvent(new CustomEvent('save-profile')), 100);
+		// Dispatch event for terminal view to open ProfileManager
+		window.dispatchEvent(new CustomEvent('save-profile'));
 	}
 </script>
 
@@ -107,7 +105,7 @@
 						: 'text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}"
 				title={collapsed && !mobileOpen ? item.label : undefined}
 				aria-current={isActive(item.href) ? 'page' : undefined}
-				onclick={handleNavClick}
+				onclick={(e) => handleNavClick(e, item.href)}
 			>
 				<item.icon class="w-4 h-4 flex-shrink-0" />
 				{#if mobileOpen || !collapsed}

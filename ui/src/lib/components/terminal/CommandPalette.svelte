@@ -181,7 +181,7 @@
 <div
 	class="fixed z-50 bg-surface border border-border shadow-lg flex flex-col overflow-hidden transition-opacity duration-100
 		{isMobile()
-			? 'bottom-0 inset-x-0 rounded-t-lg max-h-[60vh]'
+			? 'bottom-0 inset-x-0 rounded-t-lg max-h-[42vh] pb-[env(safe-area-inset-bottom,0px)]'
 			: 'top-[20%] left-1/2 -translate-x-1/2 w-full max-w-md rounded-lg'
 		}
 		{open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"

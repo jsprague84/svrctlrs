@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import '../app.css';
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
+	import TerminalView from '$lib/components/terminal/TerminalView.svelte';
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import * as serversState from '$lib/state/servers.svelte.js';
 	import * as profilesState from '$lib/state/profiles.svelte.js';
@@ -27,7 +28,7 @@
 	let sidebarCollapsed = $state(false);
 	let mobileOpen = $state(false);
 	let needsServerSetup = $state(false);
-	let editingProfile = $state<import('$lib/types/index.js').TerminalProfile | null>(null);
+	let editingProfile = $state<TerminalProfile | null>(null);
 
 	let servers = $derived(serversState.getServers());
 	let serversLoading = $derived(serversState.isLoading());
@@ -70,8 +71,16 @@
 	}
 
 	function handleConnectServer(server: Server) {
-		// Create a tab for this server and auto-connect
-		const tab = terminalState.createTab(server.id, server.name, 'pty');
+		// Reuse an existing disconnected tab if available, otherwise create new
+		const tabs = terminalState.getTabs();
+		let tab = tabs.find(t => t.status === 'disconnected');
+		if (tab) {
+			terminalState.updateTabServer(tab.id, server.id, server.name);
+			terminalState.updateTabMode(tab.id, 'pty');
+			terminalState.setActiveTab(tab.id);
+		} else {
+			tab = terminalState.createTab(server.id, server.name, 'pty') ?? undefined;
+		}
 		if (tab) {
 			terminalState.setPendingAutoConnect(tab.id);
 		}
@@ -128,7 +137,7 @@
 	></button>
 {/if}
 
-<div class="flex h-screen bg-background text-foreground">
+<div class="flex h-screen bg-background text-foreground relative">
 	<Sidebar
 		{servers}
 		{profiles}
@@ -148,23 +157,29 @@
 		profile={editingProfile}
 		onClose={() => editingProfile = null}
 	/>
-	<main
-		class="flex-1 min-w-0 flex flex-col"
-		style:padding-bottom={isMobile() && !isTerminalPage ? 'env(safe-area-inset-bottom, 0px)' : undefined}
-	>
-		{#if isMobile() && !isTerminalPage}
-			<div class="flex items-center px-2 pt-[env(safe-area-inset-top,0px)] bg-surface z-50 relative">
-				<button
-					class="p-2 rounded-md bg-surface border border-border text-foreground"
-					onclick={() => (mobileOpen = !mobileOpen)}
-					aria-label={mobileOpen ? 'Close sidebar' : 'Open sidebar'}
-				>
-					<Menu class="w-5 h-5" />
-				</button>
-			</div>
-		{/if}
-		{@render children()}
-	</main>
+	<!-- Terminal view: always mounted so sessions persist across navigation -->
+	<TerminalView visible={isTerminalPage} />
+
+	<!-- Other pages: rendered normally, hidden when terminal is active -->
+	{#if !isTerminalPage}
+		<main
+			class="flex-1 min-w-0 flex flex-col"
+			style:padding-bottom={isMobile() ? 'env(safe-area-inset-bottom, 0px)' : undefined}
+		>
+			{#if isMobile()}
+				<div class="flex items-center px-2 pt-[env(safe-area-inset-top,0px)] bg-surface z-50 relative">
+					<button
+						class="p-2 rounded-md bg-surface border border-border text-foreground"
+						onclick={() => (mobileOpen = !mobileOpen)}
+						aria-label={mobileOpen ? 'Close sidebar' : 'Open sidebar'}
+					>
+						<Menu class="w-5 h-5" />
+					</button>
+				</div>
+			{/if}
+			{@render children()}
+		</main>
+	{/if}
 </div>
 <Toast />
 

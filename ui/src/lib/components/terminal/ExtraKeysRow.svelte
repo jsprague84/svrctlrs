@@ -62,6 +62,7 @@
 					? 'bg-accent/20 text-accent border-accent/40'
 					: 'bg-surface border-border text-text-secondary hover:text-text-primary hover:bg-surface-overlay'
 				}"
+			onpointerdown={(e) => e.preventDefault()}
 			onclick={key.action}
 			aria-label={key.label}
 		>

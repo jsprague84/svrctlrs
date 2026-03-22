@@ -15,7 +15,6 @@
 	import * as themeState from '$lib/state/theme.svelte.js';
 	import * as terminalPrefs from '$lib/state/terminalPrefs.svelte.js';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
-	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import { getServerUrl } from '$lib/platform/index.js';
 	import type { TerminalMode, ConnectionStatus, CmdRequest, CmdResponse, PtyRequest, PtyResponse } from '$lib/types/index.js';
 
