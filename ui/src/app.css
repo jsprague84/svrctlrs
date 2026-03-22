@@ -109,6 +109,12 @@ body {
 	color: var(--color-foreground);
 	font-family: 'Inter', system-ui, -apple-system, sans-serif;
 	touch-action: manipulation;
+	/* Mobile safe area: half-height top buffer, full bottom buffer for nav bar.
+	   Left/right for landscape 3-button nav bar. */
+	padding-top: calc(env(safe-area-inset-top, 0px) / 2);
+	padding-bottom: env(safe-area-inset-bottom, 0px);
+	padding-left: env(safe-area-inset-left, 0px);
+	padding-right: env(safe-area-inset-right, 0px);
 }
 
 /* Monospace for technical content */

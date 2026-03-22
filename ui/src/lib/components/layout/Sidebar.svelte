@@ -49,12 +49,12 @@
 <aside
 	class="flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200
 		{mobileOpen
-			? 'fixed inset-y-0 left-0 z-40 w-64 flex translate-x-0 pl-[env(safe-area-inset-left)]'
+			? 'fixed inset-y-0 left-0 z-40 w-64 flex translate-x-0 pl-[env(safe-area-inset-left)] pt-[calc(env(safe-area-inset-top)/2)] pb-[env(safe-area-inset-bottom)]'
 			: 'hidden md:flex'} {!mobileOpen && collapsed ? 'w-12' : !mobileOpen ? 'w-56' : ''}"
 	aria-label="Sidebar"
 >
 	<!-- Logo / Toggle -->
-	<div class="flex items-center justify-between py-3 border-b border-sidebar-border {mobileOpen ? 'pl-12 pr-3' : 'px-3'}">
+	<div class="flex items-center justify-between py-3 border-b border-sidebar-border {mobileOpen ? 'pl-14 pr-3' : 'px-3'}">
 		{#if mobileOpen || !collapsed}
 			<span class="text-sm font-bold text-sidebar-foreground tracking-tight">SvrCtlRS</span>
 		{/if}
