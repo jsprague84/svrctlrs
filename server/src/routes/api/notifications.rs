@@ -1,12 +1,6 @@
 //! Notification API endpoints
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
 use serde_json::json;
 use svrctlrs_core::notifications::NotificationClient;
 use svrctlrs_database::queries::settings;

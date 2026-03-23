@@ -78,7 +78,10 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
                 .split('&')
                 .filter_map(|pair| {
                     let mut parts = pair.splitn(2, '=');
-                    Some((parts.next()?.to_string(), parts.next().unwrap_or("").to_string()))
+                    Some((
+                        parts.next()?.to_string(),
+                        parts.next().unwrap_or("").to_string(),
+                    ))
                 })
                 .collect();
             (
@@ -89,16 +92,18 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
     };
 
     if let Some(token) = token {
-        if let Some(pool) = request.extensions().get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>() {
-            let exists = svrctlrs_database::sqlx::query(
-                "SELECT id FROM tower_sessions WHERE id = ?"
-            )
-            .bind(&token)
-            .fetch_optional(pool)
-            .await
-            .ok()
-            .flatten()
-            .is_some();
+        if let Some(pool) = request
+            .extensions()
+            .get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>()
+        {
+            let exists =
+                svrctlrs_database::sqlx::query("SELECT id FROM tower_sessions WHERE id = ?")
+                    .bind(&token)
+                    .fetch_optional(pool)
+                    .await
+                    .ok()
+                    .flatten()
+                    .is_some();
 
             if exists {
                 if let Some(uid) = uid_str.and_then(|s| s.parse::<i64>().ok()) {
@@ -275,34 +280,52 @@ async fn login_json(
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Database error during login");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Internal server error"})),
+            )
         })?;
 
     let user = match user {
         Some(u) => u,
         None => {
-            return Err((StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid username or password"}))));
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "Invalid username or password"})),
+            ));
         }
     };
 
     let valid = users::verify_password(&creds.password, &user.password_hash).map_err(|e| {
         tracing::error!(error = %e, "Password verification error");
-        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Internal server error"})))
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Internal server error"})),
+        )
     })?;
 
     if !valid {
-        return Err((StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "Invalid username or password"}))));
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "Invalid username or password"})),
+        ));
     }
 
     session.insert(USER_ID_KEY, user.id).await.map_err(|e| {
         tracing::error!(error = %e, "Failed to store session");
-        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Session error"})))
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Session error"})),
+        )
     })?;
 
     // Force save the session so it gets an ID assigned
     session.save().await.map_err(|e| {
         tracing::error!(error = %e, "Failed to save session");
-        (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Session error"})))
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "Session error"})),
+        )
     })?;
 
     // Return session ID so Tauri clients can use token-based auth
@@ -310,7 +333,9 @@ async fn login_json(
     let session_id = session.id().map(|id| id.to_string()).unwrap_or_default();
 
     tracing::info!(username = %user.username, user_id = user.id, "User logged in (JSON)");
-    Ok(Json(serde_json::json!({"success": true, "user_id": user.id, "session_id": session_id})))
+    Ok(Json(
+        serde_json::json!({"success": true, "user_id": user.id, "session_id": session_id}),
+    ))
 }
 
 /// Logout handler

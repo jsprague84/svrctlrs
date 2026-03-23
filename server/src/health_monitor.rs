@@ -42,7 +42,9 @@ pub fn start_health_monitor(state: AppState) {
 /// Run one cycle of health checks. Returns the interval for next check.
 async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyhow::Result<u64> {
     // Check if health monitoring is enabled
-    let enabled = settings::get_setting_value_or(&state.pool, "notification.health_check_enabled", "false").await?;
+    let enabled =
+        settings::get_setting_value_or(&state.pool, "notification.health_check_enabled", "false")
+            .await?;
     if enabled != "true" {
         debug!("Health check disabled, sleeping");
         return Ok(60); // Check again in 60s if disabled (in case it gets enabled)
@@ -63,7 +65,10 @@ async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyho
 
     // Load all enabled servers
     let all_servers = servers::list_servers(&state.pool).await?;
-    let enabled_servers: Vec<_> = all_servers.into_iter().filter(|s| s.enabled && !s.is_local).collect();
+    let enabled_servers: Vec<_> = all_servers
+        .into_iter()
+        .filter(|s| s.enabled && !s.is_local)
+        .collect();
 
     if enabled_servers.is_empty() {
         debug!("No enabled remote servers to check");
@@ -148,5 +153,8 @@ async fn test_server_reachable(state: &AppState, server_id: i64) -> bool {
     let addr = format!("{}:{}", hostname, server.port);
 
     // Simple TCP connection test with 5-second timeout
-    matches!(timeout(Duration::from_secs(5), TcpStream::connect(&addr)).await, Ok(Ok(_)))
+    matches!(
+        timeout(Duration::from_secs(5), TcpStream::connect(&addr)).await,
+        Ok(Ok(_))
+    )
 }

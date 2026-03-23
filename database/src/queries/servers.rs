@@ -154,13 +154,15 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
         qb.push(", os_distro = ").push_bind(os_distro.clone());
     }
     if let Some(package_manager) = &input.package_manager {
-        qb.push(", package_manager = ").push_bind(package_manager.clone());
+        qb.push(", package_manager = ")
+            .push_bind(package_manager.clone());
     }
     if let Some(docker_available) = input.docker_available {
         qb.push(", docker_available = ").push_bind(docker_available);
     }
     if let Some(systemd_available) = input.systemd_available {
-        qb.push(", systemd_available = ").push_bind(systemd_available);
+        qb.push(", systemd_available = ")
+            .push_bind(systemd_available);
     }
     if let Some(metadata) = input.metadata_string() {
         qb.push(", metadata = ").push_bind(metadata);

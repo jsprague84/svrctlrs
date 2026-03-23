@@ -148,13 +148,13 @@ pub async fn update_terminal_profile(
         qb.push(", layout = ").push_bind(layout.clone());
     }
     if let Some(pane_configs) = &update.pane_configs {
-        let json = serde_json::to_string(pane_configs)
-            .context("Failed to serialize pane configs")?;
+        let json =
+            serde_json::to_string(pane_configs).context("Failed to serialize pane configs")?;
         qb.push(", pane_configs = ").push_bind(json);
     }
     if let Some(quick_commands) = &update.quick_commands {
-        let json = serde_json::to_string(quick_commands)
-            .context("Failed to serialize quick commands")?;
+        let json =
+            serde_json::to_string(quick_commands).context("Failed to serialize quick commands")?;
         qb.push(", quick_commands = ").push_bind(json);
     }
     if let Some(is_default) = update.is_default {

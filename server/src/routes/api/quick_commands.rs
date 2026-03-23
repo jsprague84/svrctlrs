@@ -59,8 +59,7 @@ async fn list_commands(
     let user_id = get_user_id(&session).await?;
 
     let commands = if let Some(server_id) = query.server_id {
-        quick_commands::list_quick_commands_for_server(&state.pool, user_id, server_id)
-            .await
+        quick_commands::list_quick_commands_for_server(&state.pool, user_id, server_id).await
     } else {
         quick_commands::list_quick_commands(&state.pool, user_id).await
     }
@@ -172,7 +171,9 @@ async fn update_command(
             ApiError::internal_error(format!("Failed to update quick command: {}", e))
         })?;
 
-    Ok(Json(json!({ "id": id, "message": "Quick command updated" })))
+    Ok(Json(
+        json!({ "id": id, "message": "Quick command updated" }),
+    ))
 }
 
 /// Delete a quick command
@@ -189,5 +190,7 @@ async fn delete_command(
             ApiError::internal_error(format!("Failed to delete quick command: {}", e))
         })?;
 
-    Ok(Json(json!({ "id": id, "message": "Quick command deleted" })))
+    Ok(Json(
+        json!({ "id": id, "message": "Quick command deleted" }),
+    ))
 }

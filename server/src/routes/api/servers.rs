@@ -282,4 +282,3 @@ async fn test_connection(
         }
     }
 }
-
