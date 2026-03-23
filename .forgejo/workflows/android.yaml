@@ -57,16 +57,32 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           API="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}"
 
-          # Get or create release
-          RELEASE_ID=$(curl -sf "${API}/releases/tags/${TAG}" \
-            -H "Authorization: token ${TOKEN}" | jq -r '.id')
+          echo "API: ${API}"
+          echo "TAG: ${TAG}"
+          echo "TOKEN set: $([ -n "$TOKEN" ] && echo yes || echo NO)"
 
-          if [ "$RELEASE_ID" = "null" ] || [ -z "$RELEASE_ID" ]; then
-            RELEASE_ID=$(curl -sf -X POST "${API}/releases" \
+          # Get or create release
+          RELEASE_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" "${API}/releases/tags/${TAG}" \
+            -H "Authorization: token ${TOKEN}")
+          HTTP_CODE=$(echo "$RELEASE_RESPONSE" | grep "HTTP_CODE:" | cut -d: -f2)
+          BODY=$(echo "$RELEASE_RESPONSE" | grep -v "HTTP_CODE:")
+          echo "Get release response (HTTP ${HTTP_CODE}): ${BODY}"
+
+          RELEASE_ID=$(echo "$BODY" | jq -r '.id // empty')
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "Creating release..."
+            BODY=$(curl -s -X POST "${API}/releases" \
               -H "Authorization: token ${TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "{\"tag_name\":\"${TAG}\",\"name\":\"SvrCtlRS ${TAG}\",\"draft\":false,\"prerelease\":false}" \
-              | jq -r '.id')
+              -d "{\"tag_name\":\"${TAG}\",\"name\":\"SvrCtlRS ${TAG}\",\"draft\":false,\"prerelease\":false}")
+            echo "Create release response: ${BODY}"
+            RELEASE_ID=$(echo "$BODY" | jq -r '.id // empty')
+          fi
+
+          if [ -z "$RELEASE_ID" ]; then
+            echo "ERROR: Could not get or create release"
+            exit 1
           fi
 
           echo "Uploading to release ${RELEASE_ID}..."
@@ -74,10 +90,12 @@ jobs:
           for apk in $(find ui/src-tauri/gen/android -name "*.apk" | grep -v "intermediates"); do
             NAME=$(basename "$apk")
             echo "  Uploading ${NAME}..."
-            curl -sf -X POST "${API}/releases/${RELEASE_ID}/assets?name=${NAME}" \
+            UPLOAD_RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST \
+              "${API}/releases/${RELEASE_ID}/assets?name=${NAME}" \
               -H "Authorization: token ${TOKEN}" \
               -H "Content-Type: application/octet-stream" \
-              --data-binary @"${apk}"
+              --data-binary @"${apk}")
+            echo "  Response: $(echo "$UPLOAD_RESPONSE" | grep "HTTP_CODE:")"
           done
 
           echo "Android artifacts uploaded."
