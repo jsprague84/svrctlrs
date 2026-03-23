@@ -39,9 +39,30 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/v')"
         run: cd ui && npm run tauri android build -- --debug
 
-      - name: Build release APK
+      - name: Build and sign release APK
         if: startsWith(github.ref, 'refs/tags/v')
-        run: cd ui && npm run tauri android build
+        run: |
+          cd ui && npm run tauri android build
+
+          # Sign the APK
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > /tmp/release.keystore
+
+          UNSIGNED=$(find src-tauri/gen/android -path "*/release/*-unsigned.apk" | head -1)
+          if [ -f "$UNSIGNED" ]; then
+            echo "Signing ${UNSIGNED}..."
+            $ANDROID_HOME/build-tools/34.0.0/apksigner sign \
+              --ks /tmp/release.keystore \
+              --ks-key-alias svrctlrs \
+              --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} \
+              --key-pass pass:${{ secrets.ANDROID_KEY_PASSWORD }} \
+              --out "$(dirname "$UNSIGNED")/svrctlrs-release.apk" \
+              "$UNSIGNED"
+            echo "Signed APK created"
+          else
+            echo "WARNING: No unsigned APK found to sign"
+          fi
+
+          rm -f /tmp/release.keystore
 
       - name: List artifacts
         run: |
