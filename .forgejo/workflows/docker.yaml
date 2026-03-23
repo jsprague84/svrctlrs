@@ -29,41 +29,38 @@ jobs:
           git clone --depth=1 --branch=${GITHUB_REF_NAME} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . 2>/dev/null || \
           (git clone --depth=50 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . && git checkout ${GITHUB_SHA})
 
-      - name: Set up Docker Buildx
-        run: |
-          docker buildx create --name cibuilder --use 2>/dev/null || docker buildx use cibuilder
-
       - name: Login to Forgejo registry
         run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ${{ env.REGISTRY }} -u jsprague --password-stdin
 
-      - name: Determine tags
-        id: tags
+      - name: Build and tag
         run: |
           REPO="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           REF="${GITHUB_REF_NAME}"
           SHA=$(echo "${GITHUB_SHA}" | head -c 7)
 
+          # Build the image
+          docker build -t "${REPO}:build" .
+
+          # Determine and apply tags
           if echo "${GITHUB_REF}" | grep -q "refs/tags/v"; then
-            # Version tag: v1.2.3 → latest + v1.2.3 + v1.2 + v1
             VERSION="${REF#v}"
             MAJOR=$(echo "$VERSION" | cut -d. -f1)
             MINOR=$(echo "$VERSION" | cut -d. -f1-2)
-            TAGS="${REPO}:latest,${REPO}:${VERSION},${REPO}:${MINOR},${REPO}:v${MAJOR},${REPO}:sha-${SHA}"
+            for TAG in latest "${VERSION}" "${MINOR}" "v${MAJOR}" "sha-${SHA}"; do
+              docker tag "${REPO}:build" "${REPO}:${TAG}"
+              docker push "${REPO}:${TAG}"
+            done
           elif [ "$REF" = "main" ] || [ "$REF" = "master" ]; then
-            TAGS="${REPO}:latest,${REPO}:sha-${SHA}"
+            for TAG in latest "sha-${SHA}"; do
+              docker tag "${REPO}:build" "${REPO}:${TAG}"
+              docker push "${REPO}:${TAG}"
+            done
           else
-            TAGS="${REPO}:${REF},${REPO}:sha-${SHA}"
+            for TAG in "${REF}" "sha-${SHA}"; do
+              docker tag "${REPO}:build" "${REPO}:${TAG}"
+              docker push "${REPO}:${TAG}"
+            done
           fi
-          echo "TAGS=${TAGS}" >> $GITHUB_OUTPUT
-          echo "Building tags: ${TAGS}"
-
-      - name: Build and push
-        run: |
-          docker buildx build \
-            --platform linux/amd64 \
-            --push \
-            $(echo "${{ steps.tags.outputs.TAGS }}" | tr ',' '\n' | sed 's/^/-t /') \
-            .
 
   release:
     name: Release
