@@ -2,7 +2,7 @@
 Name=SvrCtlRS
 Comment=Terminal and SSH management tool
 Exec=svrctlrs-desktop
-Icon=cc.js-node.svrctlrs
+Icon=cc.jsnode.svrctlrs
 Type=Application
 Categories=System;TerminalEmulator;Network;
 Keywords=terminal;ssh;server;remote;

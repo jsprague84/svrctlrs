@@ -46,7 +46,7 @@ jobs:
             # Stage files for Flatpak build
             FLATPAK_DIR=$(mktemp -d)
             cp "$BINARY" "$FLATPAK_DIR/svrctlrs-desktop"
-            cp .forgejo/cc.js-node.svrctlrs.desktop "$FLATPAK_DIR/"
+            cp .forgejo/cc.jsnode.svrctlrs.desktop "$FLATPAK_DIR/"
             # Use Tauri icon or generate placeholder
             ICON=$(find ui/src-tauri/icons -name "icon.png" -o -name "128x128.png" -o -name "256x256.png" | head -1)
             if [ -n "$ICON" ]; then
@@ -58,9 +58,9 @@ jobs:
 
             # Build Flatpak
             cd "$FLATPAK_DIR"
-            cp $GITHUB_WORKSPACE/.forgejo/cc.js-node.svrctlrs.yaml .
-            flatpak-builder --force-clean --repo=repo builddir cc.js-node.svrctlrs.yaml
-            flatpak build-bundle repo svrctlrs.flatpak cc.js-node.svrctlrs
+            cp $GITHUB_WORKSPACE/.forgejo/cc.jsnode.svrctlrs.yaml .
+            flatpak-builder --force-clean --repo=repo builddir cc.jsnode.svrctlrs.yaml
+            flatpak build-bundle repo svrctlrs.flatpak cc.jsnode.svrctlrs
 
             # Copy back to workspace
             cp svrctlrs.flatpak $GITHUB_WORKSPACE/ui/src-tauri/target/release/bundle/
