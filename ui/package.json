@@ -27,7 +27,7 @@
 		"@sveltejs/kit": "^2.55.0",
 		"@sveltejs/vite-plugin-svelte": "^7.0.0",
 		"@tailwindcss/vite": "^4.2.2",
-		"@tauri-apps/cli": "^2.10.1",
+		"@tauri-apps/cli": "~2.10.1",
 		"@types/node": "^25.5.0",
 		"eslint": "^10.12.0",
 		"eslint-config-prettier": "^10.1.8",
@@ -44,7 +44,7 @@
 		"vitest": "^5.0.3"
 	},
 	"dependencies": {
-		"@tauri-apps/api": "^2.10.1",
+		"@tauri-apps/api": "~2.10.1",
 		"@xterm/addon-clipboard": "^0.2.0",
 		"@xterm/addon-fit": "^0.11.0",
 		"@xterm/addon-image": "^0.9.0",
