@@ -139,7 +139,25 @@ async fn authorize_key(
         verified_key.as_deref(),
     )
     .await
-    .map_err(|e| ApiError::bad_request(format!("Could not log in to install the key: {e}")))?;
+    .map_err(|e| {
+        let login = format!(
+            "{}@{}:{}",
+            server.username.as_deref().unwrap_or("root"),
+            hostname,
+            port
+        );
+        let hint = if e.contains("Password authentication failed") {
+            " Either the password is wrong, or this server does not allow password logins at \
+             all (sshd `PasswordAuthentication no`, the default on hardened hosts). In that case \
+             bootstrap with an existing key credential instead, or copy the public key into \
+             ~/.ssh/authorized_keys by hand (Credentials → Public key)."
+        } else {
+            ""
+        };
+        ApiError::bad_request(format!(
+            "Could not log in as {login} to install the key: {e}.{hint}"
+        ))
+    })?;
     if code != 0 || !stdout.contains("svrctlrs-key-installed") {
         return Err(ApiError::bad_request(format!(
             "Installing the key failed (exit {code}): {}",
