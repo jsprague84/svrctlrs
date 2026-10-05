@@ -37,6 +37,8 @@ the release workflow uses the matching section as the release notes.
 - Terminal tabs follow the WAI-ARIA pattern: arrow keys, Home and End move between tabs.
 - Reconnect delays carry ±15 % jitter; the command palette's "Manage servers" navigates
   in-app instead of reloading the page.
+- `LOG_FORMAT=json` switches the server to JSON log lines; the image builds both binaries in
+  one cargo invocation.
 - In-range dependency updates (Svelte 5.57, SvelteKit 2.70, Vite 8.3, Tailwind 4.3, Tauri JS
   2.12); unused Tauri JS plugin packages removed.
 - `GET /api/v1/health` pings the database and answers 503 (`status: degraded`) when it is

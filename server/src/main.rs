@@ -40,12 +40,18 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,server=debug".into()),
-        )
-        .init();
+    // LOG_FORMAT=json emits one JSON object per line for log shippers; the default stays
+    // human-readable for `docker logs`.
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "info,server=debug".into());
+    if std::env::var("LOG_FORMAT").is_ok_and(|f| f.eq_ignore_ascii_case("json")) {
+        tracing_subscriber::fmt()
+            .json()
+            .with_env_filter(env_filter)
+            .init();
+    } else {
+        tracing_subscriber::fmt().with_env_filter(env_filter).init();
+    }
 
     // Load environment variables
     dotenvy::dotenv().ok();

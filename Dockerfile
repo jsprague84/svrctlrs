@@ -72,17 +72,11 @@ COPY core ./core
 COPY server ./server
 COPY database ./database
 
-# Build server binary
+# Build the server and the svrctl CLI in one invocation so shared crates compile once
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,target=/sccache,sharing=locked \
-    cargo build --release --package server --bin server --features server
-
-# Build svrctl CLI
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,sharing=locked \
-    --mount=type=cache,target=/sccache,sharing=locked \
-    cargo build --release --package server --bin svrctl --features server
+    cargo build --release --package server --bins --features server
 
 # Show sccache statistics for debugging
 RUN sccache --show-stats || true

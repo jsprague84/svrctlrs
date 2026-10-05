@@ -32,6 +32,7 @@ docker compose logs -f svrctlrs
 | `ALLOWED_ORIGINS` | for native clients | unset | comma-separated origins of the Tauri apps, e.g. `tauri://localhost,https://tauri.localhost,http://tauri.localhost`. Enables CORS for them and switches the session cookie to `SameSite=None`. Leave empty for browser-only use. |
 | `SPA_DIR` | no | `/app/ui/build` | where the built SPA lives |
 | `RUST_LOG` | no | `info` | tracing filter |
+| `LOG_FORMAT` | no | text | `json` for one JSON object per line (log shippers); text otherwise |
 | `TAG` | compose only | `latest` | image tag; the deploy script writes the deployed commit's short SHA here |
 | `SSH_KEY_PATH` | compose only | `./ssh` | host directory mounted read-only at `/home/svrctlrs/.ssh` for key-path credentials. Use a dedicated directory, not your own `~/.ssh`. |
 | `SVRCTLRS_HOST` | compose only | `svrctlrs.js-node.app` | Traefik host rule |
