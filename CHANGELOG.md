@@ -41,6 +41,10 @@ the release workflow uses the matching section as the release notes.
   (migration 022 adds `metadata_encrypted`); legacy plaintext metadata is encrypted at
   start-up.
 
+- SSH stack upgraded: russh 0.51 → 0.64, async-ssh2-tokio 0.8 → 0.13, clearing
+  RUSTSEC-2026-0154 and RUSTSEC-2026-0153 (unbounded allocation reachable by a malicious SSH
+  server). A server presenting a host *certificate* is now pinned by the certificate's key.
+
 ### Added
 - SSH key passphrases: a passphrase field on SSH key credentials in the UI and API
   (`passphrase`), used by both the interactive and the command connector.

@@ -76,6 +76,22 @@ pub async fn verify_and_record(
     Ok(verdict)
 }
 
+/// The OpenSSH text of what the server presented: its host key, or the key embedded in its
+/// host certificate. There is no CA trust store, so a certificate is pinned by that key like
+/// any other host key.
+pub fn presented_key_openssh(
+    presented: &russh::keys::PublicKeyOrCertificate,
+) -> Result<String, russh::Error> {
+    use russh::keys::PublicKeyOrCertificate;
+    let text = match presented {
+        PublicKeyOrCertificate::PublicKey { key, .. } => key.to_openssh(),
+        PublicKeyOrCertificate::Certificate(cert) => {
+            russh::keys::PublicKey::from(cert.public_key().clone()).to_openssh()
+        }
+    };
+    text.map_err(|_| russh::Error::CouldNotReadKey)
+}
+
 /// The warning shown in the terminal when a key does not match.
 pub fn mismatch_message(stored_types: &[String], presented_type: &str) -> String {
     format!(

@@ -20,7 +20,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | ~~9a~~ | Done 2026-10-05: start-up encrypts every `encrypted = 0` row in one transaction and logs the count | `encrypt_plaintext_credentials` |
 | ~~10~~ | Done 2026-10-05: sliding-window limiter (10 failures / 15 min) per client address and per username on both login routes, 429 + `Retry-After`; 12-character minimum for new passwords; session id cycled on login | `server/src/login_limiter.rs`, `auth.rs`, `users.rs` |
 | 11 | Server-crate tests for all of the above: auth middleware (cookie, Bearer, query token, exemptions), TOFU accept/mismatch, WS Origin check | `server/src/routes/**` |
-| 12 | Upgrade russh 0.51 → 0.60.3 (RUSTSEC-2026-0154/-0153: unbounded allocation a malicious SSH server can trigger; `russh-keys` is folded into `russh::keys`). The CI audit ignores these two until then. `rsa` RUSTSEC-2023-0071 (Marvin) stays ignored: transitive via `ssh-key`, no fix | `Cargo.toml`, `terminal.rs`, `terminal_pty.rs`, `.forgejo/workflows/ci.yaml` |
+| ~~12~~ | Done 2026-10-05: russh 0.51 → 0.64 and async-ssh2-tokio 0.8 → 0.13 (which brings russh 0.62.7); `russh-keys` dropped for `russh::keys`; host certificates are pinned by their embedded key. RUSTSEC-2026-0154/-0153 cleared; only `rsa` RUSTSEC-2023-0071 (Marvin, transitive via `ssh-key`, no fix) remains ignored. First live PTY/CMD connection after deploy is the behavioral check — no SSH integration test exists yet | `Cargo.toml`, `host_keys.rs`, `ci.yaml` |
 
 ## P1 — First-class app
 

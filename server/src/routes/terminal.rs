@@ -484,11 +484,9 @@ impl russh::client::Handler for KeyScanHandler {
 
     async fn check_server_key(
         &mut self,
-        server_public_key: &russh::keys::PublicKey,
+        server_public_key: &russh::keys::PublicKeyOrCertificate,
     ) -> Result<bool, Self::Error> {
-        let openssh_key = server_public_key
-            .to_openssh()
-            .map_err(|_| russh::Error::CouldNotReadKey)?;
+        let openssh_key = crate::host_keys::presented_key_openssh(server_public_key)?;
         let key_type = openssh_key
             .split_whitespace()
             .next()
