@@ -7,6 +7,7 @@ mod login_limiter;
 mod routes;
 mod ssh_keys;
 mod state;
+mod ws_tickets;
 
 use config::Config;
 use state::AppState;
@@ -223,6 +224,7 @@ async fn main() -> anyhow::Result<()> {
             routes::ui::auth::require_auth,
         ))
         .layer(axum::Extension(state.pool.clone()))
+        .layer(axum::Extension(state.ws_tickets.clone()))
         .layer(session_layer)
         .layer(
             tower_http::trace::TraceLayer::new_for_http().make_span_with(

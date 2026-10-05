@@ -64,6 +64,9 @@ chrono = { workspace = true, optional = true }
 # WebSocket support
 futures-util = { workspace = true, optional = true }
 tempfile = "3.23.0"
+# One-time WebSocket tickets (random bytes, base64url)
+rand = "0.8"
+base64 = "0.22"
 
 [features]
 # Default: Server feature

@@ -74,7 +74,22 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
         return next.run(request).await;
     }
 
-    // Token: Authorization header first, then the query string (WebSocket upgrades)
+    // One-time ticket on a WebSocket upgrade (see ws_tickets.rs). Consumed on first use.
+    if is_websocket_upgrade(request.headers()) {
+        if let Some(ticket) = query_param(request.uri(), "ticket").filter(|t| !t.is_empty()) {
+            let tickets = request
+                .extensions()
+                .get::<std::sync::Arc<crate::ws_tickets::WsTickets>>()
+                .cloned();
+            if let Some(user_id) = tickets.and_then(|t| t.redeem(&ticket)) {
+                request.extensions_mut().insert(CurrentUser(user_id));
+                return next.run(request).await;
+            }
+            return StatusCode::UNAUTHORIZED.into_response();
+        }
+    }
+
+    // Token: Authorization header first, then the query string (older native clients; deprecated in favour of tickets)
     let token = bearer_token(request.headers())
         .or_else(|| query_param(request.uri(), "token").filter(|t| !t.is_empty()));
 
@@ -94,13 +109,7 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
     // Unauthenticated — determine response type
 
     // WebSocket upgrade requests get 401
-    let is_websocket = request
-        .headers()
-        .get("upgrade")
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| v.eq_ignore_ascii_case("websocket"));
-
-    if is_websocket {
+    if is_websocket_upgrade(request.headers()) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
@@ -115,6 +124,25 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
 
     // Browser requests redirect to login
     Redirect::to("/auth/login").into_response()
+}
+
+fn is_websocket_upgrade(headers: &HeaderMap) -> bool {
+    headers
+        .get(header::UPGRADE)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.eq_ignore_ascii_case("websocket"))
+}
+
+/// Mint a one-time WebSocket ticket for the authenticated caller.
+async fn ws_ticket(
+    State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
+) -> Json<serde_json::Value> {
+    let ticket = state.ws_tickets.issue(user_id);
+    Json(serde_json::json!({
+        "ticket": ticket,
+        "expires_in_secs": state.ws_tickets.ttl().as_secs(),
+    }))
 }
 
 fn bearer_token(headers: &HeaderMap) -> Option<String> {
@@ -191,6 +219,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/auth/login", get(login_page).post(login))
         .route("/api/v1/auth/login", post(login_json))
+        .route("/api/v1/auth/ws-ticket", post(ws_ticket))
         .route("/auth/logout", post(logout))
 }
 
@@ -507,7 +536,11 @@ mod tests {
         assert!(websocket_origin_allowed(&headers(&[host]), &allowed));
     }
 
-    async fn app_with_store() -> (Router, SqliteStore) {
+    async fn app_with_store() -> (
+        Router,
+        SqliteStore,
+        std::sync::Arc<crate::ws_tickets::WsTickets>,
+    ) {
         // One connection, or each pooled connection would get its own in-memory database.
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
@@ -516,6 +549,7 @@ mod tests {
             .unwrap();
         let store = SqliteStore::new(pool.clone());
         store.migrate().await.unwrap();
+        let tickets = std::sync::Arc::new(crate::ws_tickets::WsTickets::default());
         let app = Router::new()
             .route(
                 "/api/v1/whoami",
@@ -524,8 +558,9 @@ mod tests {
             .route("/page", get(|| async { "page" }))
             .layer(from_fn(require_auth))
             .layer(Extension(pool))
+            .layer(Extension(tickets.clone()))
             .layer(SessionManagerLayer::new(store.clone()));
-        (app, store)
+        (app, store, tickets)
     }
 
     async fn session_token(store: &SqliteStore, user_id: i64, ttl: time::Duration) -> String {
@@ -545,7 +580,7 @@ mod tests {
 
     #[tokio::test]
     async fn unauthenticated_requests_are_refused() {
-        let (app, _) = app_with_store().await;
+        let (app, _, _) = app_with_store().await;
 
         let api = app
             .clone()
@@ -564,7 +599,7 @@ mod tests {
 
     #[tokio::test]
     async fn bearer_token_identity_comes_from_the_session_not_the_client() {
-        let (app, store) = app_with_store().await;
+        let (app, store, _) = app_with_store().await;
         let token = session_token(&store, 42, time::Duration::hours(1)).await;
 
         let resp = app
@@ -583,7 +618,7 @@ mod tests {
 
     #[tokio::test]
     async fn query_token_works_for_websocket_style_requests() {
-        let (app, store) = app_with_store().await;
+        let (app, store, _) = app_with_store().await;
         let token = session_token(&store, 7, time::Duration::hours(1)).await;
 
         let resp = app
@@ -600,7 +635,7 @@ mod tests {
 
     #[tokio::test]
     async fn expired_and_unknown_tokens_are_refused() {
-        let (app, store) = app_with_store().await;
+        let (app, store, _) = app_with_store().await;
         let expired = session_token(&store, 42, -time::Duration::minutes(1)).await;
 
         for token in [expired.as_str(), "not-a-session-id", ""] {
@@ -616,5 +651,36 @@ mod tests {
                 .unwrap();
             assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "token {token:?}");
         }
+    }
+    #[tokio::test]
+    async fn websocket_tickets_redeem_once_and_only_on_upgrades() {
+        let (app, _, tickets) = app_with_store().await;
+        let ticket = tickets.issue(9);
+
+        let upgrade = |t: &str| {
+            Request::get(format!("/api/v1/whoami?ticket={t}"))
+                .header(header::UPGRADE, "websocket")
+                .body(Body::empty())
+                .unwrap()
+        };
+        let resp = app.clone().oneshot(upgrade(&ticket)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(body_text(resp).await, "9");
+
+        // Spent.
+        let resp = app.clone().oneshot(upgrade(&ticket)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+
+        // A ticket is not a credential for ordinary requests.
+        let fresh = tickets.issue(9);
+        let resp = app
+            .oneshot(
+                Request::get(format!("/api/v1/whoami?ticket={fresh}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
     }
 }

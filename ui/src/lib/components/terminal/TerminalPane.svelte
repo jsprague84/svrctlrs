@@ -16,6 +16,7 @@
 	import * as terminalPrefs from '$lib/state/terminalPrefs.svelte.js';
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import { getServerUrl } from '$lib/platform/index.js';
+	import { post } from '$lib/api/client.js';
 	import type { TerminalMode, ConnectionStatus, CmdRequest, CmdResponse, PtyRequest, PtyResponse } from '$lib/types/index.js';
 
 	interface Props {
@@ -183,7 +184,7 @@
 		onStatusChange?.(tabId, s);
 	}
 
-	function getWsUrl(wsMode: TerminalMode): string {
+	async function getWsUrl(wsMode: TerminalMode): Promise<string> {
 		const serverUrl = getServerUrl();
 		const path = wsMode === 'pty' ? '/ws/terminal/pty' : '/ws/terminal';
 		let url: string;
@@ -194,10 +195,19 @@
 			const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 			url = `${protocol}//${window.location.host}${path}`;
 		}
-		// Native apps pass their token as a query parameter (the WebSocket API cannot set
-		// headers); the browser relies on the session cookie.
+		// The browser relies on the session cookie. Native apps cannot set headers on a
+		// WebSocket handshake, so they exchange their token for a one-time ticket that is
+		// bound to them and expires in seconds — nothing durable ends up in the URL.
 		const token = localStorage.getItem('svrctlrs-session-token');
-		if (token) url += `?token=${encodeURIComponent(token)}`;
+		if (token) {
+			try {
+				const { ticket } = await post<{ ticket: string }>('/auth/ws-ticket');
+				url += `?ticket=${encodeURIComponent(ticket)}`;
+			} catch {
+				// Server without ticket support: fall back to the token (deprecated).
+				url += `?token=${encodeURIComponent(token)}`;
+			}
+		}
 		return url;
 	}
 
@@ -356,7 +366,7 @@
 	}
 
 	/** Connect to the WebSocket for the current mode and serverId */
-	export function connect() {
+	export async function connect() {
 		if (!terminal || serverId === null) return;
 		showReconnectOverlay = false;
 
@@ -377,7 +387,9 @@
 		}
 		terminal.writeln('\x1b[33mConnecting...\x1b[0m');
 
-		const wsUrl = getWsUrl(mode);
+		const wsUrl = await getWsUrl(mode);
+		// The ticket request yields; the tab may have been closed meanwhile.
+		if (!terminal || intentionalDisconnect) return;
 
 		try {
 			socket = new WebSocket(wsUrl);

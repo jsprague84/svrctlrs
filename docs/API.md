@@ -9,13 +9,24 @@ routes requires one of:
 
 | Method | How | Used by |
 |---|---|---|
-| Session cookie | set by either login route | browser |
-| Bearer token | `Authorization: Bearer <session_id>` + `X-User-Id: <id>` | Tauri desktop/Android |
-| Query parameters | `?token=<session_id>&user_id=<id>` on WebSocket upgrades only | all clients |
+| Session cookie | set by either login route | browser (also on WebSocket upgrades) |
+| Bearer token | `Authorization: Bearer <session_id>` | Tauri desktop/Android |
+| One-time ticket | `?ticket=<ticket>` on WebSocket upgrades, from `POST /auth/ws-ticket` | Tauri desktop/Android |
+| Query token | `?token=<session_id>` on WebSocket upgrades | older native builds; deprecated |
 
 The token *is* the session id returned by the JSON login. It expires after 24 hours of
-inactivity. Unauthenticated API calls get `401`; unauthenticated page loads redirect to
-`/auth/login`.
+inactivity. The user is always taken from the session record; `X-User-Id` and `user_id`
+parameters are ignored. Unauthenticated API calls get `401`; unauthenticated page loads
+redirect to `/auth/login`. Ten failed logins per 15 minutes, per client address or per
+username, answer `429` with `Retry-After`.
+
+```http
+POST /api/v1/auth/ws-ticket          (authenticated)
+200 {"ticket": "<43 url-safe chars>", "expires_in_secs": 30}
+```
+
+A ticket is bound to the caller, valid for 30 seconds and consumed by the first WebSocket
+upgrade that presents it; it is not accepted on ordinary requests.
 
 ```http
 POST /api/v1/auth/login
@@ -114,8 +125,9 @@ Seeded keys: `notification.enabled`, `notification.provider` (`gotify` \| `ntfy`
 
 ## WebSocket protocol
 
-Both endpoints are JSON text frames. Authenticate with the session cookie or
-`?token=<session_id>&user_id=<id>`.
+Both endpoints are JSON text frames. Authenticate with the session cookie (browser) or a
+one-time `?ticket=` (native apps). The upgrade's `Origin` must be the server's own host or one
+of `ALLOWED_ORIGINS`, else `403`.
 
 ### `/ws/terminal/pty` — interactive shell
 

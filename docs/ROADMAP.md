@@ -10,7 +10,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 |---|---|---|
 | ~~1~~ | Done 2026-10-05: WebSocket upgrades require `Origin` = request host / `X-Forwarded-Host` or an `ALLOWED_ORIGINS` entry (403 otherwise); tested | `auth::websocket_origin_allowed`, both WS handlers |
 | ~~2~~ | Done 2026-10-05: token auth resolves the session through the store (expiry-filtered) and takes `user_id` from the record; `X-User-Id`/`?user_id=` ignored; `CurrentUser` extractor replaces per-handler session reads; session id cycled on login; tested | `server/src/routes/ui/auth.rs` |
-| 3 | Partly done 2026-10-05 (redacted span; UI no longer sends `user_id`). Remaining: replace the native apps' query-string token with a one-time WebSocket ticket | both WS handlers, `ui/.../TerminalPane.svelte` |
+| ~~3~~ | Done 2026-10-05: one-time 30 s WebSocket tickets (`POST /api/v1/auth/ws-ticket`), redeemed by the middleware on upgrades only; native clients use them with a token fallback for old servers; `?token=` stays accepted (deprecated) for old app builds — remove after the next APK rollout | `server/src/ws_tickets.rs`, `auth.rs`, `TerminalPane.svelte` |
 | ~~4~~ | Done 2026-10-05 for the browser (cookie only; no token in `localStorage`). Native apps: move the token to the platform keystore (P1) | `ui/src/routes/auth/login/+page.svelte`, `ui/src/lib/api/client.ts` |
 | ~~5~~ | Done 2026-10-05: `server/src/host_keys.rs` evaluates against every stored key; both connectors fail closed; tested | `host_keys.rs`, `terminal.rs`, `terminal_pty.rs` |
 | ~~6~~ | Done 2026-10-05: connection test uses the command connector (TOFU first, password credentials supported); `ssh.rs` deleted | `server/src/routes/api/servers.rs` |

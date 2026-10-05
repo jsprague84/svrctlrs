@@ -44,6 +44,9 @@ the release workflow uses the matching section as the release notes.
 ### Added
 - SSH key passphrases: a passphrase field on SSH key credentials in the UI and API
   (`passphrase`), used by both the interactive and the command connector.
+- `POST /api/v1/auth/ws-ticket`: one-time, 30-second tickets that native clients use to
+  authenticate WebSocket upgrades instead of putting their session token in the URL. The
+  `?token=` form is deprecated and will be removed after the next app release.
 
 ### Fixed
 - "Paste key" credentials never worked: both connectors treated the stored key material as a

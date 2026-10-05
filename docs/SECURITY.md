@@ -33,8 +33,9 @@ other web pages the operator visits (see CSWSH below).
   `ALLOWED_ORIGINS` is set for the native clients. Expiry: 24 h of inactivity. Logout flushes
   the session.
 - **Token auth for native clients** — `POST /api/v1/auth/login` returns the session id; the
-  Tauri apps send it as `Authorization: Bearer` with `X-User-Id`, and as `?token=&user_id=`
-  on WebSocket upgrades (browsers cannot set headers on a WebSocket handshake).
+  Tauri apps send it as `Authorization: Bearer`. For WebSockets (no headers on a handshake)
+  they first obtain a one-time ticket from `POST /api/v1/auth/ws-ticket` and pass `?ticket=`.
+  The user is always read from the session record, never from the client.
 - **Exempt routes** — `/auth/login`, `/auth/logout`, `/api/v1/auth/login`, `/api/v1/health`,
   `/_app/*` and `OPTIONS` preflights. `/api/v1/health` reveals only version and revision.
 
@@ -93,10 +94,10 @@ Ordered by impact. Each has a ROADMAP entry.
    user id is read from that record. `X-User-Id` and `?user_id=` are ignored. Every
    authenticated request carries a `CurrentUser` extension; handlers take it as an extractor
    instead of reading the session themselves.
-3. **Token in URLs** — partly fixed: the request span logs a redacted URI
-   (`token=[redacted]`) and only the native apps send a token at all. Their WebSocket token
-   still travels in the query string, where proxies may log it; the remaining fix is a
-   short-lived one-time WebSocket ticket.
+3. ~~**Token in URLs**~~ — fixed after 3.0.0: native apps exchange their token for a one-time
+   ticket (`POST /api/v1/auth/ws-ticket`, 30 s, consumed on first use) and put only that in
+   the WebSocket URL; the request span logs a redacted URI. `?token=` is still accepted for
+   older app builds and is deprecated; remove it once the 3.x APK is on every device.
 4. ~~**Token in `localStorage`**~~ — fixed after 3.0.0 for the browser: the web UI no longer
    stores the session id (the HttpOnly cookie is the only credential) and nothing sends a
    user id. The Tauri apps still keep their token in `localStorage`; moving it to the
