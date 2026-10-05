@@ -64,15 +64,27 @@ configuration with Traefik; with nginx add the usual `Upgrade`/`Connection` head
 
 ## Backups
 
-Back up, together:
+A backup is the database **and the encryption key**; one without the other is useless.
 
-- the `svrctlrs-data` volume: `svrctlrs.db` (plus `-wal`/`-shm`), and `encryption.key` if you
-  did not set `ENCRYPTION_KEY`;
-- your `.env` (it holds the encryption key and admin bootstrap password).
+```bash
+# consistent snapshot while the server runs; keeps the newest 14 copies in the volume
+docker exec svrctlrs /app/svrctl backup --out /app/data/backups --keep 14
+# copy the newest one (and the key) off the host
+docker cp svrctlrs:/app/data/backups ./svrctlrs-backups
+```
 
-A consistent SQLite copy: `docker exec svrctlrs sh -c 'sqlite3 … .backup'` is not available in
-the image; instead stop the container briefly or copy the three database files together while
-idle. Restoring is putting them back into the volume with uid 1000 ownership.
+`svrctl backup` uses SQLite's `VACUUM INTO`, so the copy is consistent without stopping
+anything. It copies `data/encryption.key` next to the copies when the key comes from that
+file; when the key is in `ENCRYPTION_KEY` (the compose setup) it says so — back up `.env`
+alongside, it holds the only copy. A cron line on the host, nightly:
+
+```
+15 3 * * * docker exec svrctlrs /app/svrctl backup --out /app/data/backups --keep 14 >/dev/null && docker cp svrctlrs:/app/data/backups /srv/backups/svrctlrs
+```
+
+Restore: stop the container, put the copy back as `svrctlrs.db` in the volume (owned by uid
+1000; remove stale `-wal`/`-shm` files), make sure `.env` has the matching `ENCRYPTION_KEY`,
+start again — migrations run forward if the backup predates the image.
 
 ## Upgrades
 
