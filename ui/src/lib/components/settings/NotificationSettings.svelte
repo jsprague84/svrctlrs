@@ -17,11 +17,12 @@
 	let saving = $state(false);
 	let testing = $state(false);
 
-	onMount(() => {
-		loadSettings();
+	onMount(async () => {
+		await settingsState.loadSettings();
+		applySettings();
 	});
 
-	function loadSettings() {
+	function applySettings() {
 		const settings = settingsState.getSettings();
 		const notif = settings['notification'] ?? [];
 		for (const s of notif) {

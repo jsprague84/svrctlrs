@@ -13,7 +13,7 @@
 	let defaultProfileId = $state('');
 
 	onMount(async () => {
-		await profilesState.loadProfiles();
+		await Promise.all([profilesState.loadProfiles(), settingsState.loadSettings()]);
 		// Load current default profile setting
 		const settings = settingsState.getSettings();
 		const appSettings = settings['app'] ?? [];

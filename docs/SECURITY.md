@@ -90,12 +90,14 @@ Ordered by impact. Each has a ROADMAP entry.
    user id is read from that record. `X-User-Id` and `?user_id=` are ignored. Every
    authenticated request carries a `CurrentUser` extension; handlers take it as an extractor
    instead of reading the session themselves.
-3. **Token in URLs** — partly fixed: the request span now logs a redacted URI
-   (`token=[redacted]`). The WebSocket token still travels in the query string, where
-   proxies may log it; the remaining fix is a short-lived one-time WebSocket ticket.
-4. **Token in `localStorage`** — the web UI stores the session id and user id in
-   `localStorage` (not only the Tauri apps), which the CSP's `'unsafe-inline'` makes reachable
-   to any injected script. Fix: cookies only in the browser; secure storage on devices.
+3. **Token in URLs** — partly fixed: the request span logs a redacted URI
+   (`token=[redacted]`) and only the native apps send a token at all. Their WebSocket token
+   still travels in the query string, where proxies may log it; the remaining fix is a
+   short-lived one-time WebSocket ticket.
+4. ~~**Token in `localStorage`**~~ — fixed after 3.0.0 for the browser: the web UI no longer
+   stores the session id (the HttpOnly cookie is the only credential) and nothing sends a
+   user id. The Tauri apps still keep their token in `localStorage`; moving it to the
+   platform keystore is a P1 item.
 5. ~~**Host-key check is per key type**~~ — fixed after 3.0.0: one shared decision
    (`server/src/host_keys.rs`) compares the presented key against *every* key stored for the
    server; an unseen key type with keys on file is a mismatch, not a first contact. Both

@@ -29,6 +29,15 @@ the release workflow uses the matching section as the release notes.
   users' defaults.
 - First tests in the `server` crate: auth middleware, origin rules, URI redaction, host-key
   decisions; database tests for per-user scoping.
+- The web UI no longer stores the session id in `localStorage`; the HttpOnly cookie is its
+  only credential. Only the desktop and Android apps keep a token, and no client sends a
+  user id any more.
+
+### Fixed
+- The Notifications and General settings forms opened blank because the settings store was
+  never loaded; they now load it first.
+- A terminal session that dropped with an error never auto-reconnected (the error status
+  masked the "was connected" check); it now reconnects with the full backoff schedule.
 
 ## [3.0.0] - 2026-10-04
 

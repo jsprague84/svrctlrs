@@ -10,8 +10,8 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 |---|---|---|
 | ~~1~~ | Done 2026-10-05: WebSocket upgrades require `Origin` = request host / `X-Forwarded-Host` or an `ALLOWED_ORIGINS` entry (403 otherwise); tested | `auth::websocket_origin_allowed`, both WS handlers |
 | ~~2~~ | Done 2026-10-05: token auth resolves the session through the store (expiry-filtered) and takes `user_id` from the record; `X-User-Id`/`?user_id=` ignored; `CurrentUser` extractor replaces per-handler session reads; tested. Still open: cycle the session id on login | `server/src/routes/ui/auth.rs` |
-| 3 | Partly done 2026-10-05 (span logs a redacted URI). Remaining: replace the query-string token with a one-time WebSocket ticket, and stop the UI sending `user_id` | both WS handlers, `ui/.../TerminalPane.svelte`, `ui/src/lib/api/client.ts` |
-| 4 | Browser clients: stop writing the session id to `localStorage`; use the cookie only | `ui/src/routes/auth/login/+page.svelte`, `ui/src/lib/api/client.ts` |
+| 3 | Partly done 2026-10-05 (redacted span; UI no longer sends `user_id`). Remaining: replace the native apps' query-string token with a one-time WebSocket ticket | both WS handlers, `ui/.../TerminalPane.svelte` |
+| ~~4~~ | Done 2026-10-05 for the browser (cookie only; no token in `localStorage`). Native apps: move the token to the platform keystore (P1) | `ui/src/routes/auth/login/+page.svelte`, `ui/src/lib/api/client.ts` |
 | ~~5~~ | Done 2026-10-05: `server/src/host_keys.rs` evaluates against every stored key; both connectors fail closed; tested | `host_keys.rs`, `terminal.rs`, `terminal_pty.rs` |
 | ~~6~~ | Done 2026-10-05: connection test uses the command connector (TOFU first, password credentials supported); `ssh.rs` deleted | `server/src/routes/api/servers.rs` |
 | ~~7~~ | Done 2026-10-05: profiles and quick commands scoped per user with 404 on foreign ids; tested | `terminal_profiles.rs`, `quick_commands.rs` |
@@ -26,8 +26,8 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 
 | Area | Gap | Proposal |
 |---|---|---|
-| Settings UI | `settingsState.loadSettings()` is never called, so Notification and Default-profile forms open blank | call it in `+layout.svelte` or the settings page |
-| Reconnect | `onerror` sets status `error` before `onclose` reads it, so established sessions never auto-reconnect; `RECONNECT_DELAYS[5]` unreachable | reorder in `TerminalPane.svelte`, add jitter |
+| ~~Settings UI~~ | Done 2026-10-05: both settings forms load the store before reading it | — |
+| Reconnect | Done 2026-10-05: an established session that errors now reconnects; all six backoff steps are used. Still open: add jitter | `TerminalPane.svelte` |
 | Users | no password change, no user management, single role | `/api/v1/users` CRUD (admin only), `role` column, password change in Settings |
 | Host keys | no way to see or revoke stored keys | `GET/DELETE /api/v1/servers/{id}/host-keys` + a panel on the server card |
 | Audit log | nothing records who opened a shell where | `audit_log` table written by login, WS connect, server/credential changes; a Settings page to read it |
