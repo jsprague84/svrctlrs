@@ -81,6 +81,71 @@ fn hash_password(password: &str) -> Result<String> {
     Ok(password_hash.to_string())
 }
 
+/// All users, oldest first. Hashes are included in the model; callers must not expose them.
+#[instrument(skip(pool))]
+pub async fn list_users(pool: &Pool<Sqlite>) -> Result<Vec<User>> {
+    sqlx::query_as::<_, User>(
+        "SELECT id, username, password_hash, created_at, updated_at FROM users ORDER BY id",
+    )
+    .fetch_all(pool)
+    .await
+    .context("Failed to list users")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// A user by id.
+#[instrument(skip(pool))]
+pub async fn get_user(pool: &Pool<Sqlite>, id: i64) -> Result<Option<User>> {
+    sqlx::query_as::<_, User>(
+        "SELECT id, username, password_hash, created_at, updated_at FROM users WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+    .context("Failed to get user")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
+/// Replace a user's password (same length rule as creation).
+#[instrument(skip(pool, new_password))]
+pub async fn update_password(pool: &Pool<Sqlite>, id: i64, new_password: &str) -> Result<()> {
+    if new_password.chars().count() < MIN_PASSWORD_LEN {
+        return Err(Error::ConfigError(format!(
+            "password must be at least {MIN_PASSWORD_LEN} characters"
+        )));
+    }
+    let password_hash = hash_password(new_password)?;
+    let result = sqlx::query(
+        "UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+    )
+    .bind(password_hash)
+    .bind(id)
+    .execute(pool)
+    .await
+    .context("Failed to update password")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    if result.rows_affected() == 0 {
+        return Err(Error::NotFound(format!("user {id}")));
+    }
+    Ok(())
+}
+
+/// Delete a user. The caller enforces the rules (not yourself, not the last account);
+/// sessions, profiles and quick commands cascade through the schema.
+#[instrument(skip(pool))]
+pub async fn delete_user(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
+    let result = sqlx::query("DELETE FROM users WHERE id = ?")
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("Failed to delete user")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    if result.rows_affected() == 0 {
+        return Err(Error::NotFound(format!("user {id}")));
+    }
+    Ok(())
+}
+
 /// Count total users in the system
 #[instrument(skip(pool))]
 pub async fn count_users(pool: &Pool<Sqlite>) -> Result<i64> {
@@ -181,5 +246,49 @@ mod tests {
             password: "password2-long-enough".to_string(),
         };
         assert!(create_user(&pool, &input2).await.is_err());
+    }
+    #[tokio::test]
+    async fn test_list_update_password_and_delete() {
+        let pool = setup_test_db().await;
+        let a = create_user(
+            &pool,
+            &CreateUser {
+                username: "a".into(),
+                password: "password-a-long".into(),
+            },
+        )
+        .await
+        .unwrap();
+        let b = create_user(
+            &pool,
+            &CreateUser {
+                username: "b".into(),
+                password: "password-b-long".into(),
+            },
+        )
+        .await
+        .unwrap();
+        let names: Vec<String> = list_users(&pool)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|u| u.username)
+            .collect();
+        assert_eq!(names, ["a", "b"]);
+
+        assert!(update_password(&pool, a, "short").await.is_err());
+        update_password(&pool, a, "a-brand-new-password")
+            .await
+            .unwrap();
+        let user = get_user(&pool, a).await.unwrap().unwrap();
+        assert!(verify_password("a-brand-new-password", &user.password_hash).unwrap());
+        assert!(!verify_password("password-a-long", &user.password_hash).unwrap());
+
+        delete_user(&pool, b).await.unwrap();
+        assert!(get_user(&pool, b).await.unwrap().is_none());
+        assert!(matches!(
+            delete_user(&pool, b).await.unwrap_err(),
+            Error::NotFound(_)
+        ));
     }
 }

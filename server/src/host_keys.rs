@@ -92,6 +92,22 @@ pub fn presented_key_openssh(
     text.map_err(|_| russh::Error::CouldNotReadKey)
 }
 
+/// OpenSSH-style fingerprint (`SHA256:<base64>`) of a key given in OpenSSH text form.
+/// Falls back to hashing the whole text when the key is not base64, so it never panics.
+pub fn fingerprint(openssh_key: &str) -> String {
+    use base64::Engine;
+    use sha2::{Digest, Sha256};
+    let blob_b64 = openssh_key.split_whitespace().nth(1).unwrap_or(openssh_key);
+    let blob = base64::engine::general_purpose::STANDARD
+        .decode(blob_b64)
+        .unwrap_or_else(|_| openssh_key.as_bytes().to_vec());
+    let digest = Sha256::digest(&blob);
+    format!(
+        "SHA256:{}",
+        base64::engine::general_purpose::STANDARD_NO_PAD.encode(digest)
+    )
+}
+
 /// The warning shown in the terminal when a key does not match.
 pub fn mismatch_message(stored_types: &[String], presented_type: &str) -> String {
     format!(
@@ -100,8 +116,8 @@ pub fn mismatch_message(stored_types: &[String], presented_type: &str) -> String
          This could indicate a man-in-the-middle attack.\r\n\
          Stored key type(s): {}\r\n\
          Presented key type: {}\r\n\
-         Connection refused. If the server's key legitimately changed, an administrator must \
-         remove the stored key(s) for this server before reconnecting.",
+         Connection refused. If the server's key legitimately changed, forget its stored keys \
+         under Servers → Host keys and connect again.",
         stored_types.join(", "),
         presented_type
     )
@@ -121,6 +137,23 @@ mod tests {
             first_seen_at: Utc::now(),
             last_seen_at: Utc::now(),
         }
+    }
+
+    #[test]
+    fn fingerprint_is_openssh_style_and_key_specific() {
+        // ssh-keygen -lf of this ed25519 key prints SHA256:gfEy1b7DhSz9yu4aS8wK3y3UY8AMz5yY12pjTX5f0X8
+        let key =
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGmOh7GDvBC5lBrP6AQ4J2NMRi5PXAqGC9io/BPO4He8";
+        let fp = fingerprint(key);
+        assert!(fp.starts_with("SHA256:"), "{fp}");
+        assert_eq!(fp.len(), "SHA256:".len() + 43);
+        assert_ne!(
+            fp,
+            fingerprint(
+                "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            )
+        );
+        assert!(fingerprint("not base64 at all").starts_with("SHA256:"));
     }
 
     #[test]

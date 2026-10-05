@@ -26,8 +26,9 @@ other web pages the operator visits (see CSWSH below).
 - **Users** — `users` table, argon2 (default parameters). The first start seeds one admin from
   `ADMIN_USERNAME`/`ADMIN_PASSWORD` when the table is empty; later starts never overwrite.
   Passwords must be at least 12 characters. Failed logins are limited to 10 per 15 minutes
-  per client address and per username (429 with `Retry-After`). There is no user-management
-  API or password-change flow yet, so put the UI behind the edge passkey login as well.
+  per client address and per username (429 with `Retry-After`). Accounts are managed under
+  Settings → Users (`/api/v1/users`); a password change requires the current password. Every
+  account is an administrator, so put the UI behind the edge passkey login as well.
 - **Sessions** — tower-sessions, SQLite store, `HttpOnly`, `Secure` unless
   `SESSION_SECURE=false`, `SameSite=Strict` by default; `SameSite=None` only when
   `ALLOWED_ORIGINS` is set for the native clients. Expiry: 24 h of inactivity. Logout flushes
@@ -58,8 +59,9 @@ Trust on first use. The first connection to a server stores its host key in
 `server_host_keys`; a later connection presenting a key that matches none of the keys stored
 for that server — whatever its algorithm — is refused with an error in the terminal. The same
 decision (`server/src/host_keys.rs`) serves the PTY connector, the command connector and the
-connection test, and a database error refuses the connection. There is no UI to view or revoke
-stored keys yet (delete the server's rows to re-trust).
+connection test, and a database error refuses the connection. Stored keys are listed with
+OpenSSH-style fingerprints and can be forgotten per server (Servers → Keys,
+`/api/v1/servers/{id}/host-keys`); forgetting is logged at `warn`.
 
 ## Transport and headers
 

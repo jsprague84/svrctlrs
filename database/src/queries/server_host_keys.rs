@@ -53,6 +53,19 @@ pub async fn list_host_keys_for_server(
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
+/// Forget every stored host key for a server, so the next connection trusts afresh. Returns
+/// how many rows were removed.
+#[instrument(skip(pool))]
+pub async fn delete_host_keys_for_server(pool: &Pool<Sqlite>, server_id: i64) -> Result<u64> {
+    let result = sqlx::query("DELETE FROM server_host_keys WHERE server_id = ?")
+        .bind(server_id)
+        .execute(pool)
+        .await
+        .context("Failed to delete host keys for server")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    Ok(result.rows_affected())
+}
+
 /// Store a new host key for a server (TOFU - first connection)
 #[instrument(skip(pool))]
 pub async fn store_host_key(
@@ -236,5 +249,21 @@ mod tests {
             .await
             .unwrap()
             .is_empty());
+    }
+    #[tokio::test]
+    async fn test_delete_host_keys_for_server() {
+        let pool = setup_test_db().await;
+        store_host_key(&pool, 1, "ssh-ed25519", "ssh-ed25519 AAAA1")
+            .await
+            .unwrap();
+        store_host_key(&pool, 1, "ssh-rsa", "ssh-rsa BBBB2")
+            .await
+            .unwrap();
+        assert_eq!(delete_host_keys_for_server(&pool, 1).await.unwrap(), 2);
+        assert!(list_host_keys_for_server(&pool, 1)
+            .await
+            .unwrap()
+            .is_empty());
+        assert_eq!(delete_host_keys_for_server(&pool, 1).await.unwrap(), 0);
     }
 }

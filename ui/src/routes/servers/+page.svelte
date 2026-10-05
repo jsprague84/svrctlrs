@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Server, Plus, Pencil, Trash2, Wifi, WifiOff } from 'lucide-svelte';
+	import { Server, Plus, Pencil, Trash2, Wifi, WifiOff, KeyRound } from 'lucide-svelte';
+	import * as serversApi from '$lib/api/servers.js';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Select from '$lib/components/ui/Select.svelte';
@@ -10,12 +11,16 @@
 	import * as credState from '$lib/state/credentials.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
 	import { extractErrorMessage } from '$lib/utils/error.js';
-	import type { CreateServer, UpdateServer, TestConnectionResult } from '$lib/types/index.js';
+	import type { CreateServer, UpdateServer, TestConnectionResult, HostKey } from '$lib/types/index.js';
 
 	let showModal = $state(false);
 	let editingId = $state<number | null>(null);
 	let testing = $state<number | null>(null);
 	let testResult = $state<TestConnectionResult | null>(null);
+	// Host keys modal
+	let keysServer = $state<{ id: number; name: string } | null>(null);
+	let hostKeys = $state<HostKey[]>([]);
+	let keysLoading = $state(false);
 
 	// Form fields
 	let name = $state('');
@@ -88,6 +93,29 @@
 		}
 	}
 
+	async function openHostKeys(server: { id: number; name: string }) {
+		keysServer = server;
+		hostKeys = [];
+		keysLoading = true;
+		try {
+			hostKeys = await serversApi.listHostKeys(server.id);
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Failed to load host keys'));
+		} finally {
+			keysLoading = false;
+		}
+	}
+	async function forgetHostKeys() {
+		if (!keysServer) return;
+		if (!confirm(`Forget all stored host keys for ${keysServer.name}? The next connection will trust whatever key the server presents.`)) return;
+		try {
+			const removed = await serversApi.forgetHostKeys(keysServer.id);
+			toast.success(`Forgot ${removed} host key${removed === 1 ? '' : 's'}`);
+			hostKeys = [];
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Failed to forget host keys'));
+		}
+	}
 	async function handleTest(id: number) {
 		testing = id;
 		testResult = null;
@@ -162,6 +190,12 @@
 								{/if}
 								<span class="hidden md:inline">Test</span>
 							</Button>
+							{#if !server.is_local}
+								<Button variant="ghost" size="sm" onclick={() => openHostKeys(server)} title="Stored SSH host keys">
+									<KeyRound class="w-3.5 h-3.5" />
+									<span class="hidden md:inline">Keys</span>
+								</Button>
+							{/if}
 							<Button variant="ghost" size="sm" onclick={() => openEdit(server)}>
 								<Pencil class="w-3.5 h-3.5" />
 								<span class="hidden md:inline">Edit</span>
@@ -210,5 +244,35 @@
 	{#snippet footer()}
 		<Button variant="secondary" onclick={() => showModal = false}>Cancel</Button>
 		<Button onclick={handleSubmit}>{editingId ? 'Save' : 'Create'}</Button>
+	{/snippet}
+</Modal>
+
+<Modal open={keysServer !== null} title={`Host keys — ${keysServer?.name ?? ''}`} onClose={() => keysServer = null}>
+	<p class="text-xs text-text-muted mb-3">
+		Keys trusted on first contact. A connection is refused when the server presents a key that
+		matches none of these. If the server's key legitimately changed, forget them and connect again.
+	</p>
+	{#if keysLoading}
+		<div class="text-text-muted text-sm">Loading...</div>
+	{:else if hostKeys.length === 0}
+		<div class="text-text-muted text-sm">No host key stored yet — the first connection will record one.</div>
+	{:else}
+		<ul class="flex flex-col gap-2">
+			{#each hostKeys as key (key.id)}
+				<li class="border border-border/50 rounded-sm px-3 py-2">
+					<div class="flex items-center gap-2">
+						<Badge variant="info">{key.key_type}</Badge>
+						<span class="font-mono text-xs text-text-primary break-all">{key.fingerprint}</span>
+					</div>
+					<div class="text-[11px] text-text-muted mt-1">
+						first seen {new Date(key.first_seen_at).toLocaleString()} · last seen {new Date(key.last_seen_at).toLocaleString()}
+					</div>
+				</li>
+			{/each}
+		</ul>
+	{/if}
+	{#snippet footer()}
+		<Button variant="secondary" onclick={() => keysServer = null}>Close</Button>
+		<Button variant="destructive" onclick={forgetHostKeys} disabled={hostKeys.length === 0}>Forget all keys</Button>
 	{/snippet}
 </Modal>

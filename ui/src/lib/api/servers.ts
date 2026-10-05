@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client.js';
-import type { Server, CreateServer, UpdateServer, TestConnectionResult } from '$lib/types/index.js';
+import type { Server, CreateServer, UpdateServer, TestConnectionResult, HostKey } from '$lib/types/index.js';
 
 interface ServersListResponse {
 	servers: Server[];
@@ -39,4 +39,15 @@ export async function deleteServer(id: number): Promise<void> {
 
 export async function testConnection(id: number): Promise<TestConnectionResult> {
 	return post<TestConnectionResult>(`/servers/${id}/test`);
+}
+
+export async function listHostKeys(id: number): Promise<HostKey[]> {
+	const res = await get<{ server_id: number; host_keys: HostKey[] }>(`/servers/${id}/host-keys`);
+	return res.host_keys;
+}
+
+/** Forget every stored host key; the next connection trusts whatever key it sees. */
+export async function forgetHostKeys(id: number): Promise<number> {
+	const res = await del<{ server_id: number; removed: number }>(`/servers/${id}/host-keys`);
+	return res.removed;
 }

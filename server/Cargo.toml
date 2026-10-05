@@ -66,6 +66,8 @@ tempfile = "3.23.0"
 # One-time WebSocket tickets (random bytes, base64url)
 rand = "0.8"
 base64 = "0.22"
+# OpenSSH-style SHA256 host key fingerprints
+sha2 = "0.10"
 
 [features]
 # Default: Server feature

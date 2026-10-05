@@ -28,8 +28,8 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 |---|---|---|
 | ~~Settings UI~~ | Done 2026-10-05: both settings forms load the store before reading it | — |
 | Reconnect | Done 2026-10-05: an established session that errors now reconnects; all six backoff steps are used. Still open: add jitter | `TerminalPane.svelte` |
-| Users | no password change, no user management, single role | `/api/v1/users` CRUD (admin only), `role` column, password change in Settings |
-| Host keys | no way to see or revoke stored keys | `GET/DELETE /api/v1/servers/{id}/host-keys` + a panel on the server card |
+| Users | Done 2026-10-05: `/api/v1/users` list/create/delete (not self, not last) and `PUT /users/me/password`; Settings → Users tab. Still open: a `role` column so not every account is an administrator | `server/src/routes/api/users.rs` |
+| Host keys | Done 2026-10-05: `GET/DELETE /api/v1/servers/{id}/host-keys` with `SHA256:` fingerprints; Keys modal on the Servers page | `servers.rs`, `host_keys::fingerprint` |
 | Audit log | nothing records who opened a shell where | `audit_log` table written by login, WS connect, server/credential changes; a Settings page to read it |
 | Backups | no in-app export | `svrctl backup` that copies the DB (via `VACUUM INTO`) and key to a tarball; document restore |
 | Health | `/api/v1/health` is static | add DB ping and migration state; keep it unauthenticated but minimal |

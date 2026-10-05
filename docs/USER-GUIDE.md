@@ -20,9 +20,19 @@ again; the list only shows that they exist.
 and the credential to use. *Test connection* opens an SSH session and records the result.
 A **local** server opens a shell inside the SvrCtlRS container itself.
 
-The first connection to a server stores its SSH host key. If the key ever changes, the
-connection is refused and the terminal shows a mismatch error; confirm the change out of band
-before an administrator clears the stored key.
+The first connection to a server stores its SSH host key. If the server later presents a key
+that matches none stored for it, the connection is refused and the terminal shows a mismatch
+error. The **Keys** button on a server lists the stored keys with their `SHA256:` fingerprints
+(compare with `ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub` on the server) and, once you have
+confirmed out of band that the key really changed, **Forget all keys** lets the next connection
+trust it afresh.
+
+## Accounts
+
+Settings → Users lists the accounts, lets you add one (username plus a password of at least
+12 characters) or delete one (not your own, not the last), and holds **Your password** for
+changing yours — the current password is required. Every account can open a shell on every
+configured server and manage accounts; there are no roles yet.
 
 ## The terminal
 

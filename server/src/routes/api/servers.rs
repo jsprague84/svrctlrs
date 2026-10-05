@@ -26,6 +26,68 @@ pub fn routes() -> Router<AppState> {
             get(get_server).put(update_server).delete(delete_server),
         )
         .route("/{id}/test", post(test_connection))
+        .route(
+            "/{id}/host-keys",
+            get(list_host_keys).delete(forget_host_keys),
+        )
+}
+
+/// Stored SSH host keys for a server, with OpenSSH-style fingerprints (no key material).
+#[instrument(skip(state))]
+async fn list_host_keys(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    use svrctlrs_database::queries::server_host_keys;
+
+    servers::get_server(&state.pool, id)
+        .await
+        .map_err(|_| ApiError::not_found("Server"))?;
+    let keys = server_host_keys::list_host_keys_for_server(&state.pool, id)
+        .await
+        .map_err(|e| {
+            error!(error = %e, id = id, "Failed to list host keys");
+            ApiError::internal_error(format!("Failed to list host keys: {e}"))
+        })?;
+    let keys: Vec<_> = keys
+        .iter()
+        .map(|k| {
+            json!({
+                "id": k.id,
+                "key_type": k.key_type,
+                "fingerprint": crate::host_keys::fingerprint(&k.public_key),
+                "first_seen_at": k.first_seen_at,
+                "last_seen_at": k.last_seen_at,
+            })
+        })
+        .collect();
+    Ok(Json(json!({ "server_id": id, "host_keys": keys })))
+}
+
+/// Forget every stored host key for a server. The next connection trusts the key it sees
+/// (TOFU), so do this only after confirming out of band that the server's key changed.
+#[instrument(skip(state))]
+async fn forget_host_keys(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    use svrctlrs_database::queries::server_host_keys;
+
+    servers::get_server(&state.pool, id)
+        .await
+        .map_err(|_| ApiError::not_found("Server"))?;
+    let removed = server_host_keys::delete_host_keys_for_server(&state.pool, id)
+        .await
+        .map_err(|e| {
+            error!(error = %e, id = id, "Failed to forget host keys");
+            ApiError::internal_error(format!("Failed to forget host keys: {e}"))
+        })?;
+    tracing::warn!(
+        server_id = id,
+        removed,
+        "Stored host keys forgotten; next connection re-trusts"
+    );
+    Ok(Json(json!({ "server_id": id, "removed": removed })))
 }
 
 /// List all servers

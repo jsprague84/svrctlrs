@@ -17,6 +17,7 @@ pub mod profiles;
 pub mod quick_commands;
 pub mod servers;
 pub mod settings;
+pub mod users;
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
 use serde::Serialize;
@@ -88,6 +89,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/profiles", profiles::routes())
         .nest("/quick-commands", quick_commands::routes())
         .nest("/notifications", notifications::routes())
+        .nest("/users", users::routes())
 }
 
 /// Health check endpoint

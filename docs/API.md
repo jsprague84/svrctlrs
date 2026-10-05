@@ -68,6 +68,8 @@ Codes: `BAD_REQUEST` (400), `NOT_FOUND` (404), `CONFLICT` (409), `INTERNAL_ERROR
 | PUT | `/servers/{id}` | any subset of the create fields plus `os_type?`, `os_distro?` | |
 | DELETE | `/servers/{id}` | — | |
 | POST | `/servers/{id}/test` | — | verifies the host key (trust on first use), authenticates with the server's credential and runs a trivial command; returns `success`, `message`, `latency_ms` |
+| GET | `/servers/{id}/host-keys` | — | stored host keys: `id`, `key_type`, `fingerprint` (`SHA256:…`, OpenSSH style), `first_seen_at`, `last_seen_at` — never the key itself |
+| DELETE | `/servers/{id}/host-keys` | — | forget every stored key; the next connection trusts what it sees. Returns `removed` |
 
 Server object: `id, name, hostname, port, username, credential_id, description, is_local,
 enabled, os_type, os_distro, package_manager, docker_available, systemd_available, metadata,
@@ -116,6 +118,19 @@ Seeded keys: `notification.enabled`, `notification.provider` (`gotify` \| `ntfy`
 | GET | `/quick-commands` | — |
 | POST | `/quick-commands` | `name`, `command`, `server_id?`, `category?` (default `general`), `sort_order?` |
 | GET / PUT / DELETE | `/quick-commands/{id}` | PUT takes any subset |
+
+## Users
+
+Every account is an administrator until roles exist, so any user may manage accounts.
+
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| GET | `/users` | — | `id`, `username`, `is_me`, timestamps; never hashes |
+| POST | `/users` | `username` (1–64 chars), `password` (≥ 12 chars) | 409 if the name exists |
+| DELETE | `/users/{id}` | — | refused for your own account and for the last account |
+| PUT | `/users/me/password` | `current_password`, `new_password` (≥ 12 chars) | 401 when the current password is wrong |
+
+Deleting a user cascades to their sessions, profiles and quick commands.
 
 ## Notifications
 

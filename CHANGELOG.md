@@ -5,6 +5,13 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Added
+- Host-key management: `GET/DELETE /api/v1/servers/{id}/host-keys` and a **Keys** modal on
+  the Servers page showing `SHA256:` fingerprints, with **Forget all keys** for a server whose
+  key legitimately changed. The mismatch error in the terminal points there.
+- Accounts: `/api/v1/users` (list, create, delete — never yourself or the last account) and
+  `PUT /api/v1/users/me/password`; a **Users** tab in Settings with a change-password form.
+
 ## [3.0.0] - 2026-10-05
 
 First release of SvrCtlRS as a terminal/SSH management tool. The 1.x/2.x line (a plugin-based

@@ -20,6 +20,15 @@ export interface Server {
 	updated_at: string;
 }
 
+/** A stored SSH host key, as returned by GET /servers/{id}/host-keys (no key material). */
+export interface HostKey {
+	id: number;
+	key_type: string;
+	fingerprint: string;
+	first_seen_at: string;
+	last_seen_at: string;
+}
+
 export interface ServerCapability {
 	id: number;
 	server_id: number;

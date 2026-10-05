@@ -3143,6 +3143,7 @@ dependencies = [
  "russh 0.64.0",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "svrctlrs-core",
  "svrctlrs-database",
  "tempfile",
