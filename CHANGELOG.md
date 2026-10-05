@@ -21,6 +21,10 @@ the release workflow uses the matching section as the release notes.
   for 180 days and never contain secrets.
 
 ### Changed
+- `GET /api/v1/health` pings the database and answers 503 (`status: degraded`) when it is
+  unreachable, so the container healthcheck reflects a broken volume.
+- Accessibility: icon buttons carry labels, layout buttons report `aria-pressed`, toasts are an
+  `aria-live` status region, and the command palette is a proper combobox/listbox.
 - UI tooling: ESLint, Prettier and Vitest with the first unit tests; `engines.node >= 22.12`.
   The whole UI tree is Prettier-formatted (a formatting-only diff).
 

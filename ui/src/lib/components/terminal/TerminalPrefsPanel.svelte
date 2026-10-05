@@ -53,7 +53,11 @@
 	<!-- Header -->
 	<div class="flex items-center justify-between px-3 py-2 border-b border-border">
 		<span class="text-sm font-semibold text-text-primary">Terminal Preferences</span>
-		<button class="p-1 text-text-muted hover:text-text-primary" onclick={onClose}>
+		<button
+			class="p-1 text-text-muted hover:text-text-primary"
+			onclick={onClose}
+			aria-label="Close preferences"
+		>
 			<X class="w-4 h-4" />
 		</button>
 	</div>

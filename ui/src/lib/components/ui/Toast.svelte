@@ -20,7 +20,11 @@
 </script>
 
 {#if toasts.length > 0}
-	<div class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+	<div
+		class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm"
+		role="status"
+		aria-live="polite"
+	>
 		{#each toasts as toast (toast.id)}
 			{@const Icon = icons[toast.type]}
 			<div
@@ -28,7 +32,11 @@
 			>
 				<Icon class="w-4 h-4 flex-shrink-0 mt-0.5" />
 				<p class="flex-1 text-sm">{toast.message}</p>
-				<button class="p-0.5 hover:opacity-70" onclick={() => removeToast(toast.id)}>
+				<button
+					class="p-0.5 hover:opacity-70"
+					onclick={() => removeToast(toast.id)}
+					aria-label="Dismiss notification"
+				>
 					<X class="w-3 h-3" />
 				</button>
 			</div>

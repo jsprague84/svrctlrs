@@ -69,6 +69,7 @@
 			class="flex items-center gap-1 p-2 md:p-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
 			onclick={onNewTab}
 			title="New terminal (Ctrl+Shift+T)"
+			aria-label="New terminal"
 		>
 			<Plus class="w-3.5 h-3.5" />
 		</button>
@@ -83,6 +84,8 @@
 					: 'text-text-muted hover:text-text-primary hover:bg-surface-raised/50'}"
 				onclick={() => onSetLayout(l.mode)}
 				title={l.label}
+				aria-label={l.label}
+				aria-pressed={layout === l.mode}
 			>
 				<l.icon class="w-3.5 h-3.5" />
 			</button>

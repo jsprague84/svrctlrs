@@ -94,17 +94,38 @@ pub fn routes() -> Router<AppState> {
         .nest("/audit", audit::routes())
 }
 
-/// Health check endpoint
-#[instrument]
-async fn health_check() -> impl IntoResponse {
+/// Health check endpoint. Unauthenticated, so it reveals only version and revision; it does
+/// touch the database, so a broken volume turns the container unhealthy (503) and the deploy
+/// script and compose healthcheck notice.
+#[instrument(skip(state))]
+async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
     debug!("Health check requested");
-    Json(json!({
-        "status": "ok",
-        "service": "svrctlrs",
-        "version": env!("CARGO_PKG_VERSION"),
-        // Baked into the container image by CI; lets a deploy prove which commit is running.
-        "revision": std::env::var("SVRCTLRS_REVISION").unwrap_or_else(|_| "unknown".to_string())
-    }))
+    let database = match svrctlrs_database::sqlx::query("SELECT 1")
+        .execute(&state.pool)
+        .await
+    {
+        Ok(_) => "ok",
+        Err(e) => {
+            tracing::error!(error = %e, "Health check: database unreachable");
+            "error"
+        }
+    };
+    let status = if database == "ok" {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+    (
+        status,
+        Json(json!({
+            "status": if database == "ok" { "ok" } else { "degraded" },
+            "database": database,
+            "service": "svrctlrs",
+            "version": env!("CARGO_PKG_VERSION"),
+            // Baked into the container image by CI; lets a deploy prove which commit is running.
+            "revision": std::env::var("SVRCTLRS_REVISION").unwrap_or_else(|_| "unknown".to_string())
+        })),
+    )
 }
 
 /// Server status endpoint

@@ -290,11 +290,18 @@
 			type="text"
 			class="flex-1 bg-transparent text-text-primary text-sm placeholder:text-text-muted outline-none"
 			placeholder="Type a command or action..."
+			role="combobox"
+			aria-expanded={open}
+			aria-controls="palette-options"
+			aria-autocomplete="list"
+			aria-activedescendant={filtered[selectedIndex]
+				? `palette-option-${filtered[selectedIndex].id}`
+				: undefined}
 		/>
 	</div>
 
 	<!-- Results list -->
-	<div class="overflow-y-auto max-h-[50vh] py-1">
+	<div class="overflow-y-auto max-h-[50vh] py-1" role="listbox" id="palette-options">
 		{#if !open}
 			<!-- empty when hidden -->
 		{:else if filtered.length === 0}
@@ -311,6 +318,7 @@
 						selectItem(item);
 					}}
 					role="option"
+					id={`palette-option-${item.id}`}
 					aria-selected={i === selectedIndex}
 				>
 					<span class="flex-1 truncate">

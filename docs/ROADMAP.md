@@ -32,13 +32,13 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | Host keys | Done 2026-10-05: `GET/DELETE /api/v1/servers/{id}/host-keys` with `SHA256:` fingerprints; Keys modal on the Servers page | `servers.rs`, `host_keys::fingerprint` |
 | Audit log | Done 2026-10-05: `audit_log` (migration 023) written fire-and-forget for logins/failures/rate limits, logout, sessions, commands (+exit code), server/credential/user changes, host keys forgotten; `GET /api/v1/audit` with cursor paging; Settings → Audit; 180-day prune at start-up | `server/src/audit.rs`, `queries/audit.rs` |
 | Backups | Done 2026-10-05: `svrctl backup --out DIR --keep N` (`VACUUM INTO`, key file copied when not in the environment, retention); restore documented in DEPLOYMENT.md | `server/src/bin/svrctl.rs` |
-| Health | `/api/v1/health` is static | add DB ping and migration state; keep it unauthenticated but minimal |
+| Health | Done 2026-10-05: `/api/v1/health` pings the database and answers 503 `degraded` when it fails, so the compose healthcheck and the deploy script notice | `routes/api/mod.rs` |
 | Observability | `tracing-subscriber` has `json` enabled but is never used | `LOG_FORMAT=json`, request ids |
 | Desktop | Done 2026-10-05 (unverified until the next desktop CI build): tray uses the bundled icon; close hides to the tray only when a tray was created, otherwise it quits. The tray menu already had Show/Quit | `ui/src-tauri/src/lib.rs` |
 | Identity | Tauri `app.js-node.svrctlrs` vs Flatpak `cc.jsnode.svrctlrs` → two desktop IDs | pick one (`cc.jsnode.svrctlrs` is the standard reverse-DNS of js-node.cc); note it changes the Android `applicationId`, so decide before the first signed public APK |
 | Android | Partly done 2026-10-05: the server-URL screen normalises the URL, refuses plain `http://` on Android and warns about it on desktop. Still open: AAB built but never published; biometrics plugin registered but unused | `ui/src/lib/platform/url.ts` |
 | Frontend tooling | Done 2026-10-05: ESLint (flat config, Svelte + TS), Prettier, Vitest with the first unit tests, `engines.node >= 22.12`; `lint` and `test` run in CI | `ui/eslint.config.js`, `ui/.prettierrc` |
-| a11y | Partly done 2026-10-05: svelte-check is at 0 warnings (labels associated, stable ids via `$props.id()`). Still open: icon buttons without labels (`TerminalTabs`, `Toast`, `TerminalPrefsPanel`), palette `role=option` without `listbox`, tabs without arrow-key navigation, toast without `aria-live` | — |
+| a11y | Done 2026-10-05: svelte-check at 0 warnings, icon buttons labelled, layout buttons `aria-pressed`, toast region `role=status aria-live`, palette is a `combobox` over a `listbox` with `aria-activedescendant`. Still open: arrow-key navigation between terminal tabs | — |
 | Flatpak | GNOME 46 runtime is end-of-life; no AppStream metainfo; bundles a binary built outside the sandbox | move to 48, add `metainfo.xml`, build inside flatpak-builder or drop Flatpak in favour of AppImage |
 | Docs | no screenshots | add to README and USER-GUIDE once the UI settles |
 
@@ -51,9 +51,8 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 - Replace stringly `core::Error` variants with typed errors and `IntoResponse`.
 - `database/src/lib.rs` `#![allow(ambiguous_glob_reexports)]` hides name collisions; export
   explicitly.
-- Remove dead frontend modules: `Header.svelte`, `ServerSelector.svelte`, `api/index.ts`,
-  unused exports in state modules; drop unused `@tauri-apps/api`, `plugin-http`, `plugin-os`
-  (or use them).
+- Removed 2026-10-05: `Header.svelte`, `ServerSelector.svelte`, `api/index.ts`. Still: unused
+  exports in state modules; unused `@tauri-apps/api`, `plugin-http`, `plugin-os` (or use them).
 - Squash migrations `000`–`015` into one baseline for fresh installs (keep the old files for
   existing databases behind a version check).
 - Remove the global `npm i -g @tauri-apps/cli` from both Tauri CI images (the devDependency is
