@@ -18,10 +18,6 @@ export function getError() {
 	return error;
 }
 
-export function getDefaultProfile(): TerminalProfile | undefined {
-	return profiles.find((p) => p.is_default);
-}
-
 export async function loadProfiles() {
 	loading = true;
 	error = null;

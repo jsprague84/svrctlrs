@@ -59,10 +59,6 @@ export function getPrefs(): TerminalPreferences {
 	return prefs;
 }
 
-export function getDefaults(): TerminalPreferences {
-	return { ...DEFAULTS };
-}
-
 export function updatePref<K extends keyof TerminalPreferences>(
 	key: K,
 	value: TerminalPreferences[K]

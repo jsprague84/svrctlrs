@@ -21,11 +21,6 @@ export function isTauriMobile(): boolean {
 	return /Android|iPhone|iPad|iPod/i.test(ua);
 }
 
-/** Check if running in Tauri on a desktop (macOS, Windows, Linux) */
-export function isTauriDesktop(): boolean {
-	return isTauri() && !isTauriMobile();
-}
-
 /** Get the current platform */
 export function getPlatform(): 'web' | 'tauri-desktop' | 'tauri-mobile' {
 	if (!isTauri()) return 'web';

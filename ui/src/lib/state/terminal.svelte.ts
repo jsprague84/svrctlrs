@@ -104,11 +104,6 @@ export function focusSlot(slot: number): string | null {
 	return null;
 }
 
-/** Get the tab at a given slot */
-export function getTabBySlot(slot: number): TerminalTab | undefined {
-	return tabs.find((t) => t.slot === slot);
-}
-
 /** Get the slot of the currently active tab */
 export function getActiveSlot(): number | null {
 	const tab = tabs.find((t) => t.id === activeTabId);

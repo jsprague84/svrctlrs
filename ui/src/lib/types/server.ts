@@ -29,21 +29,6 @@ export interface HostKey {
 	last_seen_at: string;
 }
 
-export interface ServerCapability {
-	id: number;
-	server_id: number;
-	capability: string;
-	available: boolean;
-	version: string | null;
-	detected_at: string;
-}
-
-export interface ServerWithDetails {
-	server: Server;
-	tags: string[];
-	capabilities: ServerCapability[];
-}
-
 export interface CreateServer {
 	name: string;
 	hostname?: string;

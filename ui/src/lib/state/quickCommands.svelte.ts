@@ -18,33 +18,11 @@ export function getError() {
 	return error;
 }
 
-export function getCommandsByCategory(): Record<string, QuickCommand[]> {
-	const grouped: Record<string, QuickCommand[]> = {};
-	for (const cmd of commands) {
-		const cat = cmd.category || 'general';
-		if (!grouped[cat]) grouped[cat] = [];
-		grouped[cat].push(cmd);
-	}
-	return grouped;
-}
-
 export async function loadCommands() {
 	loading = true;
 	error = null;
 	try {
 		commands = await api.listQuickCommands();
-	} catch (e) {
-		error = extractErrorMessage(e, 'Failed to load quick commands');
-	} finally {
-		loading = false;
-	}
-}
-
-export async function loadCommandsForServer(serverId: number) {
-	loading = true;
-	error = null;
-	try {
-		commands = await api.listQuickCommandsForServer(serverId);
 	} catch (e) {
 		error = extractErrorMessage(e, 'Failed to load quick commands');
 	} finally {
