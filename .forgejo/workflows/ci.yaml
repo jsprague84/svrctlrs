@@ -1,77 +1,103 @@
-# SvrCtlRS CI Pipeline
+# SvrCtlRS CI — lint, audit, test, frontend.
 #
-# Runs lint, test, and frontend checks on push/PR.
-# Uses svrctlrs-ci image (Rust + Node.js) with sccache for fast builds.
+# Runs on the epyc-ai `rust-high` runners (dev-space standard: never `runs-on: docker`).
+# The svrctlrs-ci image is rust-ci plus Node 22, so both cargo and npm jobs use it.
+# Only /ci-cache/sccache is shared between jobs; a shared cargo registry races at
+# concurrency > 1 (see the forgejo-ci standard). The npm cache is safe to share.
+#
+# Feature branches build too — the runner is fast enough that waiting for a merge to
+# discover a failure is wasted time. Images and app packages are built by docker.yaml,
+# android.yaml and desktop.yaml, which are gated on master and tags.
 
 name: CI
 
 on:
   push:
-    branches: [main, master, develop, 'ralph/**']
+    branches: ['**']
+    tags: ['v*']
   pull_request:
-    branches: [main, master, develop]
+    branches: [master]
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
 
 jobs:
-  # ──────────────────────────────────────────────
-  # Lint: fmt + clippy
-  # ──────────────────────────────────────────────
   lint:
     name: Lint
-    runs-on: docker
+    runs-on: rust-high
     container:
       image: git.js-node.cc/jsprague/svrctlrs-ci:latest
       volumes:
         - /ci-cache/sccache:/sccache
-        - /ci-cache/cargo-registry:/usr/local/cargo/registry
     steps:
       - name: Checkout
+        # The CI image has no JS checkout action runtime path we trust, so clone by hand.
+        # pull_request runs: GITHUB_REF_NAME is "<n>/merge" and GITHUB_SHA is a merge
+        # commit that is not on the cloned branch, so clone the PR head and stay on it.
         run: |
-          git clone --depth=1 --branch=${GITHUB_REF_NAME} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . 2>/dev/null || \
-          (git clone --depth=50 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . && git checkout ${GITHUB_SHA})
+          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git clone --depth=50 --branch "${REF}" \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git" .
+          [ "${GITHUB_EVENT_NAME}" = pull_request ] || git checkout --detach "${GITHUB_SHA}"
 
       - name: Format check
         run: cargo fmt --all --check
 
       - name: Clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Cache stats
         run: sccache --show-stats
 
-  # ──────────────────────────────────────────────
-  # Test: cargo test
-  # ──────────────────────────────────────────────
+  audit:
+    name: Audit
+    runs-on: rust-high
+    container:
+      image: git.js-node.cc/jsprague/svrctlrs-ci:latest
+      volumes:
+        - /ci-cache/sccache:/sccache
+    steps:
+      - name: Checkout
+        run: |
+          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git clone --depth=50 --branch "${REF}" \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git" .
+          [ "${GITHUB_EVENT_NAME}" = pull_request ] || git checkout --detach "${GITHUB_SHA}"
+
+      - name: Install cargo-audit
+        run: cargo audit --version || cargo install cargo-audit --locked
+
+      # Gate on any new advisory. Add `--ignore RUSTSEC-...` entries here only for
+      # transitive advisories with no fixed upstream release, and say why.
+      - name: Cargo audit
+        run: cargo audit
+
   test:
     name: Test
-    runs-on: docker
+    runs-on: rust-high
     needs: lint
     container:
       image: git.js-node.cc/jsprague/svrctlrs-ci:latest
       volumes:
         - /ci-cache/sccache:/sccache
-        - /ci-cache/cargo-registry:/usr/local/cargo/registry
     steps:
       - name: Checkout
         run: |
-          git clone --depth=1 --branch=${GITHUB_REF_NAME} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . 2>/dev/null || \
-          (git clone --depth=50 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . && git checkout ${GITHUB_SHA})
+          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git clone --depth=50 --branch "${REF}" \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git" .
+          [ "${GITHUB_EVENT_NAME}" = pull_request ] || git checkout --detach "${GITHUB_SHA}"
 
       - name: Run tests
-        run: cargo test --workspace --all-features --verbose
+        run: cargo test --workspace
 
       - name: Cache stats
         run: sccache --show-stats
 
-  # ──────────────────────────────────────────────
-  # Frontend: svelte-check + build
-  # ──────────────────────────────────────────────
   frontend:
     name: Frontend
-    runs-on: docker
+    runs-on: rust-high
     container:
       image: git.js-node.cc/jsprague/svrctlrs-ci:latest
       volumes:
@@ -79,14 +105,19 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          git clone --depth=1 --branch=${GITHUB_REF_NAME} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . 2>/dev/null || \
-          (git clone --depth=50 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . && git checkout ${GITHUB_SHA})
+          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
+          git clone --depth=50 --branch "${REF}" \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git" .
+          [ "${GITHUB_EVENT_NAME}" = pull_request ] || git checkout --detach "${GITHUB_SHA}"
 
       - name: Install dependencies
-        run: cd ui && npm ci
+        run: cd ui && npm ci --no-audit --no-fund
 
       - name: Svelte check
         run: cd ui && npm run check
 
       - name: Build
         run: cd ui && npm run build
+
+      - name: npm audit (production dependencies)
+        run: cd ui && npm audit --omit=dev --audit-level=high

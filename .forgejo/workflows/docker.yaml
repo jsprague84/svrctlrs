@@ -1,96 +1,154 @@
-# SvrCtlRS Docker Image Build
+# SvrCtlRS server image — build on epyc-ai, publish to the Forgejo registry, deploy master.
 #
-# Builds and pushes the web UI Docker image to the Forgejo registry.
-# Triggered on main/master push and version tags.
+# Standard dev-space image pipeline (see the forgejo-ci standard):
+#   - `build` runner + catthehacker image; Docker comes from the runner's DinD sidecar at
+#     tcp://docker:2375 (injected as DOCKER_HOST — never mount a socket or TLS certs here).
+#   - Registry login with the inherited user-level FORGEJO_REGISTRY_TOKEN_ALL secret.
+#   - Every build is tagged with the short and full commit SHA and stamped with
+#     org.opencontainers.image.revision, so a deploy can prove which commit is running.
+#   - master also gets :latest and auto-deploys to docker-vm over a forced-command SSH key.
+#   - A tag publishes :vX.Y.Z (+ :latest) and a Forgejo release, and never deploys: a tag is a
+#     release artifact, not necessarily what should be live.
 
 name: Docker
 
 on:
   push:
-    branches: [main, master]
+    branches: [master]
     tags: ['v*']
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'docs-archived/**'
+      - '.claude/**'
+      - 'ralph/**'
+      - 'LICENSE*'
+      - '.forgejo/workflows/ci.yaml'
+      - '.forgejo/workflows/android.yaml'
+      - '.forgejo/workflows/desktop.yaml'
   workflow_dispatch:
 
 env:
-  REGISTRY: git.js-node.cc
-  IMAGE_NAME: jsprague/svrctlrs
+  IMAGE: git.js-node.cc/jsprague/svrctlrs
 
 jobs:
-  docker:
+  build:
     name: Build & Push
-    runs-on: docker
+    runs-on: build
     container:
-      image: docker:27
-      volumes:
-        - /var/run/docker.sock:/var/run/docker.sock
+      image: catthehacker/ubuntu:act-latest
     steps:
       - name: Checkout
+        uses: https://code.forgejo.org/actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: https://github.com/docker/setup-buildx-action@v3
+
+      - name: Log in to the Forgejo container registry
+        uses: https://github.com/docker/login-action@v3
+        with:
+          registry: git.js-node.cc
+          username: ${{ github.actor }}
+          password: ${{ secrets.FORGEJO_REGISTRY_TOKEN_ALL }}
+
+      - name: Compute image tags
+        id: tag
+        shell: bash
         run: |
-          apk add --no-cache git
-          git clone --depth=1 --branch=${GITHUB_REF_NAME} ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . 2>/dev/null || \
-          (git clone --depth=50 ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}.git . && git checkout ${GITHUB_SHA})
+          set -euo pipefail
+          TAGS="${IMAGE}:${GITHUB_SHA::7},${IMAGE}:${GITHUB_SHA}"
+          case "${GITHUB_REF}" in
+            refs/heads/master) TAGS="${IMAGE}:latest,${TAGS}" ;;
+            refs/tags/*)       TAGS="${IMAGE}:latest,${IMAGE}:${GITHUB_REF_NAME},${TAGS}" ;;
+          esac
+          echo "tags=${TAGS}" >> "${GITHUB_OUTPUT}"
+          echo "publishing: ${TAGS}"
 
-      - name: Login to Forgejo registry
-        run: echo "${{ secrets.REGISTRY_TOKEN }}" | docker login ${{ env.REGISTRY }} -u jsprague --password-stdin
-
-      - name: Build and tag
-        run: |
-          REPO="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          REF="${GITHUB_REF_NAME}"
-          SHA=$(echo "${GITHUB_SHA}" | head -c 7)
-
-          # Build the image
-          docker build -t "${REPO}:build" .
-
-          # Determine and apply tags
-          if echo "${GITHUB_REF}" | grep -q "refs/tags/v"; then
-            VERSION="${REF#v}"
-            MAJOR=$(echo "$VERSION" | cut -d. -f1)
-            MINOR=$(echo "$VERSION" | cut -d. -f1-2)
-            for TAG in latest "${VERSION}" "${MINOR}" "v${MAJOR}" "sha-${SHA}"; do
-              docker tag "${REPO}:build" "${REPO}:${TAG}"
-              docker push "${REPO}:${TAG}"
-            done
-          elif [ "$REF" = "main" ] || [ "$REF" = "master" ]; then
-            for TAG in latest "sha-${SHA}"; do
-              docker tag "${REPO}:build" "${REPO}:${TAG}"
-              docker push "${REPO}:${TAG}"
-            done
-          else
-            for TAG in "${REF}" "sha-${SHA}"; do
-              docker tag "${REPO}:build" "${REPO}:${TAG}"
-              docker push "${REPO}:${TAG}"
-            done
-          fi
+      - name: Build and push
+        uses: https://github.com/docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          build-args: |
+            SVRCTLRS_REVISION=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.title=SvrCtlRS
+          tags: ${{ steps.tag.outputs.tags }}
 
   release:
-    name: Release
-    runs-on: docker
-    needs: docker
+    name: Forgejo release
+    needs: build
     if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: build
     container:
-      image: git.js-node.cc/jsprague/rust-ci:latest
+      image: catthehacker/ubuntu:act-latest
     steps:
-      - name: Create Forgejo release
+      - name: Checkout
+        uses: https://code.forgejo.org/actions/checkout@v4
+
+      - name: Tag must match the workspace version
+        run: |
+          set -euo pipefail
+          CARGO_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          [ "v${CARGO_VERSION}" = "${GITHUB_REF_NAME}" ] || {
+            echo "tag ${GITHUB_REF_NAME} does not match Cargo.toml version ${CARGO_VERSION}" >&2
+            exit 1
+          }
+
+      - name: Create or update the release
         env:
           TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: scripts/ci/forgejo-release.sh "${GITHUB_REF_NAME}"
+
+  deploy:
+    name: Deploy to docker-vm
+    needs: build
+    if: github.ref == 'refs/heads/master'
+    runs-on: build
+    container:
+      image: catthehacker/ubuntu:act-latest
+    steps:
+      # CI runs beside the image build. Do not put an unlinted, untested commit live: wait for
+      # this commit's CI jobs and refuse unless every one of them is green.
+      - name: Wait for the CI gates on this commit
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          API="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}"
+          set -uo pipefail
+          url="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status"
+          for _ in $(seq 1 120); do
+            states=$(curl -fsS -H "Authorization: token ${TOKEN}" "${url}" \
+              | jq -r '[.statuses[] | select(.context | startswith("CI / ")) | .status] | join(" ")' || true)
+            case " ${states} " in
+              *" failure "*|*" error "*) echo "CI failed for ${GITHUB_SHA}: ${states}" >&2; exit 1 ;;
+            esac
+            total=$(echo "${states}" | wc -w)
+            green=$(echo "${states}" | tr ' ' '\n' | grep -c '^success$' || true)
+            # four CI jobs: Lint, Audit, Test, Frontend
+            if [ "${total}" -ge 4 ] && [ "${green}" -eq "${total}" ]; then
+              echo "CI green: ${states}"; exit 0
+            fi
+            sleep 15
+          done
+          echo "CI did not finish within 30 minutes: ${states}" >&2
+          exit 1
 
-          BODY="## SvrCtlRS ${TAG}
-
-          ### Docker
-          \`\`\`bash
-          docker pull git.js-node.cc/jsprague/svrctlrs:${TAG#v}
-          \`\`\`
-
-          ### Install
-          See release assets for desktop and mobile packages."
-
-          curl -sf -X POST "${API}/releases" \
-            -H "Authorization: token ${TOKEN}" \
-            -H "Content-Type: application/json" \
-            -d "{\"tag_name\":\"${TAG}\",\"name\":\"SvrCtlRS ${TAG}\",\"body\":$(echo "$BODY"|jq -Rs .),\"draft\":false,\"prerelease\":false}"
-
-          echo "Published release ${TAG}"
+      # The key is restricted on docker-vm to a forced command (scripts/deploy/docker-vm-deploy.sh)
+      # that only accepts a commit SHA. Setup is documented in docs/DEPLOYMENT.md.
+      - name: Deploy over SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.DOCKER_VM_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${DEPLOY_KEY}" ]; then
+            echo "::notice::DOCKER_VM_DEPLOY_KEY is not set; image published, deploy skipped."
+            exit 0
+          fi
+          command -v ssh >/dev/null || { apt-get update -qq && apt-get install -y -qq openssh-client; }
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${DEPLOY_KEY}" > ~/.ssh/deploy_key && chmod 600 ~/.ssh/deploy_key
+          echo '192.168.5.172 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGmOh7GDvBC5lBrP6AQ4J2NMRi5PXAqGC9io/BPO4He8' > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            ubuntu@192.168.5.172 "${GITHUB_SHA}"
