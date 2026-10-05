@@ -46,10 +46,15 @@ async fn main() -> anyhow::Result<()> {
     // Load environment variables
     dotenvy::dotenv().ok();
 
-    // Initialize encryption key for credential at-rest encryption
-    if let Err(e) = svrctlrs_core::encryption::init_encryption_key() {
-        tracing::warn!(error = %e, "Failed to initialize encryption key — credentials will be stored in plaintext");
-    }
+    // Credential encryption is not optional. A missing key is generated into data/encryption.key;
+    // an invalid one (wrong length, bad hex, unreadable file) must stop the server rather than
+    // let credentials be written in plaintext, which is what an empty ENCRYPTION_KEY once did.
+    svrctlrs_core::encryption::init_encryption_key().map_err(|e| {
+        anyhow::anyhow!(
+            "cannot initialise credential encryption ({e}); set ENCRYPTION_KEY to 64 hex \
+             characters or make data/encryption.key readable — refusing to start"
+        )
+    })?;
 
     // Parse CLI args
     let args = Args::parse();
@@ -65,6 +70,18 @@ async fn main() -> anyhow::Result<()> {
 
     let database = svrctlrs_database::Database::new(&database_url).await?;
     database.migrate().await?;
+
+    // A database that lived through a start without a key (the pre-3.0 fallback) holds
+    // plaintext rows; encrypt them now that a key is guaranteed.
+    let re_encrypted =
+        svrctlrs_database::queries::credentials::encrypt_plaintext_credentials(database.pool())
+            .await?;
+    if re_encrypted > 0 {
+        tracing::warn!(
+            count = re_encrypted,
+            "Encrypted credentials that had been stored in plaintext"
+        );
+    }
 
     // Set up session store (SQLite-backed)
     let session_store = SqliteStore::new(database.pool().clone());

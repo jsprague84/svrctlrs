@@ -4,16 +4,77 @@ use anyhow::Context;
 use sqlx::{Pool, QueryBuilder, Sqlite};
 use svrctlrs_core::encryption;
 use svrctlrs_core::{Error, Result};
-use tracing::{instrument, warn};
+use tracing::instrument;
 
 use crate::models::{CreateCredential, Credential, UpdateCredential};
 
-/// Decrypt a credential's value if it's marked as encrypted
+/// Decrypt a credential's value if it's marked as encrypted.
+///
+/// Rows written before 3.0 may be plaintext (`encrypted = 0`); they are returned as-is and
+/// are re-encrypted at server start-up by [`encrypt_plaintext_credentials`].
 fn decrypt_credential(mut cred: Credential) -> Result<Credential> {
-    if cred.encrypted && encryption::is_initialized() {
+    if cred.encrypted {
+        require_encryption()?;
         cred.value = encryption::decrypt(&cred.value)?;
     }
     Ok(cred)
+}
+
+/// Storing or reading a secret without an initialised key is a configuration error, never a
+/// silent downgrade to plaintext.
+fn require_encryption() -> Result<()> {
+    if encryption::is_initialized() {
+        Ok(())
+    } else {
+        Err(Error::ConfigError(
+            "credential encryption is not initialised; refusing to handle a secret in plaintext"
+                .to_string(),
+        ))
+    }
+}
+
+/// Encrypt every credential still stored in plaintext (`encrypted = 0`).
+///
+/// Runs at server start-up so a database that once ran without a key does not keep secrets
+/// readable on disk. Returns the number of rows encrypted. All rows are updated in one
+/// transaction; a failure leaves the table untouched.
+#[instrument(skip(pool))]
+pub async fn encrypt_plaintext_credentials(pool: &Pool<Sqlite>) -> Result<usize> {
+    require_encryption()?;
+
+    let mut tx = pool
+        .begin()
+        .await
+        .context("Failed to begin transaction")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    let rows: Vec<(i64, String)> =
+        sqlx::query_as("SELECT id, value FROM credentials WHERE encrypted = 0")
+            .fetch_all(&mut *tx)
+            .await
+            .context("Failed to list plaintext credentials")
+            .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    for (id, value) in &rows {
+        let ciphertext = encryption::encrypt(value)?;
+        sqlx::query(
+            "UPDATE credentials SET value = ?, encrypted = 1, updated_at = CURRENT_TIMESTAMP \
+             WHERE id = ? AND encrypted = 0",
+        )
+        .bind(ciphertext)
+        .bind(id)
+        .execute(&mut *tx)
+        .await
+        .context("Failed to encrypt credential")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    }
+
+    tx.commit()
+        .await
+        .context("Failed to commit credential encryption")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+
+    Ok(rows.len())
 }
 
 /// List all credentials with values redacted (skips decryption for efficiency).
@@ -85,15 +146,12 @@ pub async fn get_credential_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<C
     decrypt_credential(cred)
 }
 
-/// Create a new credential (value is encrypted if encryption is initialized)
+/// Create a new credential; the value is always stored encrypted.
 #[instrument(skip(pool, input))]
 pub async fn create_credential(pool: &Pool<Sqlite>, input: &CreateCredential) -> Result<i64> {
-    let (stored_value, encrypted) = if encryption::is_initialized() {
-        (encryption::encrypt(&input.value)?, true)
-    } else {
-        warn!("Encryption not initialized — storing credential value in plaintext");
-        (input.value.clone(), false)
-    };
+    require_encryption()?;
+    let stored_value = encryption::encrypt(&input.value)?;
+    let encrypted = true;
 
     let result = sqlx::query(
         r#"
@@ -116,7 +174,7 @@ pub async fn create_credential(pool: &Pool<Sqlite>, input: &CreateCredential) ->
     Ok(result.last_insert_rowid())
 }
 
-/// Update an existing credential (value is encrypted if changed and encryption is initialized)
+/// Update an existing credential; a changed value is always stored encrypted.
 #[instrument(skip(pool, input))]
 pub async fn update_credential(
     pool: &Pool<Sqlite>,
@@ -137,14 +195,10 @@ pub async fn update_credential(
         qb.push(", description = ").push_bind(description.clone());
     }
     if let Some(value) = &input.value {
-        if encryption::is_initialized() {
-            let encrypted_value = encryption::encrypt(value)?;
-            qb.push(", value = ").push_bind(encrypted_value);
-            qb.push(", encrypted = ").push_bind(true);
-        } else {
-            qb.push(", value = ").push_bind(value.clone());
-            qb.push(", encrypted = ").push_bind(false);
-        }
+        require_encryption()?;
+        let encrypted_value = encryption::encrypt(value)?;
+        qb.push(", value = ").push_bind(encrypted_value);
+        qb.push(", encrypted = ").push_bind(true);
     }
     if let Some(username) = &input.username {
         qb.push(", username = ").push_bind(username.clone());
@@ -210,16 +264,36 @@ mod tests {
     use sqlx::SqlitePool;
 
     async fn setup_test_db() -> Pool<Sqlite> {
+        init_test_encryption();
         let pool = SqlitePool::connect(":memory:").await.unwrap();
         sqlx::migrate!().run(&pool).await.unwrap();
         pool
+    }
+
+    /// The key is a process-wide `OnceLock`, so every test initialises it the same way and
+    /// the second and later calls are expected to report "already initialized".
+    fn init_test_encryption() {
+        if !encryption::is_initialized() {
+            std::env::set_var(
+                "ENCRYPTION_KEY",
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            );
+            let _ = encryption::init_encryption_key();
+        }
+    }
+
+    async fn raw_row(pool: &Pool<Sqlite>, id: i64) -> (String, bool) {
+        sqlx::query_as("SELECT value, encrypted FROM credentials WHERE id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
     }
 
     #[tokio::test]
     async fn test_credential_lifecycle() {
         let pool = setup_test_db().await;
 
-        // Create credential (without encryption initialized, stores plaintext)
         let input = CreateCredential {
             name: "test-key".to_string(),
             credential_type: CredentialType::SshKey,
@@ -232,11 +306,14 @@ mod tests {
         let id = create_credential(&pool, &input).await.unwrap();
         assert!(id > 0);
 
-        // Get credential
+        // Read back decrypted; on disk it is ciphertext and flagged
         let cred = get_credential(&pool, id).await.unwrap();
         assert_eq!(cred.name, "test-key");
         assert_eq!(cred.value, "/path/to/key");
-        assert!(!cred.encrypted);
+        assert!(cred.encrypted);
+        let (stored, flagged) = raw_row(&pool, id).await;
+        assert!(flagged);
+        assert_ne!(stored, "/path/to/key");
 
         // Update credential
         let update = UpdateCredential {
@@ -259,23 +336,78 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_credential_encrypted_flag_default() {
+    async fn test_update_value_is_encrypted() {
         let pool = setup_test_db().await;
 
         let input = CreateCredential {
-            name: "unencrypted-cred".to_string(),
+            name: "pw".to_string(),
             credential_type: CredentialType::Password,
             description: None,
             value: "my-password".to_string(),
             username: Some("admin".to_string()),
             metadata: None,
         };
-
         let id = create_credential(&pool, &input).await.unwrap();
-        let cred = get_credential(&pool, id).await.unwrap();
 
-        // Without encryption initialized, should not be encrypted
-        assert!(!cred.encrypted);
-        assert_eq!(cred.value, "my-password");
+        let update = UpdateCredential {
+            value: Some("new-password".to_string()),
+            ..Default::default()
+        };
+        update_credential(&pool, id, &update).await.unwrap();
+
+        let cred = get_credential(&pool, id).await.unwrap();
+        assert_eq!(cred.value, "new-password");
+        assert!(cred.encrypted);
+        let (stored, flagged) = raw_row(&pool, id).await;
+        assert!(flagged);
+        assert_ne!(stored, "new-password");
+    }
+
+    #[tokio::test]
+    async fn test_encrypt_plaintext_credentials_migrates_legacy_rows() {
+        let pool = setup_test_db().await;
+
+        // Two rows as a pre-3.0 server without a key would have written them, one empty.
+        for (name, value) in [("legacy-key", "-----BEGIN KEY-----"), ("legacy-empty", "")] {
+            sqlx::query(
+                "INSERT INTO credentials (name, credential_type, value, encrypted) \
+                 VALUES (?, 'ssh_key', ?, 0)",
+            )
+            .bind(name)
+            .bind(value)
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
+        // And one already-encrypted row that must be left alone.
+        let input = CreateCredential {
+            name: "modern".to_string(),
+            credential_type: CredentialType::Password,
+            description: None,
+            value: "secret".to_string(),
+            username: None,
+            metadata: None,
+        };
+        let modern_id = create_credential(&pool, &input).await.unwrap();
+        let (modern_stored_before, _) = raw_row(&pool, modern_id).await;
+
+        assert_eq!(encrypt_plaintext_credentials(&pool).await.unwrap(), 2);
+
+        let legacy = get_credential_by_name(&pool, "legacy-key").await.unwrap();
+        assert_eq!(legacy.value, "-----BEGIN KEY-----");
+        assert!(legacy.encrypted);
+        let (stored, flagged) = raw_row(&pool, legacy.id).await;
+        assert!(flagged);
+        assert_ne!(stored, "-----BEGIN KEY-----");
+
+        let empty = get_credential_by_name(&pool, "legacy-empty").await.unwrap();
+        assert_eq!(empty.value, "");
+        assert!(empty.encrypted);
+
+        let (modern_stored_after, _) = raw_row(&pool, modern_id).await;
+        assert_eq!(modern_stored_before, modern_stored_after);
+
+        // Second run finds nothing to do.
+        assert_eq!(encrypt_plaintext_credentials(&pool).await.unwrap(), 0);
     }
 }

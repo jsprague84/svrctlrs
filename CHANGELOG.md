@@ -5,6 +5,14 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Security
+- The server refuses to start when the credential encryption key cannot be initialised
+  (invalid or empty `ENCRYPTION_KEY`, unreadable key file) instead of falling back to storing
+  credentials in plaintext. The database layer likewise refuses to store or return a secret
+  without a key.
+- On start-up, any credential rows still stored in plaintext by an earlier run are encrypted
+  in one transaction; the count is logged.
+
 ## [3.0.0] - 2026-10-04
 
 First release of SvrCtlRS as a terminal/SSH management tool. The 1.x/2.x line (a plugin-based

@@ -42,8 +42,9 @@ other web pages the operator visits (see CSWSH below).
 `core/src/encryption.rs`: AES-256-GCM, a fresh 12-byte nonce from the OS RNG per encryption,
 ciphertext stored as `nonce || ciphertext` (base64) with `credentials.encrypted = 1`.
 Key source, in order: `ENCRYPTION_KEY` (64 hex chars) → `data/encryption.key` (created with
-mode 0600 if absent). API responses never return credential values: lists show
-`[REDACTED]`, single reads return `has_value`.
+mode 0600 if absent). An invalid value (including an empty string) stops the server; rows that
+an older server wrote in plaintext are encrypted at the next start. API responses never return
+credential values: lists show `[REDACTED]`, single reads return `has_value`.
 
 Back the key up with the database. There is no key rotation; changing the key makes every
 stored credential undecryptable.
@@ -112,8 +113,11 @@ Ordered by impact. Each has a ROADMAP entry.
     scoped by `user_id`; only `list` is.
 11. **Session id is not rotated on login** (fixation via the cookie path), and form login /
     logout are simple requests with no CSRF token.
-12. **Plaintext fallback** — if encryption initialisation fails the server logs a warning and
-    stores new credentials unencrypted rather than refusing to start.
+12. ~~**Plaintext fallback**~~ — fixed after 3.0.0: the server refuses to start when the key
+    cannot be initialised, the database layer refuses to store or return a secret without a
+    key, and start-up encrypts any `encrypted = 0` rows left by an earlier plaintext run.
+    (Production ran in that fallback from 2026-09-14 to 2026-10-04 because the compose file
+    passed an empty `ENCRYPTION_KEY`.)
 
 ## Reporting
 
