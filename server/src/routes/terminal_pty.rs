@@ -23,7 +23,9 @@ use svrctlrs_database::sqlx::{Pool, Sqlite};
 use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
+use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
+use svrctlrs_database::models::NewAuditEntry;
 
 /// Interactive terminal request from frontend
 #[derive(Debug, Deserialize)]
@@ -56,6 +58,7 @@ async fn pty_ws_handler(
     ws: WebSocketUpgrade,
     headers: HeaderMap,
     State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
 ) -> Response {
     // Cross-site WebSocket hijacking guard; see auth::websocket_origin_allowed.
     if !crate::routes::ui::auth::websocket_origin_allowed(&headers, &state.allowed_origins) {
@@ -63,7 +66,8 @@ async fn pty_ws_handler(
         return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
     }
     info!("Interactive PTY WebSocket connection request");
-    ws.on_upgrade(move |socket| handle_pty_socket(socket, state))
+    let ip = crate::routes::ui::auth::client_ip(&headers);
+    ws.on_upgrade(move |socket| handle_pty_socket(socket, state, user_id, ip))
         .into_response()
 }
 
@@ -143,7 +147,7 @@ impl PtySession {
 }
 
 /// Handle the interactive PTY WebSocket connection
-async fn handle_pty_socket(socket: WebSocket, state: AppState) {
+async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, client_ip: String) {
     let (mut ws_sender, mut ws_receiver) = socket.split();
 
     info!("Interactive PTY WebSocket connected");
@@ -207,6 +211,8 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState) {
 
                                     match start_pty_session(
                                         &state,
+                                        user_id,
+                                        &client_ip,
                                         server_id,
                                         cols,
                                         rows,
@@ -315,6 +321,8 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState) {
 /// Start an interactive PTY session
 async fn start_pty_session(
     state: &AppState,
+    user_id: i64,
+    client_ip: &str,
     server_id: i64,
     cols: u32,
     rows: u32,
@@ -450,6 +458,17 @@ async fn start_pty_session(
         match auth_result {
             russh::client::AuthResult::Success => {
                 info!("Successfully authenticated with key: {}", key_path);
+                crate::audit::record(
+                    &state.pool,
+                    NewAuditEntry::new("session.pty_opened")
+                        .user(user_id)
+                        .client_ip(Some(client_ip.to_string()))
+                        .target("server", server.id, &server.name)
+                        .details(serde_json::json!({
+                            "login": format!("{username}@{hostname}:{port}"),
+                            "key": key_path,
+                        })),
+                );
 
                 // Open a channel
                 let channel = session

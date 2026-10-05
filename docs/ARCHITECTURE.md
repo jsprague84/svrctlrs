@@ -11,7 +11,7 @@ Android app; those talk to a remote server over the same API.
  ┌─────────────────────────── server (Axum 0.8) ───────────────────────────┐
  │ require_auth middleware ── sessions (tower-sessions, SQLite store)       │
  │ routes/api/*  servers · credentials · settings · profiles ·             │
- │               quick-commands · notifications · health · status          │
+ │               quick-commands · notifications · users · audit · health   │
  │ routes/terminal.rs      CMD mode  (async-ssh2-tokio, one command)        │
  │ routes/terminal_pty.rs  PTY mode  (russh, interactive shell)             │
  │ health_monitor.rs       periodic checks → notifications (rstify/Gotify) │
@@ -72,9 +72,10 @@ does not pull in Tauri's GTK/WebKit dependencies.
 | `terminal_profiles` | per-user layout + pane configs (`server_id`, `mode` per pane), `is_default` |
 | `quick_commands` | per-user snippets: name, command, optional `server_id`, category, sort order |
 | `settings` | key/value with `value_type`; `notification.*` and `app.default_profile_id` are seeded |
+| `audit_log` | who did what: user, client address, action, target, JSON details; pruned after 180 days |
 
 Migrations `000`–`015` built and then dropped two earlier schemas (the plugin and job
-systems); `016`–`022` are the current product. A fresh database replays all of them. They are
+systems); `016`–`023` are the current product. A fresh database replays all of them. They are
 embedded with `sqlx::migrate!` and checksummed, so never edit a shipped migration.
 
 ## Frontend (`ui/`)

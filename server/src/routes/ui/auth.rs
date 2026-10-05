@@ -14,6 +14,7 @@ use tower_sessions_sqlx_store::SqliteStore;
 
 use crate::routes::api::ApiError;
 use crate::state::AppState;
+use svrctlrs_database::models::NewAuditEntry;
 
 /// Session key for the authenticated user's ID
 const USER_ID_KEY: &str = "user_id";
@@ -294,7 +295,7 @@ enum LoginFailure {
 /// The client address as seen through the reverse proxy (first `X-Forwarded-For` hop, then
 /// `X-Real-IP`). Without a proxy there is no header and all direct clients share one bucket,
 /// which still bounds a brute-force attempt; the per-username key does the targeted work.
-fn client_ip(headers: &HeaderMap) -> String {
+pub(crate) fn client_ip(headers: &HeaderMap) -> String {
     headers
         .get("x-forwarded-for")
         .and_then(|v| v.to_str().ok())
@@ -315,10 +316,17 @@ async fn authenticate(
 ) -> Result<svrctlrs_database::models::User, LoginFailure> {
     use svrctlrs_database::queries::users;
 
-    let keys = crate::login_limiter::LoginLimiter::keys(&client_ip(headers), &creds.username);
+    let ip = client_ip(headers);
+    let keys = crate::login_limiter::LoginLimiter::keys(&ip, &creds.username);
     for key in &keys {
         if let Err(retry_after) = state.login_limiter.check(key) {
             tracing::warn!(key = %key, retry_after_secs = retry_after.as_secs(), "Login rate limited");
+            crate::audit::record(
+                &state.pool,
+                NewAuditEntry::new("login.rate_limited")
+                    .username(&creds.username)
+                    .client_ip(Some(ip.clone())),
+            );
             return Err(LoginFailure::RateLimited(retry_after));
         }
     }
@@ -343,12 +351,25 @@ async fn authenticate(
             state.login_limiter.record_failure(key);
         }
         tracing::warn!(username = %creds.username, "Login failed");
+        crate::audit::record(
+            &state.pool,
+            NewAuditEntry::new("login.failed")
+                .username(&creds.username)
+                .client_ip(Some(ip.clone())),
+        );
         return Err(LoginFailure::InvalidCredentials);
     };
 
     for key in &keys {
         state.login_limiter.clear(key);
     }
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("login")
+            .user(user.id)
+            .username(&user.username)
+            .client_ip(Some(ip)),
+    );
 
     session.cycle_id().await.map_err(|e| {
         tracing::error!(error = %e, "Failed to cycle session id");
@@ -454,7 +475,19 @@ async fn login_json(
 }
 
 /// Logout handler
-async fn logout(session: Session) -> Result<Redirect, StatusCode> {
+async fn logout(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    session: Session,
+) -> Result<Redirect, StatusCode> {
+    if let Some(user_id) = session.get::<i64>(USER_ID_KEY).await.unwrap_or(None) {
+        crate::audit::record(
+            &state.pool,
+            NewAuditEntry::new("logout")
+                .user(user_id)
+                .client_ip(Some(client_ip(&headers))),
+        );
+    }
     session
         .flush()
         .await

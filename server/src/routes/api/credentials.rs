@@ -4,7 +4,7 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -15,7 +15,9 @@ use svrctlrs_database::{queries::credentials, CreateCredential, UpdateCredential
 use tracing::{error, info, instrument};
 
 use super::ApiError;
+use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
+use svrctlrs_database::models::NewAuditEntry;
 
 /// Create credentials router
 pub fn routes() -> Router<AppState> {
@@ -129,6 +131,8 @@ fn passphrase_metadata(passphrase: Option<String>) -> Option<serde_json::Value> 
 #[instrument(skip(state, input))]
 async fn create_credential(
     State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Json(input): Json<CreateCredentialInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     info!(name = %input.name, "Creating credential");
@@ -163,6 +167,14 @@ async fn create_credential(
         })?;
 
     info!(id = id, "Credential created successfully");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("credential.created")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("credential", id, &create.name)
+            .details(json!({ "type": create.credential_type.as_str() })),
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -194,6 +206,8 @@ struct UpdateCredentialInput {
 #[instrument(skip(state, input))]
 async fn update_credential(
     State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Path(id): Path<i64>,
     Json(input): Json<UpdateCredentialInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
@@ -223,6 +237,17 @@ async fn update_credential(
         })?;
 
     info!(id = id, "Credential updated successfully");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("credential.updated")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("credential", id, "")
+            .details(json!({
+                "value_changed": update.value.is_some(),
+                "passphrase_changed": update.metadata.is_some(),
+            })),
+    );
 
     Ok(Json(json!({
         "id": id,
@@ -234,6 +259,8 @@ async fn update_credential(
 #[instrument(skip(state))]
 async fn delete_credential(
     State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     info!(id = id, "Deleting credential");
@@ -260,6 +287,13 @@ async fn delete_credential(
         })?;
 
     info!(id = id, "Credential deleted successfully");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("credential.deleted")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("credential", id, ""),
+    );
 
     Ok(Json(json!({
         "id": id,

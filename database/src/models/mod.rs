@@ -1,5 +1,6 @@
 // Database models
 
+pub mod audit;
 pub mod credential;
 pub mod quick_command;
 pub mod server;
@@ -9,6 +10,7 @@ pub mod terminal_profile;
 pub mod user;
 
 // Re-export all models for convenience
+pub use audit::*;
 pub use credential::*;
 pub use quick_command::*;
 pub use server::*;

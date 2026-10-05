@@ -30,7 +30,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | Reconnect | Done 2026-10-05: an established session that errors now reconnects; all six backoff steps are used. Still open: add jitter | `TerminalPane.svelte` |
 | Users | Done 2026-10-05: `/api/v1/users` list/create/delete (not self, not last) and `PUT /users/me/password`; Settings → Users tab. Still open: a `role` column so not every account is an administrator | `server/src/routes/api/users.rs` |
 | Host keys | Done 2026-10-05: `GET/DELETE /api/v1/servers/{id}/host-keys` with `SHA256:` fingerprints; Keys modal on the Servers page | `servers.rs`, `host_keys::fingerprint` |
-| Audit log | nothing records who opened a shell where | `audit_log` table written by login, WS connect, server/credential changes; a Settings page to read it |
+| Audit log | Done 2026-10-05: `audit_log` (migration 023) written fire-and-forget for logins/failures/rate limits, logout, sessions, commands (+exit code), server/credential/user changes, host keys forgotten; `GET /api/v1/audit` with cursor paging; Settings → Audit; 180-day prune at start-up | `server/src/audit.rs`, `queries/audit.rs` |
 | Backups | no in-app export | `svrctl backup` that copies the DB (via `VACUUM INTO`) and key to a tarball; document restore |
 | Health | `/api/v1/health` is static | add DB ping and migration state; keep it unauthenticated but minimal |
 | Observability | `tracing-subscriber` has `json` enabled but is never used | `LOG_FORMAT=json`, request ids |

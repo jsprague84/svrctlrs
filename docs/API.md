@@ -132,6 +132,20 @@ Every account is an administrator until roles exist, so any user may manage acco
 
 Deleting a user cascades to their sessions, profiles and quick commands.
 
+## Audit log
+
+| Method | Path | Query | Response |
+|---|---|---|---|
+| GET | `/audit` | `limit` (1–500, default 100), `before` (id cursor) | `entries` newest first, `next_before` for the following page or `null` |
+
+Entry: `id, at, user_id, username, client_ip, action, target_type, target_id, target_name,
+details` (a JSON object string). Actions: `login`, `login.failed`, `login.rate_limited`,
+`logout`, `user.created`, `user.deleted`, `user.password_changed`, `server.created`,
+`server.updated`, `server.deleted`, `server.host_keys_forgotten`, `credential.created`,
+`credential.updated`, `credential.deleted`, `session.pty_opened`, `session.command` (details:
+`command` as typed, truncated to 500 characters, and `exit_code`). Entries never contain
+secrets, are kept for 180 days, and outlive deleted users.
+
 ## Notifications
 
 | Method | Path | Body | Effect |

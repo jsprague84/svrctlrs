@@ -11,6 +11,7 @@
 //! └── settings/                   List + get + update
 //! ```
 
+pub mod audit;
 pub mod credentials;
 pub mod notifications;
 pub mod profiles;
@@ -90,6 +91,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/quick-commands", quick_commands::routes())
         .nest("/notifications", notifications::routes())
         .nest("/users", users::routes())
+        .nest("/audit", audit::routes())
 }
 
 /// Health check endpoint

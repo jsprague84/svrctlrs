@@ -1,5 +1,6 @@
 //! SvrCtlRS Server — Terminal-focused infrastructure management
 
+mod audit;
 mod config;
 mod health_monitor;
 mod host_keys;
@@ -84,6 +85,14 @@ async fn main() -> anyhow::Result<()> {
             count = re_encrypted,
             "Encrypted credentials that had been stored in plaintext"
         );
+    }
+
+    // Audit entries older than half a year are not worth the disk; the log is for recent
+    // "who did what", not long-term records.
+    let pruned =
+        svrctlrs_database::queries::audit::prune_older_than_days(database.pool(), 180).await?;
+    if pruned > 0 {
+        info!(count = pruned, "Pruned old audit entries");
     }
 
     // Set up session store (SQLite-backed)

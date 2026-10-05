@@ -1,5 +1,6 @@
 //! Database query modules
 
+pub mod audit;
 pub mod credentials;
 pub mod quick_commands;
 pub mod server_host_keys;
@@ -9,6 +10,7 @@ pub mod terminal_profiles;
 pub mod users;
 
 // Re-export commonly used functions for convenience
+pub use audit::*;
 pub use credentials::*;
 pub use quick_commands::*;
 pub use server_host_keys::*;

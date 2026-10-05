@@ -1,13 +1,14 @@
 <script lang="ts">
-	import { Settings, Bell, TerminalSquare, Users, Info } from 'lucide-svelte';
+	import { Settings, Bell, TerminalSquare, Users, ScrollText, Info } from 'lucide-svelte';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import GeneralSettings from '$lib/components/settings/GeneralSettings.svelte';
 	import NotificationSettings from '$lib/components/settings/NotificationSettings.svelte';
 	import QuickCommandsSettings from '$lib/components/settings/QuickCommandsSettings.svelte';
 	import AboutSettings from '$lib/components/settings/AboutSettings.svelte';
 	import UsersSettings from '$lib/components/settings/UsersSettings.svelte';
+	import AuditSettings from '$lib/components/settings/AuditSettings.svelte';
 
-	type TabId = 'general' | 'notifications' | 'commands' | 'users' | 'about';
+	type TabId = 'general' | 'notifications' | 'commands' | 'users' | 'audit' | 'about';
 
 	let activeTab = $state<TabId>('general');
 
@@ -16,6 +17,7 @@
 		{ id: 'notifications', label: 'Notifications', icon: Bell },
 		{ id: 'commands', label: 'Quick Commands', icon: TerminalSquare },
 		{ id: 'users', label: 'Users', icon: Users },
+		{ id: 'audit', label: 'Audit', icon: ScrollText },
 		{ id: 'about', label: 'About', icon: Info }
 	];
 </script>
@@ -53,6 +55,8 @@
 			<QuickCommandsSettings />
 		{:else if activeTab === 'users'}
 			<UsersSettings />
+		{:else if activeTab === 'audit'}
+			<AuditSettings />
 		{:else if activeTab === 'about'}
 			<AboutSettings />
 		{/if}

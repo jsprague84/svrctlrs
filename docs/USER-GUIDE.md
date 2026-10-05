@@ -27,6 +27,13 @@ error. The **Keys** button on a server lists the stored keys with their `SHA256:
 confirmed out of band that the key really changed, **Forget all keys** lets the next connection
 trust it afresh.
 
+## Audit log
+
+Settings → Audit shows who did what: logins (including failed and rate-limited attempts,
+with the client address), logouts, interactive sessions opened, commands run in command mode
+with their exit code, and every change to servers, credentials and accounts. Entries are kept
+for 180 days. Commands are recorded as typed, so keep secrets out of command lines.
+
 ## Accounts
 
 Settings → Users lists the accounts, lets you add one (username plus a password of at least

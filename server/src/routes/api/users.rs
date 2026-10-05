@@ -3,14 +3,17 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, put},
     Json, Router,
 };
 use serde::Deserialize;
 use serde_json::json;
-use svrctlrs_database::{models::CreateUser, queries::users};
+use svrctlrs_database::{
+    models::{CreateUser, NewAuditEntry},
+    queries::users,
+};
 use tracing::{error, info, instrument};
 
 use super::ApiError;
@@ -67,6 +70,7 @@ struct CreateUserInput {
 async fn create_user(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Json(input): Json<CreateUserInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let username = input.username.trim().to_string();
@@ -90,6 +94,13 @@ async fn create_user(
     .await
     .map_err(|e| map_err(e, "create user"))?;
     info!(by = me, id, username = %username, "User created");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("user.created")
+            .user(me)
+            .client_ip(Some(crate::routes::ui::auth::client_ip(&headers)))
+            .target("user", id, &username),
+    );
     Ok((
         StatusCode::CREATED,
         Json(json!({ "id": id, "message": "User created" })),
@@ -100,6 +111,7 @@ async fn create_user(
 async fn delete_user(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     if id == me {
@@ -111,10 +123,22 @@ async fn delete_user(
     if total <= 1 {
         return Err(ApiError::bad_request("the last account cannot be deleted"));
     }
+    let name = users::get_user(&state.pool, id)
+        .await
+        .map_err(|e| map_err(e, "load user"))?
+        .map(|u| u.username)
+        .unwrap_or_default();
     users::delete_user(&state.pool, id)
         .await
         .map_err(|e| map_err(e, "delete user"))?;
     info!(by = me, id, "User deleted");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("user.deleted")
+            .user(me)
+            .client_ip(Some(crate::routes::ui::auth::client_ip(&headers)))
+            .target("user", id, &name),
+    );
     Ok(Json(json!({ "id": id, "message": "User deleted" })))
 }
 
@@ -130,6 +154,7 @@ struct ChangePasswordInput {
 async fn change_password(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Json(input): Json<ChangePasswordInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let user = users::get_user(&state.pool, me)
@@ -151,5 +176,11 @@ async fn change_password(
         .await
         .map_err(|e| map_err(e, "update password"))?;
     info!(user_id = me, "Password changed");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("user.password_changed")
+            .user(me)
+            .client_ip(Some(crate::routes::ui::auth::client_ip(&headers))),
+    );
     Ok(Json(json!({ "message": "Password changed" })))
 }

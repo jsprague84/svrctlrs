@@ -16,9 +16,11 @@ use axum::{
 use futures_util::{sink::SinkExt, stream::StreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use svrctlrs_database::models::NewAuditEntry;
 use svrctlrs_database::sqlx::{Pool, Sqlite};
 use tracing::{error, info, warn};
 
+use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
 
 /// Terminal command message from frontend
@@ -56,6 +58,7 @@ async fn terminal_ws_handler(
     ws: WebSocketUpgrade,
     headers: HeaderMap,
     State(state): State<AppState>,
+    CurrentUser(user_id): CurrentUser,
 ) -> Response {
     // Cross-site WebSocket hijacking guard; see auth::websocket_origin_allowed.
     if !crate::routes::ui::auth::websocket_origin_allowed(&headers, &state.allowed_origins) {
@@ -63,12 +66,18 @@ async fn terminal_ws_handler(
         return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
     }
     info!("Terminal WebSocket connection request");
-    ws.on_upgrade(move |socket| handle_terminal_socket(socket, state))
+    let ip = crate::routes::ui::auth::client_ip(&headers);
+    ws.on_upgrade(move |socket| handle_terminal_socket(socket, state, user_id, ip))
         .into_response()
 }
 
 /// Handle the WebSocket connection
-async fn handle_terminal_socket(socket: WebSocket, state: AppState) {
+async fn handle_terminal_socket(
+    socket: WebSocket,
+    state: AppState,
+    user_id: i64,
+    client_ip: String,
+) {
     let (mut sender, mut receiver) = socket.split();
 
     info!("Terminal WebSocket connected");
@@ -101,6 +110,8 @@ async fn handle_terminal_socket(socket: WebSocket, state: AppState) {
                             {
                                 execute_command(
                                     &state,
+                                    user_id,
+                                    &client_ip,
                                     server_id,
                                     command,
                                     req.env.as_ref(),
@@ -163,6 +174,8 @@ async fn handle_terminal_socket(socket: WebSocket, state: AppState) {
 /// Execute a command on a server via SSH
 async fn execute_command(
     state: &AppState,
+    user_id: i64,
+    client_ip: &str,
     server_id: i64,
     command: &str,
     env: Option<&std::collections::HashMap<String, String>>,
@@ -248,6 +261,17 @@ async fn execute_command(
 
     match result {
         Ok((stdout, stderr, exit_code)) => {
+            crate::audit::record(
+                &state.pool,
+                NewAuditEntry::new("session.command")
+                    .user(user_id)
+                    .client_ip(Some(client_ip.to_string()))
+                    .target("server", server.id, &server.name)
+                    .details(serde_json::json!({
+                        "command": crate::audit::truncate_for_log(command, 500),
+                        "exit_code": exit_code,
+                    })),
+            );
             // Send stdout
             if !stdout.is_empty() {
                 // Convert \n to \r\n for proper terminal display

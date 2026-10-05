@@ -11,6 +11,10 @@ the release workflow uses the matching section as the release notes.
   key legitimately changed. The mismatch error in the terminal points there.
 - Accounts: `/api/v1/users` (list, create, delete — never yourself or the last account) and
   `PUT /api/v1/users/me/password`; a **Users** tab in Settings with a change-password form.
+- Audit log: logins (successful, failed, rate-limited), logouts, interactive sessions,
+  command-mode commands with exit codes, and changes to servers, credentials and accounts are
+  recorded with the client address (`GET /api/v1/audit`, Settings → Audit); entries are kept
+  for 180 days and never contain secrets.
 
 ### Fixed
 - Desktop: the tray icon had no image and was invisible on most desktops, leaving its

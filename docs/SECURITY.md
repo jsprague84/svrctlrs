@@ -115,10 +115,11 @@ Ordered by impact. Each has a ROADMAP entry.
 7. **`local` servers are container RCE for any user** — `is_local: true` runs `sh -c` as the
    server process. Acceptable for a single-operator install; needs a role or an explicit
    server-side opt-in before multi-user use.
-8. **No roles, no 2FA, no audit log** — every user is equal. Login attempts are now rate
-   limited (fixed after 3.0.0: 10 failures per 15 minutes per client address *and* per
-   username, answered with 429 and `Retry-After`; in-memory, so a restart resets it) and new
-   passwords must be at least 12 characters.
+8. **No roles, no 2FA** — every user is equal and can manage accounts. Login attempts are
+   rate limited (10 failures per 15 minutes per client address *and* per username, 429 with
+   `Retry-After`; in-memory, so a restart resets it), new passwords must be at least 12
+   characters, and an **audit log** (Settings → Audit, `/api/v1/audit`) records logins,
+   sessions, commands and changes with the client address, kept 180 days.
 9. ~~**`credentials.metadata` is plaintext**~~ — fixed after 3.0.0: metadata (the SSH key
    passphrase) is encrypted like the value, with its own `metadata_encrypted` flag, and the
    start-up pass encrypts any legacy plaintext metadata. `Debug` output redacts it.

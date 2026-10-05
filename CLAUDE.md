@@ -54,7 +54,7 @@ CI's clippy may be older or newer than yours; green locally is not proof.
   `sqlx::QueryBuilder` for dynamic UPDATEs. Scope every per-user query by `user_id`.
   No `unwrap()` on request paths.
 - **Migrations**: sequential, embedded with `sqlx::migrate!`, never edited after they ship
-  (sqlx checksums them). Latest is `022`.
+  (sqlx checksums them). Latest is `023`.
 - **Svelte 5**: runes only (`$state`, `$derived`, `$effect`, `$props`); callback props, not
   `createEventDispatcher`. State modules in `ui/src/lib/state/*.svelte.ts` export getters.
   Use `extractErrorMessage()` from `$lib/utils/error` in every catch. Mobile breakpoint is

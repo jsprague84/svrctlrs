@@ -4,14 +4,16 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
 use serde_json::json;
-use svrctlrs_database::{queries::servers, CreateServer, UpdateServer};
+use svrctlrs_database::{models::NewAuditEntry, queries::servers, CreateServer, UpdateServer};
+
+use crate::routes::ui::auth::{client_ip, CurrentUser};
 use tracing::{error, info, instrument};
 
 use super::ApiError;
@@ -69,6 +71,8 @@ async fn list_host_keys(
 #[instrument(skip(state))]
 async fn forget_host_keys(
     State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     use svrctlrs_database::queries::server_host_keys;
@@ -151,6 +155,8 @@ fn default_enabled() -> bool {
 #[instrument(skip(state, input))]
 async fn create_server(
     State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Json(input): Json<CreateServerInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     info!(name = %input.name, "Creating server");
@@ -175,6 +181,13 @@ async fn create_server(
         })?;
 
     info!(id = id, "Server created successfully");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("server.created")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("server", id, &create.name),
+    );
 
     Ok((
         StatusCode::CREATED,
@@ -208,6 +221,8 @@ struct UpdateServerInput {
 #[instrument(skip(state, input))]
 async fn update_server(
     State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Path(id): Path<i64>,
     Json(input): Json<UpdateServerInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
@@ -243,6 +258,13 @@ async fn update_server(
         })?;
 
     info!(id = id, "Server updated successfully");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("server.updated")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("server", id, ""),
+    );
 
     Ok(Json(json!({
         "id": id,
@@ -254,6 +276,8 @@ async fn update_server(
 #[instrument(skip(state))]
 async fn delete_server(
     State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     info!(id = id, "Deleting server");
@@ -264,6 +288,13 @@ async fn delete_server(
     })?;
 
     info!(id = id, "Server deleted successfully");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("server.deleted")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("server", id, ""),
+    );
 
     Ok(Json(json!({
         "id": id,
