@@ -19,6 +19,10 @@
 	};
 </script>
 
-<span class="inline-flex items-center px-1.5 py-0.5 text-[11px] rounded-sm border {variantClasses[variant]}">
+<span
+	class="inline-flex items-center px-1.5 py-0.5 text-[11px] rounded-sm border {variantClasses[
+		variant
+	]}"
+>
 	{@render children()}
 </span>

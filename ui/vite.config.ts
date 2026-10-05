@@ -1,7 +1,7 @@
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { readFileSync } from 'node:fs';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 // Single source of truth for the UI version: package.json, kept in step with the Cargo
 // workspace and tauri.conf.json (see docs/DEVELOPMENT.md, "Releasing").
@@ -11,6 +11,10 @@ export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	define: {
 		__APP_VERSION__: JSON.stringify(pkg.version)
+	},
+	test: {
+		include: ['src/**/*.{test,spec}.ts'],
+		environment: 'node'
 	},
 	server: {
 		// Bind to all interfaces when TAURI_DEV_HOST is set (needed for mobile dev)

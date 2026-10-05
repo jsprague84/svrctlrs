@@ -44,7 +44,6 @@
 			loading = false;
 		}
 	}
-
 </script>
 
 <div class="min-h-screen flex items-center justify-center bg-background px-4">
@@ -52,12 +51,22 @@
 		<h1 class="text-lg font-semibold text-text-primary mb-1">Sign In</h1>
 		<p class="text-sm text-text-muted mb-4">Enter your SvrCtlRS credentials</p>
 
-		<form class="flex flex-col gap-3" onsubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+		<form
+			class="flex flex-col gap-3"
+			onsubmit={(e) => {
+				e.preventDefault();
+				handleLogin();
+			}}
+		>
 			<Input label="Username" bind:value={username} required />
 			<div>
-				<label class="block text-xs font-medium text-text-secondary mb-1">Password</label>
+				<label for="login-password" class="block text-xs font-medium text-text-secondary mb-1"
+					>Password</label
+				>
 				<input
+					id="login-password"
 					type="password"
+					autocomplete="current-password"
 					bind:value={password}
 					required
 					class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"

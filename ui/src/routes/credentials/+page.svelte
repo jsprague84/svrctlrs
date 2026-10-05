@@ -33,8 +33,14 @@
 	});
 
 	function resetForm() {
-		name = ''; credType = 'ssh_key'; value = ''; description = ''; username = ''; passphrase = '';
-		editingId = null; sshKeyMode = 'path';
+		name = '';
+		credType = 'ssh_key';
+		value = '';
+		description = '';
+		username = '';
+		passphrase = '';
+		editingId = null;
+		sshKeyMode = 'path';
 	}
 
 	function openCreate() {
@@ -42,7 +48,7 @@
 		showModal = true;
 	}
 
-	function openEdit(cred: typeof credentials[0]) {
+	function openEdit(cred: (typeof credentials)[0]) {
 		editingId = cred.id;
 		name = cred.name;
 		credType = cred.credential_type;
@@ -102,7 +108,9 @@
 </script>
 
 <div class="flex flex-col h-full">
-	<div class="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-4 border-b border-border">
+	<div
+		class="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-4 border-b border-border"
+	>
 		<div class="flex items-center gap-3">
 			<KeyRound class="w-5 h-5 text-accent" />
 			<h1 class="text-lg font-semibold text-text-primary">Credentials</h1>
@@ -117,17 +125,23 @@
 		{:else if credError}
 			<div class="text-center py-8">
 				<p class="text-error">{credError}</p>
-				<Button variant="secondary" class="mt-3" onclick={() => credState.loadCredentials()}>Retry</Button>
+				<Button variant="secondary" class="mt-3" onclick={() => credState.loadCredentials()}
+					>Retry</Button
+				>
 			</div>
 		{:else if credentials.length === 0}
 			<div class="text-center text-text-muted">
 				<p>No credentials configured yet.</p>
-				<Button variant="secondary" class="mt-3" onclick={openCreate}>Add your first credential</Button>
+				<Button variant="secondary" class="mt-3" onclick={openCreate}
+					>Add your first credential</Button
+				>
 			</div>
 		{:else}
 			<div class="flex flex-col gap-2">
 				{#each credentials as cred (cred.id)}
-					<div class="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 border border-border/50 rounded-lg px-4 py-3 hover:bg-surface-raised/30">
+					<div
+						class="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 border border-border/50 rounded-lg px-4 py-3 hover:bg-surface-raised/30"
+					>
 						<div class="flex items-center gap-2 min-w-0 w-full md:w-auto md:flex-1">
 							<span class="text-text-primary font-medium truncate">{cred.name}</span>
 						</div>
@@ -137,13 +151,17 @@
 							</Badge>
 						</div>
 						{#if cred.username}
-							<div class="text-text-secondary text-xs w-full md:w-auto md:flex-1 truncate">User: {cred.username}</div>
+							<div class="text-text-secondary text-xs w-full md:w-auto md:flex-1 truncate">
+								User: {cred.username}
+							</div>
 						{/if}
 						{#if cred.has_passphrase}
 							<div class="w-full md:w-auto md:flex-shrink-0"><Badge>passphrase</Badge></div>
 						{/if}
 						{#if cred.description}
-							<div class="text-text-muted text-xs w-full md:flex-1 truncate">{cred.description}</div>
+							<div class="text-text-muted text-xs w-full md:flex-1 truncate">
+								{cred.description}
+							</div>
 						{/if}
 						<div class="flex items-center gap-1 w-full md:w-auto md:flex-shrink-0">
 							<Button variant="ghost" size="sm" onclick={() => openEdit(cred)}>
@@ -162,8 +180,18 @@
 	</div>
 </div>
 
-<Modal open={showModal} title={editingId ? 'Edit Credential' : 'Add Credential'} onClose={() => showModal = false}>
-	<form class="flex flex-col gap-3" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+<Modal
+	open={showModal}
+	title={editingId ? 'Edit Credential' : 'Add Credential'}
+	onClose={() => (showModal = false)}
+>
+	<form
+		class="flex flex-col gap-3"
+		onsubmit={(e) => {
+			e.preventDefault();
+			handleSubmit();
+		}}
+	>
 		<Input label="Name" bind:value={name} required placeholder="my-ssh-key" />
 		{#if !editingId}
 			<Select label="Type" bind:value={credType}>
@@ -179,49 +207,81 @@
 				<span class="text-xs text-text-muted">Input mode:</span>
 				<button
 					type="button"
-					class="text-xs px-2 py-0.5 rounded-sm transition-colors {sshKeyMode === 'path' ? 'bg-accent text-accent-foreground' : 'bg-surface-raised text-text-muted hover:text-text-primary'}"
-					onclick={() => { sshKeyMode = 'path'; value = ''; }}
-				>File path</button>
+					class="text-xs px-2 py-0.5 rounded-sm transition-colors {sshKeyMode === 'path'
+						? 'bg-accent text-accent-foreground'
+						: 'bg-surface-raised text-text-muted hover:text-text-primary'}"
+					onclick={() => {
+						sshKeyMode = 'path';
+						value = '';
+					}}>File path</button
+				>
 				<button
 					type="button"
-					class="text-xs px-2 py-0.5 rounded-sm transition-colors {sshKeyMode === 'paste' ? 'bg-accent text-accent-foreground' : 'bg-surface-raised text-text-muted hover:text-text-primary'}"
-					onclick={() => { sshKeyMode = 'paste'; value = ''; }}
-				>Paste key</button>
+					class="text-xs px-2 py-0.5 rounded-sm transition-colors {sshKeyMode === 'paste'
+						? 'bg-accent text-accent-foreground'
+						: 'bg-surface-raised text-text-muted hover:text-text-primary'}"
+					onclick={() => {
+						sshKeyMode = 'paste';
+						value = '';
+					}}>Paste key</button
+				>
 			</div>
 			{#if sshKeyMode === 'path'}
-				<Input label={editingId ? 'New SSH Key Path (leave empty to keep)' : 'SSH Key Path'} bind:value={value} placeholder="/home/user/.ssh/id_ed25519" required={!editingId} />
+				<Input
+					label={editingId ? 'New SSH Key Path (leave empty to keep)' : 'SSH Key Path'}
+					bind:value
+					placeholder="/home/user/.ssh/id_ed25519"
+					required={!editingId}
+				/>
 			{:else}
 				<label class="flex flex-col gap-1">
-					<span class="text-sm font-medium text-text-primary">{editingId ? 'New SSH Key (leave empty to keep)' : 'SSH Key Content'}</span>
+					<span class="text-sm font-medium text-text-primary"
+						>{editingId ? 'New SSH Key (leave empty to keep)' : 'SSH Key Content'}</span
+					>
 					<textarea
-						bind:value={value}
+						bind:value
 						rows={6}
 						class="w-full px-3 py-2 text-sm font-mono bg-input border border-border rounded-sm text-text-primary placeholder:text-text-muted resize-y focus:ring-1 focus:ring-ring focus:outline-none"
 						placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-						required={!editingId}
-					></textarea>
+						required={!editingId}></textarea>
 				</label>
 			{/if}
 			<Input
-				label={editingId ? 'New Passphrase (leave empty to keep)' : 'Passphrase (if the key is encrypted)'}
+				label={editingId
+					? 'New Passphrase (leave empty to keep)'
+					: 'Passphrase (if the key is encrypted)'}
 				type="password"
 				bind:value={passphrase}
 				placeholder="optional"
 			/>
 		{:else if credType === 'password'}
-			<Input label={editingId ? 'New Password (leave empty to keep)' : 'Password'} type="password" bind:value={value} required={!editingId} />
+			<Input
+				label={editingId ? 'New Password (leave empty to keep)' : 'Password'}
+				type="password"
+				bind:value
+				required={!editingId}
+			/>
 			<Input label="Username" bind:value={username} placeholder="root" />
 		{:else if credType === 'api_token'}
-			<Input label={editingId ? 'New Token (leave empty to keep)' : 'API Token'} type="password" bind:value={value} required={!editingId} />
+			<Input
+				label={editingId ? 'New Token (leave empty to keep)' : 'API Token'}
+				type="password"
+				bind:value
+				required={!editingId}
+			/>
 		{:else}
-			<Input label={editingId ? 'New Certificate Path (leave empty to keep)' : 'Certificate Path'} bind:value={value} required={!editingId} />
+			<Input
+				label={editingId ? 'New Certificate Path (leave empty to keep)' : 'Certificate Path'}
+				bind:value
+				required={!editingId}
+			/>
 		{/if}
 
 		<Input label="Description" bind:value={description} placeholder="Optional description" />
 	</form>
 
 	{#snippet footer()}
-		<Button variant="secondary" onclick={() => showModal = false}>Cancel</Button>
+		<Button variant="secondary" onclick={() => (showModal = false)}>Cancel</Button>
 		<Button onclick={handleSubmit}>{editingId ? 'Save' : 'Create'}</Button>
 	{/snippet}
 </Modal>

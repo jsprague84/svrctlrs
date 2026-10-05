@@ -17,7 +17,8 @@
 	});
 
 	const platform = getPlatform();
-	const platformLabel = platform === 'web' ? 'Web' : platform === 'tauri-desktop' ? 'Desktop' : 'Mobile';
+	const platformLabel =
+		platform === 'web' ? 'Web' : platform === 'tauri-desktop' ? 'Desktop' : 'Mobile';
 
 	const shortcuts = [
 		{ category: 'Tabs', keys: 'Ctrl+Shift+T', action: 'New tab' },
@@ -29,16 +30,18 @@
 		{ category: 'Panes', keys: 'Alt+Arrow', action: 'Spatial navigation' },
 		{ category: 'Layout', keys: 'Ctrl+\\', action: 'Cycle layouts' },
 		{ category: 'Actions', keys: 'Ctrl+K', action: 'Command palette' },
-		{ category: 'Actions', keys: 'Ctrl+Shift+F', action: 'Search output' },
+		{ category: 'Actions', keys: 'Ctrl+Shift+F', action: 'Search output' }
 	];
 
-	let categories = $derived([...new Set(shortcuts.map(s => s.category))]);
+	let categories = $derived([...new Set(shortcuts.map((s) => s.category))]);
 </script>
 
 <div class="flex flex-col gap-6">
 	<!-- App Info -->
 	<div>
-		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">Application</h3>
+		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">
+			Application
+		</h3>
 		<div class="flex flex-col gap-2">
 			<div class="flex items-center justify-between py-1">
 				<span class="text-sm text-text-secondary">Name</span>
@@ -78,15 +81,20 @@
 
 	<!-- Keyboard Shortcuts -->
 	<div>
-		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">Keyboard Shortcuts</h3>
-		{#each categories as cat}
+		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">
+			Keyboard Shortcuts
+		</h3>
+		{#each categories as cat (cat)}
 			<div class="mb-3">
 				<p class="text-xs font-medium text-text-secondary mb-1">{cat}</p>
 				<div class="flex flex-col gap-1">
-					{#each shortcuts.filter(s => s.category === cat) as shortcut}
+					{#each shortcuts.filter((s) => s.category === cat) as shortcut (shortcut.keys)}
 						<div class="flex items-center justify-between py-0.5">
 							<span class="text-xs text-text-primary">{shortcut.action}</span>
-							<kbd class="px-1.5 py-0.5 text-[10px] font-mono bg-surface-raised border border-border rounded text-text-secondary">{shortcut.keys}</kbd>
+							<kbd
+								class="px-1.5 py-0.5 text-[10px] font-mono bg-surface-raised border border-border rounded text-text-secondary"
+								>{shortcut.keys}</kbd
+							>
 						</div>
 					{/each}
 				</div>

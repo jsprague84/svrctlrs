@@ -31,13 +31,13 @@
 
 	<!-- Tab bar -->
 	<div class="flex border-b border-border px-2 md:px-4">
-		{#each tabs as tab}
+		{#each tabs as tab (tab.id)}
 			<button
 				class="flex items-center gap-1.5 px-3 md:px-4 py-2.5 text-sm font-medium transition-colors
 					{activeTab === tab.id
-						? 'text-accent border-b-2 border-accent -mb-px'
-						: 'text-text-muted hover:text-text-secondary'}"
-				onclick={() => activeTab = tab.id}
+					? 'text-accent border-b-2 border-accent -mb-px'
+					: 'text-text-muted hover:text-text-secondary'}"
+				onclick={() => (activeTab = tab.id)}
 			>
 				<tab.icon class="w-4 h-4" />
 				{#if !isMobile()}<span>{tab.label}</span>{/if}

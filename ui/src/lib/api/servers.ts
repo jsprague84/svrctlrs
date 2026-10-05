@@ -1,5 +1,11 @@
 import { get, post, put, del } from './client.js';
-import type { Server, CreateServer, UpdateServer, TestConnectionResult, HostKey } from '$lib/types/index.js';
+import type {
+	Server,
+	CreateServer,
+	UpdateServer,
+	TestConnectionResult,
+	HostKey
+} from '$lib/types/index.js';
 
 interface ServersListResponse {
 	servers: Server[];

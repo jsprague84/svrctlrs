@@ -27,13 +27,27 @@
 		const notif = settings['notification'] ?? [];
 		for (const s of notif) {
 			switch (s.key) {
-				case 'notification.enabled': enabled = s.value === 'true'; break;
-				case 'notification.provider': provider = s.value || 'gotify'; break;
-				case 'notification.url': url = s.value; break;
-				case 'notification.token': token = s.value; break;
-				case 'notification.topic': topic = s.value || 'svrctlrs'; break;
-				case 'notification.health_check_enabled': healthCheckEnabled = s.value === 'true'; break;
-				case 'notification.health_check_interval_seconds': healthCheckInterval = s.value || '300'; break;
+				case 'notification.enabled':
+					enabled = s.value === 'true';
+					break;
+				case 'notification.provider':
+					provider = s.value || 'gotify';
+					break;
+				case 'notification.url':
+					url = s.value;
+					break;
+				case 'notification.token':
+					token = s.value;
+					break;
+				case 'notification.topic':
+					topic = s.value || 'svrctlrs';
+					break;
+				case 'notification.health_check_enabled':
+					healthCheckEnabled = s.value === 'true';
+					break;
+				case 'notification.health_check_interval_seconds':
+					healthCheckInterval = s.value || '300';
+					break;
 			}
 		}
 	}
@@ -83,26 +97,45 @@
 		</div>
 		<label class="relative inline-flex items-center cursor-pointer">
 			<input type="checkbox" bind:checked={enabled} class="sr-only peer" />
-			<div class="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:bg-success transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
+			<div
+				class="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:bg-success transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"
+			></div>
 		</label>
 	</div>
 
 	<!-- Provider -->
 	<div>
-		<label class="block text-[11px] text-text-muted mb-1">Provider</label>
-		<select bind:value={provider} class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary">
+		<label for="notif-provider" class="block text-[11px] text-text-muted mb-1">Provider</label>
+		<select
+			id="notif-provider"
+			bind:value={provider}
+			class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary"
+		>
 			<option value="gotify">Gotify (rstify compatible)</option>
 			<option value="ntfy">ntfy</option>
 		</select>
 	</div>
 
 	<!-- URL -->
-	<Input label="Server URL" bind:value={url} placeholder="https://rstify.example.com" class="font-mono" />
+	<Input
+		label="Server URL"
+		bind:value={url}
+		placeholder="https://rstify.example.com"
+		class="font-mono"
+	/>
 
 	<!-- Token -->
 	<div>
-		<label class="block text-[11px] text-text-muted mb-1">Application Token</label>
-		<input type="password" bind:value={token} class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary" placeholder="Paste your app token" />
+		<label for="notif-token" class="block text-[11px] text-text-muted mb-1">Application Token</label
+		>
+		<input
+			id="notif-token"
+			type="password"
+			bind:value={token}
+			autocomplete="off"
+			class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary"
+			placeholder="Paste your app token"
+		/>
 	</div>
 
 	<!-- Topic (ntfy only) -->
@@ -119,14 +152,22 @@
 			</div>
 			<label class="relative inline-flex items-center cursor-pointer">
 				<input type="checkbox" bind:checked={healthCheckEnabled} class="sr-only peer" />
-				<div class="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:bg-success transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"></div>
+				<div
+					class="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:bg-success transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"
+				></div>
 			</label>
 		</div>
 
 		{#if healthCheckEnabled}
 			<div class="mt-2">
-				<label class="block text-[11px] text-text-muted mb-1">Check Interval</label>
-				<select bind:value={healthCheckInterval} class="px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary">
+				<label for="notif-interval" class="block text-[11px] text-text-muted mb-1"
+					>Check Interval</label
+				>
+				<select
+					id="notif-interval"
+					bind:value={healthCheckInterval}
+					class="px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary"
+				>
 					<option value="60">Every 1 minute</option>
 					<option value="300">Every 5 minutes</option>
 					<option value="900">Every 15 minutes</option>

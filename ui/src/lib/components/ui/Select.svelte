@@ -9,9 +9,18 @@
 		children: Snippet;
 	}
 
-	let { label, error, value = $bindable(''), children, class: className = '', id, ...rest }: Props = $props();
+	let {
+		label,
+		error,
+		value = $bindable(''),
+		children,
+		class: className = '',
+		id,
+		...rest
+	}: Props = $props();
 
-	const selectId = id ?? `select-${Math.random().toString(36).slice(2, 8)}`;
+	const uid = $props.id();
+	let selectId = $derived(id ?? `select-${uid}`);
 </script>
 
 <div class="flex flex-col gap-1">

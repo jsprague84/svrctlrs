@@ -13,7 +13,8 @@
 		onCloseTab?: () => void;
 	}
 
-	let { serverName, connectionStatus, tabs, activeTabId, onTapDots, onNewTab, onCloseTab }: Props = $props();
+	let { serverName, connectionStatus, tabs, activeTabId, onTapDots, onNewTab, onCloseTab }: Props =
+		$props();
 
 	function toggleSidebar() {
 		window.dispatchEvent(new CustomEvent('toggle-sidebar'));
@@ -21,15 +22,21 @@
 
 	let statusDotColor = $derived.by(() => {
 		switch (connectionStatus) {
-			case 'connected': return 'bg-success';
-			case 'connecting': return 'bg-warning animate-pulse';
-			case 'error': return 'bg-error';
-			default: return 'bg-text-muted';
+			case 'connected':
+				return 'bg-success';
+			case 'connecting':
+				return 'bg-warning animate-pulse';
+			case 'error':
+				return 'bg-error';
+			default:
+				return 'bg-text-muted';
 		}
 	});
 </script>
 
-<div class="flex items-center justify-between px-2 pt-[max(0.25rem,env(safe-area-inset-top))] pb-0.5 bg-surface border-b border-border">
+<div
+	class="flex items-center justify-between px-2 pt-[max(0.25rem,env(safe-area-inset-top))] pb-0.5 bg-surface border-b border-border"
+>
 	<!-- Left: hamburger + connection dot + server name -->
 	<div class="flex items-center gap-1.5 min-w-0 flex-1">
 		<button

@@ -40,11 +40,16 @@ cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo audit                                   # cargo install cargo-audit
-cd ui && npm run check && npm run build && npm audit --omit=dev --audit-level=high
+cd ui && npm run check && npm run lint && npm run test && npm run build && npm audit --omit=dev --audit-level=high
 ```
 
-Tests today: 28 in `core` (encryption) and `database` (queries, models, host keys); none in
-`server`. New auth, WebSocket or host-key code must come with `server` tests (see ROADMAP).
+`npm run format` applies Prettier (tabs, single quotes, 100 columns); `npm run lint` is ESLint
+(JS + typescript-eslint + eslint-plugin-svelte, Prettier-compatible) plus a Prettier check.
+Unit tests are Vitest files next to the code (`*.test.ts`); keep them for pure modules.
+
+Tests today: 65 Rust tests across `core`, `database` and `server` (auth middleware, host keys,
+limiter, tickets, svrctl backup) and 7 Vitest tests in the UI. Security-relevant changes come
+with tests.
 
 ## Repository layout
 
@@ -57,7 +62,7 @@ standard runners on epyc-ai. GitHub is no longer used for CI or hosting.
 
 | Workflow | Trigger | Runner | Does |
 |---|---|---|---|
-| `ci.yaml` | every branch, tags, PRs to master | `rust-high` | fmt, clippy, cargo-audit, tests, svelte-check, SPA build, npm audit |
+| `ci.yaml` | every branch, tags, PRs to master | `rust-high` | fmt, clippy, cargo-audit, tests, svelte-check, eslint + prettier, vitest, SPA build, npm audit |
 | `docker.yaml` | `master`, `v*`, manual | `build` | builds the image with buildx, pushes `latest`/`sha`/`vX.Y.Z` to the Forgejo registry; on tags creates the release; on `master` waits for CI to be green and deploys to docker-vm |
 | `android.yaml` | `master`, `v*`, manual | `android` | debug APK as a workflow artifact; on tags a signed release APK attached to the release |
 | `desktop.yaml` | `v*`, manual | `rust-high` | `.deb`/`.rpm` (gate), AppImage and Flatpak (best effort), attached to the release |

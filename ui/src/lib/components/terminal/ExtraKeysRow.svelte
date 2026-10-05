@@ -55,13 +55,12 @@
 </script>
 
 <div class="flex gap-[2px] px-1 py-1 bg-surface-raised border-t border-border flex-shrink-0">
-	{#each keys as key}
+	{#each keys as key (key.label)}
 		<button
 			class="flex-1 py-1.5 text-[11px] font-mono rounded-sm border transition-colors
 				{key.toggle && key.active?.()
-					? 'bg-accent/20 text-accent border-accent/40'
-					: 'bg-surface border-border text-text-secondary hover:text-text-primary hover:bg-surface-overlay'
-				}"
+				? 'bg-accent/20 text-accent border-accent/40'
+				: 'bg-surface border-border text-text-secondary hover:text-text-primary hover:bg-surface-overlay'}"
 			onpointerdown={(e) => e.preventDefault()}
 			onclick={key.action}
 			aria-label={key.label}

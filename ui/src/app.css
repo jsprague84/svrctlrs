@@ -61,12 +61,12 @@
 }
 
 /* Compact density for mobile */
-[data-density="compact"] {
+[data-density='compact'] {
 	--density: 0.75;
 }
 
 /* Light theme overrides */
-[data-theme="light"] {
+[data-theme='light'] {
 	--color-background: #f5f5f0;
 	--color-foreground: #2e3440;
 	--color-surface: #eae8e4;
@@ -107,7 +107,11 @@
 body {
 	background-color: var(--color-background);
 	color: var(--color-foreground);
-	font-family: 'Inter', system-ui, -apple-system, sans-serif;
+	font-family:
+		'Inter',
+		system-ui,
+		-apple-system,
+		sans-serif;
 	touch-action: manipulation;
 	/* Safe areas handled by components: MobileStatusBar (top), ExtraKeysRow (bottom).
 	   Left/right for landscape nav bar only. */
@@ -129,7 +133,9 @@ body {
 }
 
 /* Monospace for technical content */
-code, pre, .font-mono {
+code,
+pre,
+.font-mono {
 	font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 }
 
@@ -161,22 +167,22 @@ textarea {
 	color-scheme: dark;
 }
 
-[data-theme="light"] input[type='number'],
-[data-theme="light"] input[type='text'],
-[data-theme="light"] input[type='password'],
-[data-theme="light"] select,
-[data-theme="light"] textarea {
+[data-theme='light'] input[type='number'],
+[data-theme='light'] input[type='text'],
+[data-theme='light'] input[type='password'],
+[data-theme='light'] select,
+[data-theme='light'] textarea {
 	color-scheme: light;
 }
 
-[data-theme="light"] ::-webkit-scrollbar-track {
+[data-theme='light'] ::-webkit-scrollbar-track {
 	background: #eae8e4;
 }
 
-[data-theme="light"] ::-webkit-scrollbar-thumb {
+[data-theme='light'] ::-webkit-scrollbar-thumb {
 	background: #c8c5be;
 }
 
-[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+[data-theme='light'] ::-webkit-scrollbar-thumb:hover {
 	background: #7b8394;
 }

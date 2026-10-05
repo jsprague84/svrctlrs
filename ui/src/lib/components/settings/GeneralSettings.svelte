@@ -17,7 +17,9 @@
 		// Load current default profile setting
 		const settings = settingsState.getSettings();
 		const appSettings = settings['app'] ?? [];
-		const defaultSetting = appSettings.find((s: { key: string }) => s.key === 'app.default_profile_id');
+		const defaultSetting = appSettings.find(
+			(s: { key: string }) => s.key === 'app.default_profile_id'
+		);
 		if (defaultSetting) {
 			defaultProfileId = defaultSetting.value;
 		}
@@ -42,9 +44,13 @@
 	<!-- Server Connection (Tauri only) -->
 	{#if isTauri()}
 		<div class="p-4 bg-surface border border-border rounded-lg">
-			<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">Server Connection</h3>
+			<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">
+				Server Connection
+			</h3>
 			<div class="flex items-center gap-3">
-				<span class="text-sm text-text-secondary flex-1 font-mono truncate">{getServerUrl() || 'Not configured'}</span>
+				<span class="text-sm text-text-secondary flex-1 font-mono truncate"
+					>{getServerUrl() || 'Not configured'}</span
+				>
 				<Button size="sm" variant="secondary" onclick={changeServerUrl}>Change</Button>
 			</div>
 			<p class="text-[10px] text-text-muted mt-2">Connected • Session active</p>
@@ -53,7 +59,9 @@
 
 	<!-- Appearance -->
 	<div>
-		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">Appearance</h3>
+		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">
+			Appearance
+		</h3>
 		<div class="flex items-center justify-between py-2">
 			<div>
 				<p class="text-sm text-text-primary">Theme</p>
@@ -61,13 +69,21 @@
 			</div>
 			<div class="flex gap-1">
 				<button
-					class="px-3 py-1 text-xs rounded-sm transition-colors {themeState.isDark() ? 'bg-accent text-background font-medium' : 'bg-surface-raised text-text-secondary'}"
-					onclick={() => { if (!themeState.isDark()) themeState.toggleTheme(); }}
-				>Dark</button>
+					class="px-3 py-1 text-xs rounded-sm transition-colors {themeState.isDark()
+						? 'bg-accent text-background font-medium'
+						: 'bg-surface-raised text-text-secondary'}"
+					onclick={() => {
+						if (!themeState.isDark()) themeState.toggleTheme();
+					}}>Dark</button
+				>
 				<button
-					class="px-3 py-1 text-xs rounded-sm transition-colors {!themeState.isDark() ? 'bg-accent text-background font-medium' : 'bg-surface-raised text-text-secondary'}"
-					onclick={() => { if (themeState.isDark()) themeState.toggleTheme(); }}
-				>Light</button>
+					class="px-3 py-1 text-xs rounded-sm transition-colors {!themeState.isDark()
+						? 'bg-accent text-background font-medium'
+						: 'bg-surface-raised text-text-secondary'}"
+					onclick={() => {
+						if (themeState.isDark()) themeState.toggleTheme();
+					}}>Light</button
+				>
 			</div>
 		</div>
 	</div>
@@ -87,7 +103,7 @@
 					onchange={saveDefaultProfile}
 				>
 					<option value="">None</option>
-					{#each profiles as profile}
+					{#each profiles as profile (profile.id)}
 						<option value={String(profile.id)}>{profile.name}</option>
 					{/each}
 				</select>

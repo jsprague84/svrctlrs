@@ -23,7 +23,9 @@
 	<div class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
 		{#each toasts as toast (toast.id)}
 			{@const Icon = icons[toast.type]}
-			<div class="flex items-start gap-2 px-3 py-2 rounded-md border shadow-lg {colors[toast.type]}">
+			<div
+				class="flex items-start gap-2 px-3 py-2 rounded-md border shadow-lg {colors[toast.type]}"
+			>
 				<Icon class="w-4 h-4 flex-shrink-0 mt-0.5" />
 				<p class="flex-1 text-sm">{toast.message}</p>
 				<button class="p-0.5 hover:opacity-70" onclick={() => removeToast(toast.id)}>

@@ -20,7 +20,16 @@ the release workflow uses the matching section as the release notes.
   recorded with the client address (`GET /api/v1/audit`, Settings → Audit); entries are kept
   for 180 days and never contain secrets.
 
+### Changed
+- UI tooling: ESLint, Prettier and Vitest with the first unit tests; `engines.node >= 22.12`.
+  The whole UI tree is Prettier-formatted (a formatting-only diff).
+
 ### Fixed
+- The native apps' server-URL screen normalises what you type (defaults to https, strips
+  trailing slashes), refuses plain `http://` on Android — release builds cannot use it — and
+  warns about it on desktop.
+- Form labels are associated with their controls throughout the Settings and login forms;
+  `svelte-check` is at zero warnings.
 - Desktop: the tray icon had no image and was invisible on most desktops, leaving its
   Show/Quit menu unreachable after the window was closed; it now uses the application icon,
   and when no tray can be created closing the window quits instead of hiding it.

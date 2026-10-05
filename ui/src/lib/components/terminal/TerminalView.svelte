@@ -1,6 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Terminal as TerminalIcon, Settings2, Trash2, ClipboardCopy, Download } from 'lucide-svelte';
+	import {
+		Terminal as TerminalIcon,
+		Settings2,
+		Trash2,
+		ClipboardCopy,
+		Download
+	} from 'lucide-svelte';
 	import TerminalPane from './TerminalPane.svelte';
 	import TerminalTabs from './TerminalTabs.svelte';
 	import SplitView from './SplitView.svelte';
@@ -16,7 +22,10 @@
 	import * as profilesState from '$lib/state/profiles.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
-	import { initKeyboardDetection, destroyKeyboardDetection } from '$lib/platform/keyboard.svelte.js';
+	import {
+		initKeyboardDetection,
+		destroyKeyboardDetection
+	} from '$lib/platform/keyboard.svelte.js';
 	import type { TerminalMode, ConnectionStatus, LayoutMode } from '$lib/types/index.js';
 
 	interface Props {
@@ -59,7 +68,9 @@
 	// Warn before unloading if any tab is connected
 	$effect(() => {
 		const hasConnected = tabs.some((t) => t.status === 'connected');
-		const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+		const handler = (e: BeforeUnloadEvent) => {
+			e.preventDefault();
+		};
 		if (hasConnected) {
 			window.addEventListener('beforeunload', handler);
 			return () => window.removeEventListener('beforeunload', handler);
@@ -107,7 +118,7 @@
 		// Create initial tab — either from default profile or empty
 		if (tabs.length === 0) {
 			const allProfiles = profilesState.getProfiles();
-			const defaultProfile = allProfiles.find(p => p.is_default);
+			const defaultProfile = allProfiles.find((p) => p.is_default);
 			if (defaultProfile && defaultProfile.pane_configs) {
 				const serverNames: Record<number, string> = {};
 				for (const s of serversState.getServers()) {
@@ -185,8 +196,10 @@
 			// Alt+Arrow — spatial navigation between visible panes
 			if (e.altKey && !e.ctrlKey && !e.shiftKey) {
 				const dirMap: Record<string, 'left' | 'right' | 'up' | 'down'> = {
-					ArrowLeft: 'left', ArrowRight: 'right',
-					ArrowUp: 'up', ArrowDown: 'down'
+					ArrowLeft: 'left',
+					ArrowRight: 'right',
+					ArrowUp: 'up',
+					ArrowDown: 'down'
 				};
 				const dir = dirMap[e.key];
 				if (dir) {
@@ -197,7 +210,12 @@
 			// Ctrl+\ — toggle split
 			if (e.ctrlKey && e.key === '\\') {
 				e.preventDefault();
-				const modes: Array<'single' | 'split-h' | 'split-v' | 'quad'> = ['single', 'split-h', 'split-v', 'quad'];
+				const modes: Array<'single' | 'split-h' | 'split-v' | 'quad'> = [
+					'single',
+					'split-h',
+					'split-v',
+					'quad'
+				];
 				const idx = modes.indexOf(layout);
 				terminalState.setLayout(modes[(idx + 1) % modes.length]);
 			}
@@ -213,7 +231,9 @@
 		}
 
 		// Listen for save-profile events from sidebar
-		const handleSaveProfile = () => { profileSaveOpen = true; };
+		const handleSaveProfile = () => {
+			profileSaveOpen = true;
+		};
 		window.addEventListener('save-profile', handleSaveProfile);
 
 		window.addEventListener('keydown', handleKeydown, true);
@@ -272,9 +292,7 @@
 
 <div
 	class="flex flex-col overflow-hidden transition-none
-		{visible
-			? 'flex-1 min-w-0 relative'
-			: 'absolute inset-0 invisible pointer-events-none'}"
+		{visible ? 'flex-1 min-w-0 relative' : 'absolute inset-0 invisible pointer-events-none'}"
 	style:height={isMobile() && mobileViewHeight > 0 ? `${mobileViewHeight}px` : undefined}
 >
 	<!-- Mobile: minimal status bar -->
@@ -287,7 +305,7 @@
 			onNewTab={handleNewTab}
 			onCloseTab={() => {
 				if (!activeTabId) return;
-				const tab = tabs.find(t => t.id === activeTabId);
+				const tab = tabs.find((t) => t.id === activeTabId);
 				if (tab?.status === 'connected' && !confirm('Terminal is connected. Close anyway?')) return;
 				paneRefs[activeTabId]?.disconnect();
 				delete paneRefs[activeTabId];
@@ -295,77 +313,110 @@
 			}}
 		/>
 	{:else}
-	<!-- Desktop: full toolbar -->
-	<div class="flex flex-wrap items-center gap-2 md:gap-3 md:flex-nowrap px-2 md:px-4 py-2 bg-surface border-b border-border">
-		<TerminalIcon class="hidden md:block w-5 h-5 text-accent" />
-		<h1 class="hidden md:block text-sm font-semibold text-text-primary">SvrCtlRS</h1>
-
-		<select
-			class="flex-1 min-w-0 ml-0 md:ml-4 px-2 py-2 md:py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
-			bind:value={selectedServerId}
+		<!-- Desktop: full toolbar -->
+		<div
+			class="flex flex-wrap items-center gap-2 md:gap-3 md:flex-nowrap px-2 md:px-4 py-2 bg-surface border-b border-border"
 		>
-			{#if serversLoading}
-				<option value={null}>Loading servers...</option>
-			{:else if serversError}
-				<option value={null}>Failed to load servers</option>
+			<TerminalIcon class="hidden md:block w-5 h-5 text-accent" />
+			<h1 class="hidden md:block text-sm font-semibold text-text-primary">SvrCtlRS</h1>
+
+			<select
+				class="flex-1 min-w-0 ml-0 md:ml-4 px-2 py-2 md:py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
+				bind:value={selectedServerId}
+			>
+				{#if serversLoading}
+					<option value={null}>Loading servers...</option>
+				{:else if serversError}
+					<option value={null}>Failed to load servers</option>
+				{:else}
+					<option value={null}>Select server...</option>
+					{#each servers as server (server.id)}
+						<option value={server.id}
+							>{server.name}{server.hostname ? ` (${server.hostname})` : ''}</option
+						>
+					{/each}
+				{/if}
+			</select>
+
+			<select
+				class="min-w-0 px-2 py-2 md:py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
+				bind:value={selectedMode}
+			>
+				<option value="pty">Interactive (PTY)</option>
+				<option value="cmd">Command (CMD)</option>
+			</select>
+
+			{#if activeTab?.status !== 'connected'}
+				<button
+					class="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-sm hover:opacity-90 disabled:opacity-50"
+					disabled={selectedServerId === null}
+					onclick={handleConnect}
+				>
+					Connect
+				</button>
 			{:else}
-				<option value={null}>Select server...</option>
-				{#each servers as server}
-					<option value={server.id}>{server.name}{server.hostname ? ` (${server.hostname})` : ''}</option>
-				{/each}
+				<button
+					class="px-3 py-1 text-sm bg-destructive text-destructive-foreground rounded-sm hover:opacity-90"
+					onclick={handleDisconnect}
+				>
+					Disconnect
+				</button>
 			{/if}
-		</select>
 
-		<select
-			class="min-w-0 px-2 py-2 md:py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
-			bind:value={selectedMode}
-		>
-			<option value="pty">Interactive (PTY)</option>
-			<option value="cmd">Command (CMD)</option>
-		</select>
-
-		{#if activeTab?.status !== 'connected'}
-			<button
-				class="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-sm hover:opacity-90 disabled:opacity-50"
-				disabled={selectedServerId === null}
-				onclick={handleConnect}
-			>
-				Connect
-			</button>
-		{:else}
-			<button
-				class="px-3 py-1 text-sm bg-destructive text-destructive-foreground rounded-sm hover:opacity-90"
-				onclick={handleDisconnect}
-			>
-				Disconnect
-			</button>
-		{/if}
-
-		<div class="w-full md:w-auto md:ml-auto flex items-center gap-1 md:gap-2 justify-end">
-			{#if activeTab}
-				<span aria-live="polite">
-					<ConnectionBadge status={activeTab.status} />
-				</span>
-			{/if}
-			<button class="p-2 md:p-1 text-text-muted hover:text-text-primary" onclick={() => { if (activeTabId) paneRefs[activeTabId]?.clear(); }} title="Clear" aria-label="Clear terminal">
-				<Trash2 class="w-4 h-4" />
-			</button>
-			<button class="p-2 md:p-1 text-text-muted hover:text-text-primary" onclick={() => { if (activeTabId) paneRefs[activeTabId]?.copyOutput(); }} title="Copy" aria-label="Copy output">
-				<ClipboardCopy class="w-4 h-4" />
-			</button>
-			<button class="p-2 md:p-1 text-text-muted hover:text-text-primary" onclick={() => { if (activeTabId) paneRefs[activeTabId]?.downloadOutput(); }} title="Download" aria-label="Download output">
-				<Download class="w-4 h-4" />
-			</button>
-			<button class="p-2 md:p-1 text-text-muted hover:text-text-primary" class:text-accent={prefsOpen} onclick={() => prefsOpen = !prefsOpen} title="Terminal Preferences" aria-label="Terminal preferences">
-				<Settings2 class="w-4 h-4" />
-			</button>
+			<div class="w-full md:w-auto md:ml-auto flex items-center gap-1 md:gap-2 justify-end">
+				{#if activeTab}
+					<span aria-live="polite">
+						<ConnectionBadge status={activeTab.status} />
+					</span>
+				{/if}
+				<button
+					class="p-2 md:p-1 text-text-muted hover:text-text-primary"
+					onclick={() => {
+						if (activeTabId) paneRefs[activeTabId]?.clear();
+					}}
+					title="Clear"
+					aria-label="Clear terminal"
+				>
+					<Trash2 class="w-4 h-4" />
+				</button>
+				<button
+					class="p-2 md:p-1 text-text-muted hover:text-text-primary"
+					onclick={() => {
+						if (activeTabId) paneRefs[activeTabId]?.copyOutput();
+					}}
+					title="Copy"
+					aria-label="Copy output"
+				>
+					<ClipboardCopy class="w-4 h-4" />
+				</button>
+				<button
+					class="p-2 md:p-1 text-text-muted hover:text-text-primary"
+					onclick={() => {
+						if (activeTabId) paneRefs[activeTabId]?.downloadOutput();
+					}}
+					title="Download"
+					aria-label="Download output"
+				>
+					<Download class="w-4 h-4" />
+				</button>
+				<button
+					class="p-2 md:p-1 text-text-muted hover:text-text-primary"
+					class:text-accent={prefsOpen}
+					onclick={() => (prefsOpen = !prefsOpen)}
+					title="Terminal Preferences"
+					aria-label="Terminal preferences"
+				>
+					<Settings2 class="w-4 h-4" />
+				</button>
+			</div>
 		</div>
-	</div>
 	{/if}
 
 	<!-- Search bar (desktop only) -->
 	{#if searchOpen && !isMobile()}
-		<div class="flex flex-wrap items-center gap-2 px-2 md:px-4 py-1.5 bg-surface-raised border-b border-border">
+		<div
+			class="flex flex-wrap items-center gap-2 px-2 md:px-4 py-1.5 bg-surface-raised border-b border-border"
+		>
 			<input
 				type="text"
 				bind:value={searchTerm}
@@ -374,38 +425,51 @@
 				placeholder="Search terminal output..."
 			/>
 			<div class="flex gap-1 mt-1 md:mt-0 md:gap-2">
-				<button class="px-2 py-1 text-xs text-text-muted hover:text-text-primary" onclick={handleSearchPrev}>Prev</button>
-				<button class="px-2 py-1 text-xs text-text-muted hover:text-text-primary" onclick={handleSearchNext}>Next</button>
-				<button class="px-2 py-1 text-xs text-text-muted hover:text-text-primary" onclick={() => { searchOpen = false; searchTerm = ''; if (activeTabId) paneRefs[activeTabId]?.clearSearch(); }}>Close</button>
+				<button
+					class="px-2 py-1 text-xs text-text-muted hover:text-text-primary"
+					onclick={handleSearchPrev}>Prev</button
+				>
+				<button
+					class="px-2 py-1 text-xs text-text-muted hover:text-text-primary"
+					onclick={handleSearchNext}>Next</button
+				>
+				<button
+					class="px-2 py-1 text-xs text-text-muted hover:text-text-primary"
+					onclick={() => {
+						searchOpen = false;
+						searchTerm = '';
+						if (activeTabId) paneRefs[activeTabId]?.clearSearch();
+					}}>Close</button
+				>
 			</div>
 		</div>
 	{/if}
 
 	<!-- Tab bar (desktop only) -->
 	{#if !isMobile()}
-	<TerminalTabs
-		{tabs}
-		{activeTabId}
-		{layout}
-		onSelectTab={(id) => terminalState.setActiveTab(id)}
-		onCloseTab={(id) => {
-			const tab = tabs.find((t) => t.id === id);
-			if (tab?.status === 'connected' && !confirm('Terminal is connected. Close anyway?')) return;
-			paneRefs[id]?.disconnect();
-			delete paneRefs[id];
-			terminalState.closeTab(id);
-		}}
-		onNewTab={handleNewTab}
-		onSetLayout={(mode) => terminalState.setLayout(mode)}
-	/>
+		<TerminalTabs
+			{tabs}
+			{activeTabId}
+			{layout}
+			onSelectTab={(id) => terminalState.setActiveTab(id)}
+			onCloseTab={(id) => {
+				const tab = tabs.find((t) => t.id === id);
+				if (tab?.status === 'connected' && !confirm('Terminal is connected. Close anyway?')) return;
+				paneRefs[id]?.disconnect();
+				delete paneRefs[id];
+				terminalState.closeTab(id);
+			}}
+			onNewTab={handleNewTab}
+			onSetLayout={(mode) => terminalState.setLayout(mode)}
+		/>
 	{/if}
 
 	<!-- CMD input bar (desktop only) -->
 	{#if !isMobile() && activeTab?.mode === 'cmd' && activeTab?.status === 'connected'}
 		<CommandInput
 			onSubmit={handleCmdSubmit}
-			onHistoryUp={() => activeTabId ? paneRefs[activeTabId]?.getPreviousCommand() : null}
-			onHistoryDown={() => activeTabId ? paneRefs[activeTabId]?.getNextCommand() ?? '' : ''}
+			onHistoryUp={() => (activeTabId ? paneRefs[activeTabId]?.getPreviousCommand() : null)}
+			onHistoryDown={() => (activeTabId ? (paneRefs[activeTabId]?.getNextCommand() ?? '') : '')}
 		/>
 	{/if}
 
@@ -417,10 +481,17 @@
 					class="min-h-0 min-w-0 relative"
 					class:hidden={tab.slot === null}
 					class:ring-1={tab.id === activeTabId && layout !== 'single' && visibleTabs.length > 1}
-					class:ring-accent={tab.id === activeTabId && layout !== 'single' && visibleTabs.length > 1}
+					class:ring-accent={tab.id === activeTabId &&
+						layout !== 'single' &&
+						visibleTabs.length > 1}
 				>
 					{#if tab.slot !== null && layout !== 'single' && visibleTabs.length > 1}
-						<div class="absolute top-0 left-1 z-10 px-1.5 py-0 text-[10px] font-mono rounded-b-sm {tab.id === activeTabId ? 'bg-accent text-background' : 'bg-surface-raised/80 text-text-muted'}">
+						<div
+							class="absolute top-0 left-1 z-10 px-1.5 py-0 text-[10px] font-mono rounded-b-sm {tab.id ===
+							activeTabId
+								? 'bg-accent text-background'
+								: 'bg-surface-raised/80 text-text-muted'}"
+						>
 							{tab.slot + 1}
 						</div>
 					{/if}
@@ -431,28 +502,26 @@
 						mode={tab.mode}
 						active={tab.slot !== null}
 						onStatusChange={handleStatusChange}
-						onOpenPalette={() => paletteOpen = true}
+						onOpenPalette={() => (paletteOpen = true)}
 					/>
 				</div>
 			{/each}
 		</SplitView>
 		<!-- Gesture hint (mobile, first visit only) -->
 		{#if showGestureHint}
-			<div class="absolute bottom-2 left-0 right-0 text-center text-[10px] text-text-muted transition-opacity duration-1000 z-10 pointer-events-none"
-				class:opacity-0={!showGestureHint}>
+			<div
+				class="absolute bottom-2 left-0 right-0 text-center text-[10px] text-text-muted transition-opacity duration-1000 z-10 pointer-events-none"
+				class:opacity-0={!showGestureHint}
+			>
 				double-tap for commands · swipe ← → tabs
 			</div>
 		{/if}
 
-		<TerminalPrefsPanel open={prefsOpen} onClose={() => prefsOpen = false} />
-		<ProfileManager
-			open={profileSaveOpen}
-			onClose={() => profileSaveOpen = false}
-			serverNames={Object.fromEntries(serversState.getServers().map(s => [s.id, s.name]))}
-		/>
+		<TerminalPrefsPanel open={prefsOpen} onClose={() => (prefsOpen = false)} />
+		<ProfileManager open={profileSaveOpen} onClose={() => (profileSaveOpen = false)} />
 		<CommandPalette
 			open={paletteOpen}
-			onClose={() => paletteOpen = false}
+			onClose={() => (paletteOpen = false)}
 			onInjectCommand={(cmd) => {
 				if (activeTabId && paneRefs[activeTabId] && activeTab?.status === 'connected') {
 					paneRefs[activeTabId].injectInput(cmd + '\n');
@@ -460,29 +529,41 @@
 					toast.warning('Connect to a server first');
 				}
 			}}
-			onSaveProfile={() => profileSaveOpen = true}
-			onClearTerminal={() => { if (activeTabId) paneRefs[activeTabId]?.clear(); }}
-			onCopyOutput={() => { if (activeTabId) paneRefs[activeTabId]?.copyOutput(); }}
-			onDownloadOutput={() => { if (activeTabId) paneRefs[activeTabId]?.downloadOutput(); }}
-			onToggleSearch={() => { searchOpen = !searchOpen; }}
+			onSaveProfile={() => (profileSaveOpen = true)}
+			onClearTerminal={() => {
+				if (activeTabId) paneRefs[activeTabId]?.clear();
+			}}
+			onCopyOutput={() => {
+				if (activeTabId) paneRefs[activeTabId]?.copyOutput();
+			}}
+			onDownloadOutput={() => {
+				if (activeTabId) paneRefs[activeTabId]?.downloadOutput();
+			}}
+			onToggleSearch={() => {
+				searchOpen = !searchOpen;
+			}}
 			onConnect={handleConnect}
 			onDisconnect={handleDisconnect}
 			onConnectServer={(id, name) => {
 				const tab = terminalState.createTab(id, name, 'pty');
 				if (tab) terminalState.setPendingAutoConnect(tab.id);
 			}}
-			serverId={activeTab?.serverId ?? null}
 		/>
 	</div>
 
 	<!-- Extra keys row (mobile only, in flex flow so it stays above keyboard) -->
 	{#if isMobile()}
-		<div class="flex-shrink-0" style:padding-bottom={!mobileKeyboardOpen ? 'env(safe-area-inset-bottom, 0px)' : undefined}>
-			<ExtraKeysRow onKeyPress={(seq) => {
-				if (activeTabId && paneRefs[activeTabId]) {
-					paneRefs[activeTabId].injectInput(seq);
-				}
-			}} />
+		<div
+			class="flex-shrink-0"
+			style:padding-bottom={!mobileKeyboardOpen ? 'env(safe-area-inset-bottom, 0px)' : undefined}
+		>
+			<ExtraKeysRow
+				onKeyPress={(seq) => {
+					if (activeTabId && paneRefs[activeTabId]) {
+						paneRefs[activeTabId].injectInput(seq);
+					}
+				}}
+			/>
 		</div>
 	{/if}
 </div>

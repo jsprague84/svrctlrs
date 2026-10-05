@@ -74,7 +74,7 @@
 							terminalPrefs.updatePref('fontFamily', fontFamilies[label]);
 						}}
 					>
-						{#each Object.keys(fontFamilies) as label}
+						{#each Object.keys(fontFamilies) as label (label)}
 							<option value={label}>{label}</option>
 						{/each}
 					</select>
@@ -88,7 +88,8 @@
 						max="24"
 						step="1"
 						value={prefs.fontSize}
-						oninput={(e) => terminalPrefs.updatePref('fontSize', Number((e.target as HTMLInputElement).value))}
+						oninput={(e) =>
+							terminalPrefs.updatePref('fontSize', Number((e.target as HTMLInputElement).value))}
 						class="mt-0.5 w-full accent-accent"
 					/>
 				</label>
@@ -98,7 +99,11 @@
 					<select
 						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
 						value={prefs.fontWeight}
-						onchange={(e) => terminalPrefs.updatePref('fontWeight', Number((e.target as HTMLSelectElement).value) as FontWeightOption)}
+						onchange={(e) =>
+							terminalPrefs.updatePref(
+								'fontWeight',
+								Number((e.target as HTMLSelectElement).value) as FontWeightOption
+							)}
 					>
 						<option value={300}>300 (Light)</option>
 						<option value={400}>400 (Regular)</option>
@@ -113,7 +118,11 @@
 					<select
 						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
 						value={prefs.fontWeightBold}
-						onchange={(e) => terminalPrefs.updatePref('fontWeightBold', Number((e.target as HTMLSelectElement).value) as FontWeightOption)}
+						onchange={(e) =>
+							terminalPrefs.updatePref(
+								'fontWeightBold',
+								Number((e.target as HTMLSelectElement).value) as FontWeightOption
+							)}
 					>
 						<option value={300}>300 (Light)</option>
 						<option value={400}>400 (Regular)</option>
@@ -124,27 +133,35 @@
 				</label>
 
 				<label class="block">
-					<span class="text-xs text-text-secondary">Line Height: {prefs.lineHeight.toFixed(1)}</span>
+					<span class="text-xs text-text-secondary">Line Height: {prefs.lineHeight.toFixed(1)}</span
+					>
 					<input
 						type="range"
 						min="1.0"
 						max="2.0"
 						step="0.1"
 						value={prefs.lineHeight}
-						oninput={(e) => terminalPrefs.updatePref('lineHeight', Number((e.target as HTMLInputElement).value))}
+						oninput={(e) =>
+							terminalPrefs.updatePref('lineHeight', Number((e.target as HTMLInputElement).value))}
 						class="mt-0.5 w-full accent-accent"
 					/>
 				</label>
 
 				<label class="block">
-					<span class="text-xs text-text-secondary">Letter Spacing: {prefs.letterSpacing.toFixed(1)}px</span>
+					<span class="text-xs text-text-secondary"
+						>Letter Spacing: {prefs.letterSpacing.toFixed(1)}px</span
+					>
 					<input
 						type="range"
 						min="-1"
 						max="5"
 						step="0.5"
 						value={prefs.letterSpacing}
-						oninput={(e) => terminalPrefs.updatePref('letterSpacing', Number((e.target as HTMLInputElement).value))}
+						oninput={(e) =>
+							terminalPrefs.updatePref(
+								'letterSpacing',
+								Number((e.target as HTMLInputElement).value)
+							)}
 						class="mt-0.5 w-full accent-accent"
 					/>
 				</label>
@@ -160,7 +177,11 @@
 					<select
 						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
 						value={prefs.cursorStyle}
-						onchange={(e) => terminalPrefs.updatePref('cursorStyle', (e.target as HTMLSelectElement).value as CursorStyle)}
+						onchange={(e) =>
+							terminalPrefs.updatePref(
+								'cursorStyle',
+								(e.target as HTMLSelectElement).value as CursorStyle
+							)}
 					>
 						<option value="block">Block</option>
 						<option value="underline">Underline</option>
@@ -172,7 +193,8 @@
 					<input
 						type="checkbox"
 						checked={prefs.cursorBlink}
-						onchange={(e) => terminalPrefs.updatePref('cursorBlink', (e.target as HTMLInputElement).checked)}
+						onchange={(e) =>
+							terminalPrefs.updatePref('cursorBlink', (e.target as HTMLInputElement).checked)}
 						class="accent-accent"
 					/>
 					<span class="text-xs text-text-secondary">Cursor Blink</span>
@@ -192,46 +214,65 @@
 						max="100000"
 						step="1000"
 						value={prefs.scrollback}
-						onchange={(e) => terminalPrefs.updatePref('scrollback', Number((e.target as HTMLInputElement).value))}
+						onchange={(e) =>
+							terminalPrefs.updatePref('scrollback', Number((e.target as HTMLInputElement).value))}
 						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
 					/>
 				</label>
 
 				<label class="block">
-					<span class="text-xs text-text-secondary">Scroll Sensitivity: {prefs.scrollSensitivity}</span>
+					<span class="text-xs text-text-secondary"
+						>Scroll Sensitivity: {prefs.scrollSensitivity}</span
+					>
 					<input
 						type="range"
 						min="1"
 						max="10"
 						step="1"
 						value={prefs.scrollSensitivity}
-						oninput={(e) => terminalPrefs.updatePref('scrollSensitivity', Number((e.target as HTMLInputElement).value))}
+						oninput={(e) =>
+							terminalPrefs.updatePref(
+								'scrollSensitivity',
+								Number((e.target as HTMLInputElement).value)
+							)}
 						class="mt-0.5 w-full accent-accent"
 					/>
 				</label>
 
 				<label class="block">
-					<span class="text-xs text-text-secondary">Fast Scroll Sensitivity: {prefs.fastScrollSensitivity}</span>
+					<span class="text-xs text-text-secondary"
+						>Fast Scroll Sensitivity: {prefs.fastScrollSensitivity}</span
+					>
 					<input
 						type="range"
 						min="1"
 						max="20"
 						step="1"
 						value={prefs.fastScrollSensitivity}
-						oninput={(e) => terminalPrefs.updatePref('fastScrollSensitivity', Number((e.target as HTMLInputElement).value))}
+						oninput={(e) =>
+							terminalPrefs.updatePref(
+								'fastScrollSensitivity',
+								Number((e.target as HTMLInputElement).value)
+							)}
 						class="mt-0.5 w-full accent-accent"
 					/>
 				</label>
 
 				<label class="block">
-					<span class="text-xs text-text-secondary">Smooth Scroll: {prefs.smoothScrollDuration}ms</span>
+					<span class="text-xs text-text-secondary"
+						>Smooth Scroll: {prefs.smoothScrollDuration}ms</span
+					>
 					<input
 						type="range"
 						min="0"
 						max="300"
 						step="25"
 						value={prefs.smoothScrollDuration}
-						oninput={(e) => terminalPrefs.updatePref('smoothScrollDuration', Number((e.target as HTMLInputElement).value))}
+						oninput={(e) =>
+							terminalPrefs.updatePref(
+								'smoothScrollDuration',
+								Number((e.target as HTMLInputElement).value)
+							)}
 						class="mt-0.5 w-full accent-accent"
 					/>
 				</label>
@@ -246,7 +287,11 @@
 					<input
 						type="checkbox"
 						checked={prefs.drawBoldTextInBrightColors}
-						onchange={(e) => terminalPrefs.updatePref('drawBoldTextInBrightColors', (e.target as HTMLInputElement).checked)}
+						onchange={(e) =>
+							terminalPrefs.updatePref(
+								'drawBoldTextInBrightColors',
+								(e.target as HTMLInputElement).checked
+							)}
 						class="accent-accent"
 					/>
 					<span class="text-xs text-text-secondary">Bold as Bright Colors</span>
@@ -257,7 +302,11 @@
 					<select
 						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
 						value={prefs.minimumContrastRatio}
-						onchange={(e) => terminalPrefs.updatePref('minimumContrastRatio', Number((e.target as HTMLSelectElement).value))}
+						onchange={(e) =>
+							terminalPrefs.updatePref(
+								'minimumContrastRatio',
+								Number((e.target as HTMLSelectElement).value)
+							)}
 					>
 						<option value={1}>1 (Off)</option>
 						<option value={4.5}>4.5 (AA)</option>
@@ -277,7 +326,11 @@
 					<select
 						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
 						value={prefs.tabStopWidth}
-						onchange={(e) => terminalPrefs.updatePref('tabStopWidth', Number((e.target as HTMLSelectElement).value))}
+						onchange={(e) =>
+							terminalPrefs.updatePref(
+								'tabStopWidth',
+								Number((e.target as HTMLSelectElement).value)
+							)}
 					>
 						<option value={2}>2</option>
 						<option value={4}>4</option>
@@ -289,7 +342,8 @@
 					<input
 						type="checkbox"
 						checked={prefs.scrollOnUserInput}
-						onchange={(e) => terminalPrefs.updatePref('scrollOnUserInput', (e.target as HTMLInputElement).checked)}
+						onchange={(e) =>
+							terminalPrefs.updatePref('scrollOnUserInput', (e.target as HTMLInputElement).checked)}
 						class="accent-accent"
 					/>
 					<span class="text-xs text-text-secondary">Scroll on User Input</span>

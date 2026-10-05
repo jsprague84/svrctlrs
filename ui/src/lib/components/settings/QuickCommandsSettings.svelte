@@ -39,7 +39,7 @@
 		showModal = true;
 	}
 
-	function openEdit(cmd: typeof commands[0]) {
+	function openEdit(cmd: (typeof commands)[0]) {
 		editingId = cmd.id;
 		name = cmd.name;
 		command = cmd.command;
@@ -83,54 +83,82 @@
 
 	function getServerName(id: number | null): string {
 		if (!id) return 'global';
-		return servers.find(s => s.id === id)?.name ?? `Server ${id}`;
+		return servers.find((s) => s.id === id)?.name ?? `Server ${id}`;
 	}
 </script>
 
 <div>
 	<div class="flex items-center justify-between mb-4">
-		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Saved Commands</h3>
+		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold">
+			Saved Commands
+		</h3>
 		<Button size="sm" onclick={openCreate}><Plus class="w-3.5 h-3.5" /> Add Command</Button>
 	</div>
 
 	{#if commands.length === 0}
 		<div class="text-center py-8">
 			<p class="text-text-muted text-sm">No quick commands yet.</p>
-			<p class="text-text-muted text-xs mt-1">Add one to use it from the command palette (Ctrl+K).</p>
+			<p class="text-text-muted text-xs mt-1">
+				Add one to use it from the command palette (Ctrl+K).
+			</p>
 			<Button variant="secondary" class="mt-3" onclick={openCreate}>Add your first command</Button>
 		</div>
 	{:else}
 		<div class="flex flex-col gap-2">
 			{#each commands as cmd (cmd.id)}
-				<div class="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 p-3 bg-surface border border-border/50 rounded-lg hover:bg-surface-raised/30">
+				<div
+					class="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 p-3 bg-surface border border-border/50 rounded-lg hover:bg-surface-raised/30"
+				>
 					<div class="flex-1 min-w-0">
 						<p class="text-sm font-medium text-text-primary">{cmd.name}</p>
 						<p class="text-xs font-mono text-accent truncate">{cmd.command}</p>
 					</div>
 					<div class="flex items-center gap-2 flex-shrink-0">
 						<Badge>{cmd.category}</Badge>
-						<Badge variant={cmd.server_id ? 'info' : 'default'}>{getServerName(cmd.server_id)}</Badge>
-						<button class="p-1 text-text-muted hover:text-text-primary" onclick={() => openEdit(cmd)} aria-label="Edit">
+						<Badge variant={cmd.server_id ? 'info' : 'default'}
+							>{getServerName(cmd.server_id)}</Badge
+						>
+						<button
+							class="p-1 text-text-muted hover:text-text-primary"
+							onclick={() => openEdit(cmd)}
+							aria-label="Edit"
+						>
 							<Pencil class="w-3.5 h-3.5" />
 						</button>
-						<button class="p-1 text-text-muted hover:text-error" onclick={() => handleDelete(cmd.id)} aria-label="Delete">
+						<button
+							class="p-1 text-text-muted hover:text-error"
+							onclick={() => handleDelete(cmd.id)}
+							aria-label="Delete"
+						>
 							<Trash2 class="w-3.5 h-3.5" />
 						</button>
 					</div>
 				</div>
 			{/each}
 		</div>
-		<p class="text-[10px] text-text-muted mt-4">Access commands via Ctrl+K (command palette) or double-tap on mobile.</p>
+		<p class="text-[10px] text-text-muted mt-4">
+			Access commands via Ctrl+K (command palette) or double-tap on mobile.
+		</p>
 	{/if}
 </div>
 
 <!-- Create/Edit Modal -->
-<Modal open={showModal} title={editingId ? 'Edit Command' : 'Add Command'} onClose={() => { showModal = false; resetForm(); }}>
+<Modal
+	open={showModal}
+	title={editingId ? 'Edit Command' : 'Add Command'}
+	onClose={() => {
+		showModal = false;
+		resetForm();
+	}}
+>
 	<div class="flex flex-col gap-3">
 		<Input label="Name" bind:value={name} placeholder="e.g., Check Docker" required />
 		<div>
-			<label class="block text-xs font-medium text-text-secondary mb-1">Command</label>
+			<label for="qc-command" class="block text-xs font-medium text-text-secondary mb-1"
+				>Command</label
+			>
 			<textarea
+				id="qc-command"
 				bind:value={command}
 				placeholder="e.g., docker ps --format table"
 				required
@@ -140,10 +168,16 @@
 		</div>
 		<Input label="Category" bind:value={category} placeholder="general" />
 		<div>
-			<label class="block text-xs font-medium text-text-secondary mb-1">Server Scope</label>
-			<select bind:value={serverId} class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary">
+			<label for="qc-server" class="block text-xs font-medium text-text-secondary mb-1"
+				>Server Scope</label
+			>
+			<select
+				id="qc-server"
+				bind:value={serverId}
+				class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary"
+			>
 				<option value="">All Servers (global)</option>
-				{#each servers as server}
+				{#each servers as server (server.id)}
 					<option value={String(server.id)}>{server.name}</option>
 				{/each}
 			</select>
@@ -151,7 +185,13 @@
 	</div>
 
 	{#snippet footer()}
-		<Button variant="secondary" onclick={() => { showModal = false; resetForm(); }}>Cancel</Button>
+		<Button
+			variant="secondary"
+			onclick={() => {
+				showModal = false;
+				resetForm();
+			}}>Cancel</Button
+		>
 		<Button onclick={handleSubmit} disabled={!name.trim() || !command.trim()}>
 			{editingId ? 'Save' : 'Create'}
 		</Button>

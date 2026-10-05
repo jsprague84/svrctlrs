@@ -7,8 +7,9 @@ export interface Toast {
 	duration: number;
 }
 
-let toasts = $state<Toast[]>([]);
+const toasts = $state<Toast[]>([]);
 let counter = 0;
+// eslint-disable-next-line svelte/prefer-svelte-reactivity -- timer handles, never rendered
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export function getToasts() {

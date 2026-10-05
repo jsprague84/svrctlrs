@@ -10,10 +10,9 @@
 	interface Props {
 		open: boolean;
 		onClose: () => void;
-		serverNames: Record<number, string>;
 	}
 
-	let { open, onClose, serverNames }: Props = $props();
+	let { open, onClose }: Props = $props();
 
 	let name = $state('');
 	let description = $state('');
@@ -49,7 +48,7 @@
 	}
 </script>
 
-<Modal {open} title="Save Layout as Profile" onClose={onClose}>
+<Modal {open} title="Save Layout as Profile" {onClose}>
 	<div class="flex flex-col gap-3">
 		<Input label="Name" bind:value={name} placeholder="e.g., Monitoring Setup" required />
 		<Input label="Description" bind:value={description} placeholder="Optional description" />

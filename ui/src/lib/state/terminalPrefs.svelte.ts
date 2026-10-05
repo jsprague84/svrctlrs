@@ -63,7 +63,10 @@ export function getDefaults(): TerminalPreferences {
 	return { ...DEFAULTS };
 }
 
-export function updatePref<K extends keyof TerminalPreferences>(key: K, value: TerminalPreferences[K]) {
+export function updatePref<K extends keyof TerminalPreferences>(
+	key: K,
+	value: TerminalPreferences[K]
+) {
 	prefs = { ...prefs, [key]: value };
 	saveToStorage(prefs);
 }

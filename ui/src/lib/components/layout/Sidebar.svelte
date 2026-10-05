@@ -2,7 +2,24 @@
 	import { page } from '$app/state';
 	import { base } from '$app/paths';
 	import { goto } from '$app/navigation';
-	import { Terminal, Server, KeyRound, Settings, PanelLeftClose, PanelLeftOpen, LogOut, Sun, Moon, X, Layout, Trash2, Pencil, Plus } from 'lucide-svelte';
+	import { resolve } from '$app/paths';
+	import type { Pathname } from '$app/types';
+	import {
+		Terminal,
+		Server,
+		KeyRound,
+		Settings,
+		PanelLeftClose,
+		PanelLeftOpen,
+		LogOut,
+		Sun,
+		Moon,
+		X,
+		Layout,
+		Trash2,
+		Pencil,
+		Plus
+	} from 'lucide-svelte';
 	import type { Server as ServerType, TerminalProfile } from '$lib/types/index.js';
 	import { logout } from '$lib/api/client.js';
 	import * as themeState from '$lib/state/theme.svelte.js';
@@ -23,7 +40,20 @@
 		onDeleteProfile?: (id: number) => void;
 	}
 
-	let { servers, profiles = [], loading = false, error = null, collapsed = false, mobileOpen = false, onToggle, onMobileClose, onConnectServer, onLoadProfile, onEditProfile, onDeleteProfile }: Props = $props();
+	let {
+		servers,
+		profiles = [],
+		loading = false,
+		error = null,
+		collapsed = false,
+		mobileOpen = false,
+		onToggle,
+		onMobileClose,
+		onConnectServer,
+		onLoadProfile,
+		onEditProfile,
+		onDeleteProfile
+	}: Props = $props();
 
 	const navItems = [
 		{ href: `${base}/`, icon: Terminal, label: 'Terminal' },
@@ -41,7 +71,7 @@
 	function handleNavClick(e: MouseEvent, href: string) {
 		e.preventDefault(); // prevent full page reload in Tauri WebView
 		onMobileClose?.();
-		goto(href);
+		goto(resolve(href as Pathname));
 	}
 
 	function handleServerConnect(server: ServerType) {
@@ -59,12 +89,18 @@
 <aside
 	class="flex-col bg-sidebar border-r border-sidebar-border transition-all duration-200
 		{mobileOpen
-			? 'fixed inset-y-0 left-0 z-40 w-64 flex translate-x-0 pl-[env(safe-area-inset-left)] pt-[calc(env(safe-area-inset-top)/2)] pb-[env(safe-area-inset-bottom)]'
-			: isMobile() ? 'hidden' : 'hidden md:flex'} {!mobileOpen && collapsed ? 'w-12' : !mobileOpen ? 'w-56' : ''}"
+		? 'fixed inset-y-0 left-0 z-40 w-64 flex translate-x-0 pl-[env(safe-area-inset-left)] pt-[calc(env(safe-area-inset-top)/2)] pb-[env(safe-area-inset-bottom)]'
+		: isMobile()
+			? 'hidden'
+			: 'hidden md:flex'} {!mobileOpen && collapsed ? 'w-12' : !mobileOpen ? 'w-56' : ''}"
 	aria-label="Sidebar"
 >
 	<!-- Logo / Toggle -->
-	<div class="flex items-center justify-between py-3 border-b border-sidebar-border {mobileOpen ? 'pl-14 pr-3' : 'px-3'}">
+	<div
+		class="flex items-center justify-between py-3 border-b border-sidebar-border {mobileOpen
+			? 'pl-14 pr-3'
+			: 'px-3'}"
+	>
 		{#if mobileOpen || !collapsed}
 			<span class="text-sm font-bold text-sidebar-foreground tracking-tight">SvrCtlRS</span>
 		{/if}
@@ -96,13 +132,13 @@
 
 	<!-- Navigation -->
 	<nav class="flex flex-col gap-0.5 px-2 py-2" aria-label="Main navigation">
-		{#each navItems as item}
+		{#each navItems as item (item.href)}
 			<a
-				href={item.href}
+				href={resolve(item.href as Pathname)}
 				class="flex items-center gap-2.5 px-2 py-2.5 md:py-1.5 rounded-sm text-sm transition-colors
 					{isActive(item.href)
-						? 'bg-sidebar-accent text-sidebar-foreground'
-						: 'text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}"
+					? 'bg-sidebar-accent text-sidebar-foreground'
+					: 'text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}"
 				title={collapsed && !mobileOpen ? item.label : undefined}
 				aria-current={isActive(item.href) ? 'page' : undefined}
 				onclick={(e) => handleNavClick(e, item.href)}
@@ -119,7 +155,9 @@
 	{#if mobileOpen || !collapsed}
 		<div class="flex-1 overflow-y-auto border-t border-sidebar-border" aria-label="Servers">
 			<div class="px-3 py-2">
-				<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold mb-1.5">Servers</h3>
+				<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold mb-1.5">
+					Servers
+				</h3>
 				{#if loading}
 					<p class="text-xs text-sidebar-muted italic">Loading...</p>
 				{:else if error}
@@ -128,15 +166,17 @@
 					<p class="text-xs text-sidebar-muted italic">No servers configured</p>
 				{:else}
 					<div class="flex flex-col gap-0.5">
-						{#each servers as server}
+						{#each servers as server (server.id)}
 							<button
 								class="flex items-center gap-2 px-2 py-2.5 md:py-1.5 text-xs rounded-sm text-left w-full
 									text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
 								onclick={() => handleServerConnect(server)}
 								title="Connect to {server.name}"
 							>
-								<span class="w-1.5 h-1.5 rounded-full flex-shrink-0
-									{server.enabled ? 'bg-success' : 'bg-text-muted'}"></span>
+								<span
+									class="w-1.5 h-1.5 rounded-full flex-shrink-0
+									{server.enabled ? 'bg-success' : 'bg-text-muted'}"
+								></span>
 								<span class="truncate">{server.name}</span>
 								{#if server.is_local}
 									<span class="text-[9px] text-sidebar-muted ml-auto">local</span>
@@ -154,7 +194,9 @@
 		<div class="border-t border-sidebar-border">
 			<div class="px-3 py-2">
 				<div class="flex items-center justify-between mb-1.5">
-					<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold">Profiles</h3>
+					<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold">
+						Profiles
+					</h3>
 					<button
 						class="p-0.5 text-sidebar-muted hover:text-sidebar-foreground transition-colors"
 						onclick={handleSaveProfile}
@@ -166,7 +208,7 @@
 				</div>
 				{#if profiles.length > 0}
 					<div class="flex flex-col gap-0.5">
-						{#each profiles as profile}
+						{#each profiles as profile (profile.id)}
 							<div class="flex items-center gap-1 group">
 								<button
 									class="flex items-center gap-2 px-2 py-1.5 text-xs rounded-sm text-left flex-1 min-w-0
@@ -189,7 +231,9 @@
 								</button>
 								<button
 									class="p-1 text-sidebar-muted hover:text-error opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-									onclick={() => { if (confirm('Delete this profile?')) onDeleteProfile?.(profile.id); }}
+									onclick={() => {
+										if (confirm('Delete this profile?')) onDeleteProfile?.(profile.id);
+									}}
 									aria-label="Delete profile"
 								>
 									<Trash2 class="w-3 h-3" />

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Server, Plus, Pencil, Trash2, Wifi, WifiOff, KeyRound } from 'lucide-svelte';
+	import { Server, Plus, Pencil, Trash2, Wifi, KeyRound } from 'lucide-svelte';
 	import * as serversApi from '$lib/api/servers.js';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -11,7 +11,12 @@
 	import * as credState from '$lib/state/credentials.svelte.js';
 	import * as toast from '$lib/state/toast.svelte.js';
 	import { extractErrorMessage } from '$lib/utils/error.js';
-	import type { CreateServer, UpdateServer, TestConnectionResult, HostKey } from '$lib/types/index.js';
+	import type {
+		CreateServer,
+		UpdateServer,
+		TestConnectionResult,
+		HostKey
+	} from '$lib/types/index.js';
 
 	let showModal = $state(false);
 	let editingId = $state<number | null>(null);
@@ -43,8 +48,14 @@
 	});
 
 	function resetForm() {
-		name = ''; hostname = ''; port = 22; username = '';
-		credentialId = ''; description = ''; isLocal = false; enabled = true;
+		name = '';
+		hostname = '';
+		port = 22;
+		username = '';
+		credentialId = '';
+		description = '';
+		isLocal = false;
+		enabled = true;
 		editingId = null;
 	}
 
@@ -53,7 +64,7 @@
 		showModal = true;
 	}
 
-	function openEdit(server: typeof servers[0]) {
+	function openEdit(server: (typeof servers)[0]) {
 		editingId = server.id;
 		name = server.name;
 		hostname = server.hostname ?? '';
@@ -69,11 +80,28 @@
 	async function handleSubmit() {
 		try {
 			if (editingId) {
-				const input: UpdateServer = { name, hostname: hostname || undefined, port, username: username || undefined, credential_id: credentialId ? Number(credentialId) : undefined, description: description || undefined, enabled };
+				const input: UpdateServer = {
+					name,
+					hostname: hostname || undefined,
+					port,
+					username: username || undefined,
+					credential_id: credentialId ? Number(credentialId) : undefined,
+					description: description || undefined,
+					enabled
+				};
 				await serversState.updateServer(editingId, input);
 				toast.success('Server updated');
 			} else {
-				const input: CreateServer = { name, hostname: hostname || undefined, port, username: username || undefined, credential_id: credentialId ? Number(credentialId) : undefined, description: description || undefined, is_local: isLocal, enabled };
+				const input: CreateServer = {
+					name,
+					hostname: hostname || undefined,
+					port,
+					username: username || undefined,
+					credential_id: credentialId ? Number(credentialId) : undefined,
+					description: description || undefined,
+					is_local: isLocal,
+					enabled
+				};
 				await serversState.createServer(input);
 				toast.success('Server created');
 			}
@@ -107,7 +135,12 @@
 	}
 	async function forgetHostKeys() {
 		if (!keysServer) return;
-		if (!confirm(`Forget all stored host keys for ${keysServer.name}? The next connection will trust whatever key the server presents.`)) return;
+		if (
+			!confirm(
+				`Forget all stored host keys for ${keysServer.name}? The next connection will trust whatever key the server presents.`
+			)
+		)
+			return;
 		try {
 			const removed = await serversApi.forgetHostKeys(keysServer.id);
 			toast.success(`Forgot ${removed} host key${removed === 1 ? '' : 's'}`);
@@ -136,7 +169,9 @@
 </script>
 
 <div class="flex flex-col h-full">
-	<div class="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-4 border-b border-border">
+	<div
+		class="flex flex-wrap items-center justify-between gap-2 px-4 md:px-6 py-4 border-b border-border"
+	>
 		<div class="flex items-center gap-3">
 			<Server class="w-5 h-5 text-accent" />
 			<h1 class="text-lg font-semibold text-text-primary">Servers</h1>
@@ -151,7 +186,9 @@
 		{:else if serversError}
 			<div class="text-center py-8">
 				<p class="text-error">{serversError}</p>
-				<Button variant="secondary" class="mt-3" onclick={() => serversState.loadServers()}>Retry</Button>
+				<Button variant="secondary" class="mt-3" onclick={() => serversState.loadServers()}
+					>Retry</Button
+				>
 			</div>
 		{:else if servers.length === 0}
 			<div class="text-center text-text-muted">
@@ -161,7 +198,9 @@
 		{:else}
 			<div class="flex flex-col gap-2">
 				{#each servers as server (server.id)}
-					<div class="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 border border-border/50 rounded-lg px-4 py-3 hover:bg-surface-raised/30">
+					<div
+						class="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 border border-border/50 rounded-lg px-4 py-3 hover:bg-surface-raised/30"
+					>
 						<div class="flex items-center gap-2 min-w-0 w-full md:w-auto md:flex-1">
 							<span class="text-text-primary font-medium truncate">{server.name}</span>
 							{#if server.is_local}
@@ -179,19 +218,33 @@
 							{server.hostname ?? '—'}:{server.port}
 						</div>
 						{#if server.username}
-							<div class="text-text-muted text-xs w-full md:w-auto md:flex-1 truncate">User: {server.username}</div>
+							<div class="text-text-muted text-xs w-full md:w-auto md:flex-1 truncate">
+								User: {server.username}
+							</div>
 						{/if}
 						<div class="flex items-center gap-1 w-full md:w-auto md:flex-shrink-0">
-							<Button variant="ghost" size="sm" onclick={() => handleTest(server.id)} disabled={testing === server.id}>
+							<Button
+								variant="ghost"
+								size="sm"
+								onclick={() => handleTest(server.id)}
+								disabled={testing === server.id}
+							>
 								{#if testing === server.id}
-									<span class="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"></span>
+									<span
+										class="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"
+									></span>
 								{:else}
 									<Wifi class="w-3.5 h-3.5" />
 								{/if}
 								<span class="hidden md:inline">Test</span>
 							</Button>
 							{#if !server.is_local}
-								<Button variant="ghost" size="sm" onclick={() => openHostKeys(server)} title="Stored SSH host keys">
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => openHostKeys(server)}
+									title="Stored SSH host keys"
+								>
 									<KeyRound class="w-3.5 h-3.5" />
 									<span class="hidden md:inline">Keys</span>
 								</Button>
@@ -212,8 +265,18 @@
 	</div>
 </div>
 
-<Modal open={showModal} title={editingId ? 'Edit Server' : 'Add Server'} onClose={() => showModal = false}>
-	<form class="flex flex-col gap-3" onsubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
+<Modal
+	open={showModal}
+	title={editingId ? 'Edit Server' : 'Add Server'}
+	onClose={() => (showModal = false)}
+>
+	<form
+		class="flex flex-col gap-3"
+		onsubmit={(e) => {
+			e.preventDefault();
+			handleSubmit();
+		}}
+	>
 		<Input label="Name" bind:value={name} required placeholder="production-web-01" />
 		<div class="flex items-center gap-2">
 			<label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
@@ -229,7 +292,7 @@
 			</div>
 			<Select label="Credential" bind:value={credentialId}>
 				<option value="">None</option>
-				{#each credentials as cred}
+				{#each credentials as cred (cred.id)}
 					<option value={String(cred.id)}>{cred.name} ({cred.credential_type})</option>
 				{/each}
 			</Select>
@@ -242,12 +305,16 @@
 	</form>
 
 	{#snippet footer()}
-		<Button variant="secondary" onclick={() => showModal = false}>Cancel</Button>
+		<Button variant="secondary" onclick={() => (showModal = false)}>Cancel</Button>
 		<Button onclick={handleSubmit}>{editingId ? 'Save' : 'Create'}</Button>
 	{/snippet}
 </Modal>
 
-<Modal open={keysServer !== null} title={`Host keys — ${keysServer?.name ?? ''}`} onClose={() => keysServer = null}>
+<Modal
+	open={keysServer !== null}
+	title={`Host keys — ${keysServer?.name ?? ''}`}
+	onClose={() => (keysServer = null)}
+>
 	<p class="text-xs text-text-muted mb-3">
 		Keys trusted on first contact. A connection is refused when the server presents a key that
 		matches none of these. If the server's key legitimately changed, forget them and connect again.
@@ -255,7 +322,9 @@
 	{#if keysLoading}
 		<div class="text-text-muted text-sm">Loading...</div>
 	{:else if hostKeys.length === 0}
-		<div class="text-text-muted text-sm">No host key stored yet — the first connection will record one.</div>
+		<div class="text-text-muted text-sm">
+			No host key stored yet — the first connection will record one.
+		</div>
 	{:else}
 		<ul class="flex flex-col gap-2">
 			{#each hostKeys as key (key.id)}
@@ -265,14 +334,18 @@
 						<span class="font-mono text-xs text-text-primary break-all">{key.fingerprint}</span>
 					</div>
 					<div class="text-[11px] text-text-muted mt-1">
-						first seen {new Date(key.first_seen_at).toLocaleString()} · last seen {new Date(key.last_seen_at).toLocaleString()}
+						first seen {new Date(key.first_seen_at).toLocaleString()} · last seen {new Date(
+							key.last_seen_at
+						).toLocaleString()}
 					</div>
 				</li>
 			{/each}
 		</ul>
 	{/if}
 	{#snippet footer()}
-		<Button variant="secondary" onclick={() => keysServer = null}>Close</Button>
-		<Button variant="destructive" onclick={forgetHostKeys} disabled={hostKeys.length === 0}>Forget all keys</Button>
+		<Button variant="secondary" onclick={() => (keysServer = null)}>Close</Button>
+		<Button variant="destructive" onclick={forgetHostKeys} disabled={hostKeys.length === 0}
+			>Forget all keys</Button
+		>
 	{/snippet}
 </Modal>

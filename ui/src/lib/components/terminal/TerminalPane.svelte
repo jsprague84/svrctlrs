@@ -17,7 +17,14 @@
 	import * as terminalState from '$lib/state/terminal.svelte.js';
 	import { getServerUrl } from '$lib/platform/index.js';
 	import { post } from '$lib/api/client.js';
-	import type { TerminalMode, ConnectionStatus, CmdRequest, CmdResponse, PtyRequest, PtyResponse } from '$lib/types/index.js';
+	import type {
+		TerminalMode,
+		ConnectionStatus,
+		CmdRequest,
+		CmdResponse,
+		PtyRequest,
+		PtyResponse
+	} from '$lib/types/index.js';
 
 	interface Props {
 		tabId: string;
@@ -28,7 +35,14 @@
 		onOpenPalette?: () => void;
 	}
 
-	let { tabId, serverId, mode = 'pty', active = true, onStatusChange, onOpenPalette }: Props = $props();
+	let {
+		tabId,
+		serverId,
+		mode = 'pty',
+		active = true,
+		onStatusChange,
+		onOpenPalette
+	}: Props = $props();
 
 	let showReconnectOverlay = $state(false);
 	let shellEl: HTMLDivElement;
@@ -43,15 +57,14 @@
 	let gestureMode: GestureMode = 'idle';
 	let startX = 0;
 	let startY = 0;
-	let lastX = 0;
 	let lastY = 0;
 	let startTime = 0;
 	let lastTapTime = 0;
 	let tapFocusTimeout: ReturnType<typeof setTimeout> | null = null;
 
-	const TAP_MAX_MS = 220;       // max pointer-down duration to count as a tap (not a drag)
-	const DOUBLE_TAP_MS = 350;    // window between taps for double-tap detection
-	const FOCUS_DELAY_MS = 380;   // delay focus slightly longer than double-tap window
+	const TAP_MAX_MS = 220; // max pointer-down duration to count as a tap (not a drag)
+	const DOUBLE_TAP_MS = 350; // window between taps for double-tap detection
+	const FOCUS_DELAY_MS = 380; // delay focus slightly longer than double-tap window
 	const LOCK_DISTANCE = 10;
 	const AXIS_BIAS = 1.2;
 	const SWIPE_COMMIT_PX = 60;
@@ -59,9 +72,15 @@
 
 	function getCellHeight(): number {
 		try {
-			const dims = (terminal as any)?.['_core']?.['_renderService']?.['dimensions'];
+			// xterm has no public cell-size API; this reaches into its render service.
+			const internals = terminal as unknown as {
+				_core?: { _renderService?: { dimensions?: { css?: { cell?: { height?: number } } } } };
+			};
+			const dims = internals?._core?._renderService?.dimensions;
 			if (dims?.css?.cell?.height) return dims.css.cell.height;
-		} catch { /* ignore */ }
+		} catch {
+			/* ignore */
+		}
 		return CELL_HEIGHT_FALLBACK;
 	}
 
@@ -69,7 +88,7 @@
 		if (e.pointerType !== 'touch') return;
 		e.stopPropagation(); // prevent xterm.js from seeing this touch
 		gestureMode = 'pending';
-		startX = lastX = e.clientX;
+		startX = e.clientX;
 		startY = lastY = e.clientY;
 		startTime = performance.now();
 		shellEl.setPointerCapture(e.pointerId);
@@ -110,7 +129,6 @@
 			e.preventDefault();
 		}
 
-		lastX = e.clientX;
 		lastY = e.clientY;
 	}
 
@@ -125,7 +143,10 @@
 			const now = performance.now();
 			if (now - lastTapTime <= DOUBLE_TAP_MS) {
 				// Double-tap → cancel pending focus, open command palette
-				if (tapFocusTimeout) { clearTimeout(tapFocusTimeout); tapFocusTimeout = null; }
+				if (tapFocusTimeout) {
+					clearTimeout(tapFocusTimeout);
+					tapFocusTimeout = null;
+				}
 				onOpenPalette?.();
 				lastTapTime = 0;
 			} else {
@@ -358,7 +379,9 @@
 		}
 		const delay = RECONNECT_DELAYS[Math.min(reconnectAttempt, RECONNECT_DELAYS.length - 1)];
 		reconnectAttempt++;
-		terminal?.writeln(`\r\n\x1b[33m[Reconnecting... attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}]\x1b[0m`);
+		terminal?.writeln(
+			`\r\n\x1b[33m[Reconnecting... attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}]\x1b[0m`
+		);
 		reconnectTimeout = setTimeout(() => {
 			reconnectTimeout = null;
 			connect();
@@ -622,6 +645,7 @@
 	}
 
 	export function getOutput(): string {
+		// eslint-disable-next-line no-control-regex -- ANSI escape sequences start with ESC
 		const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
 		return outputHistory.map(stripAnsi).join('');
 	}
@@ -709,7 +733,10 @@
 		//   (mousedown/mouseup/click) which would also reach xterm.js and trigger focus.
 		// passive: false is REQUIRED — browsers default touchstart to passive,
 		//   which silently ignores preventDefault().
-		const suppressTouch = (e: Event) => { e.stopPropagation(); e.preventDefault(); };
+		const suppressTouch = (e: Event) => {
+			e.stopPropagation();
+			e.preventDefault();
+		};
 		shellEl.addEventListener('touchstart', suppressTouch, { capture: true, passive: false });
 		shellEl.addEventListener('touchmove', suppressTouch, { capture: true, passive: false });
 		shellEl.addEventListener('touchend', suppressTouch, { capture: true, passive: false });
@@ -758,7 +785,9 @@
 	<div class="terminal-viewport h-full w-full" bind:this={containerEl}></div>
 
 	{#if showReconnectOverlay}
-		<div class="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 gap-3">
+		<div
+			class="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 gap-3"
+		>
 			<p class="text-text-muted text-sm">Session disconnected</p>
 			<div class="flex gap-2">
 				<button
@@ -769,7 +798,10 @@
 				</button>
 				<button
 					class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-sm hover:opacity-90"
-					onclick={() => { clear(); connect(); }}
+					onclick={() => {
+						clear();
+						connect();
+					}}
 				>
 					New Session
 				</button>

@@ -116,6 +116,12 @@ jobs:
       - name: Svelte check
         run: cd ui && npm run check
 
+      - name: Lint (eslint + prettier)
+        run: cd ui && npm run lint
+
+      - name: Unit tests
+        run: cd ui && npm run test
+
       - name: Build
         run: cd ui && npm run build
 

@@ -1,7 +1,7 @@
 import type { TerminalTab, TerminalMode, ConnectionStatus, LayoutMode } from '$lib/types/index.js';
 import { isMobile } from '$lib/state/mobile.svelte.js';
 
-let tabs = $state<TerminalTab[]>([]);
+const tabs = $state<TerminalTab[]>([]);
 let activeTabId = $state<string | null>(null);
 let layout = $state<LayoutMode>('single');
 let tabCounter = $state(0);
@@ -121,9 +121,7 @@ export function focusDirection(direction: 'left' | 'right' | 'up' | 'down'): str
 	const currentSlot = getActiveSlot();
 	if (currentSlot === null) return null;
 
-	const maxSlots = layout === 'single' ? 1
-		: layout === 'split-h' || layout === 'split-v' ? 2
-		: 4;
+	const maxSlots = layout === 'single' ? 1 : layout === 'split-h' || layout === 'split-v' ? 2 : 4;
 
 	if (maxSlots <= 1) return null;
 
@@ -205,7 +203,10 @@ export function updateTabServer(id: string, serverId: number | null, serverName:
 }
 
 /** Capture the current layout as a profile-compatible state */
-export function captureProfileState(): { layout: LayoutMode; panes: Array<{ server_id: number | null; mode: string }> } {
+export function captureProfileState(): {
+	layout: LayoutMode;
+	panes: Array<{ server_id: number | null; mode: string }>;
+} {
 	return {
 		layout,
 		panes: tabs.map((t) => ({
@@ -216,7 +217,11 @@ export function captureProfileState(): { layout: LayoutMode; panes: Array<{ serv
 }
 
 /** Apply a profile: close all tabs and create new ones matching the profile */
-export function applyProfile(profileLayout: LayoutMode, panes: Array<{ server_id: number | null; mode: string | null }>, serverNames: Record<number, string>) {
+export function applyProfile(
+	profileLayout: LayoutMode,
+	panes: Array<{ server_id: number | null; mode: string | null }>,
+	serverNames: Record<number, string>
+) {
 	// Close all existing tabs
 	while (tabs.length > 0) {
 		tabs.pop();
@@ -229,7 +234,9 @@ export function applyProfile(profileLayout: LayoutMode, panes: Array<{ server_id
 
 	// Create tabs for each pane
 	for (const pane of panes) {
-		const name = pane.server_id ? (serverNames[pane.server_id] ?? `Server ${pane.server_id}`) : null;
+		const name = pane.server_id
+			? (serverNames[pane.server_id] ?? `Server ${pane.server_id}`)
+			: null;
 		const mode = (pane.mode === 'cmd' ? 'cmd' : 'pty') as TerminalMode;
 		const tab = createTab(pane.server_id, name, mode);
 		if (tab && pane.server_id) {
@@ -241,8 +248,13 @@ export function applyProfile(profileLayout: LayoutMode, panes: Array<{ server_id
 /** Assign visible slot indices based on layout and active tab */
 function assignSlots() {
 	// Mobile: always single pane regardless of layout setting
-	const maxSlots = isMobile() ? 1 :
-		layout === 'single' ? 1 : layout === 'split-h' || layout === 'split-v' ? 2 : 4;
+	const maxSlots = isMobile()
+		? 1
+		: layout === 'single'
+			? 1
+			: layout === 'split-h' || layout === 'split-v'
+				? 2
+				: 4;
 
 	// Reset all slots
 	for (const tab of tabs) tab.slot = null;

@@ -16,7 +16,7 @@
 	async function load(reset = false) {
 		loading = true;
 		try {
-			const page = await auditApi.listAudit(100, reset ? undefined : nextBefore ?? undefined);
+			const page = await auditApi.listAudit(100, reset ? undefined : (nextBefore ?? undefined));
 			entries = reset ? page.entries : [...entries, ...page.entries];
 			nextBefore = page.next_before;
 		} catch (e) {
@@ -49,10 +49,12 @@
 <div class="flex flex-col gap-3">
 	<div class="flex items-center justify-between">
 		<p class="text-xs text-text-muted">
-			Logins, sessions, commands and changes to servers, credentials and accounts. Entries are
-			kept for 180 days. Commands are recorded as typed; keep secrets out of command lines.
+			Logins, sessions, commands and changes to servers, credentials and accounts. Entries are kept
+			for 180 days. Commands are recorded as typed; keep secrets out of command lines.
 		</p>
-		<Button variant="secondary" size="sm" onclick={() => load(true)} disabled={loading}>Refresh</Button>
+		<Button variant="secondary" size="sm" onclick={() => load(true)} disabled={loading}
+			>Refresh</Button
+		>
 	</div>
 
 	{#if entries.length === 0 && !loading}
@@ -73,21 +75,31 @@
 				<tbody>
 					{#each entries as e (e.id)}
 						<tr class="border-t border-border/40 align-top">
-							<td class="py-1.5 pr-3 whitespace-nowrap text-text-secondary">{new Date(e.at).toLocaleString()}</td>
+							<td class="py-1.5 pr-3 whitespace-nowrap text-text-secondary"
+								>{new Date(e.at).toLocaleString()}</td
+							>
 							<td class="py-1.5 pr-3 text-text-primary">{e.username ?? '—'}</td>
 							<td class="py-1.5 pr-3"><Badge variant={variant(e.action)}>{e.action}</Badge></td>
 							<td class="py-1.5 pr-3 text-text-primary">
 								{#if e.target_type}{e.target_type} {e.target_name || `#${e.target_id}`}{:else}—{/if}
 							</td>
-							<td class="py-1.5 pr-3 font-mono text-text-muted hidden md:table-cell">{e.client_ip ?? ''}</td>
-							<td class="py-1.5 font-mono text-text-muted break-all hidden md:table-cell">{detailText(e)}</td>
+							<td class="py-1.5 pr-3 font-mono text-text-muted hidden md:table-cell"
+								>{e.client_ip ?? ''}</td
+							>
+							<td class="py-1.5 font-mono text-text-muted break-all hidden md:table-cell"
+								>{detailText(e)}</td
+							>
 						</tr>
 					{/each}
 				</tbody>
 			</table>
 		</div>
 		{#if nextBefore !== null}
-			<div><Button variant="secondary" size="sm" onclick={() => load(false)} disabled={loading}>Load more</Button></div>
+			<div>
+				<Button variant="secondary" size="sm" onclick={() => load(false)} disabled={loading}
+					>Load more</Button
+				>
+			</div>
 		{/if}
 	{/if}
 </div>

@@ -28,7 +28,12 @@
 	}
 </script>
 
-<form class="flex items-center gap-2 px-2 md:px-3 py-1 md:py-1.5 bg-surface-raised border-b border-border" onsubmit={e => { e.preventDefault(); }}>
+<form
+	class="flex items-center gap-2 px-2 md:px-3 py-1 md:py-1.5 bg-surface-raised border-b border-border"
+	onsubmit={(e) => {
+		e.preventDefault();
+	}}
+>
 	<span class="text-text-muted text-sm font-mono">$</span>
 	<input
 		type="text"
@@ -40,7 +45,12 @@
 	/>
 	<button
 		type="button"
-		onclick={() => { if (value.trim()) { onSubmit(value.trim()); value = ''; } }}
+		onclick={() => {
+			if (value.trim()) {
+				onSubmit(value.trim());
+				value = '';
+			}
+		}}
 		{disabled}
 		class="px-3 py-1.5 md:py-1 text-sm bg-primary text-primary-foreground rounded-sm hover:opacity-90 disabled:opacity-50"
 	>

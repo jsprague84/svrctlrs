@@ -19,7 +19,7 @@
 	}}
 >
 	<option value="">Select server...</option>
-	{#each servers as server}
+	{#each servers as server (server.id)}
 		<option value={server.id}>{server.name}{server.hostname ? ` (${server.hostname})` : ''}</option>
 	{/each}
 </select>

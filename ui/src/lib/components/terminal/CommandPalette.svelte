@@ -26,10 +26,21 @@
 		onConnect?: () => void;
 		onDisconnect?: () => void;
 		onConnectServer?: (serverId: number, serverName: string) => void;
-		serverId: number | null;
 	}
 
-	let { open, onClose, onInjectCommand, onSaveProfile, onClearTerminal, onCopyOutput, onDownloadOutput, onToggleSearch, onConnect, onDisconnect, onConnectServer, serverId }: Props = $props();
+	let {
+		open,
+		onClose,
+		onInjectCommand,
+		onSaveProfile,
+		onClearTerminal,
+		onCopyOutput,
+		onDownloadOutput,
+		onToggleSearch,
+		onConnect,
+		onDisconnect,
+		onConnectServer
+	}: Props = $props();
 
 	let query = $state('');
 	let selectedIndex = $state(0);
@@ -49,7 +60,9 @@
 				name: cmd.name,
 				detail: cmd.command,
 				category: 'command',
-				action: () => { if (onInjectCommand) onInjectCommand(cmd.command); }
+				action: () => {
+					if (onInjectCommand) onInjectCommand(cmd.command);
+				}
 			});
 		}
 
@@ -61,7 +74,9 @@
 				name: `Connect: ${server.name}`,
 				detail: server.hostname ?? 'local',
 				category: 'action',
-				action: () => { onConnectServer?.(server.id, server.name); }
+				action: () => {
+					onConnectServer?.(server.id, server.name);
+				}
 			});
 		}
 
@@ -71,32 +86,105 @@
 				name: 'Add Server',
 				detail: 'Configure a new server',
 				category: 'action',
-				action: () => { window.location.href = '/servers'; }
+				action: () => {
+					window.location.href = '/servers';
+				}
 			});
 		}
 
 		// App actions
 		result.push(
-			{ id: 'action-new-tab', name: 'New Tab', detail: 'Open a new terminal tab', category: 'action',
-				action: () => { terminalState.createTab(null, null, 'pty'); } },
-			{ id: 'action-close-tab', name: 'Close Tab', detail: 'Close the active terminal tab', category: 'action',
-				action: () => { const id = terminalState.getActiveTabId(); if (id) terminalState.closeTab(id); } },
-			{ id: 'action-connect', name: 'Connect', detail: 'Connect active tab to server', category: 'action',
-				action: () => { onConnect?.(); } },
-			{ id: 'action-disconnect', name: 'Disconnect', detail: 'Disconnect active tab', category: 'action',
-				action: () => { onDisconnect?.(); } },
-			{ id: 'action-clear', name: 'Clear Terminal', detail: 'Clear terminal output', category: 'action',
-				action: () => { onClearTerminal?.(); } },
-			{ id: 'action-copy', name: 'Copy Output', detail: 'Copy terminal output to clipboard', category: 'action',
-				action: () => { onCopyOutput?.(); } },
-			{ id: 'action-download', name: 'Download Output', detail: 'Download terminal output as file', category: 'action',
-				action: () => { onDownloadOutput?.(); } },
-			{ id: 'action-search', name: 'Search Output', detail: 'Search terminal output', category: 'action',
-				action: () => { onToggleSearch?.(); } },
-			{ id: 'action-save-profile', name: 'Save Layout as Profile', detail: 'Save current tabs and layout', category: 'action',
-				action: () => { onSaveProfile?.(); } },
-			{ id: 'action-toggle-theme', name: 'Toggle Theme', detail: 'Switch between dark and light mode', category: 'action',
-				action: () => { themeState.toggleTheme(); } }
+			{
+				id: 'action-new-tab',
+				name: 'New Tab',
+				detail: 'Open a new terminal tab',
+				category: 'action',
+				action: () => {
+					terminalState.createTab(null, null, 'pty');
+				}
+			},
+			{
+				id: 'action-close-tab',
+				name: 'Close Tab',
+				detail: 'Close the active terminal tab',
+				category: 'action',
+				action: () => {
+					const id = terminalState.getActiveTabId();
+					if (id) terminalState.closeTab(id);
+				}
+			},
+			{
+				id: 'action-connect',
+				name: 'Connect',
+				detail: 'Connect active tab to server',
+				category: 'action',
+				action: () => {
+					onConnect?.();
+				}
+			},
+			{
+				id: 'action-disconnect',
+				name: 'Disconnect',
+				detail: 'Disconnect active tab',
+				category: 'action',
+				action: () => {
+					onDisconnect?.();
+				}
+			},
+			{
+				id: 'action-clear',
+				name: 'Clear Terminal',
+				detail: 'Clear terminal output',
+				category: 'action',
+				action: () => {
+					onClearTerminal?.();
+				}
+			},
+			{
+				id: 'action-copy',
+				name: 'Copy Output',
+				detail: 'Copy terminal output to clipboard',
+				category: 'action',
+				action: () => {
+					onCopyOutput?.();
+				}
+			},
+			{
+				id: 'action-download',
+				name: 'Download Output',
+				detail: 'Download terminal output as file',
+				category: 'action',
+				action: () => {
+					onDownloadOutput?.();
+				}
+			},
+			{
+				id: 'action-search',
+				name: 'Search Output',
+				detail: 'Search terminal output',
+				category: 'action',
+				action: () => {
+					onToggleSearch?.();
+				}
+			},
+			{
+				id: 'action-save-profile',
+				name: 'Save Layout as Profile',
+				detail: 'Save current tabs and layout',
+				category: 'action',
+				action: () => {
+					onSaveProfile?.();
+				}
+			},
+			{
+				id: 'action-toggle-theme',
+				name: 'Toggle Theme',
+				detail: 'Switch between dark and light mode',
+				category: 'action',
+				action: () => {
+					themeState.toggleTheme();
+				}
+			}
 		);
 
 		return result;
@@ -142,7 +230,8 @@
 			if (filtered.length > 0) selectedIndex = (selectedIndex + 1) % filtered.length;
 		} else if (e.key === 'ArrowUp') {
 			e.preventDefault();
-			if (filtered.length > 0) selectedIndex = (selectedIndex - 1 + filtered.length) % filtered.length;
+			if (filtered.length > 0)
+				selectedIndex = (selectedIndex - 1 + filtered.length) % filtered.length;
 		} else if (e.key === 'Enter') {
 			e.preventDefault();
 			if (filtered[selectedIndex]) {
@@ -169,11 +258,13 @@
 </script>
 
 <!-- Always in DOM, toggle visibility via CSS to avoid WebKitGTK layout corruption -->
-<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
 	class="fixed inset-0 bg-black/40 z-40 transition-opacity duration-100
 		{open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
-	onclick={(e) => { e.stopPropagation(); closePalette(); }}
+	onclick={(e) => {
+		e.stopPropagation();
+		closePalette();
+	}}
 	onkeydown={() => {}}
 	role="presentation"
 ></div>
@@ -181,9 +272,8 @@
 <div
 	class="fixed z-50 bg-surface border border-border shadow-lg flex flex-col overflow-hidden transition-opacity duration-100
 		{isMobile()
-			? 'bottom-0 inset-x-0 rounded-t-lg max-h-[42vh] pb-[env(safe-area-inset-bottom,0px)]'
-			: 'top-[20%] left-1/2 -translate-x-1/2 w-full max-w-md rounded-lg'
-		}
+		? 'bottom-0 inset-x-0 rounded-t-lg max-h-[42vh] pb-[env(safe-area-inset-bottom,0px)]'
+		: 'top-[20%] left-1/2 -translate-x-1/2 w-full max-w-md rounded-lg'}
 		{open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
 	role="dialog"
 	aria-label="Command palette"
@@ -213,8 +303,13 @@
 			{#each filtered as item, i (item.id)}
 				<button
 					class="w-full text-left px-3 py-2 flex items-center gap-3 text-sm transition-colors
-						{i === selectedIndex ? 'bg-accent/10 text-text-primary' : 'text-text-secondary hover:bg-surface-raised'}"
-					onclick={(e) => { e.stopPropagation(); selectItem(item); }}
+						{i === selectedIndex
+						? 'bg-accent/10 text-text-primary'
+						: 'text-text-secondary hover:bg-surface-raised'}"
+					onclick={(e) => {
+						e.stopPropagation();
+						selectItem(item);
+					}}
 					role="option"
 					aria-selected={i === selectedIndex}
 				>

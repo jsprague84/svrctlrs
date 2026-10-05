@@ -15,7 +15,7 @@
 	import type { Server, TerminalProfile, LayoutMode } from '$lib/types/index.js';
 	import { extractErrorMessage } from '$lib/utils/error.js';
 	import { goto } from '$app/navigation';
-	import { base } from '$app/paths';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { Menu } from 'lucide-svelte';
 
@@ -56,7 +56,9 @@
 		}
 
 		// Listen for toggle-sidebar events from child components (e.g., MobileStatusBar)
-		const handleToggleSidebar = () => { mobileOpen = !mobileOpen; };
+		const handleToggleSidebar = () => {
+			mobileOpen = !mobileOpen;
+		};
 		window.addEventListener('toggle-sidebar', handleToggleSidebar);
 		return () => window.removeEventListener('toggle-sidebar', handleToggleSidebar);
 	});
@@ -73,7 +75,7 @@
 	function handleConnectServer(server: Server) {
 		// Reuse an existing disconnected tab if available, otherwise create new
 		const tabs = terminalState.getTabs();
-		let tab = tabs.find(t => t.status === 'disconnected');
+		let tab = tabs.find((t) => t.status === 'disconnected');
 		if (tab) {
 			terminalState.updateTabServer(tab.id, server.id, server.name);
 			terminalState.updateTabMode(tab.id, 'pty');
@@ -88,7 +90,7 @@
 		mobileOpen = false;
 		const currentPath = page.url?.pathname ?? '';
 		if (currentPath !== '/') {
-			goto(`${base}/`);
+			goto(resolve('/'));
 		}
 	}
 
@@ -102,7 +104,7 @@
 			profile.pane_configs ?? [],
 			serverNames
 		);
-		goto(`${base}/`);
+		goto(resolve('/'));
 	}
 
 	async function handleDeleteProfile(id: number) {
@@ -116,71 +118,73 @@
 </script>
 
 {#if needsServerSetup}
-	<ServerUrlSetup onComplete={() => {
-		needsServerSetup = false;
-		serversState.loadServers();
-		profilesState.loadProfiles();
-	}} />
+	<ServerUrlSetup
+		onComplete={() => {
+			needsServerSetup = false;
+			serversState.loadServers();
+			profilesState.loadProfiles();
+		}}
+	/>
 {:else if isAuthPage}
 	<!-- Auth pages render without sidebar/chrome -->
 	{@render children()}
 	<Toast />
 {:else}
-
-<!-- Mobile backdrop -->
-{#if mobileOpen}
-	<button
-		class="fixed inset-0 bg-black/50 z-30 md:hidden"
-		onclick={closeMobileSidebar}
-		aria-label="Close sidebar"
-		tabindex="-1"
-	></button>
-{/if}
-
-<div class="flex h-screen bg-background text-foreground relative">
-	<Sidebar
-		{servers}
-		{profiles}
-		loading={serversLoading}
-		error={serversError}
-		collapsed={sidebarCollapsed}
-		{mobileOpen}
-		onToggle={toggleSidebar}
-		onMobileClose={closeMobileSidebar}
-		onConnectServer={handleConnectServer}
-		onLoadProfile={handleLoadProfile}
-		onEditProfile={(profile) => editingProfile = profile}
-		onDeleteProfile={handleDeleteProfile}
-	/>
-	<ProfileEditModal
-		open={!!editingProfile}
-		profile={editingProfile}
-		onClose={() => editingProfile = null}
-	/>
-	<!-- Terminal view: always mounted so sessions persist across navigation -->
-	<TerminalView visible={isTerminalPage} />
-
-	<!-- Other pages: rendered normally, hidden when terminal is active -->
-	{#if !isTerminalPage}
-		<main
-			class="flex-1 min-w-0 flex flex-col"
-			style:padding-bottom={isMobile() ? 'env(safe-area-inset-bottom, 0px)' : undefined}
-		>
-			{#if isMobile()}
-				<div class="flex items-center px-2 pt-[env(safe-area-inset-top,0px)] bg-surface z-50 relative">
-					<button
-						class="p-2 rounded-md bg-surface border border-border text-foreground"
-						onclick={() => (mobileOpen = !mobileOpen)}
-						aria-label={mobileOpen ? 'Close sidebar' : 'Open sidebar'}
-					>
-						<Menu class="w-5 h-5" />
-					</button>
-				</div>
-			{/if}
-			{@render children()}
-		</main>
+	<!-- Mobile backdrop -->
+	{#if mobileOpen}
+		<button
+			class="fixed inset-0 bg-black/50 z-30 md:hidden"
+			onclick={closeMobileSidebar}
+			aria-label="Close sidebar"
+			tabindex="-1"
+		></button>
 	{/if}
-</div>
-<Toast />
 
+	<div class="flex h-screen bg-background text-foreground relative">
+		<Sidebar
+			{servers}
+			{profiles}
+			loading={serversLoading}
+			error={serversError}
+			collapsed={sidebarCollapsed}
+			{mobileOpen}
+			onToggle={toggleSidebar}
+			onMobileClose={closeMobileSidebar}
+			onConnectServer={handleConnectServer}
+			onLoadProfile={handleLoadProfile}
+			onEditProfile={(profile) => (editingProfile = profile)}
+			onDeleteProfile={handleDeleteProfile}
+		/>
+		<ProfileEditModal
+			open={!!editingProfile}
+			profile={editingProfile}
+			onClose={() => (editingProfile = null)}
+		/>
+		<!-- Terminal view: always mounted so sessions persist across navigation -->
+		<TerminalView visible={isTerminalPage} />
+
+		<!-- Other pages: rendered normally, hidden when terminal is active -->
+		{#if !isTerminalPage}
+			<main
+				class="flex-1 min-w-0 flex flex-col"
+				style:padding-bottom={isMobile() ? 'env(safe-area-inset-bottom, 0px)' : undefined}
+			>
+				{#if isMobile()}
+					<div
+						class="flex items-center px-2 pt-[env(safe-area-inset-top,0px)] bg-surface z-50 relative"
+					>
+						<button
+							class="p-2 rounded-md bg-surface border border-border text-foreground"
+							onclick={() => (mobileOpen = !mobileOpen)}
+							aria-label={mobileOpen ? 'Close sidebar' : 'Open sidebar'}
+						>
+							<Menu class="w-5 h-5" />
+						</button>
+					</div>
+				{/if}
+				{@render children()}
+			</main>
+		{/if}
+	</div>
+	<Toast />
 {/if}

@@ -1,7 +1,8 @@
 <script lang="ts">
 	import Button from './Button.svelte';
 	import Input from './Input.svelte';
-	import { setServerUrl } from '$lib/platform/index.js';
+	import { setServerUrl, getPlatform } from '$lib/platform/index.js';
+	import { normalizeServerUrl } from '$lib/platform/url.js';
 
 	interface Props {
 		onComplete: () => void;
@@ -13,14 +14,22 @@
 	let testing = $state(false);
 	let testResult = $state<'success' | 'error' | null>(null);
 	let errorMessage = $state('');
+	let normalized = $state('');
+
+	let isPlainHttp = $derived(normalized.startsWith('http://'));
 
 	async function testConnection() {
-		if (!url.trim()) return;
+		const result = normalizeServerUrl(url, getPlatform());
+		if ('error' in result) {
+			testResult = 'error';
+			errorMessage = result.error;
+			return;
+		}
+		normalized = result.url;
+		const cleanUrl = normalized;
 		testing = true;
 		testResult = null;
 		errorMessage = '';
-
-		const cleanUrl = url.trim().replace(/\/+$/, '');
 
 		try {
 			const res = await fetch(`${cleanUrl}/api/v1/health`, {
@@ -42,8 +51,8 @@
 	}
 
 	function handleSave() {
-		if (!url.trim()) return;
-		setServerUrl(url.trim());
+		if (!normalized) return;
+		setServerUrl(normalized);
 		onComplete();
 	}
 </script>
@@ -56,14 +65,16 @@
 		</p>
 
 		<div class="flex flex-col gap-3">
-			<Input
-				label="Server URL"
-				bind:value={url}
-				placeholder="https://svrctlrs.example.com"
-			/>
+			<Input label="Server URL" bind:value={url} placeholder="https://svrctlrs.example.com" />
 
 			{#if testResult === 'success'}
-				<p class="text-sm text-success">Connected successfully!</p>
+				<p class="text-sm text-success">Connected to {normalized}</p>
+				{#if isPlainHttp}
+					<p class="text-xs text-warning">
+						Plain http: your password and sessions travel unencrypted. Use https unless this is a
+						trusted LAN.
+					</p>
+				{/if}
 			{:else if testResult === 'error'}
 				<p class="text-sm text-error">{errorMessage}</p>
 			{/if}

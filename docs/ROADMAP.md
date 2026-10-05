@@ -36,9 +36,9 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | Observability | `tracing-subscriber` has `json` enabled but is never used | `LOG_FORMAT=json`, request ids |
 | Desktop | Done 2026-10-05 (unverified until the next desktop CI build): tray uses the bundled icon; close hides to the tray only when a tray was created, otherwise it quits. The tray menu already had Show/Quit | `ui/src-tauri/src/lib.rs` |
 | Identity | Tauri `app.js-node.svrctlrs` vs Flatpak `cc.jsnode.svrctlrs` → two desktop IDs | pick one (`cc.jsnode.svrctlrs` is the standard reverse-DNS of js-node.cc); note it changes the Android `applicationId`, so decide before the first signed public APK |
-| Android | `usesCleartextTraffic=false` with no UI warning for `http://` URLs; AAB built but never published; biometrics plugin registered but unused | validate scheme in `ServerUrlSetup`; publish the AAB or drop it; wire biometrics to unlock the stored token or remove the dependency |
-| Frontend tooling | no eslint/prettier/vitest, no `engines` | add them with a `lint`/`test` script and a CI step; `engines.node >= 22.12` |
-| a11y | icon buttons without labels (`TerminalTabs`, `Toast`, `TerminalPrefsPanel`), palette `role=option` without `listbox`, tabs without arrow-key navigation, toast without `aria-live`, 8 svelte-check warnings | fix the warnings first; they are the cheap half |
+| Android | Partly done 2026-10-05: the server-URL screen normalises the URL, refuses plain `http://` on Android and warns about it on desktop. Still open: AAB built but never published; biometrics plugin registered but unused | `ui/src/lib/platform/url.ts` |
+| Frontend tooling | Done 2026-10-05: ESLint (flat config, Svelte + TS), Prettier, Vitest with the first unit tests, `engines.node >= 22.12`; `lint` and `test` run in CI | `ui/eslint.config.js`, `ui/.prettierrc` |
+| a11y | Partly done 2026-10-05: svelte-check is at 0 warnings (labels associated, stable ids via `$props.id()`). Still open: icon buttons without labels (`TerminalTabs`, `Toast`, `TerminalPrefsPanel`), palette `role=option` without `listbox`, tabs without arrow-key navigation, toast without `aria-live` | — |
 | Flatpak | GNOME 46 runtime is end-of-life; no AppStream metainfo; bundles a binary built outside the sandbox | move to 48, add `metainfo.xml`, build inside flatpak-builder or drop Flatpak in favour of AppImage |
 | Docs | no screenshots | add to README and USER-GUIDE once the UI settles |
 

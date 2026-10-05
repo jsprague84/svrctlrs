@@ -9,7 +9,9 @@
 
 	let { label, error, value = $bindable(''), class: className = '', id, ...rest }: Props = $props();
 
-	const inputId = id ?? `input-${Math.random().toString(36).slice(2, 8)}`;
+	// Stable per instance, and tracks a later change to the `id` prop
+	const uid = $props.id();
+	let inputId = $derived(id ?? `input-${uid}`);
 </script>
 
 <div class="flex flex-col gap-1">
