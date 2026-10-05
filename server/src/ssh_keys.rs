@@ -61,6 +61,49 @@ pub async fn credential_key(cred: &Credential) -> Result<KeyCandidate, String> {
     })
 }
 
+/// A freshly generated ed25519 key pair in OpenSSH text form.
+pub struct GeneratedKey {
+    pub private_openssh: String,
+    pub public_openssh: String,
+}
+
+/// Generate an ed25519 key pair. The seed comes from the OS RNG; the key never leaves the
+/// server except as the public half.
+pub fn generate_ed25519(comment: &str) -> Result<GeneratedKey, String> {
+    use rand::RngCore;
+    use russh::keys::ssh_key::private::{Ed25519Keypair, KeypairData};
+    use russh::keys::ssh_key::LineEnding;
+
+    let mut seed = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut seed);
+    let keypair = Ed25519Keypair::from_seed(&seed);
+    let key = russh::keys::PrivateKey::new(KeypairData::Ed25519(keypair), comment)
+        .map_err(|e| format!("Failed to build key: {e}"))?;
+    let private_openssh = key
+        .to_openssh(LineEnding::LF)
+        .map_err(|e| format!("Failed to encode private key: {e}"))?
+        .to_string();
+    let public_openssh = key
+        .public_key()
+        .to_openssh()
+        .map_err(|e| format!("Failed to encode public key: {e}"))?;
+    Ok(GeneratedKey {
+        private_openssh,
+        public_openssh,
+    })
+}
+
+/// The public half of an `ssh_key` credential whose value is key material, in the form that
+/// goes into `authorized_keys`. `None` for path credentials or unparsable material.
+pub fn public_key_of(cred: &Credential) -> Option<String> {
+    if !cred.value_is_key_material() {
+        return None;
+    }
+    let passphrase = cred.passphrase();
+    let key = russh::keys::decode_secret_key(&cred.value, passphrase.as_deref()).ok()?;
+    key.public_key().to_openssh().ok()
+}
+
 /// The server's own default keys (`~/.ssh/id_*`), used when a server has no credential.
 pub async fn default_keys() -> Vec<KeyCandidate> {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
@@ -97,6 +140,27 @@ mod tests {
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
+    }
+
+    #[test]
+    fn generated_keys_round_trip_and_expose_their_public_half() {
+        let g = generate_ed25519("svrctlrs test").unwrap();
+        assert!(g
+            .private_openssh
+            .starts_with("-----BEGIN OPENSSH PRIVATE KEY-----"));
+        assert!(g.public_openssh.starts_with("ssh-ed25519 "));
+        assert!(g.public_openssh.ends_with("svrctlrs test"));
+
+        let c = cred(&g.private_openssh, None);
+        assert_eq!(
+            public_key_of(&c).as_deref(),
+            Some(g.public_openssh.as_str())
+        );
+        assert_ne!(
+            generate_ed25519("x").unwrap().public_openssh,
+            g.public_openssh
+        );
+        assert_eq!(public_key_of(&cred("/some/path", None)), None);
     }
 
     #[tokio::test]

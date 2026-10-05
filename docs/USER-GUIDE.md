@@ -7,6 +7,21 @@ edge you first pass the Pocket ID passkey prompt. On the desktop or Android app 
 screen asks for the server URL (`https://…`); the app checks it can reach the server, then
 shows the same login.
 
+## Setting up a new server (the short way)
+
+1. **Credentials → Generate SSH key** once. The private key is created and stored encrypted
+   on the SvrCtlRS server; you never handle it. The public key is shown with a copy button.
+2. **Servers → Add Server** with hostname, port and user.
+3. On the server's card, **Authorize key**: pick the key and log in *once* with the account's
+   password (used immediately, never stored) or an existing credential that already works.
+   SvrCtlRS appends the public key to `~/.ssh/authorized_keys` — what `ssh-copy-id` does —
+   verifies that the key logs in, and switches the server to it.
+4. Connect. The host key is trusted on first contact.
+
+Repeat step 3 for every further server; one app key can open all of them, and deleting the
+credential (then removing the line from `authorized_keys`) revokes it. If you prefer to
+install keys yourself, **Public key** on any key credential shows the `authorized_keys` line.
+
 ## Servers and credentials
 
 **Credentials** (sidebar → Credentials) hold how to authenticate: a password, or an SSH key

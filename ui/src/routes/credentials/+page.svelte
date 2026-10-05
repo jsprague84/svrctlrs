@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { KeyRound, Plus, Pencil, Trash2 } from 'lucide-svelte';
+	import { KeyRound, Plus, Pencil, Trash2, Sparkles, Copy } from 'lucide-svelte';
+	import * as credApi from '$lib/api/credentials.js';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Select from '$lib/components/ui/Select.svelte';
@@ -14,6 +15,13 @@
 
 	let showModal = $state(false);
 	let editingId = $state<number | null>(null);
+	// Generate-key modal
+	let showGenerate = $state(false);
+	let genName = $state('');
+	let genDescription = $state('');
+	let generating = $state(false);
+	// Public key modal (after generating, or from the list)
+	let publicKeyFor = $state<{ name: string; key: string } | null>(null);
 
 	// Form fields
 	let name = $state('');
@@ -111,6 +119,45 @@
 		}
 	}
 
+	async function handleGenerate() {
+		if (!genName.trim()) return;
+		generating = true;
+		try {
+			const res = await credApi.generateKey({
+				name: genName.trim(),
+				description: genDescription || undefined
+			});
+			await credState.loadCredentials();
+			showGenerate = false;
+			publicKeyFor = { name: genName.trim(), key: res.public_key };
+			genName = '';
+			genDescription = '';
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Failed to generate key'));
+		} finally {
+			generating = false;
+		}
+	}
+	async function showPublicKey(cred: { id: number; name: string }) {
+		try {
+			const full = await credApi.getCredential(cred.id);
+			if (!full.public_key) {
+				toast.error('No public key: this credential holds a path, not key material');
+				return;
+			}
+			publicKeyFor = { name: cred.name, key: full.public_key };
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Failed to load the public key'));
+		}
+	}
+	async function copyText(text: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			toast.success('Copied');
+		} catch {
+			toast.error('Clipboard unavailable; select and copy the text');
+		}
+	}
 	async function handleDelete(id: number) {
 		if (!confirm('Delete this credential?')) return;
 		try {
@@ -138,7 +185,12 @@
 			<h1 class="text-lg font-semibold text-text-primary">Credentials</h1>
 			<Badge>{credentials.length}</Badge>
 		</div>
-		<Button onclick={openCreate}><Plus class="w-4 h-4" /> Add Credential</Button>
+		<div class="flex items-center gap-2">
+			<Button variant="secondary" onclick={() => (showGenerate = true)}>
+				<Sparkles class="w-4 h-4" /> Generate SSH key
+			</Button>
+			<Button onclick={openCreate}><Plus class="w-4 h-4" /> Add Credential</Button>
+		</div>
 	</div>
 
 	<div class="flex-1 overflow-y-auto p-4 md:p-6">
@@ -186,6 +238,17 @@
 							</div>
 						{/if}
 						<div class="flex items-center gap-1 w-full md:w-auto md:flex-shrink-0">
+							{#if cred.credential_type === 'ssh_key'}
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => showPublicKey(cred)}
+									title="Show public key"
+								>
+									<KeyRound class="w-3.5 h-3.5" />
+									<span class="hidden md:inline">Public key</span>
+								</Button>
+							{/if}
 							<Button variant="ghost" size="sm" onclick={() => openEdit(cred)}>
 								<Pencil class="w-3.5 h-3.5" />
 								<span class="hidden md:inline">Edit</span>
@@ -317,5 +380,55 @@
 	{#snippet footer()}
 		<Button variant="secondary" onclick={() => (showModal = false)}>Cancel</Button>
 		<Button onclick={handleSubmit}>{editingId ? 'Save' : 'Create'}</Button>
+	{/snippet}
+</Modal>
+
+<Modal open={showGenerate} title="Generate SSH key" onClose={() => (showGenerate = false)}>
+	<form
+		class="flex flex-col gap-3"
+		onsubmit={(e) => {
+			e.preventDefault();
+			handleGenerate();
+		}}
+	>
+		<p class="text-xs text-text-muted">
+			An ed25519 key pair is created on the SvrCtlRS server. The private key is stored encrypted and
+			never shown; you get the public key to put in each server's <code>~/.ssh/authorized_keys</code
+			>
+			— or let <em>Authorize key…</em> on a server do that for you.
+		</p>
+		<Input label="Name" bind:value={genName} required placeholder="svrctlrs-key" />
+		<Input label="Description" bind:value={genDescription} placeholder="Optional" />
+	</form>
+	{#snippet footer()}
+		<Button variant="secondary" onclick={() => (showGenerate = false)}>Cancel</Button>
+		<Button onclick={handleGenerate} disabled={generating || !genName.trim()}>
+			{generating ? 'Generating...' : 'Generate'}
+		</Button>
+	{/snippet}
+</Modal>
+
+<Modal
+	open={publicKeyFor !== null}
+	title={`Public key — ${publicKeyFor?.name ?? ''}`}
+	onClose={() => (publicKeyFor = null)}
+>
+	{#if publicKeyFor}
+		<p class="text-xs text-text-muted mb-2">
+			Add this line to <code>~/.ssh/authorized_keys</code> on each server this key should open, or
+			use
+			<em>Authorize key…</em> on the server's card to have SvrCtlRS do it.
+		</p>
+		<textarea
+			readonly
+			rows="3"
+			class="w-full px-3 py-2 text-xs font-mono bg-input border border-border rounded-sm text-text-primary resize-y"
+			value={publicKeyFor.key}></textarea>
+	{/if}
+	{#snippet footer()}
+		<Button variant="secondary" onclick={() => (publicKeyFor = null)}>Close</Button>
+		<Button onclick={() => publicKeyFor && copyText(publicKeyFor.key)}
+			><Copy class="w-4 h-4" /> Copy</Button
+		>
 	{/snippet}
 </Modal>

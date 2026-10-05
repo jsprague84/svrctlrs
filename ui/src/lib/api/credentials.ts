@@ -31,3 +31,12 @@ export async function updateCredential(id: number, input: UpdateCredential): Pro
 export async function deleteCredential(id: number): Promise<void> {
 	await del<MutationResponse>(`/credentials/${id}`);
 }
+
+/** Generate an ed25519 key on the server; the private half is stored encrypted. */
+export async function generateKey(input: {
+	name: string;
+	description?: string;
+	comment?: string;
+}): Promise<{ id: number; public_key: string }> {
+	return post<{ id: number; public_key: string }>('/credentials/generate-key', input);
+}

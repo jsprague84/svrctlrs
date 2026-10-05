@@ -57,3 +57,11 @@ export async function forgetHostKeys(id: number): Promise<number> {
 	const res = await del<{ server_id: number; removed: number }>(`/servers/${id}/host-keys`);
 	return res.removed;
 }
+
+/** Install a key credential's public half on the server with one-time bootstrap access. */
+export async function authorizeKey(
+	id: number,
+	input: { credential_id: number; password?: string; bootstrap_credential_id?: number }
+): Promise<{ success: boolean; message: string }> {
+	return post<{ success: boolean; message: string }>(`/servers/${id}/authorize-key`, input);
+}

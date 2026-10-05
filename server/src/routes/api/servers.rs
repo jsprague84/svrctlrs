@@ -32,6 +32,182 @@ pub fn routes() -> Router<AppState> {
             "/{id}/host-keys",
             get(list_host_keys).delete(forget_host_keys),
         )
+        .route("/{id}/authorize-key", post(authorize_key))
+}
+
+/// Authorize-key input: which key to install, and how to get in once to install it.
+#[derive(Debug, Deserialize)]
+struct AuthorizeKeyInput {
+    credential_id: i64,
+    /// One-time bootstrap: the account's password (never stored) ...
+    #[serde(default)]
+    password: Option<String>,
+    /// ... or an existing credential that already works on the server.
+    #[serde(default)]
+    bootstrap_credential_id: Option<i64>,
+}
+
+/// What `ssh-copy-id` does: append the public key to `~/.ssh/authorized_keys` with sane
+/// permissions, idempotently.
+fn authorized_keys_install_command(public_key: &str) -> String {
+    let escaped = public_key.replace('\'', "'\\''");
+    format!(
+        "umask 077 && mkdir -p ~/.ssh && touch ~/.ssh/authorized_keys && \
+         (grep -qxF '{escaped}' ~/.ssh/authorized_keys || printf '%s\\n' '{escaped}' >> ~/.ssh/authorized_keys) && \
+         chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys && echo svrctlrs-key-installed"
+    )
+}
+
+/// Install a key credential's public half on the server using one-time bootstrap access,
+/// verify that the key now logs in, and make it the server's credential.
+#[instrument(skip(state, input))]
+async fn authorize_key(
+    State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(input): Json<AuthorizeKeyInput>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    use svrctlrs_database::models::{Credential, CredentialType};
+    use svrctlrs_database::queries::credentials;
+
+    let server = servers::get_server(&state.pool, id)
+        .await
+        .map_err(|_| ApiError::not_found("Server"))?;
+    if server.is_local {
+        return Err(ApiError::bad_request("A local server needs no SSH key"));
+    }
+    let hostname = server
+        .hostname
+        .clone()
+        .filter(|h| !h.is_empty())
+        .ok_or_else(|| ApiError::bad_request("Server has no hostname configured"))?;
+    let port = u16::try_from(server.port)
+        .map_err(|_| ApiError::bad_request("Server port is out of range"))?;
+
+    let key_cred = credentials::get_credential(&state.pool, input.credential_id)
+        .await
+        .map_err(|_| ApiError::not_found("Credential"))?;
+    if !key_cred.is_ssh_key() {
+        return Err(ApiError::bad_request(
+            "The credential to authorize must be an SSH key",
+        ));
+    }
+    let public_key = crate::ssh_keys::public_key_of(&key_cred).ok_or_else(|| {
+        ApiError::bad_request(
+            "Cannot derive the public key: the credential must hold private key material \
+             (generate a key, or paste one), not a path",
+        )
+    })?;
+
+    // Bootstrap identity: the typed password (as a throwaway credential) or a stored one.
+    let bootstrap: Credential = match (input.password, input.bootstrap_credential_id) {
+        (Some(pw), _) if !pw.is_empty() => Credential {
+            id: 0,
+            name: "bootstrap".to_string(),
+            credential_type_str: CredentialType::Password.as_str().to_string(),
+            description: None,
+            value: pw,
+            username: server.username.clone(),
+            metadata: None,
+            encrypted: false,
+            metadata_encrypted: false,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        },
+        (_, Some(cid)) => credentials::get_credential(&state.pool, cid)
+            .await
+            .map_err(|_| ApiError::not_found("Bootstrap credential"))?,
+        _ => {
+            return Err(ApiError::bad_request(
+                "Give the server password (used once, never stored) or an existing credential \
+                 that already works on it",
+            ))
+        }
+    };
+
+    let verified_key = crate::routes::terminal::verify_host_key(&state.pool, id, &hostname, port)
+        .await
+        .map_err(ApiError::bad_request)?;
+
+    let install = authorized_keys_install_command(&public_key);
+    let (stdout, stderr, code) = crate::routes::terminal::execute_ssh_command(
+        &server,
+        Some(&bootstrap),
+        &install,
+        None,
+        verified_key.as_deref(),
+    )
+    .await
+    .map_err(|e| ApiError::bad_request(format!("Could not log in to install the key: {e}")))?;
+    if code != 0 || !stdout.contains("svrctlrs-key-installed") {
+        return Err(ApiError::bad_request(format!(
+            "Installing the key failed (exit {code}): {}",
+            stderr.trim()
+        )));
+    }
+
+    // Prove the key works before switching the server over to it.
+    let (_, stderr, code) = crate::routes::terminal::execute_ssh_command(
+        &server,
+        Some(&key_cred),
+        "echo svrctlrs-key-ok",
+        None,
+        verified_key.as_deref(),
+    )
+    .await
+    .map_err(|e| {
+        ApiError::bad_request(format!("Key installed, but logging in with it failed: {e}"))
+    })?;
+    if code != 0 {
+        return Err(ApiError::bad_request(format!(
+            "Key installed, but logging in with it failed (exit {code}): {}",
+            stderr.trim()
+        )));
+    }
+
+    let update = UpdateServer {
+        credential_id: Some(key_cred.id),
+        ..Default::default()
+    };
+    servers::update_server(&state.pool, id, &update)
+        .await
+        .map_err(|e| {
+            ApiError::internal_error(format!("Key works, but updating the server failed: {e}"))
+        })?;
+
+    info!(
+        server_id = id,
+        credential_id = key_cred.id,
+        "SSH key authorized on server"
+    );
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("server.key_authorized")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("server", id, &server.name)
+            .details(json!({ "credential_id": key_cred.id, "credential": key_cred.name })),
+    );
+    Ok(Json(json!({
+        "success": true,
+        "server_id": id,
+        "credential_id": key_cred.id,
+        "message": format!("Key '{}' authorized on {}; the server now uses it", key_cred.name, server.name)
+    })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn install_command_is_idempotent_and_quotes_the_key() {
+        let cmd = authorized_keys_install_command("ssh-ed25519 AAAA it's");
+        assert!(cmd.contains("grep -qxF 'ssh-ed25519 AAAA it'\\''s'"));
+        assert!(cmd.contains("chmod 600 ~/.ssh/authorized_keys"));
+        assert!(cmd.ends_with("echo svrctlrs-key-installed"));
+    }
 }
 
 /// Stored SSH host keys for a server, with OpenSSH-style fingerprints (no key material).

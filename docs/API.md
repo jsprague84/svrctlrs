@@ -70,6 +70,7 @@ Codes: `BAD_REQUEST` (400), `NOT_FOUND` (404), `CONFLICT` (409), `INTERNAL_ERROR
 | POST | `/servers/{id}/test` | — | verifies the host key (trust on first use), authenticates with the server's credential and runs a trivial command; returns `success`, `message`, `latency_ms` |
 | GET | `/servers/{id}/host-keys` | — | stored host keys: `id`, `key_type`, `fingerprint` (`SHA256:…`, OpenSSH style), `first_seen_at`, `last_seen_at` — never the key itself |
 | DELETE | `/servers/{id}/host-keys` | — | forget every stored key; the next connection trusts what it sees. Returns `removed` |
+| POST | `/servers/{id}/authorize-key` | `credential_id` (an `ssh_key` with key material) plus `password` (one-time, never stored) or `bootstrap_credential_id` | installs the public key in `~/.ssh/authorized_keys` over the bootstrap login, verifies the key logs in, sets it as the server's credential. 400 with the reason otherwise |
 
 Server object: `id, name, hostname, port, username, credential_id, description, is_local,
 enabled, os_type, os_distro, package_manager, docker_available, systemd_available, metadata,
@@ -81,9 +82,10 @@ last_seen_at, last_error, created_at, updated_at`.
 |---|---|---|
 | GET | `/credentials` | — (no secrets: `has_value`, `has_passphrase`) |
 | POST | `/credentials` | `name`, `credential_type` (`password` \| `ssh_key` \| `api_token`), `value`, `description?`, `username?`, `passphrase?` |
-| GET | `/credentials/{id}` | `has_value`, `has_passphrase`, `in_use` instead of the secrets |
+| GET | `/credentials/{id}` | `has_value`, `has_passphrase`, `in_use`, and for keys with material `public_key` (the `authorized_keys` line) — never the secrets |
 | PUT | `/credentials/{id}` | `name?`, `description?`, `value?`, `username?`, `passphrase?` (omit to keep, `""` to remove) |
 | DELETE | `/credentials/{id}` | — |
+| POST | `/credentials/generate-key` | `name`, `description?`, `comment?` → 201 `{id, public_key}`; an ed25519 key stored encrypted as an `ssh_key` credential |
 
 For `ssh_key` credentials `value` is either the *private* key material (`-----BEGIN …`) or an
 absolute path readable by the server (for example a key mounted at

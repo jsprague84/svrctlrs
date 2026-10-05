@@ -6,7 +6,7 @@ use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -23,6 +23,7 @@ use svrctlrs_database::models::NewAuditEntry;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_credentials).post(create_credential))
+        .route("/generate-key", post(generate_key))
         .route(
             "/{id}",
             get(get_credential)
@@ -99,10 +100,75 @@ async fn get_credential(
         "username": cred.username,
         "has_value": !cred.value.is_empty(),
         "has_passphrase": cred.passphrase().is_some(),
+        "public_key": crate::ssh_keys::public_key_of(&cred),
         "in_use": in_use,
         "created_at": cred.created_at,
         "updated_at": cred.updated_at
     })))
+}
+
+/// Generate-key input
+#[derive(Debug, Deserialize)]
+struct GenerateKeyInput {
+    name: String,
+    #[serde(default)]
+    description: Option<String>,
+    /// Comment at the end of the public key line (defaults to `svrctlrs:<name>`)
+    #[serde(default)]
+    comment: Option<String>,
+}
+
+/// Generate an ed25519 key pair, store the private half as an encrypted `ssh_key`
+/// credential, and return the public half for `authorized_keys`.
+#[instrument(skip(state, input))]
+async fn generate_key(
+    State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
+    Json(input): Json<GenerateKeyInput>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let name = input.name.trim().to_string();
+    if name.is_empty() {
+        return Err(ApiError::bad_request("name is required"));
+    }
+    let comment = input
+        .comment
+        .filter(|c| !c.trim().is_empty())
+        .unwrap_or_else(|| format!("svrctlrs:{name}"));
+    let generated = crate::ssh_keys::generate_ed25519(&comment)
+        .map_err(|e| ApiError::internal_error(format!("Failed to generate key: {e}")))?;
+
+    let create = CreateCredential {
+        name: name.clone(),
+        credential_type: svrctlrs_database::models::CredentialType::SshKey,
+        value: generated.private_openssh,
+        description: input.description,
+        username: None,
+        metadata: None,
+    };
+    let id = credentials::create_credential(&state.pool, &create)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to store generated key");
+            ApiError::internal_error(format!("Failed to store generated key: {e}"))
+        })?;
+    info!(id, "Generated SSH key credential");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("credential.generated")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("credential", id, &name)
+            .details(json!({ "type": "ssh_key", "algorithm": "ed25519" })),
+    );
+    Ok((
+        StatusCode::CREATED,
+        Json(json!({
+            "id": id,
+            "public_key": generated.public_openssh,
+            "message": "Key generated"
+        })),
+    ))
 }
 
 /// Create credential input

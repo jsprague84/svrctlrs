@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Server, Plus, Pencil, Trash2, Wifi, KeyRound } from 'lucide-svelte';
+	import { Server, Plus, Pencil, Trash2, Wifi, KeyRound, ShieldCheck } from 'lucide-svelte';
 	import * as serversApi from '$lib/api/servers.js';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
@@ -22,6 +22,13 @@
 	let editingId = $state<number | null>(null);
 	let testing = $state<number | null>(null);
 	let testResult = $state<TestConnectionResult | null>(null);
+	// Authorize-key modal
+	let authServer = $state<{ id: number; name: string } | null>(null);
+	let authCredentialId = $state('');
+	let authMode = $state<'password' | 'credential'>('password');
+	let authPassword = $state('');
+	let authBootstrapId = $state('');
+	let authorizing = $state(false);
 	// Host keys modal
 	let keysServer = $state<{ id: number; name: string } | null>(null);
 	let hostKeys = $state<HostKey[]>([]);
@@ -41,6 +48,7 @@
 	let loading = $derived(serversState.isLoading());
 	let serversError = $derived(serversState.getError());
 	let credentials = $derived(credState.getCredentials());
+	let sshKeyCredentials = $derived(credentials.filter((c) => c.credential_type === 'ssh_key'));
 
 	onMount(() => {
 		serversState.loadServers();
@@ -121,6 +129,33 @@
 		}
 	}
 
+	function openAuthorize(server: { id: number; name: string }) {
+		authServer = server;
+		authCredentialId = sshKeyCredentials[0] ? String(sshKeyCredentials[0].id) : '';
+		authMode = 'password';
+		authPassword = '';
+		authBootstrapId = '';
+	}
+	async function handleAuthorize() {
+		if (!authServer || !authCredentialId) return;
+		authorizing = true;
+		try {
+			const res = await serversApi.authorizeKey(authServer.id, {
+				credential_id: Number(authCredentialId),
+				password: authMode === 'password' ? authPassword : undefined,
+				bootstrap_credential_id:
+					authMode === 'credential' && authBootstrapId ? Number(authBootstrapId) : undefined
+			});
+			toast.success(res.message);
+			authServer = null;
+			authPassword = '';
+			await serversState.loadServers();
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Authorizing the key failed'));
+		} finally {
+			authorizing = false;
+		}
+	}
 	async function openHostKeys(server: { id: number; name: string }) {
 		keysServer = server;
 		hostKeys = [];
@@ -242,6 +277,15 @@
 								<Button
 									variant="ghost"
 									size="sm"
+									onclick={() => openAuthorize(server)}
+									title="Install an SSH key on this server"
+								>
+									<ShieldCheck class="w-3.5 h-3.5" />
+									<span class="hidden md:inline">Authorize key</span>
+								</Button>
+								<Button
+									variant="ghost"
+									size="sm"
 									onclick={() => openHostKeys(server)}
 									title="Stored SSH host keys"
 								>
@@ -347,5 +391,79 @@
 		<Button variant="destructive" onclick={forgetHostKeys} disabled={hostKeys.length === 0}
 			>Forget all keys</Button
 		>
+	{/snippet}
+</Modal>
+
+<Modal
+	open={authServer !== null}
+	title={`Authorize key on ${authServer?.name ?? ''}`}
+	onClose={() => (authServer = null)}
+>
+	<form
+		class="flex flex-col gap-3"
+		onsubmit={(e) => {
+			e.preventDefault();
+			handleAuthorize();
+		}}
+	>
+		<p class="text-xs text-text-muted">
+			SvrCtlRS logs in once with the bootstrap access below, appends the key's public half to
+			<code>~/.ssh/authorized_keys</code> (like <code>ssh-copy-id</code>), checks that the key logs
+			in, and switches this server to it. The password is used once and never stored.
+		</p>
+		{#if sshKeyCredentials.length === 0}
+			<p class="text-sm text-warning">
+				No SSH key credentials yet — generate one under Credentials first.
+			</p>
+		{:else}
+			<Select label="Key to authorize" bind:value={authCredentialId}>
+				{#each sshKeyCredentials as c (c.id)}
+					<option value={String(c.id)}>{c.name}</option>
+				{/each}
+			</Select>
+		{/if}
+		<div class="flex items-center gap-2">
+			<span class="text-xs text-text-muted">Log in once with:</span>
+			<button
+				type="button"
+				class="text-xs px-2 py-0.5 rounded-sm transition-colors {authMode === 'password'
+					? 'bg-accent text-accent-foreground'
+					: 'bg-surface-raised text-text-muted hover:text-text-primary'}"
+				onclick={() => (authMode = 'password')}>Password</button
+			>
+			<button
+				type="button"
+				class="text-xs px-2 py-0.5 rounded-sm transition-colors {authMode === 'credential'
+					? 'bg-accent text-accent-foreground'
+					: 'bg-surface-raised text-text-muted hover:text-text-primary'}"
+				onclick={() => (authMode = 'credential')}>Existing credential</button
+			>
+		</div>
+		{#if authMode === 'password'}
+			<Input
+				label="Password of the server's user"
+				type="password"
+				bind:value={authPassword}
+				autocomplete="off"
+			/>
+		{:else}
+			<Select label="Credential that already works" bind:value={authBootstrapId}>
+				<option value="">Choose…</option>
+				{#each credentials as c (c.id)}
+					<option value={String(c.id)}>{c.name}</option>
+				{/each}
+			</Select>
+		{/if}
+	</form>
+	{#snippet footer()}
+		<Button variant="secondary" onclick={() => (authServer = null)}>Cancel</Button>
+		<Button
+			onclick={handleAuthorize}
+			disabled={authorizing ||
+				!authCredentialId ||
+				(authMode === 'password' ? !authPassword : !authBootstrapId)}
+		>
+			{authorizing ? 'Authorizing...' : 'Authorize'}
+		</Button>
 	{/snippet}
 </Modal>

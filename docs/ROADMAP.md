@@ -29,6 +29,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | ~~Settings UI~~ | Done 2026-10-05: both settings forms load the store before reading it | — |
 | Reconnect | Done 2026-10-05: an established session that errors now reconnects; all six backoff steps are used. Still open: add jitter | `TerminalPane.svelte` |
 | Users | Done 2026-10-05: `/api/v1/users` list/create/delete (not self, not last) and `PUT /users/me/password`; Settings → Users tab. Still open: a `role` column so not every account is an administrator | `server/src/routes/api/users.rs` |
+| Key setup | Done 2026-10-05: generate an ed25519 key in the app, show any key's public half, and **Authorize key** on a server (ssh-copy-id over a one-time password or an existing credential, verified, then switched over) | `ssh_keys.rs`, `servers.rs` |
 | Host keys | Done 2026-10-05: `GET/DELETE /api/v1/servers/{id}/host-keys` with `SHA256:` fingerprints; Keys modal on the Servers page | `servers.rs`, `host_keys::fingerprint` |
 | Audit log | Done 2026-10-05: `audit_log` (migration 023) written fire-and-forget for logins/failures/rate limits, logout, sessions, commands (+exit code), server/credential/user changes, host keys forgotten; `GET /api/v1/audit` with cursor paging; Settings → Audit; 180-day prune at start-up | `server/src/audit.rs`, `queries/audit.rs` |
 | Backups | Done 2026-10-05: `svrctl backup --out DIR --keep N` (`VACUUM INTO`, key file copied when not in the environment, retention); restore documented in DEPLOYMENT.md | `server/src/bin/svrctl.rs` |
@@ -67,8 +68,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 ## P3 — Features
 
 In rough order of value for a terminal manager: SFTP/file browser (russh has the subsystem),
-port forwarding, session recording and playback (asciicast from the PTY stream), SSH key
-generation in the credentials UI, quick-command variables (`{{host}}`, prompts), PWA manifest
+port forwarding, session recording and playback (asciicast from the PTY stream), quick-command variables (`{{host}}`, prompts), PWA manifest
 so the browser UI installs on phones, desktop auto-update (`tauri-plugin-updater` against the
 Forgejo release feed), 2FA/WebAuthn for the app login, SSH agent forwarding, and a help page
 that hosts the shortcut table and this guide.

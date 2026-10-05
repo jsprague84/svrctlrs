@@ -9,6 +9,8 @@ export interface Credential {
 	has_value: boolean;
 	/** An SSH key credential has a passphrase stored (encrypted) with it. */
 	has_passphrase?: boolean;
+	/** Public half of an SSH key credential (on single reads), for authorized_keys. */
+	public_key?: string | null;
 	in_use?: boolean;
 	created_at: string;
 	updated_at: string;

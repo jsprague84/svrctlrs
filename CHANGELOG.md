@@ -6,6 +6,11 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Added
+- Key setup without leaving the app: **Generate SSH key** (ed25519, private half stored
+  encrypted, public half shown), **Public key** on any key credential, and **Authorize key** on
+  a server, which installs the public key in `~/.ssh/authorized_keys` over a one-time password
+  or an existing credential, verifies the key logs in, and switches the server to it
+  (`POST /credentials/generate-key`, `POST /servers/{id}/authorize-key`).
 - Host-key management: `GET/DELETE /api/v1/servers/{id}/host-keys` and a **Keys** modal on
   the Servers page showing `SHA256:` fingerprints, with **Forget all keys** for a server whose
   key legitimately changed. The mismatch error in the terminal points there.
