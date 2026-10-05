@@ -54,6 +54,7 @@ async fn list_credentials(
                 "description": c.description,
                 "username": c.username,
                 "has_value": !c.value.is_empty(),
+                "has_passphrase": c.metadata.is_some(),
                 "created_at": c.created_at,
                 "updated_at": c.updated_at
             })
@@ -95,6 +96,7 @@ async fn get_credential(
         "description": cred.description,
         "username": cred.username,
         "has_value": !cred.value.is_empty(),
+        "has_passphrase": cred.passphrase().is_some(),
         "in_use": in_use,
         "created_at": cred.created_at,
         "updated_at": cred.updated_at
@@ -111,6 +113,16 @@ struct CreateCredentialInput {
     description: Option<String>,
     #[serde(default)]
     username: Option<String>,
+    /// Passphrase of an encrypted SSH key; stored encrypted in the credential's metadata.
+    #[serde(default)]
+    passphrase: Option<String>,
+}
+
+/// Credential metadata carrying the passphrase, or none when it is empty.
+fn passphrase_metadata(passphrase: Option<String>) -> Option<serde_json::Value> {
+    passphrase
+        .filter(|p| !p.is_empty())
+        .map(|p| json!({ "passphrase": p }))
 }
 
 /// Create a new credential
@@ -140,7 +152,7 @@ async fn create_credential(
         value: input.value,
         description: input.description,
         username: input.username,
-        metadata: None,
+        metadata: passphrase_metadata(input.passphrase),
     };
 
     let id = credentials::create_credential(&state.pool, &create)
@@ -172,6 +184,10 @@ struct UpdateCredentialInput {
     description: Option<String>,
     #[serde(default)]
     username: Option<String>,
+    /// New passphrase for an encrypted SSH key. Omit to keep the current one; send an empty
+    /// string to remove it.
+    #[serde(default)]
+    passphrase: Option<String>,
 }
 
 /// Update an existing credential
@@ -193,7 +209,10 @@ async fn update_credential(
         value: input.value,
         description: input.description,
         username: input.username,
-        metadata: None,
+        // Some("") clears the passphrase by storing an empty metadata object.
+        metadata: input
+            .passphrase
+            .map(|p| passphrase_metadata(Some(p)).unwrap_or_else(|| json!({}))),
     };
 
     credentials::update_credential(&state.pool, id, &update)

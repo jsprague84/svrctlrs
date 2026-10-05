@@ -10,9 +10,11 @@ shows the same login.
 ## Servers and credentials
 
 **Credentials** (sidebar → Credentials) hold how to authenticate: a password, or an SSH key
-given either as a path readable by the server (for example `/home/svrctlrs/.ssh/id_ed25519`
-when a key directory is mounted) or pasted key material, optionally with a passphrase. Values
-are encrypted at rest and never shown again.
+given either as pasted key material (recommended — it is stored encrypted and never touches
+the server's filesystem) or as a path readable by the server (for example
+`/home/svrctlrs/.ssh/id_ed25519` when a key directory is mounted). An encrypted key takes its
+passphrase in the same form. Values and passphrases are encrypted at rest and never shown
+again; the list only shows that they exist.
 
 **Servers** (sidebar → Servers) are the hosts you connect to: name, hostname, port, username
 and the credential to use. *Test connection* opens an SSH session and records the result.

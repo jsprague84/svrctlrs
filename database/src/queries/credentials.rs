@@ -17,6 +17,12 @@ fn decrypt_credential(mut cred: Credential) -> Result<Credential> {
         require_encryption()?;
         cred.value = encryption::decrypt(&cred.value)?;
     }
+    if cred.metadata_encrypted {
+        require_encryption()?;
+        if let Some(m) = &cred.metadata {
+            cred.metadata = Some(encryption::decrypt(m)?);
+        }
+    }
     Ok(cred)
 }
 
@@ -33,11 +39,11 @@ fn require_encryption() -> Result<()> {
     }
 }
 
-/// Encrypt every credential still stored in plaintext (`encrypted = 0`).
+/// Encrypt every credential value or metadata still stored in plaintext.
 ///
-/// Runs at server start-up so a database that once ran without a key does not keep secrets
-/// readable on disk. Returns the number of rows encrypted. All rows are updated in one
-/// transaction; a failure leaves the table untouched.
+/// Runs at server start-up so a database that once ran without a key, or that predates
+/// metadata encryption, does not keep secrets readable on disk. Returns the number of rows
+/// touched. All rows are updated in one transaction; a failure leaves the table untouched.
 #[instrument(skip(pool))]
 pub async fn encrypt_plaintext_credentials(pool: &Pool<Sqlite>) -> Result<usize> {
     require_encryption()?;
@@ -48,20 +54,31 @@ pub async fn encrypt_plaintext_credentials(pool: &Pool<Sqlite>) -> Result<usize>
         .context("Failed to begin transaction")
         .map_err(|e| Error::DatabaseError(e.to_string()))?;
 
-    let rows: Vec<(i64, String)> =
-        sqlx::query_as("SELECT id, value FROM credentials WHERE encrypted = 0")
-            .fetch_all(&mut *tx)
-            .await
-            .context("Failed to list plaintext credentials")
-            .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    let rows: Vec<(i64, String, bool, Option<String>, bool)> = sqlx::query_as(
+        "SELECT id, value, encrypted, metadata, metadata_encrypted FROM credentials \
+         WHERE encrypted = 0 OR (metadata IS NOT NULL AND metadata_encrypted = 0)",
+    )
+    .fetch_all(&mut *tx)
+    .await
+    .context("Failed to list plaintext credentials")
+    .map_err(|e| Error::DatabaseError(e.to_string()))?;
 
-    for (id, value) in &rows {
-        let ciphertext = encryption::encrypt(value)?;
+    for (id, value, encrypted, metadata, metadata_encrypted) in &rows {
+        let value = if *encrypted {
+            value.clone()
+        } else {
+            encryption::encrypt(value)?
+        };
+        let metadata = match metadata {
+            Some(m) if !*metadata_encrypted => Some(encryption::encrypt(m)?),
+            other => other.clone(),
+        };
         sqlx::query(
-            "UPDATE credentials SET value = ?, encrypted = 1, updated_at = CURRENT_TIMESTAMP \
-             WHERE id = ? AND encrypted = 0",
+            "UPDATE credentials SET value = ?, encrypted = 1, metadata = ?, \
+             metadata_encrypted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
         )
-        .bind(ciphertext)
+        .bind(value)
+        .bind(metadata)
         .bind(id)
         .execute(&mut *tx)
         .await
@@ -90,7 +107,9 @@ pub async fn list_credentials(pool: &Pool<Sqlite>) -> Result<Vec<Credential>> {
         r#"
         SELECT id, name, credential_type, description,
                CASE WHEN length(value) > 0 THEN '[REDACTED]' ELSE '' END AS value,
-               username, metadata, encrypted, created_at, updated_at
+               username,
+               CASE WHEN metadata IS NOT NULL THEN '{"redacted":true}' END AS metadata,
+               encrypted, metadata_encrypted, created_at, updated_at
         FROM credentials
         ORDER BY name
         "#,
@@ -112,7 +131,7 @@ pub async fn get_credential(pool: &Pool<Sqlite>, id: i64) -> Result<Credential> 
     let cred = sqlx::query_as::<_, Credential>(
         r#"
         SELECT id, name, credential_type, description, value, username, metadata,
-               encrypted, created_at, updated_at
+               encrypted, metadata_encrypted, created_at, updated_at
         FROM credentials
         WHERE id = ?
         "#,
@@ -132,7 +151,7 @@ pub async fn get_credential_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<C
     let cred = sqlx::query_as::<_, Credential>(
         r#"
         SELECT id, name, credential_type, description, value, username, metadata,
-               encrypted, created_at, updated_at
+               encrypted, metadata_encrypted, created_at, updated_at
         FROM credentials
         WHERE name = ?
         "#,
@@ -151,12 +170,16 @@ pub async fn get_credential_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<C
 pub async fn create_credential(pool: &Pool<Sqlite>, input: &CreateCredential) -> Result<i64> {
     require_encryption()?;
     let stored_value = encryption::encrypt(&input.value)?;
-    let encrypted = true;
+    let stored_metadata = match input.metadata_string() {
+        Some(m) => Some(encryption::encrypt(&m)?),
+        None => None,
+    };
 
     let result = sqlx::query(
         r#"
-        INSERT INTO credentials (name, credential_type, description, value, username, metadata, encrypted)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO credentials (name, credential_type, description, value, username, metadata,
+                                 encrypted, metadata_encrypted)
+        VALUES (?, ?, ?, ?, ?, ?, 1, 1)
         "#,
     )
     .bind(&input.name)
@@ -164,8 +187,7 @@ pub async fn create_credential(pool: &Pool<Sqlite>, input: &CreateCredential) ->
     .bind(&input.description)
     .bind(&stored_value)
     .bind(&input.username)
-    .bind(input.metadata_string())
-    .bind(encrypted)
+    .bind(stored_metadata)
     .execute(pool)
     .await
     .context("Failed to create credential")
@@ -204,7 +226,10 @@ pub async fn update_credential(
         qb.push(", username = ").push_bind(username.clone());
     }
     if let Some(metadata) = input.metadata_string() {
-        qb.push(", metadata = ").push_bind(metadata);
+        require_encryption()?;
+        qb.push(", metadata = ")
+            .push_bind(encryption::encrypt(&metadata)?);
+        qb.push(", metadata_encrypted = ").push_bind(true);
     }
 
     qb.push(" WHERE id = ").push_bind(id);
@@ -288,6 +313,72 @@ mod tests {
             .fetch_one(pool)
             .await
             .unwrap()
+    }
+
+    async fn raw_metadata(pool: &Pool<Sqlite>, id: i64) -> (Option<String>, bool) {
+        sqlx::query_as("SELECT metadata, metadata_encrypted FROM credentials WHERE id = ?")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn metadata_is_encrypted_on_write_and_decrypted_on_read() {
+        let pool = setup_test_db().await;
+        let input = CreateCredential {
+            name: "key-with-passphrase".to_string(),
+            credential_type: CredentialType::SshKey,
+            description: None,
+            value: "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n".to_string(),
+            username: None,
+            metadata: Some(serde_json::json!({"passphrase": "open sesame"})),
+        };
+        let id = create_credential(&pool, &input).await.unwrap();
+
+        let cred = get_credential(&pool, id).await.unwrap();
+        assert_eq!(cred.passphrase().as_deref(), Some("open sesame"));
+        assert!(cred.value_is_key_material());
+        let (stored, flagged) = raw_metadata(&pool, id).await;
+        assert!(flagged);
+        assert!(!stored.unwrap().contains("open sesame"));
+
+        // The list view never carries the secret, only that metadata exists.
+        let listed = list_credentials(&pool).await.unwrap();
+        assert_eq!(listed[0].metadata.as_deref(), Some(r#"{"redacted":true}"#));
+
+        let update = UpdateCredential {
+            metadata: Some(serde_json::json!({"passphrase": "new one"})),
+            ..Default::default()
+        };
+        update_credential(&pool, id, &update).await.unwrap();
+        let cred = get_credential(&pool, id).await.unwrap();
+        assert_eq!(cred.passphrase().as_deref(), Some("new one"));
+        assert!(!raw_metadata(&pool, id).await.0.unwrap().contains("new one"));
+    }
+
+    #[tokio::test]
+    async fn startup_pass_encrypts_legacy_plaintext_metadata() {
+        let pool = setup_test_db().await;
+        // An encrypted value with plaintext metadata, as rows written before migration 022.
+        let value = encryption::encrypt("/path/to/key").unwrap();
+        sqlx::query(
+            "INSERT INTO credentials (name, credential_type, value, metadata, encrypted, \
+             metadata_encrypted) VALUES ('legacy', 'ssh_key', ?, '{\"passphrase\":\"pw\"}', 1, 0)",
+        )
+        .bind(value)
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(encrypt_plaintext_credentials(&pool).await.unwrap(), 1);
+        let cred = get_credential_by_name(&pool, "legacy").await.unwrap();
+        assert_eq!(cred.value, "/path/to/key");
+        assert_eq!(cred.passphrase().as_deref(), Some("pw"));
+        let (stored, flagged) = raw_metadata(&pool, cred.id).await;
+        assert!(flagged);
+        assert!(!stored.unwrap().contains("pw"));
+        assert_eq!(encrypt_plaintext_credentials(&pool).await.unwrap(), 0);
     }
 
     #[tokio::test]

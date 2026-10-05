@@ -7,6 +7,8 @@ export interface Credential {
 	description: string | null;
 	username: string | null;
 	has_value: boolean;
+	/** An SSH key credential has a passphrase stored (encrypted) with it. */
+	has_passphrase?: boolean;
 	in_use?: boolean;
 	created_at: string;
 	updated_at: string;
@@ -18,6 +20,8 @@ export interface CreateCredential {
 	value: string;
 	description?: string;
 	username?: string;
+	/** Passphrase of an encrypted SSH key (ssh_key only). */
+	passphrase?: string;
 }
 
 export interface UpdateCredential {
@@ -25,6 +29,8 @@ export interface UpdateCredential {
 	value?: string;
 	description?: string;
 	username?: string;
+	/** New passphrase; omit to keep, empty string to remove. */
+	passphrase?: string;
 }
 
 export const CREDENTIAL_TYPE_LABELS: Record<CredentialType, string> = {

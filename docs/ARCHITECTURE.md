@@ -74,7 +74,7 @@ does not pull in Tauri's GTK/WebKit dependencies.
 | `settings` | key/value with `value_type`; `notification.*` and `app.default_profile_id` are seeded |
 
 Migrations `000`–`015` built and then dropped two earlier schemas (the plugin and job
-systems); `016`–`021` are the current product. A fresh database replays all of them. They are
+systems); `016`–`022` are the current product. A fresh database replays all of them. They are
 embedded with `sqlx::migrate!` and checksummed, so never edit a shipped migration.
 
 ## Frontend (`ui/`)

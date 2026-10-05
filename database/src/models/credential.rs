@@ -48,19 +48,22 @@ pub struct Credential {
     pub credential_type_str: String,
     pub description: Option<String>,
 
-    /// Credential value (SSH key path, token value, password, cert path)
-    /// WARNING: This should be encrypted in production
+    /// Credential value: a password, token, SSH key *material* (`-----BEGIN ...`) or a path
+    /// to a key file readable by the server. Encrypted at rest.
     pub value: String,
 
     /// Username (for password type credentials)
     pub username: Option<String>,
 
-    /// Additional metadata as JSON string
-    /// Examples: {"key_passphrase": "...", "port": 2222}
+    /// Additional metadata as a JSON object string, e.g. `{"passphrase": "..."}` for an
+    /// encrypted SSH key. Encrypted at rest.
     pub metadata: Option<String>,
 
-    /// Whether the value field is encrypted at rest
+    /// Whether `value` is encrypted at rest
     pub encrypted: bool,
+
+    /// Whether `metadata` is encrypted at rest
+    pub metadata_encrypted: bool,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -75,8 +78,9 @@ impl fmt::Debug for Credential {
             .field("description", &self.description)
             .field("value", &"[REDACTED]")
             .field("username", &self.username)
-            .field("metadata", &self.metadata)
+            .field("metadata", &self.metadata.as_ref().map(|_| "[REDACTED]"))
             .field("encrypted", &self.encrypted)
+            .field("metadata_encrypted", &self.metadata_encrypted)
             .field("created_at", &self.created_at)
             .field("updated_at", &self.updated_at)
             .finish()
@@ -95,6 +99,20 @@ impl Credential {
             .as_ref()
             .and_then(|m| serde_json::from_str(m).ok())
             .unwrap_or(JsonValue::Object(serde_json::Map::new()))
+    }
+
+    /// The SSH key passphrase stored in metadata, if any.
+    pub fn passphrase(&self) -> Option<String> {
+        self.get_metadata()
+            .get("passphrase")
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    }
+
+    /// Whether `value` holds key material rather than a path to a key file.
+    pub fn value_is_key_material(&self) -> bool {
+        self.value.trim_start().starts_with("-----BEGIN")
     }
 
     /// Check if this is an SSH key credential
@@ -198,6 +216,31 @@ mod tests {
     }
 
     #[test]
+    fn passphrase_and_key_material_helpers() {
+        let mut cred = Credential {
+            id: 1,
+            name: "k".to_string(),
+            credential_type_str: "ssh_key".to_string(),
+            description: None,
+            value: "/home/svrctlrs/.ssh/id_ed25519".to_string(),
+            username: None,
+            metadata: Some(r#"{"passphrase": "open sesame"}"#.to_string()),
+            encrypted: true,
+            metadata_encrypted: true,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        assert_eq!(cred.passphrase().as_deref(), Some("open sesame"));
+        assert!(!cred.value_is_key_material());
+        assert!(!format!("{cred:?}").contains("open sesame"));
+
+        cred.value = "-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n".to_string();
+        cred.metadata = Some(r#"{"passphrase": ""}"#.to_string());
+        assert!(cred.value_is_key_material());
+        assert_eq!(cred.passphrase(), None);
+    }
+
+    #[test]
     fn test_credential_type_checks() {
         let cred = Credential {
             id: 1,
@@ -208,6 +251,7 @@ mod tests {
             username: None,
             metadata: None,
             encrypted: false,
+            metadata_encrypted: false,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         };

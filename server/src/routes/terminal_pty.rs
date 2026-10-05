@@ -351,32 +351,23 @@ async fn start_pty_session(
         .or_else(|_| std::env::var("USERPROFILE"))
         .unwrap_or_else(|_| "/home/svrctlrs".to_string());
 
-    let mut key_paths_to_try: Vec<String> = Vec::new();
-
-    // If credential is assigned and is an SSH key, try it first
+    // Keys to try: the credential's (pasted material or a file, with its passphrase) first,
+    // then the server's own default keys.
+    let mut candidates: Vec<crate::ssh_keys::KeyCandidate> = Vec::new();
     if let Some(ref cred) = credential {
         if cred.credential_type_str == "ssh_key" {
-            key_paths_to_try.push(cred.value.clone());
+            candidates.push(crate::ssh_keys::credential_key(cred).await?);
         }
-        // If it's a password credential, we could try keyboard-interactive auth
-        // but russh doesn't support it easily, so fall through to try default keys
+        // A password credential cannot be used here: russh has no simple
+        // keyboard-interactive flow, so fall through to the default keys.
     }
-
-    // Add default SSH key paths
-    let default_paths = vec![
-        format!("{}/.ssh/id_ed25519", home),
-        format!("{}/.ssh/id_rsa", home),
-        format!("{}/.ssh/id_ecdsa", home),
-        format!("{}/.ssh/id_dsa", home),
-    ];
-
-    for path in default_paths {
-        if !key_paths_to_try.contains(&path) && std::path::Path::new(&path).exists() {
-            key_paths_to_try.push(path);
+    for key in crate::ssh_keys::default_keys().await {
+        if !candidates.iter().any(|c| c.label == key.label) {
+            candidates.push(key);
         }
     }
 
-    if key_paths_to_try.is_empty() {
+    if candidates.is_empty() {
         return Err(format!(
             "No SSH keys found in {}/.ssh/. Please configure an SSH key credential or ensure keys are available.",
             home
@@ -388,40 +379,27 @@ async fn start_pty_session(
         username,
         hostname,
         port,
-        key_paths_to_try.len()
+        candidates.len()
     );
 
     // Try each key until one works
     let mut last_error = String::new();
     let mut tried_keys: Vec<String> = Vec::new();
 
-    for key_path in &key_paths_to_try {
-        if !std::path::Path::new(key_path).exists() {
-            debug!("SSH key not found, skipping: {}", key_path);
-            continue;
-        }
-
+    for key in &candidates {
+        let key_path = &key.label;
         tried_keys.push(key_path.clone());
         info!("Trying SSH key: {}", key_path);
 
-        // Load the private key
-        let key_content = match tokio::fs::read_to_string(key_path).await {
-            Ok(content) => content,
-            Err(e) => {
-                debug!("Failed to read SSH key {}: {}", key_path, e);
-                last_error = format!("Failed to read key {}: {}", key_path, e);
-                continue;
-            }
-        };
-
-        let key_pair = match russh::keys::decode_secret_key(&key_content, None) {
-            Ok(kp) => kp,
-            Err(e) => {
-                debug!("Failed to decode SSH key {}: {}", key_path, e);
-                last_error = format!("Failed to decode key {}: {}", key_path, e);
-                continue;
-            }
-        };
+        let key_pair =
+            match russh::keys::decode_secret_key(&key.material, key.passphrase.as_deref()) {
+                Ok(kp) => kp,
+                Err(e) => {
+                    debug!("Failed to decode SSH key {}: {}", key_path, e);
+                    last_error = format!("Failed to decode key {}: {}", key_path, e);
+                    continue;
+                }
+            };
 
         // Connect to SSH server (new connection for each attempt)
         let config = Arc::new(russh::client::Config::default());

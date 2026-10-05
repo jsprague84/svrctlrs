@@ -325,23 +325,10 @@ pub(crate) async fn execute_ssh_command(
     let auth_method = if let Some(cred) = credential {
         match cred.credential_type() {
             Some(CredentialType::SshKey) => {
-                // value contains the path to the SSH key file
-                let key_path = &cred.value;
-
-                // Read the key file
-                let key_content = tokio::fs::read_to_string(key_path)
-                    .await
-                    .map_err(|e| format!("Failed to read SSH key at {}: {}", key_path, e))?;
-
-                // Check metadata for passphrase
-                let metadata = cred.get_metadata();
-                let passphrase = metadata
-                    .get("passphrase")
-                    .and_then(|v| v.as_str())
-                    .filter(|s| !s.is_empty())
-                    .map(|s| s.to_string());
-
-                AuthMethod::with_key(&key_content, passphrase.as_deref())
+                // Pasted key material or a path to a key file, plus the passphrase from
+                // the credential's metadata.
+                let key = crate::ssh_keys::credential_key(cred).await?;
+                AuthMethod::with_key(&key.material, key.passphrase.as_deref())
             }
             Some(CredentialType::Password) => {
                 // value contains the password
@@ -358,26 +345,13 @@ pub(crate) async fn execute_ssh_command(
             }
         }
     } else {
-        // Try to use default SSH key from home directory
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        let default_key_path = format!("{}/.ssh/id_rsa", home);
-
-        // Try to read the default key file
-        match tokio::fs::read_to_string(&default_key_path).await {
-            Ok(key_content) => AuthMethod::with_key(&key_content, None),
-            Err(_) => {
-                // Try ed25519 key as fallback
-                let ed25519_path = format!("{}/.ssh/id_ed25519", home);
-                match tokio::fs::read_to_string(&ed25519_path).await {
-                    Ok(key_content) => AuthMethod::with_key(&key_content, None),
-                    Err(_) => {
-                        return Err(
-                            "No credential assigned and no default SSH key found".to_string()
-                        );
-                    }
-                }
-            }
-        }
+        // No credential: the server's own default key, if it has one
+        let key = crate::ssh_keys::default_keys()
+            .await
+            .into_iter()
+            .next()
+            .ok_or_else(|| "No credential assigned and no default SSH key found".to_string())?;
+        AuthMethod::with_key(&key.material, None)
     };
 
     // Connect to SSH server with host key verification

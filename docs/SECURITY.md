@@ -41,7 +41,8 @@ other web pages the operator visits (see CSWSH below).
 ## Credential encryption
 
 `core/src/encryption.rs`: AES-256-GCM, a fresh 12-byte nonce from the OS RNG per encryption,
-ciphertext stored as `nonce || ciphertext` (base64) with `credentials.encrypted = 1`.
+ciphertext stored as `nonce || ciphertext` (base64) with `credentials.encrypted = 1`; the
+metadata column (SSH key passphrase) is encrypted the same way (`metadata_encrypted = 1`).
 Key source, in order: `ENCRYPTION_KEY` (64 hex chars) → `data/encryption.key` (created with
 mode 0600 if absent). An invalid value (including an empty string) stops the server; rows that
 an older server wrote in plaintext are encrypted at the next start. API responses never return
@@ -74,8 +75,9 @@ time out after 30 s; WebSockets do not. TLS is the proxy's job.
   stay empty on browser-only deployments.
 - Mount a dedicated key directory, not your `~/.ssh`, if you use key-path credentials.
 - Keep `.env` at mode 0600; it holds `ENCRYPTION_KEY` and the bootstrap password.
-- Prefer `ssh_key` credentials with the key material stored in the credential (encrypted)
-  over key *paths*, which encrypt only the path string.
+- Prefer `ssh_key` credentials with the key material pasted into the credential (stored
+  encrypted, passphrase included) over key *paths*, which encrypt only the path string and
+  leave the key on the host filesystem.
 
 ## Known weaknesses (3.0.0)
 
@@ -114,8 +116,9 @@ Ordered by impact. Each has a ROADMAP entry.
    limited (fixed after 3.0.0: 10 failures per 15 minutes per client address *and* per
    username, answered with 429 and `Retry-After`; in-memory, so a restart resets it) and new
    passwords must be at least 12 characters.
-9. **`credentials.metadata` is plaintext** — it carries SSH key passphrases. Fix: encrypt it
-   or move the passphrase into `value`.
+9. ~~**`credentials.metadata` is plaintext**~~ — fixed after 3.0.0: metadata (the SSH key
+   passphrase) is encrypted like the value, with its own `metadata_encrypted` flag, and the
+   start-up pass encrypts any legacy plaintext metadata. `Debug` output redacts it.
 10. ~~**Per-record access**~~ — fixed after 3.0.0: `get`/`update`/`delete` for profiles and
     quick commands are scoped to the calling user (profiles with no owner stay shared), and a
     foreign id answers 404, not 403, so ids cannot be probed. Setting a default profile no

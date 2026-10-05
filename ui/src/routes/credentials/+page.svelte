@@ -21,6 +21,7 @@
 	let value = $state('');
 	let description = $state('');
 	let username = $state('');
+	let passphrase = $state('');
 	let sshKeyMode = $state<'path' | 'paste'>('path');
 
 	let credentials = $derived(credState.getCredentials());
@@ -32,7 +33,7 @@
 	});
 
 	function resetForm() {
-		name = ''; credType = 'ssh_key'; value = ''; description = ''; username = '';
+		name = ''; credType = 'ssh_key'; value = ''; description = ''; username = ''; passphrase = '';
 		editingId = null; sshKeyMode = 'path';
 	}
 
@@ -48,6 +49,7 @@
 		value = ''; // Never show existing value
 		description = cred.description ?? '';
 		username = cred.username ?? '';
+		passphrase = ''; // Never show the existing passphrase
 		showModal = true;
 	}
 
@@ -58,7 +60,8 @@
 					name: name || undefined,
 					value: value || undefined,
 					description: description || undefined,
-					username: username || undefined
+					username: username || undefined,
+					passphrase: passphrase || undefined
 				};
 				await credState.updateCredential(editingId, input);
 				toast.success('Credential updated');
@@ -68,7 +71,8 @@
 					credential_type: credType,
 					value,
 					description: description || undefined,
-					username: username || undefined
+					username: username || undefined,
+					passphrase: credType === 'ssh_key' && passphrase ? passphrase : undefined
 				};
 				await credState.createCredential(input);
 				toast.success('Credential created');
@@ -135,6 +139,9 @@
 						{#if cred.username}
 							<div class="text-text-secondary text-xs w-full md:w-auto md:flex-1 truncate">User: {cred.username}</div>
 						{/if}
+						{#if cred.has_passphrase}
+							<div class="w-full md:w-auto md:flex-shrink-0"><Badge>passphrase</Badge></div>
+						{/if}
 						{#if cred.description}
 							<div class="text-text-muted text-xs w-full md:flex-1 truncate">{cred.description}</div>
 						{/if}
@@ -195,6 +202,12 @@
 					></textarea>
 				</label>
 			{/if}
+			<Input
+				label={editingId ? 'New Passphrase (leave empty to keep)' : 'Passphrase (if the key is encrypted)'}
+				type="password"
+				bind:value={passphrase}
+				placeholder="optional"
+			/>
 		{:else if credType === 'password'}
 			<Input label={editingId ? 'New Password (leave empty to keep)' : 'Password'} type="password" bind:value={value} required={!editingId} />
 			<Input label="Username" bind:value={username} placeholder="root" />

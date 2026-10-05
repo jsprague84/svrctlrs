@@ -66,15 +66,15 @@ last_seen_at, last_error, created_at, updated_at`.
 
 | Method | Path | Body |
 |---|---|---|
-| GET | `/credentials` | — (values are returned as `[REDACTED]`) |
-| POST | `/credentials` | `name`, `credential_type` (`password` \| `ssh_key` \| `api_token` …), `value`, `description?`, `username?`, `metadata?` |
-| GET | `/credentials/{id}` | returns `has_value: true/false` instead of the value |
-| PUT | `/credentials/{id}` | `name?`, `description?`, `value?`, `username?`, `metadata?` |
+| GET | `/credentials` | — (no secrets: `has_value`, `has_passphrase`) |
+| POST | `/credentials` | `name`, `credential_type` (`password` \| `ssh_key` \| `api_token`), `value`, `description?`, `username?`, `passphrase?` |
+| GET | `/credentials/{id}` | `has_value`, `has_passphrase`, `in_use` instead of the secrets |
+| PUT | `/credentials/{id}` | `name?`, `description?`, `value?`, `username?`, `passphrase?` (omit to keep, `""` to remove) |
 | DELETE | `/credentials/{id}` | — |
 
-For `ssh_key` credentials `value` may be a path readable by the server (for example a key
-mounted at `/home/svrctlrs/.ssh/id_ed25519`) or the key material itself. A passphrase goes in
-`metadata.passphrase`. `value` is encrypted at rest; `metadata` is not (ROADMAP P0).
+For `ssh_key` credentials `value` is either the key material itself (`-----BEGIN …`) or a path
+readable by the server (for example a key mounted at `/home/svrctlrs/.ssh/id_ed25519`).
+`passphrase` unlocks an encrypted key. Value and passphrase are both encrypted at rest.
 
 ## Settings
 

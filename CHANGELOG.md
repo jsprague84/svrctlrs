@@ -37,7 +37,17 @@ the release workflow uses the matching section as the release notes.
   characters (this applies to `ADMIN_PASSWORD` on a first start). The session id is cycled
   on login.
 
+- Credential metadata — the SSH key passphrase — is encrypted at rest like the value
+  (migration 022 adds `metadata_encrypted`); legacy plaintext metadata is encrypted at
+  start-up.
+
+### Added
+- SSH key passphrases: a passphrase field on SSH key credentials in the UI and API
+  (`passphrase`), used by both the interactive and the command connector.
+
 ### Fixed
+- "Paste key" credentials never worked: both connectors treated the stored key material as a
+  file path. Key material is now used directly; paths still work.
 - The Notifications and General settings forms opened blank because the settings store was
   never loaded; they now load it first.
 - A terminal session that dropped with an error never auto-reconnected (the error status
