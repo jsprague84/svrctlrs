@@ -34,7 +34,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | Backups | no in-app export | `svrctl backup` that copies the DB (via `VACUUM INTO`) and key to a tarball; document restore |
 | Health | `/api/v1/health` is static | add DB ping and migration state; keep it unauthenticated but minimal |
 | Observability | `tracing-subscriber` has `json` enabled but is never used | `LOG_FORMAT=json`, request ids |
-| Desktop | tray icon has no image (invisible on most desktops); close-to-tray leaves no way to quit without a tray | set `.icon()` from the bundled icons; add a Quit menu item; fall back to normal close when no tray |
+| Desktop | Done 2026-10-05 (unverified until the next desktop CI build): tray uses the bundled icon; close hides to the tray only when a tray was created, otherwise it quits. The tray menu already had Show/Quit | `ui/src-tauri/src/lib.rs` |
 | Identity | Tauri `app.js-node.svrctlrs` vs Flatpak `cc.jsnode.svrctlrs` → two desktop IDs | pick one (`cc.jsnode.svrctlrs` is the standard reverse-DNS of js-node.cc); note it changes the Android `applicationId`, so decide before the first signed public APK |
 | Android | `usesCleartextTraffic=false` with no UI warning for `http://` URLs; AAB built but never published; biometrics plugin registered but unused | validate scheme in `ServerUrlSetup`; publish the AAB or drop it; wire biometrics to unlock the stored token or remove the dependency |
 | Frontend tooling | no eslint/prettier/vitest, no `engines` | add them with a `lint`/`test` script and a CI step; `engines.node >= 22.12` |

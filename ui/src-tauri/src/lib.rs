@@ -5,6 +5,11 @@ use tauri::{
     Manager,
 };
 
+/// Whether a system tray exists. Without one, closing the window must quit: hiding the app
+/// where nothing can bring it back is worse than losing the sessions.
+#[cfg(desktop)]
+struct TrayAvailable(bool);
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -30,7 +35,7 @@ pub fn run() {
                 let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
                 let menu = Menu::with_items(app, &[&show, &quit])?;
 
-                TrayIconBuilder::new()
+                let mut tray = TrayIconBuilder::new()
                     .menu(&menu)
                     .tooltip("SvrCtlRS")
                     .on_menu_event(|app, event| match event.id.as_ref() {
@@ -52,18 +57,37 @@ pub fn run() {
                                 let _ = window.set_focus();
                             }
                         }
-                    })
-                    .build(app)?;
+                    });
+                // A tray without an image is invisible on most desktops, which left the menu
+                // unreachable; reuse the bundled application icon.
+                if let Some(icon) = app.default_window_icon() {
+                    tray = tray.icon(icon.clone());
+                }
+                let available = match tray.build(app) {
+                    Ok(_) => true,
+                    Err(e) => {
+                        log::warn!("system tray unavailable, close will quit: {e}");
+                        false
+                    }
+                };
+                app.manage(TrayAvailable(available));
             }
 
             Ok(())
         })
         .on_window_event(|_window, _event| {
-            // Hide to tray on close instead of quitting (desktop only)
+            // Hide to tray on close instead of quitting (desktop only), but only when a
+            // tray exists to bring the window back.
             #[cfg(desktop)]
             if let tauri::WindowEvent::CloseRequested { api, .. } = _event {
-                let _ = _window.hide();
-                api.prevent_close();
+                let tray = _window
+                    .try_state::<TrayAvailable>()
+                    .map(|t| t.0)
+                    .unwrap_or(false);
+                if tray {
+                    let _ = _window.hide();
+                    api.prevent_close();
+                }
             }
         })
         .run(tauri::generate_context!())

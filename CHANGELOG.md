@@ -12,6 +12,11 @@ the release workflow uses the matching section as the release notes.
 - Accounts: `/api/v1/users` (list, create, delete — never yourself or the last account) and
   `PUT /api/v1/users/me/password`; a **Users** tab in Settings with a change-password form.
 
+### Fixed
+- Desktop: the tray icon had no image and was invisible on most desktops, leaving its
+  Show/Quit menu unreachable after the window was closed; it now uses the application icon,
+  and when no tray can be created closing the window quits instead of hiding it.
+
 ## [3.0.0] - 2026-10-05
 
 First release of SvrCtlRS as a terminal/SSH management tool. The 1.x/2.x line (a plugin-based
