@@ -112,7 +112,7 @@ impl Credential {
 
     /// Whether `value` holds key material rather than a path to a key file.
     pub fn value_is_key_material(&self) -> bool {
-        self.value.trim_start().starts_with("-----BEGIN")
+        ssh_key_value_kind(&self.value) == SshKeyValueKind::PrivateKey
     }
 
     /// Check if this is an SSH key credential
@@ -133,6 +133,66 @@ impl Credential {
     /// Check if this is a certificate credential
     pub fn is_certificate(&self) -> bool {
         self.credential_type() == Some(CredentialType::Certificate)
+    }
+}
+
+/// What an `ssh_key` credential's `value` looks like.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SshKeyValueKind {
+    /// Private key material (`-----BEGIN ... PRIVATE KEY-----`): what SSH authentication needs.
+    PrivateKey,
+    /// A *public* key (`ssh-ed25519 AAAA...`, `ssh-rsa ...`): useless for authenticating.
+    PublicKey,
+    /// Anything else is taken as a path on the server's filesystem.
+    Path,
+}
+
+/// Classify an `ssh_key` credential value.
+pub fn ssh_key_value_kind(value: &str) -> SshKeyValueKind {
+    let v = value.trim_start();
+    if v.starts_with("-----BEGIN") {
+        SshKeyValueKind::PrivateKey
+    } else if [
+        "ssh-ed25519 ",
+        "ssh-rsa ",
+        "ssh-dss ",
+        "ecdsa-sha2-",
+        "sk-ssh-ed25519@",
+        "sk-ecdsa-",
+    ]
+    .iter()
+    .any(|p| v.starts_with(p))
+    {
+        SshKeyValueKind::PublicKey
+    } else {
+        SshKeyValueKind::Path
+    }
+}
+
+/// Why an `ssh_key` value cannot work, in words for the person who typed it; `None` when it
+/// is acceptable (private key material, or an absolute path for the server to read).
+pub fn ssh_key_value_problem(value: &str) -> Option<String> {
+    let v = value.trim();
+    match ssh_key_value_kind(v) {
+        SshKeyValueKind::PrivateKey => None,
+        SshKeyValueKind::PublicKey => Some(
+            "That is a public key (it starts with ssh-ed25519/ssh-rsa). SSH needs the PRIVATE \
+             key: paste the contents of the file without .pub, which starts with \
+             -----BEGIN OPENSSH PRIVATE KEY-----."
+                .to_string(),
+        ),
+        SshKeyValueKind::Path if v.ends_with(".pub") => Some(
+            "That path is a public key (.pub). Give the private key file instead, or paste its \
+             contents."
+                .to_string(),
+        ),
+        SshKeyValueKind::Path if !v.starts_with('/') => Some(
+            "A key path must be absolute and refer to the SvrCtlRS server's own filesystem (inside \
+             its container, e.g. /home/svrctlrs/.ssh/id_ed25519). To use a key from your machine, \
+             paste the private key's contents instead."
+                .to_string(),
+        ),
+        SshKeyValueKind::Path => None,
     }
 }
 
@@ -238,6 +298,34 @@ mod tests {
         cred.metadata = Some(r#"{"passphrase": ""}"#.to_string());
         assert!(cred.value_is_key_material());
         assert_eq!(cred.passphrase(), None);
+    }
+
+    #[test]
+    fn ssh_key_values_are_classified_and_explained() {
+        assert_eq!(
+            ssh_key_value_kind("-----BEGIN OPENSSH PRIVATE KEY-----\nabc"),
+            SshKeyValueKind::PrivateKey
+        );
+        assert_eq!(
+            ssh_key_value_kind("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGmO user@t490"),
+            SshKeyValueKind::PublicKey
+        );
+        assert_eq!(
+            ssh_key_value_kind("/home/svrctlrs/.ssh/id_ed25519"),
+            SshKeyValueKind::Path
+        );
+
+        assert!(ssh_key_value_problem("-----BEGIN OPENSSH PRIVATE KEY-----\nabc").is_none());
+        assert!(ssh_key_value_problem("/home/svrctlrs/.ssh/id_ed25519").is_none());
+        assert!(ssh_key_value_problem("ssh-ed25519 AAAA x")
+            .unwrap()
+            .contains("PRIVATE"));
+        assert!(ssh_key_value_problem("/home/me/.ssh/id_ed25519.pub")
+            .unwrap()
+            .contains(".pub"));
+        assert!(ssh_key_value_problem("~/.ssh/id_ed25519")
+            .unwrap()
+            .contains("absolute"));
     }
 
     #[test]

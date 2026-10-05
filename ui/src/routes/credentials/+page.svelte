@@ -59,7 +59,29 @@
 		showModal = true;
 	}
 
+	/** Catch the common mistake before the request: a public key or a laptop path. */
+	function sshKeyProblem(v: string): string | null {
+		const t = v.trim();
+		if (!t) return null;
+		if (/^(ssh-(ed25519|rsa|dss) |ecdsa-sha2-|sk-)/.test(t)) {
+			return 'That is a public key. Paste the PRIVATE key: the file without .pub, which starts with -----BEGIN OPENSSH PRIVATE KEY-----.';
+		}
+		if (!t.startsWith('-----BEGIN')) {
+			if (t.endsWith('.pub')) return 'That path is a public key (.pub). Use the private key file.';
+			if (!t.startsWith('/'))
+				return 'A key path must be absolute and exist on the SvrCtlRS server (inside its container). To use a key from this machine, paste the private key instead.';
+		}
+		return null;
+	}
+
 	async function handleSubmit() {
+		if (credType === 'ssh_key' && value) {
+			const problem = sshKeyProblem(value);
+			if (problem) {
+				toast.error(problem);
+				return;
+			}
+		}
 		try {
 			if (editingId) {
 				const input: UpdateCredential = {
@@ -226,6 +248,18 @@
 					}}>Paste key</button
 				>
 			</div>
+			<p class="text-xs text-text-muted">
+				{#if sshKeyMode === 'paste'}
+					Paste the <strong>private</strong> key — the file <em>without</em> <code>.pub</code>,
+					starting with
+					<code>-----BEGIN OPENSSH PRIVATE KEY-----</code>. It is stored encrypted and never leaves
+					the server.
+				{:else}
+					An absolute path on the <strong>SvrCtlRS server</strong> (inside its container, e.g.
+					<code>/home/svrctlrs/.ssh/id_ed25519</code>) — not a path on this machine. Prefer pasting
+					the key.
+				{/if}
+			</p>
 			{#if sshKeyMode === 'path'}
 				<Input
 					label={editingId ? 'New SSH Key Path (leave empty to keep)' : 'SSH Key Path'}

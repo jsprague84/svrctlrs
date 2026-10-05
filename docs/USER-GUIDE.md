@@ -12,7 +12,10 @@ shows the same login.
 **Credentials** (sidebar → Credentials) hold how to authenticate: a password, or an SSH key
 given either as pasted key material (recommended — it is stored encrypted and never touches
 the server's filesystem) or as a path readable by the server (for example
-`/home/svrctlrs/.ssh/id_ed25519` when a key directory is mounted). An encrypted key takes its
+`/home/svrctlrs/.ssh/id_ed25519` when a key directory is mounted). Paste the **private** key
+— the file *without* `.pub`, which starts with `-----BEGIN OPENSSH PRIVATE KEY-----`; the
+`.pub` file is what you put on the *servers*, and SvrCtlRS refuses it with an explanation. A
+path means a path on the SvrCtlRS server (inside its container), never on your own machine. An encrypted key takes its
 passphrase in the same form. Values and passphrases are encrypted at rest and never shown
 again; the list only shows that they exist.
 

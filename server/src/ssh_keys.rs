@@ -30,12 +30,25 @@ impl std::fmt::Debug for KeyCandidate {
 /// The key described by an `ssh_key` credential: its material, read from disk when the
 /// value is a path, plus the passphrase from its metadata.
 pub async fn credential_key(cred: &Credential) -> Result<KeyCandidate, String> {
-    let material = if cred.value_is_key_material() {
-        cred.value.clone()
-    } else {
-        tokio::fs::read_to_string(&cred.value)
-            .await
-            .map_err(|e| format!("Failed to read SSH key at {}: {e}", cred.value))?
+    use svrctlrs_database::models::{ssh_key_value_kind, SshKeyValueKind};
+
+    let material = match ssh_key_value_kind(&cred.value) {
+        SshKeyValueKind::PrivateKey => cred.value.clone(),
+        SshKeyValueKind::PublicKey => {
+            return Err(format!(
+                "Credential '{}' holds a PUBLIC key; SSH needs the private key. Edit the \
+                 credential and paste the contents of the key file without .pub.",
+                cred.name
+            ));
+        }
+        SshKeyValueKind::Path => tokio::fs::read_to_string(&cred.value).await.map_err(|e| {
+            format!(
+                "Credential '{}': cannot read the key file {} on the SvrCtlRS server ({e}). \
+                 Paths refer to the server's own filesystem, not your machine; paste the \
+                 private key into the credential instead.",
+                cred.name, cred.value
+            )
+        })?,
     };
     Ok(KeyCandidate {
         label: if cred.value_is_key_material() {
@@ -109,9 +122,16 @@ mod tests {
         assert_eq!(key.passphrase, None);
 
         let missing = cred("/nonexistent/key", None);
-        assert!(credential_key(&missing)
+        let err = credential_key(&missing).await.unwrap_err();
+        assert!(
+            err.contains("/nonexistent/key") && err.contains("paste"),
+            "{err}"
+        );
+
+        let public = cred("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGmO user@t490", None);
+        assert!(credential_key(&public)
             .await
             .unwrap_err()
-            .contains("Failed to read"));
+            .contains("PUBLIC"));
     }
 }

@@ -150,6 +150,12 @@ async fn create_credential(
         }
     };
 
+    if credential_type == svrctlrs_database::models::CredentialType::SshKey {
+        if let Some(problem) = svrctlrs_database::models::ssh_key_value_problem(&input.value) {
+            return Err(ApiError::bad_request(problem));
+        }
+    }
+
     let create = CreateCredential {
         name: input.name,
         credential_type,
@@ -214,9 +220,18 @@ async fn update_credential(
     info!(id = id, "Updating credential");
 
     // Verify credential exists
-    credentials::get_credential(&state.pool, id)
+    let existing = credentials::get_credential(&state.pool, id)
         .await
         .map_err(|_| ApiError::not_found("Credential"))?;
+    if existing.is_ssh_key() {
+        if let Some(problem) = input
+            .value
+            .as_deref()
+            .and_then(svrctlrs_database::models::ssh_key_value_problem)
+        {
+            return Err(ApiError::bad_request(problem));
+        }
+    }
 
     let update = UpdateCredential {
         name: input.name,

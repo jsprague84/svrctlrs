@@ -85,8 +85,10 @@ last_seen_at, last_error, created_at, updated_at`.
 | PUT | `/credentials/{id}` | `name?`, `description?`, `value?`, `username?`, `passphrase?` (omit to keep, `""` to remove) |
 | DELETE | `/credentials/{id}` | — |
 
-For `ssh_key` credentials `value` is either the key material itself (`-----BEGIN …`) or a path
-readable by the server (for example a key mounted at `/home/svrctlrs/.ssh/id_ed25519`).
+For `ssh_key` credentials `value` is either the *private* key material (`-----BEGIN …`) or an
+absolute path readable by the server (for example a key mounted at
+`/home/svrctlrs/.ssh/id_ed25519`). A public key (`ssh-ed25519 …`), a `.pub` path or a relative
+path is refused with 400 and a message saying why.
 `passphrase` unlocks an encrypted key. Value and passphrase are both encrypted at rest.
 
 ## Settings

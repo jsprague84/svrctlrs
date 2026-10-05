@@ -29,6 +29,10 @@ the release workflow uses the matching section as the release notes.
   The whole UI tree is Prettier-formatted (a formatting-only diff).
 
 ### Fixed
+- Saving an SSH key credential with the *public* key (`id_ed25519.pub`), a `.pub` path or a
+  path from your own machine used to be accepted and then fail at connect time with
+  "No such file or directory". The form and the API now refuse these and say which file to
+  use; a connection that still hits a bad value explains it instead of echoing an OS error.
 - The native apps' server-URL screen normalises what you type (defaults to https, strips
   trailing slashes), refuses plain `http://` on Android — release builds cannot use it — and
   warns about it on desktop.
