@@ -5,6 +5,12 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-05
+
+First release of SvrCtlRS as a terminal/SSH management tool. The 1.x/2.x line (a plugin-based
+monitoring platform with an HTMX UI) was retired in March 2026; this version shares nothing
+with it except the repository and the SQLite migration history.
+
 ### Security
 - The server refuses to start when the credential encryption key cannot be initialised
   (invalid or empty `ENCRYPTION_KEY`, unreadable key file) instead of falling back to storing
@@ -36,35 +42,12 @@ the release workflow uses the matching section as the release notes.
   username, answered with 429 and `Retry-After`. New passwords must be at least 12
   characters (this applies to `ADMIN_PASSWORD` on a first start). The session id is cycled
   on login.
-
 - Credential metadata — the SSH key passphrase — is encrypted at rest like the value
   (migration 022 adds `metadata_encrypted`); legacy plaintext metadata is encrypted at
   start-up.
-
 - SSH stack upgraded: russh 0.51 → 0.64, async-ssh2-tokio 0.8 → 0.13, clearing
   RUSTSEC-2026-0154 and RUSTSEC-2026-0153 (unbounded allocation reachable by a malicious SSH
   server). A server presenting a host *certificate* is now pinned by the certificate's key.
-
-### Added
-- SSH key passphrases: a passphrase field on SSH key credentials in the UI and API
-  (`passphrase`), used by both the interactive and the command connector.
-- `POST /api/v1/auth/ws-ticket`: one-time, 30-second tickets that native clients use to
-  authenticate WebSocket upgrades instead of putting their session token in the URL. The
-  `?token=` form is deprecated and will be removed after the next app release.
-
-### Fixed
-- "Paste key" credentials never worked: both connectors treated the stored key material as a
-  file path. Key material is now used directly; paths still work.
-- The Notifications and General settings forms opened blank because the settings store was
-  never loaded; they now load it first.
-- A terminal session that dropped with an error never auto-reconnected (the error status
-  masked the "was connected" check); it now reconnects with the full backoff schedule.
-
-## [3.0.0] - 2026-10-04
-
-First release of SvrCtlRS as a terminal/SSH management tool. The 1.x/2.x line (a plugin-based
-monitoring platform with an HTMX UI) was retired in March 2026; this version shares nothing
-with it except the repository and the SQLite migration history.
 
 ### Added
 - Interactive PTY terminals over WebSocket (russh + xterm.js 6 with WebGL), tabs, four
@@ -85,6 +68,19 @@ with it except the repository and the SQLite migration history.
   every branch; image publishing and auto-deploy from `master`; releases with APK and desktop
   packages from `v*` tags.
 
+- SSH key passphrases: a passphrase field on SSH key credentials in the UI and API
+  (`passphrase`), used by both the interactive and the command connector.
+- `POST /api/v1/auth/ws-ticket`: one-time, 30-second tickets that native clients use to
+  authenticate WebSocket upgrades instead of putting their session token in the URL. The
+  `?token=` form is deprecated and will be removed after the next app release.
+
+### Fixed
+- "Paste key" credentials never worked: both connectors treated the stored key material as a
+  file path. Key material is now used directly; paths still work.
+- The Notifications and General settings forms opened blank because the settings store was
+  never loaded; they now load it first.
+- A terminal session that dropped with an error never auto-reconnected (the error status
+  masked the "was connected" check); it now reconnects with the full backoff schedule.
 ### Changed
 - Versions unified at 3.0.0 across the Cargo workspace, the UI and the Tauri apps.
 - Container image pinned to Rust 1.98, built without OpenSSL, stamped with
@@ -99,7 +95,8 @@ with it except the repository and the SQLite migration history.
 - Job-era documentation moved to `docs-archived/job-era-2025-12/`.
 
 ### Known issues
-See `docs/SECURITY.md`, "Known weaknesses", and `docs/ROADMAP.md` P0.
+See `docs/SECURITY.md`, "Known weaknesses" (remaining: no CSRF token on the HTML login
+and logout forms; the deprecated `?token=` WebSocket parameter) and `docs/ROADMAP.md`.
 
 ## Earlier history
 
