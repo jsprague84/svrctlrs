@@ -97,7 +97,9 @@ async fn health_check() -> impl IntoResponse {
     Json(json!({
         "status": "ok",
         "service": "svrctlrs",
-        "version": env!("CARGO_PKG_VERSION")
+        "version": env!("CARGO_PKG_VERSION"),
+        // Baked into the container image by CI; lets a deploy prove which commit is running.
+        "revision": std::env::var("SVRCTLRS_REVISION").unwrap_or_else(|_| "unknown".to_string())
     }))
 }
 

@@ -2663,7 +2663,7 @@ dependencies = [
 
 [[package]]
 name = "server"
-version = "1.0.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "async-ssh2-tokio",
@@ -3076,7 +3076,7 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 
 [[package]]
 name = "svrctlrs-core"
-version = "1.0.0"
+version = "3.0.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3094,7 +3094,7 @@ dependencies = [
 
 [[package]]
 name = "svrctlrs-database"
-version = "1.0.0"
+version = "3.0.0"
 dependencies = [
  "anyhow",
  "argon2",

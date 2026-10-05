@@ -1,7 +1,5 @@
 //! SvrCtlRS Server — Terminal-focused infrastructure management
 
-#![allow(non_snake_case)]
-
 mod config;
 mod health_monitor;
 mod routes;
@@ -116,21 +114,28 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(true);
     info!(secure = session_secure, "Session cookie configuration");
 
-    // When ALLOWED_ORIGINS is set (cross-origin/Tauri), use SameSite::None
-    // so cookies work across origins. Otherwise use default (Lax).
-    let has_cors = std::env::var("ALLOWED_ORIGINS").is_ok();
+    // ALLOWED_ORIGINS lists the origins of non-browser clients (Tauri desktop/Android).
+    // Compose files often pass it through as an empty string, which must mean "unset":
+    // an empty value used to switch the session cookie to SameSite=None for nothing.
+    let allowed_origins = std::env::var("ALLOWED_ORIGINS")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty());
+
+    // When cross-origin clients are configured, use SameSite::None so cookies work across
+    // origins. Otherwise keep the library default (Strict).
     let mut session_layer = SessionManagerLayer::new(session_store)
         .with_secure(session_secure)
         .with_expiry(tower_sessions::Expiry::OnInactivity(time::Duration::hours(
             24,
         )));
-    if has_cors {
+    if allowed_origins.is_some() {
         session_layer = session_layer.with_same_site(tower_sessions::cookie::SameSite::None);
         info!("Session cookie SameSite=None for cross-origin access");
     }
 
     // Build CORS layer
-    let cors_layer = if let Ok(origins) = std::env::var("ALLOWED_ORIGINS") {
+    let cors_layer = if let Some(origins) = allowed_origins {
         let allowed: Vec<HeaderValue> = origins
             .split(',')
             .filter_map(|s| s.trim().parse().ok())

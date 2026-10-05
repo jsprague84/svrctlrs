@@ -46,7 +46,7 @@
 			</div>
 			<div class="flex items-center justify-between py-1">
 				<span class="text-sm text-text-secondary">Version</span>
-				<span class="text-sm text-text-primary font-mono">0.1.0</span>
+				<span class="text-sm text-text-primary font-mono">{__APP_VERSION__}</span>
 			</div>
 			<div class="flex items-center justify-between py-1">
 				<span class="text-sm text-text-secondary">Platform</span>

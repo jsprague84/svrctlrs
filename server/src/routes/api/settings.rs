@@ -135,10 +135,8 @@ async fn create_setting(
                 ));
             }
         }
-        "json" => {
-            if serde_json::from_str::<serde_json::Value>(&input.value).is_err() {
-                return Err(ApiError::bad_request("JSON setting must be valid JSON"));
-            }
+        "json" if serde_json::from_str::<serde_json::Value>(&input.value).is_err() => {
+            return Err(ApiError::bad_request("JSON setting must be valid JSON"));
         }
         _ => {}
     }

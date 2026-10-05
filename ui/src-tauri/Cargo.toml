@@ -1,10 +1,10 @@
 [package]
 name = "svrctlrs-desktop"
-version = "0.1.0"
+version = "3.0.0"
 description = "SvrCtlRS Desktop — Terminal/SSH management tool"
 authors = ["Johnathon Sprague"]
 license = "MIT"
-repository = "https://github.com/jsprague84/svrctlrs"
+repository = "https://git.js-node.cc/jsprague/svrctlrs"
 edition = "2021"
 rust-version = "1.77.2"
 
