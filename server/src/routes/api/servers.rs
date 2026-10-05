@@ -227,29 +227,54 @@ async fn test_connection(
         return Err(ApiError::bad_request("Server has no hostname configured"));
     }
 
+    let port = u16::try_from(server.port)
+        .map_err(|_| ApiError::bad_request("Server port is out of range"))?;
+
     // Load credential if assigned
-    let key_path = if let Some(cred_id) = server.credential_id {
-        match svrctlrs_database::queries::credentials::get_credential(&state.pool, cred_id).await {
-            Ok(cred) => Some(cred.value.clone()),
-            Err(e) => {
-                tracing::warn!(error = %e, "Failed to load credential for connection test");
-                None
+    let credential = match server.credential_id {
+        Some(cred_id) => {
+            match svrctlrs_database::queries::credentials::get_credential(&state.pool, cred_id)
+                .await
+            {
+                Ok(cred) => Some(cred),
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to load credential for connection test");
+                    None
+                }
             }
         }
-    } else {
-        None
-    };
-
-    let config = crate::ssh::SshConfig {
-        host: hostname,
-        port: server.port as u16,
-        username: server.username.unwrap_or_else(|| "root".to_string()),
-        key_path,
-        ..Default::default()
+        None => None,
     };
 
     let started = std::time::Instant::now();
-    match crate::ssh::test_connection(&config).await {
+    // The same connector as command mode: the host key is verified (trust on first use)
+    // before any authentication, so a test never talks to an unverified server.
+    let result =
+        match crate::routes::terminal::verify_host_key(&state.pool, server.id, &hostname, port)
+            .await
+        {
+            Ok(verified_key) => crate::routes::terminal::execute_ssh_command(
+                &server,
+                credential.as_ref(),
+                "echo svrctlrs-connection-test",
+                None,
+                verified_key.as_deref(),
+            )
+            .await
+            .map(|(stdout, stderr, exit_code)| {
+                if exit_code == 0 {
+                    format!("Connected: {}", stdout.trim())
+                } else {
+                    format!(
+                        "Connected, but the test command exited {exit_code}: {}",
+                        stderr.trim()
+                    )
+                }
+            }),
+            Err(e) => Err(e),
+        };
+
+    match result {
         Ok(output) => {
             let elapsed = started.elapsed();
             info!(
@@ -273,7 +298,7 @@ async fn test_connection(
 
             Ok(Json(json!({
                 "success": false,
-                "message": format!("{}", e),
+                "message": e,
                 "server_id": id,
                 "hostname": server.hostname,
                 "port": server.port,

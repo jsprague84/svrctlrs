@@ -2,8 +2,8 @@
 
 mod config;
 mod health_monitor;
+mod host_keys;
 mod routes;
-mod ssh;
 mod state;
 
 use config::Config;

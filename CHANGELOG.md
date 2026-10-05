@@ -19,7 +19,16 @@ the release workflow uses the matching section as the release notes.
   the store, so expired sessions are refused, and takes the user id from the session record.
   The client-supplied `X-User-Id` header and `user_id` query parameter are ignored.
 - Request tracing logs a redacted URI; the WebSocket token no longer appears in logs.
-- First tests in the `server` crate: auth middleware, origin rules, URI redaction.
+- Host-key verification compares the presented key against every key stored for the server,
+  so a different key *algorithm* is a mismatch rather than a first contact; both connectors
+  refuse the connection on a database error instead of accepting the key.
+- `POST /api/v1/servers/{id}/test` verifies the host key before authenticating and supports
+  password credentials; the legacy unverified SSH module is gone.
+- Terminal profiles and quick commands: `get`, `update` and `delete` are scoped to the calling
+  user and answer 404 for another user's id; setting a default profile no longer clears other
+  users' defaults.
+- First tests in the `server` crate: auth middleware, origin rules, URI redaction, host-key
+  decisions; database tests for per-user scoping.
 
 ## [3.0.0] - 2026-10-04
 

@@ -52,9 +52,11 @@ stored credential undecryptable.
 ## SSH host keys
 
 Trust on first use. The first connection to a server stores its host key in
-`server_host_keys` keyed by `(server_id, key_type)`; later connections presenting a different
-key of that type are refused with an error in the terminal. This applies to both terminal
-modes. There is no UI to view or revoke stored keys yet (delete the row to re-trust).
+`server_host_keys`; a later connection presenting a key that matches none of the keys stored
+for that server — whatever its algorithm — is refused with an error in the terminal. The same
+decision (`server/src/host_keys.rs`) serves the PTY connector, the command connector and the
+connection test, and a database error refuses the connection. There is no UI to view or revoke
+stored keys yet (delete the server's rows to re-trust).
 
 ## Transport and headers
 
@@ -94,12 +96,14 @@ Ordered by impact. Each has a ROADMAP entry.
 4. **Token in `localStorage`** — the web UI stores the session id and user id in
    `localStorage` (not only the Tauri apps), which the CSP's `'unsafe-inline'` makes reachable
    to any injected script. Fix: cookies only in the browser; secure storage on devices.
-5. **Host-key check is per key type** — a man-in-the-middle presenting a different key
-   *algorithm* than the stored one is TOFU-accepted. The PTY path also fails open on a
-   database error. Fix: compare against all stored keys for the server; fail closed.
-6. **`POST /servers/{id}/test` skips host-key verification** — it uses the legacy
-   `server/src/ssh.rs` with `ServerCheckMethod::NoCheck`. Fix: route it through the TOFU
-   path and delete `ssh.rs`.
+5. ~~**Host-key check is per key type**~~ — fixed after 3.0.0: one shared decision
+   (`server/src/host_keys.rs`) compares the presented key against *every* key stored for the
+   server; an unseen key type with keys on file is a mismatch, not a first contact. Both
+   connectors fail closed on a database error. A legitimately changed host key now needs an
+   administrator to delete the server's rows in `server_host_keys` (UI pending, ROADMAP).
+6. ~~**`POST /servers/{id}/test` skips host-key verification**~~ — fixed after 3.0.0: the
+   connection test uses the command-mode connector, so it verifies the host key first and
+   supports password credentials; the legacy `ssh.rs` (`NoCheck`) is deleted.
 7. **`local` servers are container RCE for any user** — `is_local: true` runs `sh -c` as the
    server process. Acceptable for a single-operator install; needs a role or an explicit
    server-side opt-in before multi-user use.
@@ -107,8 +111,10 @@ Ordered by impact. Each has a ROADMAP entry.
    are unlimited (the edge passkey login is the compensating control today).
 9. **`credentials.metadata` is plaintext** — it carries SSH key passphrases. Fix: encrypt it
    or move the passphrase into `value`.
-10. **Per-record access** — `get`/`update`/`delete` for profiles and quick commands are not
-    scoped by `user_id`; only `list` is.
+10. ~~**Per-record access**~~ — fixed after 3.0.0: `get`/`update`/`delete` for profiles and
+    quick commands are scoped to the calling user (profiles with no owner stay shared), and a
+    foreign id answers 404, not 403, so ids cannot be probed. Setting a default profile no
+    longer clears other users' defaults.
 11. **Session id is not rotated on login** (fixation via the cookie path), and form login /
     logout are simple requests with no CSRF token.
 12. ~~**Plaintext fallback**~~ — fixed after 3.0.0: the server refuses to start when the key

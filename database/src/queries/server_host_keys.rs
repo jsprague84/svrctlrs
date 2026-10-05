@@ -29,6 +29,30 @@ pub async fn get_host_key_by_server(
     .map_err(|e| Error::DatabaseError(e.to_string()))
 }
 
+/// Every stored host key for a server, regardless of key type.
+///
+/// Trust decisions must look at all of them: a server that has a stored key of one type and
+/// suddenly presents a different type is a mismatch, not a first contact.
+#[instrument(skip(pool))]
+pub async fn list_host_keys_for_server(
+    pool: &Pool<Sqlite>,
+    server_id: i64,
+) -> Result<Vec<ServerHostKey>> {
+    sqlx::query_as::<_, ServerHostKey>(
+        r#"
+        SELECT id, server_id, key_type, public_key, first_seen_at, last_seen_at
+        FROM server_host_keys
+        WHERE server_id = ?
+        ORDER BY first_seen_at
+        "#,
+    )
+    .bind(server_id)
+    .fetch_all(pool)
+    .await
+    .context("Failed to list host keys for server")
+    .map_err(|e| Error::DatabaseError(e.to_string()))
+}
+
 /// Store a new host key for a server (TOFU - first connection)
 #[instrument(skip(pool))]
 pub async fn store_host_key(
@@ -188,5 +212,29 @@ mod tests {
         // Same server + same key type should fail (UNIQUE constraint)
         let result = store_host_key(&pool, 1, "ssh-ed25519", "ssh-ed25519 AAAAC3key2").await;
         assert!(result.is_err());
+    }
+    #[tokio::test]
+    async fn test_list_host_keys_for_server_returns_every_type() {
+        let pool = setup_test_db().await;
+        assert!(list_host_keys_for_server(&pool, 1)
+            .await
+            .unwrap()
+            .is_empty());
+
+        store_host_key(&pool, 1, "ssh-ed25519", "ssh-ed25519 AAAA1")
+            .await
+            .unwrap();
+        store_host_key(&pool, 1, "ssh-rsa", "ssh-rsa BBBB2")
+            .await
+            .unwrap();
+
+        let keys = list_host_keys_for_server(&pool, 1).await.unwrap();
+        let mut types: Vec<&str> = keys.iter().map(|k| k.key_type.as_str()).collect();
+        types.sort_unstable();
+        assert_eq!(types, ["ssh-ed25519", "ssh-rsa"]);
+        assert!(list_host_keys_for_server(&pool, 2)
+            .await
+            .unwrap()
+            .is_empty());
     }
 }

@@ -42,21 +42,33 @@ pub async fn list_terminal_profiles_for_user(
     Ok(profiles)
 }
 
-/// Get a terminal profile by ID
-pub async fn get_terminal_profile(pool: &Pool<Sqlite>, id: i64) -> Result<TerminalProfile> {
-    let profile = sqlx::query_as::<_, TerminalProfile>(
+/// Get a terminal profile by ID, as seen by `user_id`.
+///
+/// Profiles are per user; rows with a NULL `user_id` predate accounts and are visible to
+/// everyone, matching [`list_terminal_profiles_for_user`]. Another user's profile is "not
+/// found", never "forbidden", so ids cannot be probed.
+pub async fn get_terminal_profile(
+    pool: &Pool<Sqlite>,
+    id: i64,
+    user_id: i64,
+) -> Result<TerminalProfile> {
+    sqlx::query_as::<_, TerminalProfile>(
         r#"
         SELECT id, name, description, layout, pane_configs, quick_commands, is_default, user_id,
                created_at, updated_at
         FROM terminal_profiles
-        WHERE id = ?
+        WHERE id = ? AND (user_id = ? OR user_id IS NULL)
         "#,
     )
     .bind(id)
-    .fetch_one(pool)
-    .await?;
-
-    Ok(profile)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| {
+        anyhow::Error::from(svrctlrs_core::Error::NotFound(format!(
+            "terminal profile {id}"
+        )))
+    })
 }
 
 /// Get the default terminal profile (optionally for a specific user)
@@ -121,18 +133,24 @@ pub async fn create_terminal_profile(
     Ok(result.last_insert_rowid())
 }
 
-/// Update an existing terminal profile
+/// Update a terminal profile owned by (or visible to) `user_id`. Returns `Error::NotFound`
+/// when no such row exists for this user.
 pub async fn update_terminal_profile(
     pool: &Pool<Sqlite>,
     id: i64,
+    user_id: i64,
     update: &UpdateTerminalProfile,
 ) -> Result<()> {
-    // If this profile is being set as default, unset any existing default
+    // If this profile is being set as default, unset this user's other default
     if update.is_default == Some(true) {
-        sqlx::query("UPDATE terminal_profiles SET is_default = 0 WHERE is_default = 1 AND id != ?")
-            .bind(id)
-            .execute(pool)
-            .await?;
+        sqlx::query(
+            "UPDATE terminal_profiles SET is_default = 0 \
+             WHERE is_default = 1 AND id != ? AND (user_id = ? OR user_id IS NULL)",
+        )
+        .bind(id)
+        .bind(user_id)
+        .execute(pool)
+        .await?;
     }
 
     let mut qb: QueryBuilder<Sqlite> =
@@ -162,18 +180,161 @@ pub async fn update_terminal_profile(
     }
 
     qb.push(" WHERE id = ").push_bind(id);
+    qb.push(" AND (user_id = ").push_bind(user_id);
+    qb.push(" OR user_id IS NULL)");
 
-    qb.build().execute(pool).await?;
+    let result = qb.build().execute(pool).await?;
+    if result.rows_affected() == 0 {
+        return Err(svrctlrs_core::Error::NotFound(format!("terminal profile {id}")).into());
+    }
 
     Ok(())
 }
 
-/// Delete a terminal profile
-pub async fn delete_terminal_profile(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
-    sqlx::query("DELETE FROM terminal_profiles WHERE id = ?")
-        .bind(id)
-        .execute(pool)
-        .await?;
+/// Delete a terminal profile owned by (or visible to) `user_id`.
+pub async fn delete_terminal_profile(pool: &Pool<Sqlite>, id: i64, user_id: i64) -> Result<()> {
+    let result = sqlx::query(
+        "DELETE FROM terminal_profiles WHERE id = ? AND (user_id = ? OR user_id IS NULL)",
+    )
+    .bind(id)
+    .bind(user_id)
+    .execute(pool)
+    .await?;
+    if result.rows_affected() == 0 {
+        return Err(svrctlrs_core::Error::NotFound(format!("terminal profile {id}")).into());
+    }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use sqlx::SqlitePool;
+
+    async fn setup() -> Pool<Sqlite> {
+        let pool = SqlitePool::connect(":memory:").await.unwrap();
+        sqlx::migrate!().run(&pool).await.unwrap();
+        // Owners referenced by user_id (foreign key to users).
+        sqlx::query("INSERT INTO users (username, password_hash) VALUES ('u1', 'x'), ('u2', 'x')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool
+    }
+
+    fn profile(name: &str) -> CreateTerminalProfile {
+        CreateTerminalProfile {
+            name: name.to_string(),
+            description: None,
+            layout: "single".to_string(),
+            pane_configs: None,
+            quick_commands: None,
+            is_default: false,
+        }
+    }
+
+    fn is_not_found(e: &anyhow::Error) -> bool {
+        matches!(
+            e.downcast_ref::<svrctlrs_core::Error>(),
+            Some(svrctlrs_core::Error::NotFound(_))
+        )
+    }
+
+    #[tokio::test]
+    async fn profiles_are_scoped_to_their_owner() {
+        let pool = setup().await;
+        let mine = create_terminal_profile(&pool, &profile("mine"), Some(1))
+            .await
+            .unwrap();
+        let shared = create_terminal_profile(&pool, &profile("shared"), None)
+            .await
+            .unwrap();
+
+        // The owner and a legacy shared (NULL owner) row are visible to user 1 ...
+        assert_eq!(
+            get_terminal_profile(&pool, mine, 1).await.unwrap().name,
+            "mine"
+        );
+        assert_eq!(
+            get_terminal_profile(&pool, shared, 1).await.unwrap().name,
+            "shared"
+        );
+        // ... user 2 sees only the shared row, and the other is "not found", not "forbidden".
+        assert!(is_not_found(
+            &get_terminal_profile(&pool, mine, 2).await.unwrap_err()
+        ));
+        assert_eq!(
+            get_terminal_profile(&pool, shared, 2).await.unwrap().name,
+            "shared"
+        );
+
+        let rename = UpdateTerminalProfile {
+            name: Some("renamed".to_string()),
+            ..Default::default()
+        };
+        assert!(is_not_found(
+            &update_terminal_profile(&pool, mine, 2, &rename)
+                .await
+                .unwrap_err()
+        ));
+        assert!(is_not_found(
+            &delete_terminal_profile(&pool, mine, 2).await.unwrap_err()
+        ));
+        assert_eq!(
+            get_terminal_profile(&pool, mine, 1).await.unwrap().name,
+            "mine"
+        );
+
+        update_terminal_profile(&pool, mine, 1, &rename)
+            .await
+            .unwrap();
+        assert_eq!(
+            get_terminal_profile(&pool, mine, 1).await.unwrap().name,
+            "renamed"
+        );
+        delete_terminal_profile(&pool, mine, 1).await.unwrap();
+        assert!(is_not_found(
+            &get_terminal_profile(&pool, mine, 1).await.unwrap_err()
+        ));
+    }
+
+    #[tokio::test]
+    async fn setting_a_default_does_not_touch_other_users() {
+        let pool = setup().await;
+        let theirs = create_terminal_profile(
+            &pool,
+            &CreateTerminalProfile {
+                is_default: true,
+                ..profile("theirs")
+            },
+            Some(2),
+        )
+        .await
+        .unwrap();
+        let mine = create_terminal_profile(&pool, &profile("mine"), Some(1))
+            .await
+            .unwrap();
+
+        let make_default = UpdateTerminalProfile {
+            is_default: Some(true),
+            ..Default::default()
+        };
+        update_terminal_profile(&pool, mine, 1, &make_default)
+            .await
+            .unwrap();
+
+        assert!(
+            get_terminal_profile(&pool, mine, 1)
+                .await
+                .unwrap()
+                .is_default
+        );
+        assert!(
+            get_terminal_profile(&pool, theirs, 2)
+                .await
+                .unwrap()
+                .is_default
+        );
+    }
 }

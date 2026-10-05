@@ -11,6 +11,10 @@ pub enum Error {
     #[error("Database error: {0}")]
     DatabaseError(String),
 
+    /// The row does not exist, or is not visible to the requesting user.
+    #[error("Not found: {0}")]
+    NotFound(String),
+
     #[error("Notification error: {0}")]
     NotificationError(String),
 

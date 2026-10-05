@@ -70,7 +70,7 @@ impl Default for CreateTerminalProfile {
 }
 
 /// Update an existing terminal profile
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct UpdateTerminalProfile {
     pub name: Option<String>,
     pub description: Option<String>,

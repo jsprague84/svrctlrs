@@ -16,6 +16,17 @@ use super::ApiError;
 use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
 
+/// Map a query error: a row that is missing or belongs to someone else is 404.
+fn profile_error(e: anyhow::Error, action: &str, id: i64) -> (StatusCode, Json<ApiError>) {
+    match e.downcast_ref::<svrctlrs_core::Error>() {
+        Some(svrctlrs_core::Error::NotFound(_)) => ApiError::not_found("Profile"),
+        _ => {
+            error!(error = %e, id = id, "Failed to {action} profile");
+            ApiError::internal_error(format!("Failed to {action} profile: {e}"))
+        }
+    }
+}
+
 /// Create profiles router
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -49,13 +60,11 @@ async fn list_profiles(
 async fn get_profile(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    current_user: CurrentUser,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let profile = terminal_profiles::get_terminal_profile(&state.pool, id)
+    let profile = terminal_profiles::get_terminal_profile(&state.pool, id, current_user.0)
         .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to get profile");
-            ApiError::not_found("Profile")
-        })?;
+        .map_err(|e| profile_error(e, "get", id))?;
 
     Ok(Json(json!({ "profile": profile })))
 }
@@ -131,6 +140,7 @@ struct UpdateProfileInput {
 async fn update_profile(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    current_user: CurrentUser,
     Json(input): Json<UpdateProfileInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let update = svrctlrs_database::UpdateTerminalProfile {
@@ -142,12 +152,9 @@ async fn update_profile(
         is_default: input.is_default,
     };
 
-    terminal_profiles::update_terminal_profile(&state.pool, id, &update)
+    terminal_profiles::update_terminal_profile(&state.pool, id, current_user.0, &update)
         .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to update profile");
-            ApiError::internal_error(format!("Failed to update profile: {}", e))
-        })?;
+        .map_err(|e| profile_error(e, "update", id))?;
 
     Ok(Json(json!({ "id": id, "message": "Profile updated" })))
 }
@@ -157,13 +164,11 @@ async fn update_profile(
 async fn delete_profile(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    current_user: CurrentUser,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    terminal_profiles::delete_terminal_profile(&state.pool, id)
+    terminal_profiles::delete_terminal_profile(&state.pool, id, current_user.0)
         .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to delete profile");
-            ApiError::internal_error(format!("Failed to delete profile: {}", e))
-        })?;
+        .map_err(|e| profile_error(e, "delete", id))?;
 
     Ok(Json(json!({ "id": id, "message": "Profile deleted" })))
 }

@@ -300,8 +300,9 @@ async fn execute_local_command(
     Ok((stdout, stderr, exit_code))
 }
 
-/// Execute a command via SSH
-async fn execute_ssh_command(
+/// Execute a command via SSH. Shared with the connection test in the servers API so every
+/// SSH connection the server makes goes through the same host-key verification.
+pub(crate) async fn execute_ssh_command(
     server: &svrctlrs_database::models::Server,
     credential: Option<&svrctlrs_database::models::Credential>,
     command: &str,
@@ -556,60 +557,17 @@ pub async fn verify_host_key(
     hostname: &str,
     port: u16,
 ) -> Result<Option<String>, String> {
-    use svrctlrs_database::queries::server_host_keys;
+    use crate::host_keys::{self, Verdict};
 
     // Scan the server's current host key
     let (scanned_key_type, scanned_key) = scan_host_key(hostname, port).await?;
 
-    // Check if we already have a stored key for this server and key type
-    let stored_key = server_host_keys::get_host_key_by_server(pool, server_id, &scanned_key_type)
-        .await
-        .map_err(|e| format!("Failed to check stored host key: {}", e))?;
-
-    match stored_key {
-        Some(existing) => {
-            // Key exists — verify it matches
-            if existing.public_key == scanned_key {
-                info!(
-                    server_id,
-                    key_type = scanned_key_type,
-                    "Host key verification successful"
-                );
-                // Update last_seen_at
-                server_host_keys::update_host_key_last_seen(pool, server_id, &scanned_key_type)
-                    .await
-                    .ok();
-                Ok(Some(scanned_key))
-            } else {
-                error!(
-                    server_id,
-                    stored_key_type = existing.key_type,
-                    new_key_type = scanned_key_type,
-                    "HOST KEY MISMATCH - possible MITM attack!"
-                );
-                Err(format!(
-                    "⚠️  WARNING: SSH HOST KEY MISMATCH for this server!\r\n\
-                     The server's host key has changed since the first connection.\r\n\
-                     This could indicate a man-in-the-middle attack.\r\n\
-                     Stored key type: {}\r\n\
-                     Current key type: {}\r\n\
-                     Connection refused for security.",
-                    existing.key_type, scanned_key_type
-                ))
-            }
-        }
-        None => {
-            // First connection — store key (TOFU)
-            info!(
-                server_id,
-                key_type = scanned_key_type,
-                "First connection - storing host key (TOFU)"
-            );
-            server_host_keys::store_host_key(pool, server_id, &scanned_key_type, &scanned_key)
-                .await
-                .map_err(|e| format!("Failed to store host key: {}", e))?;
-            Ok(Some(scanned_key))
-        }
+    match host_keys::verify_and_record(pool, server_id, &scanned_key_type, &scanned_key).await? {
+        Verdict::Trusted | Verdict::FirstSeen => Ok(Some(scanned_key)),
+        Verdict::Mismatch { stored_types } => Err(host_keys::mismatch_message(
+            &stored_types,
+            &scanned_key_type,
+        )),
     }
 }
 

@@ -12,9 +12,9 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | ~~2~~ | Done 2026-10-05: token auth resolves the session through the store (expiry-filtered) and takes `user_id` from the record; `X-User-Id`/`?user_id=` ignored; `CurrentUser` extractor replaces per-handler session reads; tested. Still open: cycle the session id on login | `server/src/routes/ui/auth.rs` |
 | 3 | Partly done 2026-10-05 (span logs a redacted URI). Remaining: replace the query-string token with a one-time WebSocket ticket, and stop the UI sending `user_id` | both WS handlers, `ui/.../TerminalPane.svelte`, `ui/src/lib/api/client.ts` |
 | 4 | Browser clients: stop writing the session id to `localStorage`; use the cookie only | `ui/src/routes/auth/login/+page.svelte`, `ui/src/lib/api/client.ts` |
-| 5 | Host keys: compare against every stored key for the server, not per `key_type`; fail closed on DB errors in the PTY path | `terminal.rs`, `terminal_pty.rs`, `database/src/queries/server_host_keys.rs` |
-| 6 | Route `POST /servers/{id}/test` through the TOFU connector and delete `server/src/ssh.rs` | `server/src/routes/api/servers.rs` |
-| 7 | Scope `get`/`update`/`delete` of profiles and quick commands by `user_id` | `database/src/queries/terminal_profiles.rs`, `quick_commands.rs` |
+| ~~5~~ | Done 2026-10-05: `server/src/host_keys.rs` evaluates against every stored key; both connectors fail closed; tested | `host_keys.rs`, `terminal.rs`, `terminal_pty.rs` |
+| ~~6~~ | Done 2026-10-05: connection test uses the command connector (TOFU first, password credentials supported); `ssh.rs` deleted | `server/src/routes/api/servers.rs` |
+| ~~7~~ | Done 2026-10-05: profiles and quick commands scoped per user with 404 on foreign ids; tested | `terminal_profiles.rs`, `quick_commands.rs` |
 | 8 | Encrypt `credentials.metadata` (holds passphrases) or move the passphrase into `value`; remove the `Debug` derive that prints it | `database/src/models/credential.rs`, `server/src/routes/api/credentials.rs` |
 | ~~9~~ | Done 2026-10-05: the server refuses to start when encryption cannot initialise; the database layer refuses plaintext. (Production had run in the fallback since 2026-09-14 because the compose passed `ENCRYPTION_KEY=` empty.) | `server/src/main.rs`, `database/src/queries/credentials.rs` |
 | ~~9a~~ | Done 2026-10-05: start-up encrypts every `encrypted = 0` row in one transaction and logs the count | `encrypt_plaintext_credentials` |
@@ -44,8 +44,8 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 
 ## P2 — Hygiene
 
-- Collapse the three SSH connection stacks (`ssh.rs`, `terminal.rs`, `terminal_pty.rs`) into
-  one connector with one default-key list and one TOFU implementation.
+- Collapse the two remaining SSH connection stacks (`terminal.rs`, `terminal_pty.rs`) into
+  one connector with one default-key list (the TOFU decision is already shared).
 - `server/src/config.rs` and `AppState.config` are never read; either use the TOML (servers
   from config) or delete it and the `--config` flag.
 - Replace stringly `core::Error` variants with typed errors and `IntoResponse`.

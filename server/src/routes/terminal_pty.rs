@@ -80,7 +80,7 @@ impl client::Handler for SshClientHandler {
         &mut self,
         server_public_key: &russh::keys::PublicKey,
     ) -> Result<bool, Self::Error> {
-        use svrctlrs_database::queries::server_host_keys;
+        use crate::host_keys::{self, Verdict};
 
         let openssh_key = server_public_key
             .to_openssh()
@@ -91,68 +91,19 @@ impl client::Handler for SshClientHandler {
             .unwrap_or("unknown")
             .to_string();
 
-        // Check stored key in database for this specific key type
-        let stored_key =
-            match server_host_keys::get_host_key_by_server(&self.pool, self.server_id, &key_type)
-                .await
-            {
-                Ok(key) => key,
-                Err(e) => {
-                    warn!(
-                        server_id = self.server_id,
-                        error = %e,
-                        "Failed to query host key database, accepting key"
-                    );
-                    return Ok(true);
-                }
-            };
-
-        match stored_key {
-            Some(existing) => {
-                if existing.public_key == openssh_key {
-                    info!(
-                        server_id = self.server_id,
-                        key_type, "PTY host key verification successful"
-                    );
-                    server_host_keys::update_host_key_last_seen(
-                        &self.pool,
-                        self.server_id,
-                        &key_type,
-                    )
-                    .await
-                    .ok();
-                    Ok(true)
-                } else {
-                    error!(
-                        server_id = self.server_id,
-                        stored_key_type = existing.key_type,
-                        new_key_type = key_type,
-                        "PTY HOST KEY MISMATCH - possible MITM attack!"
-                    );
-                    Ok(false)
-                }
-            }
-            None => {
-                // First connection — store key (TOFU)
-                info!(
+        // Fail closed: a key we cannot verify or record is a key we do not trust.
+        match host_keys::verify_and_record(&self.pool, self.server_id, &key_type, &openssh_key)
+            .await
+        {
+            Ok(Verdict::Trusted) | Ok(Verdict::FirstSeen) => Ok(true),
+            Ok(Verdict::Mismatch { .. }) => Ok(false),
+            Err(e) => {
+                error!(
                     server_id = self.server_id,
-                    key_type, "PTY first connection - storing host key (TOFU)"
+                    error = %e,
+                    "PTY host key check failed; refusing connection"
                 );
-                if let Err(e) = server_host_keys::store_host_key(
-                    &self.pool,
-                    self.server_id,
-                    &key_type,
-                    &openssh_key,
-                )
-                .await
-                {
-                    warn!(
-                        server_id = self.server_id,
-                        error = %e,
-                        "Failed to store host key, accepting anyway"
-                    );
-                }
-                Ok(true)
+                Ok(false)
             }
         }
     }

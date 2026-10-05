@@ -56,7 +56,7 @@ Codes: `BAD_REQUEST` (400), `NOT_FOUND` (404), `CONFLICT` (409), `INTERNAL_ERROR
 | GET | `/servers/{id}` | — | |
 | PUT | `/servers/{id}` | any subset of the create fields plus `os_type?`, `os_distro?` | |
 | DELETE | `/servers/{id}` | — | |
-| POST | `/servers/{id}/test` | — | opens an SSH connection and records `last_seen_at`/`last_error`. **Currently bypasses host-key verification** (ROADMAP P0). |
+| POST | `/servers/{id}/test` | — | verifies the host key (trust on first use), authenticates with the server's credential and runs a trivial command; returns `success`, `message`, `latency_ms` |
 
 Server object: `id, name, hostname, port, username, credential_id, description, is_local,
 enabled, os_type, os_distro, package_manager, docker_available, systemd_available, metadata,
@@ -141,5 +141,6 @@ Server → client: `output` frames with `data`, then `{"type": "exit", "data": "
 `error` and `pong` as above.
 
 Host-key handling on both endpoints: the first connection to a server stores its key; a
-later connection presenting a different key *of the same type* is refused with an `error`
-frame explaining the mismatch.
+later connection presenting a key that matches none stored for that server is refused with an
+`error` frame explaining the mismatch. Profiles and quick commands are per user: another
+user's id answers 404.

@@ -16,6 +16,17 @@ use super::ApiError;
 use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
 
+/// Map a query error: a row that is missing or belongs to someone else is 404.
+fn command_error(e: anyhow::Error, action: &str, id: i64) -> (StatusCode, Json<ApiError>) {
+    match e.downcast_ref::<svrctlrs_core::Error>() {
+        Some(svrctlrs_core::Error::NotFound(_)) => ApiError::not_found("Quick command"),
+        _ => {
+            error!(error = %e, id = id, "Failed to {action} quick command");
+            ApiError::internal_error(format!("Failed to {action} quick command: {e}"))
+        }
+    }
+}
+
 /// Create quick commands router
 pub fn routes() -> Router<AppState> {
     Router::new()
@@ -59,13 +70,11 @@ async fn list_commands(
 async fn get_command(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    current_user: CurrentUser,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let command = quick_commands::get_quick_command(&state.pool, id)
+    let command = quick_commands::get_quick_command(&state.pool, id, current_user.0)
         .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to get quick command");
-            ApiError::not_found("Quick command")
-        })?;
+        .map_err(|e| command_error(e, "get", id))?;
 
     Ok(Json(json!({ "command": command })))
 }
@@ -135,6 +144,7 @@ struct UpdateCommandInput {
 async fn update_command(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    current_user: CurrentUser,
     Json(input): Json<UpdateCommandInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let update = svrctlrs_database::UpdateQuickCommand {
@@ -145,12 +155,9 @@ async fn update_command(
         sort_order: input.sort_order,
     };
 
-    quick_commands::update_quick_command(&state.pool, id, &update)
+    quick_commands::update_quick_command(&state.pool, id, current_user.0, &update)
         .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to update quick command");
-            ApiError::internal_error(format!("Failed to update quick command: {}", e))
-        })?;
+        .map_err(|e| command_error(e, "update", id))?;
 
     Ok(Json(
         json!({ "id": id, "message": "Quick command updated" }),
@@ -162,13 +169,11 @@ async fn update_command(
 async fn delete_command(
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    current_user: CurrentUser,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    quick_commands::delete_quick_command(&state.pool, id)
+    quick_commands::delete_quick_command(&state.pool, id, current_user.0)
         .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to delete quick command");
-            ApiError::internal_error(format!("Failed to delete quick command: {}", e))
-        })?;
+        .map_err(|e| command_error(e, "delete", id))?;
 
     Ok(Json(
         json!({ "id": id, "message": "Quick command deleted" }),
