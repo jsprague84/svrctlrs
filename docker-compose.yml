@@ -1,9 +1,20 @@
+# SvrCtlRS behind the docker-vm Traefik edge.
+#
+# Copy to ~/docker-compose/svrctlrs/ with a .env (chmod 600) that sets at least
+# ADMIN_PASSWORD and ENCRYPTION_KEY; see docs/DEPLOYMENT.md and .env.example.
+# TAG is normally a short commit SHA written by scripts/deploy/docker-vm-deploy.sh,
+# or a release tag such as v3.0.0.
+#
+# Edge auth (dev-space standard): the browser UI sits behind the Pocket ID passkey login
+# (`secure-auth-chain@file`). The API and WebSocket paths carry the app's own session/token
+# auth and are used by the Tauri desktop and Android clients, which cannot complete a
+# tinyauth redirect, so they get the headers-only chain (`secure-chain@file`).
 services:
   svrctlrs:
-    image: ghcr.io/${GITHUB_REPOSITORY:-jsprague84/svrctlrs}:${TAG:-dev}
+    image: git.js-node.cc/jsprague/svrctlrs:${TAG:-latest}
     container_name: svrctlrs
     restart: ${RESTART_POLICY:-unless-stopped}
-    user: "1000:${DOCKER_GID:-987}"
+    user: "1000:1000"
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/svrctlrs.db}
@@ -12,10 +23,13 @@ services:
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env (64 hex chars for AES-256-GCM)}
+      # Origins of non-browser clients (Tauri desktop/Android). Leave empty for browser-only use.
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
     volumes:
       - svrctlrs-data:/app/data
-      - ${SSH_KEY_PATH:-~/.ssh}:/home/svrctlrs/.ssh:ro
+      # Optional: SSH keys the server may use for key-path credentials. Mount a dedicated
+      # directory, not your whole ~/.ssh.
+      - ${SSH_KEY_PATH:-./ssh}:/home/svrctlrs/.ssh:ro
     healthcheck:
       test: ["CMD", "/app/svrctl", "health"]
       interval: 30s
@@ -27,22 +41,24 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=proxy"
+      - "traefik.http.services.svrctlrs.loadbalancer.server.port=8080"
 
-      # HTTP -> HTTPS redirect
-      - "traefik.http.routers.svrctlrs.entrypoints=http"
-      - "traefik.http.routers.svrctlrs.rule=Host(`svrctlrs.js-node.app`)"
-      - "traefik.http.middlewares.svrctlrs-https-redirect.redirectscheme.scheme=https"
-      - "traefik.http.routers.svrctlrs.middlewares=svrctlrs-https-redirect"
-
-      # HTTPS router
+      # Browser UI: passkey login at the edge, then the app's own login.
       - "traefik.http.routers.svrctlrs-secure.entrypoints=https"
-      - "traefik.http.routers.svrctlrs-secure.rule=Host(`svrctlrs.js-node.app`)"
+      - "traefik.http.routers.svrctlrs-secure.rule=Host(`${SVRCTLRS_HOST:-svrctlrs.js-node.app}`)"
       - "traefik.http.routers.svrctlrs-secure.tls=true"
       - "traefik.http.routers.svrctlrs-secure.tls.certresolver=cloudflare"
       - "traefik.http.routers.svrctlrs-secure.service=svrctlrs"
-      - "traefik.http.routers.svrctlrs-secure.middlewares=ta-jsapp-forwardauth@docker"
+      - "traefik.http.routers.svrctlrs-secure.middlewares=secure-auth-chain@file"
 
-      - "traefik.http.services.svrctlrs.loadbalancer.server.port=8080"
+      # API + WebSockets: the app authenticates these itself (session cookie or Bearer token).
+      # A more specific rule wins over the UI router, so native clients reach them directly.
+      - "traefik.http.routers.svrctlrs-api.entrypoints=https"
+      - "traefik.http.routers.svrctlrs-api.rule=Host(`${SVRCTLRS_HOST:-svrctlrs.js-node.app}`) && (PathPrefix(`/api/`) || PathPrefix(`/ws/`))"
+      - "traefik.http.routers.svrctlrs-api.tls=true"
+      - "traefik.http.routers.svrctlrs-api.tls.certresolver=cloudflare"
+      - "traefik.http.routers.svrctlrs-api.service=svrctlrs"
+      - "traefik.http.routers.svrctlrs-api.middlewares=secure-chain@file"
 
 volumes:
   svrctlrs-data:

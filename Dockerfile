@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
-# Multi-stage optimized build for SvrCtlRS with cargo-chef + sccache
+# Multi-stage build for the SvrCtlRS server image: SvelteKit SPA + Rust server + svrctl CLI.
+# Built by .forgejo/workflows/docker.yaml on the epyc-ai `build` runner; cargo-chef and sccache
+# keep rebuilds short once BuildKit's cache mounts are warm.
 
 # ============================================
 # Frontend: Build Svelte SPA
@@ -8,14 +10,15 @@ FROM node:22-slim AS frontend
 
 WORKDIR /app/ui
 COPY ui/package.json ui/package-lock.json ./
-RUN npm ci
+RUN npm ci --no-audit --no-fund
 COPY ui/ ./
 RUN npm run build
 
 # ============================================
 # Base: Install Rust build tools
 # ============================================
-FROM rust:bookworm AS base
+# Pinned so a toolchain change is a deliberate commit, not a surprise on the next build.
+FROM rust:1.98-bookworm AS base
 
 # Install cargo-chef and sccache for optimal caching
 RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
@@ -48,10 +51,9 @@ RUN cargo chef prepare --recipe-path recipe.json
 # ============================================
 FROM base AS builder
 
-# Install build dependencies
+# TLS is rustls/ring throughout (no openssl in Cargo.lock), so no libssl-dev is needed.
 RUN apt-get update && apt-get install -y \
     pkg-config \
-    libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy dependency recipe from planner
@@ -90,13 +92,19 @@ RUN sccache --show-stats || true
 # ============================================
 FROM debian:bookworm-slim
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
+# The commit this image was built from; the CI job passes it and /api/v1/health reports it,
+# which is how a deploy proves the running container is the commit it meant to ship.
+ARG SVRCTLRS_REVISION=unknown
+ENV SVRCTLRS_REVISION=${SVRCTLRS_REVISION}
+LABEL org.opencontainers.image.revision=${SVRCTLRS_REVISION} \
+      org.opencontainers.image.source="https://git.js-node.cc/jsprague/svrctlrs" \
+      org.opencontainers.image.title="SvrCtlRS"
+
+# Runtime dependencies. openssh-client is kept for the "local" terminal, where a user may
+# want `ssh` and `ssh-keygen` inside the container's shell; sqlite is bundled into the binary.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
-    libssl3 \
     openssh-client \
-    sqlite3 \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user for security

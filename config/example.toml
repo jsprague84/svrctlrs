@@ -1,22 +1,13 @@
-# SvrCtlRS Server Configuration Example
-#
-# SvrCtlRS is a terminal/SSH management tool for remote server access.
-# Servers and credentials are managed via the web UI, not this config file.
-#
-# Copy this file to config.toml and update values for your environment.
+# Optional server configuration, loaded with `svrctlrs-server --config config/example.toml`.
+# Most deployments use environment variables instead (see docs/DEPLOYMENT.md); the Docker
+# image does not pass --config. Notification settings live in the database (Settings UI),
+# not here.
 
-# Database configuration
+# Overrides DATABASE_URL.
 database_url = "sqlite:data/svrctlrs.db"
 
-# SSH key for remote server execution (fallback if no credential assigned)
-ssh_key_path = "/home/user/.ssh/id_rsa"
+# Default SSH key path for credentials that do not specify one. Overrides SSH_KEY_PATH.
+# ssh_key_path = "/home/svrctlrs/.ssh/id_ed25519"
 
-# Notification configuration (optional)
-[notifications]
-# Gotify configuration
-gotify_url = "https://gotify.example.com"
-gotify_key = "your-gotify-key"
-
-# ntfy.sh configuration
-ntfy_url = "https://ntfy.sh"
-ntfy_topic = "svrctlrs-notifications"
+# Servers are managed through the UI/API; this list exists for compatibility and may be empty.
+servers = []

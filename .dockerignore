@@ -1,39 +1,39 @@
-# Git
+# Git and CI
 .git
 .gitignore
 .gitattributes
+.forgejo
+.claude
+ralph
 
-# CI/CD
-.github
-
-# Documentation
+# Documentation (prose cannot change the image)
 *.md
 docs/
-LICENSE
+docs-archived/
+LICENSE*
 
-# Development
+# Development and secrets
 .env
 .env.*
 *.log
+config/
 
-# Build artifacts
+# Build artifacts — the Dockerfile builds these itself
 target/
 **/target/
-dist/
-**/dist/
-.dx/
-**/.dx/
+ui/node_modules/
+ui/build/
+ui/.svelte-kit/
+ui/src-tauri/
 data/
 **/data/
 
-# IDE
+# IDE / OS
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-
-# OS
 .DS_Store
 Thumbs.db
 
@@ -41,10 +41,6 @@ Thumbs.db
 docker-compose.yml
 docker-compose.*.yml
 Dockerfile*
-
-# Tests
-tests/
-**/tests/
 
 # Other
 *.bak
