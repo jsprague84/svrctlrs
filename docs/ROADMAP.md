@@ -19,6 +19,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | 9 | Refuse to start when encryption cannot initialise instead of falling back to plaintext | `server/src/main.rs` |
 | 10 | Login rate limiting (per IP and per user) and a minimum password length | `auth.rs`, `database/src/queries/users.rs` |
 | 11 | Server-crate tests for all of the above: auth middleware (cookie, Bearer, query token, exemptions), TOFU accept/mismatch, WS Origin check | `server/src/routes/**` |
+| 12 | Upgrade russh 0.51 → 0.60.3 (RUSTSEC-2026-0154/-0153: unbounded allocation a malicious SSH server can trigger; `russh-keys` is folded into `russh::keys`). The CI audit ignores these two until then. `rsa` RUSTSEC-2023-0071 (Marvin) stays ignored: transitive via `ssh-key`, no fix | `Cargo.toml`, `terminal.rs`, `terminal_pty.rs`, `.forgejo/workflows/ci.yaml` |
 
 ## P1 — First-class app
 

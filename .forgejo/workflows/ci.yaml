@@ -68,10 +68,16 @@ jobs:
       - name: Install cargo-audit
         run: cargo audit --version || cargo install cargo-audit --locked
 
-      # Gate on any new advisory. Add `--ignore RUSTSEC-...` entries here only for
-      # transitive advisories with no fixed upstream release, and say why.
+      # Gate on any new advisory. Every `--ignore` needs a reason here and a ROADMAP entry.
+      #   RUSTSEC-2026-0154 / -0153: russh 0.51 unbounded allocation; fixed in russh 0.60.3,
+      #     a major upgrade of the PTY/CMD connectors (ROADMAP P0 #12).
+      #   RUSTSEC-2023-0071: rsa Marvin timing attack; transitive via ssh-key, no fixed release.
       - name: Cargo audit
-        run: cargo audit
+        run: |
+          cargo audit \
+            --ignore RUSTSEC-2026-0154 \
+            --ignore RUSTSEC-2026-0153 \
+            --ignore RUSTSEC-2023-0071
 
   test:
     name: Test
