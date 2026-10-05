@@ -127,11 +127,11 @@ Ordered by impact. Each has a ROADMAP entry.
     quick commands are scoped to the calling user (profiles with no owner stay shared), and a
     foreign id answers 404, not 403, so ids cannot be probed. Setting a default profile no
     longer clears other users' defaults.
-11. ~~**Session id is not rotated on login**~~ — fixed after 3.0.0: both login handlers cycle
-    the session id before storing the user. Still open: form login and logout are simple
-    requests with no CSRF token (a forged logout is a nuisance; a forged login signs the
-    victim into the attacker's account — low impact here, since the account then holds the
-    attacker's servers, not the victim's).
+11. ~~**Session id is not rotated on login; no CSRF guard on the HTML forms**~~ — fixed after
+    3.0.0: both login handlers cycle the session id, and the HTML login and logout routes
+    refuse cross-site requests (`Sec-Fetch-Site` other than `same-origin`/`none`, or an
+    `Origin` that is not this host) with 403. The JSON routes are protected by their
+    `Content-Type` preflight.
 12. ~~**Plaintext fallback**~~ — fixed after 3.0.0: the server refuses to start when the key
     cannot be initialised, the database layer refuses to store or return a secret without a
     key, and start-up encrypts any `encrypted = 0` rows left by an earlier plaintext run.

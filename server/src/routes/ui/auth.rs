@@ -127,6 +127,30 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
     Redirect::to("/auth/login").into_response()
 }
 
+/// Whether a state-changing request came from this site. Browsers send `Sec-Fetch-Site` on
+/// every request (`same-origin`, `same-site`, `cross-site`, `none` for a typed URL); older ones
+/// at least send `Origin` on POSTs. A request with neither is not a browser form post. This is
+/// the CSRF guard for the cookie-authenticated HTML login and logout routes.
+pub fn is_same_origin_request(headers: &HeaderMap) -> bool {
+    if let Some(site) = headers.get("sec-fetch-site").and_then(|v| v.to_str().ok()) {
+        return matches!(site, "same-origin" | "none");
+    }
+    let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) else {
+        return true;
+    };
+    let origin_host = origin
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(origin)
+        .trim_end_matches('/');
+    headers
+        .get("x-forwarded-host")
+        .or_else(|| headers.get(header::HOST))
+        .and_then(|v| v.to_str().ok())
+        .map(|h| h.split(',').next().unwrap_or(h).trim())
+        .is_some_and(|h| h.eq_ignore_ascii_case(origin_host))
+}
+
 fn is_websocket_upgrade(headers: &HeaderMap) -> bool {
     headers
         .get(header::UPGRADE)
@@ -395,6 +419,13 @@ async fn login(
     session: Session,
     Form(creds): Form<LoginForm>,
 ) -> Response {
+    if !is_same_origin_request(&headers) {
+        return (
+            StatusCode::FORBIDDEN,
+            Html(render_login_html(Some("Cross-site login refused"))),
+        )
+            .into_response();
+    }
     match authenticate(&state, &headers, &session, &creds).await {
         Ok(user) => {
             tracing::info!(username = %user.username, user_id = user.id, "User logged in");
@@ -480,6 +511,9 @@ async fn logout(
     headers: HeaderMap,
     session: Session,
 ) -> Result<Redirect, StatusCode> {
+    if !is_same_origin_request(&headers) {
+        return Err(StatusCode::FORBIDDEN);
+    }
     if let Some(user_id) = session.get::<i64>(USER_ID_KEY).await.unwrap_or(None) {
         crate::audit::record(
             &state.pool,
@@ -528,6 +562,38 @@ mod tests {
         );
         let plain: Uri = "/api/v1/servers".parse().unwrap();
         assert_eq!(redacted_uri(&plain), "/api/v1/servers");
+    }
+
+    #[test]
+    fn same_origin_rules_for_form_posts() {
+        let host = ("host", "svrctlrs.js-node.app");
+        assert!(is_same_origin_request(&headers(&[
+            host,
+            ("sec-fetch-site", "same-origin")
+        ])));
+        assert!(is_same_origin_request(&headers(&[
+            host,
+            ("sec-fetch-site", "none")
+        ])));
+        assert!(!is_same_origin_request(&headers(&[
+            host,
+            ("sec-fetch-site", "cross-site")
+        ])));
+        assert!(!is_same_origin_request(&headers(&[
+            host,
+            ("sec-fetch-site", "same-site")
+        ])));
+        // Older browsers: Origin against the (forwarded) host
+        assert!(is_same_origin_request(&headers(&[
+            host,
+            ("origin", "https://svrctlrs.js-node.app")
+        ])));
+        assert!(!is_same_origin_request(&headers(&[
+            host,
+            ("origin", "https://evil.example")
+        ])));
+        // Not a browser at all
+        assert!(is_same_origin_request(&headers(&[host])));
     }
 
     #[test]

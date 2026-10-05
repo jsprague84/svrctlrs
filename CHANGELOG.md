@@ -25,7 +25,20 @@ the release workflow uses the matching section as the release notes.
   recorded with the client address (`GET /api/v1/audit`, Settings → Audit); entries are kept
   for 180 days and never contain secrets.
 
+### Security
+- The HTML login and logout routes refuse cross-site requests (403), closing the last open
+  item on the known-weaknesses list.
+
 ### Changed
+- Health monitor: servers are probed concurrently instead of one 5-second timeout after
+  another, and the result is recorded on the server (`last_seen_at`, `last_error`), so the
+  Servers page reflects what the monitor knows; a server found down at the very first check
+  is logged rather than silently ignored.
+- Terminal tabs follow the WAI-ARIA pattern: arrow keys, Home and End move between tabs.
+- Reconnect delays carry ±15 % jitter; the command palette's "Manage servers" navigates
+  in-app instead of reloading the page.
+- In-range dependency updates (Svelte 5.57, SvelteKit 2.70, Vite 8.3, Tailwind 4.3, Tauri JS
+  2.12); unused Tauri JS plugin packages removed.
 - `GET /api/v1/health` pings the database and answers 503 (`status: degraded`) when it is
   unreachable, so the container healthcheck reflects a broken volume.
 - Accessibility: icon buttons carry labels, layout buttons report `aria-pressed`, toasts are an

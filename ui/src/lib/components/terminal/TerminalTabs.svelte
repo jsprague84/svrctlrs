@@ -22,6 +22,39 @@
 		error: 'bg-error'
 	};
 
+	/** WAI-ARIA tabs: arrows move the selection, Home/End jump, Enter/Space select. */
+	function handleTabKey(e: KeyboardEvent, tabId: string) {
+		const index = tabs.findIndex((t) => t.id === tabId);
+		let next: number;
+		switch (e.key) {
+			case 'ArrowRight':
+				next = (index + 1) % tabs.length;
+				break;
+			case 'ArrowLeft':
+				next = (index - 1 + tabs.length) % tabs.length;
+				break;
+			case 'Home':
+				next = 0;
+				break;
+			case 'End':
+				next = tabs.length - 1;
+				break;
+			case 'Enter':
+			case ' ':
+				e.preventDefault();
+				onSelectTab(tabId);
+				return;
+			default:
+				return;
+		}
+		e.preventDefault();
+		onSelectTab(tabs[next].id);
+		const list = (e.currentTarget as HTMLElement).parentElement;
+		requestAnimationFrame(() => {
+			(list?.querySelector('[role="tab"][aria-selected="true"]') as HTMLElement | null)?.focus();
+		});
+	}
+
 	const layouts: { mode: LayoutMode; icon: typeof Square; label: string }[] = [
 		{ mode: 'single', icon: Square, label: 'Single' },
 		{ mode: 'split-h', icon: Columns2, label: 'Split Horizontal' },
@@ -40,12 +73,10 @@
 					? 'bg-surface-raised text-text-primary'
 					: 'text-text-muted hover:text-text-secondary hover:bg-surface-raised/50'}"
 				role="tab"
-				tabindex="0"
+				tabindex={tab.id === activeTabId ? 0 : -1}
 				aria-selected={tab.id === activeTabId}
 				onclick={() => onSelectTab(tab.id)}
-				onkeydown={(e) => {
-					if (e.key === 'Enter') onSelectTab(tab.id);
-				}}
+				onkeydown={(e) => handleTabKey(e, tab.id)}
 			>
 				<span class="w-1.5 h-1.5 rounded-full {statusColors[tab.status] ?? 'bg-text-muted'}"></span>
 				<span class="max-w-[60px] md:max-w-[120px] truncate">{tab.label}</span>

@@ -195,6 +195,19 @@ pub async fn delete_server(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
     Ok(())
 }
 
+/// Record why a server could not be reached, leaving `last_seen_at` as the last success.
+#[instrument(skip(pool))]
+pub async fn update_server_last_error(pool: &Pool<Sqlite>, id: i64, error: &str) -> Result<()> {
+    sqlx::query("UPDATE servers SET last_error = ? WHERE id = ?")
+        .bind(error)
+        .bind(id)
+        .execute(pool)
+        .await
+        .context("Failed to update server error")
+        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    Ok(())
+}
+
 /// Update server health status
 #[instrument(skip(pool))]
 pub async fn update_server_status(

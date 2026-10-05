@@ -377,7 +377,9 @@
 			showReconnectOverlay = true;
 			return;
 		}
-		const delay = RECONNECT_DELAYS[Math.min(reconnectAttempt, RECONNECT_DELAYS.length - 1)];
+		// ±15% jitter so many panes dropped at once do not retry in lockstep
+		const base = RECONNECT_DELAYS[Math.min(reconnectAttempt, RECONNECT_DELAYS.length - 1)];
+		const delay = Math.round(base * (0.85 + Math.random() * 0.3));
 		reconnectAttempt++;
 		terminal?.writeln(
 			`\r\n\x1b[33m[Reconnecting... attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}]\x1b[0m`

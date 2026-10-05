@@ -77,45 +77,62 @@ async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyho
 
     debug!(count = enabled_servers.len(), "Running health checks");
 
-    let mut state_map = health_state.write().await;
+    // Probe every server at once; one unreachable host must not delay the others by its
+    // whole timeout. The shared state is touched only once the results are in.
+    let probes = enabled_servers.iter().map(|server| async move {
+        let reachable = test_server_reachable(server).await;
+        (server, reachable)
+    });
+    let results = futures_util::future::join_all(probes).await;
 
-    for server in &enabled_servers {
-        // Simple SSH connection test — try to connect with a short timeout
-        let reachable = test_server_reachable(state, server.id).await;
+    let mut state_map = health_state.write().await;
+    for (server, reachable) in results {
         let previous = state_map.get(&server.id).copied();
+        let hostname = server.hostname.as_deref().unwrap_or("unknown");
+
+        // What the Servers page shows: when the host last answered, and why it did not.
+        if reachable {
+            if let Err(e) = servers::update_server_status(&state.pool, server.id, None).await {
+                warn!(server = %server.name, error = %e, "Failed to record server status");
+            }
+        } else if let Err(e) = servers::update_server_last_error(
+            &state.pool,
+            server.id,
+            &format!(
+                "Unreachable on {hostname}:{} (TCP connect timed out)",
+                server.port
+            ),
+        )
+        .await
+        {
+            warn!(server = %server.name, error = %e, "Failed to record server error");
+        }
 
         match (previous, reachable) {
-            (Some(true), false) | (None, false) => {
-                // Server went down (or first check found it down)
-                if previous.is_some() {
-                    warn!(server = %server.name, "Server went UNREACHABLE");
-                    if let Err(e) = client
-                        .send(
-                            &format!("Server Down: {}", server.name),
-                            &format!(
-                                "Server '{}' ({}) is unreachable",
-                                server.name,
-                                server.hostname.as_deref().unwrap_or("unknown")
-                            ),
-                            8,
-                        )
-                        .await
-                    {
-                        error!(error = %e, "Failed to send down notification");
-                    }
+            (Some(true), false) => {
+                warn!(server = %server.name, "Server went UNREACHABLE");
+                if let Err(e) = client
+                    .send(
+                        &format!("Server Down: {}", server.name),
+                        &format!("Server '{}' ({hostname}) is unreachable", server.name),
+                        8,
+                    )
+                    .await
+                {
+                    error!(error = %e, "Failed to send down notification");
                 }
             }
+            (None, false) => {
+                // First sight of this server and it is down: say so once rather than
+                // staying silent until it flaps.
+                warn!(server = %server.name, "Server unreachable at first check");
+            }
             (Some(false), true) => {
-                // Server came back up
                 info!(server = %server.name, "Server is back ONLINE");
                 if let Err(e) = client
                     .send(
                         &format!("Server Up: {}", server.name),
-                        &format!(
-                            "Server '{}' ({}) is back online",
-                            server.name,
-                            server.hostname.as_deref().unwrap_or("unknown")
-                        ),
+                        &format!("Server '{}' ({hostname}) is back online", server.name),
                         3,
                     )
                     .await
@@ -124,35 +141,25 @@ async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyho
                 }
             }
             _ => {
-                // No state change
                 debug!(server = %server.name, reachable, "Health check — no change");
             }
         }
-
         state_map.insert(server.id, reachable);
     }
 
     Ok(interval)
 }
 
-/// Test if a server is reachable via SSH (simplified connection test)
-async fn test_server_reachable(state: &AppState, server_id: i64) -> bool {
+/// TCP reachability of the SSH port with a short timeout. Not an SSH handshake: cheap, and
+/// enough to tell "host is down" from "host is up".
+async fn test_server_reachable(server: &svrctlrs_database::models::Server) -> bool {
     use tokio::net::TcpStream;
     use tokio::time::timeout;
 
-    let server = match servers::get_server(&state.pool, server_id).await {
-        Ok(s) => s,
-        Err(_) => return false,
+    let Some(hostname) = server.hostname.as_deref().filter(|h| !h.is_empty()) else {
+        return false;
     };
-
-    let hostname = match &server.hostname {
-        Some(h) => h.clone(),
-        None => return false,
-    };
-
     let addr = format!("{}:{}", hostname, server.port);
-
-    // Simple TCP connection test with 5-second timeout
     matches!(
         timeout(Duration::from_secs(5), TcpStream::connect(&addr)).await,
         Ok(Ok(_))

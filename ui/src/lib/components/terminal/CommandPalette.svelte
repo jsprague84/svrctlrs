@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { Search } from 'lucide-svelte';
 	import { isMobile } from '$lib/state/mobile.svelte.js';
 	import * as quickCommandsState from '$lib/state/quickCommands.svelte.js';
@@ -87,7 +89,7 @@
 				detail: 'Configure a new server',
 				category: 'action',
 				action: () => {
-					window.location.href = '/servers';
+					goto(resolve('/servers'));
 				}
 			});
 		}

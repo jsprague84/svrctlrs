@@ -27,7 +27,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | Area | Gap | Proposal |
 |---|---|---|
 | ~~Settings UI~~ | Done 2026-10-05: both settings forms load the store before reading it | — |
-| Reconnect | Done 2026-10-05: an established session that errors now reconnects; all six backoff steps are used. Still open: add jitter | `TerminalPane.svelte` |
+| Reconnect | Done 2026-10-05: reconnects after an error with all six backoff steps and ±15 % jitter | `TerminalPane.svelte` |
 | Users | Done 2026-10-05: `/api/v1/users` list/create/delete (not self, not last) and `PUT /users/me/password`; Settings → Users tab. Still open: a `role` column so not every account is an administrator | `server/src/routes/api/users.rs` |
 | Key setup | Done 2026-10-05: generate an ed25519 key in the app, show any key's public half, and **Authorize key** on a server (ssh-copy-id over a one-time password or an existing credential, verified, then switched over) | `ssh_keys.rs`, `servers.rs` |
 | Host keys | Done 2026-10-05: `GET/DELETE /api/v1/servers/{id}/host-keys` with `SHA256:` fingerprints; Keys modal on the Servers page | `servers.rs`, `host_keys::fingerprint` |
@@ -39,7 +39,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | Identity | Tauri `app.js-node.svrctlrs` vs Flatpak `cc.jsnode.svrctlrs` → two desktop IDs | pick one (`cc.jsnode.svrctlrs` is the standard reverse-DNS of js-node.cc); note it changes the Android `applicationId`, so decide before the first signed public APK |
 | Android | Partly done 2026-10-05: the server-URL screen normalises the URL, refuses plain `http://` on Android and warns about it on desktop. Still open: AAB built but never published; biometrics plugin registered but unused | `ui/src/lib/platform/url.ts` |
 | Frontend tooling | Done 2026-10-05: ESLint (flat config, Svelte + TS), Prettier, Vitest with the first unit tests, `engines.node >= 22.12`; `lint` and `test` run in CI | `ui/eslint.config.js`, `ui/.prettierrc` |
-| a11y | Done 2026-10-05: svelte-check at 0 warnings, icon buttons labelled, layout buttons `aria-pressed`, toast region `role=status aria-live`, palette is a `combobox` over a `listbox` with `aria-activedescendant`. Still open: arrow-key navigation between terminal tabs | — |
+| a11y | Done 2026-10-05: svelte-check at 0 warnings, icon buttons labelled, layout buttons `aria-pressed`, toast region `role=status aria-live`, palette is a `combobox` over a `listbox` with `aria-activedescendant`. Arrow/Home/End keys move between terminal tabs with a roving tabindex (2026-10-05) | — |
 | Flatpak | GNOME 46 runtime is end-of-life; no AppStream metainfo; bundles a binary built outside the sandbox | move to 48, add `metainfo.xml`, build inside flatpak-builder or drop Flatpak in favour of AppImage |
 | Docs | no screenshots | add to README and USER-GUIDE once the UI settles |
 
@@ -52,14 +52,16 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 - Replace stringly `core::Error` variants with typed errors and `IntoResponse`.
 - `database/src/lib.rs` `#![allow(ambiguous_glob_reexports)]` hides name collisions; export
   explicitly.
-- Removed 2026-10-05: `Header.svelte`, `ServerSelector.svelte`, `api/index.ts`. Still: unused
-  exports in state modules; unused `@tauri-apps/api`, `plugin-http`, `plugin-os` (or use them).
+- Removed 2026-10-05: `Header.svelte`, `ServerSelector.svelte`, `api/index.ts`,
+  `platform/biometrics.ts` and the unused `plugin-http`/`plugin-os`/`plugin-biometric` JS
+  packages (the Rust plugins stay registered). Still: unused exports in state modules.
 - Squash migrations `000`–`015` into one baseline for fresh installs (keep the old files for
   existing databases behind a version check).
 - Remove the global `npm i -g @tauri-apps/cli` from both Tauri CI images (the devDependency is
   used); confirm `flatpak-builder` runs unprivileged on the runner or move it out.
-- Update the Tauri JS/Rust deps (2.10 → 2.12), SvelteKit 2.55 → 2.70, Svelte 5.57, and plan the
-  SvelteKit 3 / adapter-static 4 / lucide 1.0 majors.
+- Done 2026-10-05: all in-range JS updates applied (Svelte 5.57, Kit 2.70, Vite 8.3, Tailwind
+  4.3, Tauri JS 2.12); unused Tauri JS plugins removed. Left: the SvelteKit 3 / adapter-static 4 /
+  lucide 1.0 / TypeScript 7 majors, and the Tauri Rust crate bump (needs a desktop CI run).
 - Tag hygiene: `v0.1.0` is newer than `v0.1.1`; both are superseded by `v3.0.0`. Leave them (a
   tag delete breaks nothing but history) and never reuse pre-3.0 numbers.
 - GitHub: the repository there is a stale mirror of the 2025 code. Archive it, or configure a
