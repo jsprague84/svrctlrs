@@ -3,6 +3,7 @@
 mod config;
 mod health_monitor;
 mod host_keys;
+mod login_limiter;
 mod routes;
 mod state;
 

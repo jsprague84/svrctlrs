@@ -24,7 +24,7 @@ docker compose logs -f svrctlrs
 
 | Variable | Required | Default | Meaning |
 |---|---|---|---|
-| `ADMIN_PASSWORD` | first start | — | password of the admin user created when the `users` table is empty. Can be removed from `.env` afterwards. |
+| `ADMIN_PASSWORD` | first start | — | password of the admin user created when the `users` table is empty; at least 12 characters or the first start fails. Can be removed from `.env` afterwards. |
 | `ADMIN_USERNAME` | no | `admin` | admin username for that first start |
 | `ENCRYPTION_KEY` | strongly recommended | generated | 64 hex chars (`openssl rand -hex 32`). If the variable is absent the server writes `data/encryption.key` (mode 0600) and uses that; if it is present but invalid — including an empty string — the server refuses to start. Losing the key makes every stored credential unrecoverable. |
 | `DATABASE_URL` | no | `sqlite:/app/data/svrctlrs.db` | SQLite location (WAL mode; `-wal`/`-shm` files sit beside it) |

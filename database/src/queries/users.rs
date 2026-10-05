@@ -11,9 +11,19 @@ use tracing::instrument;
 
 use crate::models::{CreateUser, User};
 
-/// Create a new user with argon2-hashed password
+/// Shortest password accepted for a new account. Anyone who can log in gets a shell on
+/// every configured server, so a short password is not a user preference to respect.
+pub const MIN_PASSWORD_LEN: usize = 12;
+
+/// Create a new user with an argon2-hashed password; refuses passwords shorter than
+/// [`MIN_PASSWORD_LEN`].
 #[instrument(skip(pool, input))]
 pub async fn create_user(pool: &Pool<Sqlite>, input: &CreateUser) -> Result<i64> {
+    if input.password.chars().count() < MIN_PASSWORD_LEN {
+        return Err(Error::ConfigError(format!(
+            "password must be at least {MIN_PASSWORD_LEN} characters"
+        )));
+    }
     let password_hash = hash_password(&input.password)?;
 
     let result = sqlx::query(
@@ -119,7 +129,7 @@ mod tests {
 
         let input = CreateUser {
             username: "testuser".to_string(),
-            password: "correct_password".to_string(),
+            password: "correct_password_123".to_string(),
         };
 
         create_user(&pool, &input).await.unwrap();
@@ -129,7 +139,7 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert!(verify_password("correct_password", &user.password_hash).unwrap());
+        assert!(verify_password("correct_password_123", &user.password_hash).unwrap());
         assert!(!verify_password("wrong_password", &user.password_hash).unwrap());
     }
 
@@ -149,7 +159,7 @@ mod tests {
 
         let input = CreateUser {
             username: "user1".to_string(),
-            password: "password1".to_string(),
+            password: "password1-long-enough".to_string(),
         };
         create_user(&pool, &input).await.unwrap();
 
@@ -162,13 +172,13 @@ mod tests {
 
         let input = CreateUser {
             username: "admin".to_string(),
-            password: "password1".to_string(),
+            password: "password1-long-enough".to_string(),
         };
         create_user(&pool, &input).await.unwrap();
 
         let input2 = CreateUser {
             username: "admin".to_string(),
-            password: "password2".to_string(),
+            password: "password2-long-enough".to_string(),
         };
         assert!(create_user(&pool, &input2).await.is_err());
     }

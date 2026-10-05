@@ -32,6 +32,10 @@ the release workflow uses the matching section as the release notes.
 - The web UI no longer stores the session id in `localStorage`; the HttpOnly cookie is its
   only credential. Only the desktop and Android apps keep a token, and no client sends a
   user id any more.
+- Login attempts are rate limited: 10 failures per 15 minutes per client address and per
+  username, answered with 429 and `Retry-After`. New passwords must be at least 12
+  characters (this applies to `ADMIN_PASSWORD` on a first start). The session id is cycled
+  on login.
 
 ### Fixed
 - The Notifications and General settings forms opened blank because the settings store was

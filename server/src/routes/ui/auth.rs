@@ -254,134 +254,174 @@ async fn login_page() -> Html<String> {
     Html(render_login_html(None))
 }
 
-/// Login form submission handler
-async fn login(
-    State(state): State<AppState>,
-    session: Session,
-    Form(creds): Form<LoginForm>,
-) -> Result<Response, (StatusCode, Html<String>)> {
+/// Why a login attempt was refused. Credential and rate-limit failures are told apart only in
+/// the status code; the message never says whether the username exists.
+enum LoginFailure {
+    RateLimited(std::time::Duration),
+    InvalidCredentials,
+    Internal,
+}
+
+/// The client address as seen through the reverse proxy (first `X-Forwarded-For` hop, then
+/// `X-Real-IP`). Without a proxy there is no header and all direct clients share one bucket,
+/// which still bounds a brute-force attempt; the per-username key does the targeted work.
+fn client_ip(headers: &HeaderMap) -> String {
+    headers
+        .get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split(',').next())
+        .or_else(|| headers.get("x-real-ip").and_then(|v| v.to_str().ok()))
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "direct".to_string())
+}
+
+/// Shared by both login handlers: rate limit, look up, verify, record the outcome, and
+/// start a fresh session for the user (a new id, so a pre-login session cannot be fixated).
+async fn authenticate(
+    state: &AppState,
+    headers: &HeaderMap,
+    session: &Session,
+    creds: &LoginForm,
+) -> Result<svrctlrs_database::models::User, LoginFailure> {
     use svrctlrs_database::queries::users;
 
-    // Look up the user by username
+    let keys = crate::login_limiter::LoginLimiter::keys(&client_ip(headers), &creds.username);
+    for key in &keys {
+        if let Err(retry_after) = state.login_limiter.check(key) {
+            tracing::warn!(key = %key, retry_after_secs = retry_after.as_secs(), "Login rate limited");
+            return Err(LoginFailure::RateLimited(retry_after));
+        }
+    }
+
     let user = users::get_user_by_username(&state.pool, &creds.username)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Database error during login");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Html(render_login_html(Some("Internal server error"))),
-            )
+            LoginFailure::Internal
         })?;
 
-    let user = match user {
-        Some(u) => u,
-        None => {
-            tracing::warn!(username = %creds.username, "Login failed: user not found");
-            return Err((
-                StatusCode::OK,
-                Html(render_login_html(Some("Invalid username or password"))),
-            ));
-        }
+    let valid = match &user {
+        Some(u) => users::verify_password(&creds.password, &u.password_hash).map_err(|e| {
+            tracing::error!(error = %e, "Password verification error");
+            LoginFailure::Internal
+        })?,
+        None => false,
     };
 
-    // Verify password
-    let valid = users::verify_password(&creds.password, &user.password_hash).map_err(|e| {
-        tracing::error!(error = %e, "Password verification error");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Html(render_login_html(Some("Internal server error"))),
-        )
-    })?;
+    let Some(user) = user.filter(|_| valid) else {
+        for key in &keys {
+            state.login_limiter.record_failure(key);
+        }
+        tracing::warn!(username = %creds.username, "Login failed");
+        return Err(LoginFailure::InvalidCredentials);
+    };
 
-    if !valid {
-        tracing::warn!(username = %creds.username, "Login failed: invalid password");
-        return Err((
-            StatusCode::OK,
-            Html(render_login_html(Some("Invalid username or password"))),
-        ));
+    for key in &keys {
+        state.login_limiter.clear(key);
     }
 
-    // Store user_id in session
+    session.cycle_id().await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to cycle session id");
+        LoginFailure::Internal
+    })?;
     session.insert(USER_ID_KEY, user.id).await.map_err(|e| {
         tracing::error!(error = %e, "Failed to store session");
-        (
+        LoginFailure::Internal
+    })?;
+
+    Ok(user)
+}
+
+fn retry_after_message(retry_after: std::time::Duration) -> String {
+    let minutes = retry_after.as_secs().div_ceil(60).max(1);
+    format!("Too many failed attempts. Try again in {minutes} minute(s).")
+}
+
+/// Login form submission handler
+async fn login(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    session: Session,
+    Form(creds): Form<LoginForm>,
+) -> Response {
+    match authenticate(&state, &headers, &session, &creds).await {
+        Ok(user) => {
+            tracing::info!(username = %user.username, user_id = user.id, "User logged in");
+            Redirect::to("/").into_response()
+        }
+        Err(LoginFailure::RateLimited(retry_after)) => (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(
+                header::RETRY_AFTER,
+                retry_after.as_secs().max(1).to_string(),
+            )],
+            Html(render_login_html(Some(&retry_after_message(retry_after)))),
+        )
+            .into_response(),
+        Err(LoginFailure::InvalidCredentials) => (
+            StatusCode::OK,
+            Html(render_login_html(Some("Invalid username or password"))),
+        )
+            .into_response(),
+        Err(LoginFailure::Internal) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Html(render_login_html(Some("Internal server error"))),
         )
-    })?;
-
-    tracing::info!(username = %user.username, user_id = user.id, "User logged in");
-    Ok(Redirect::to("/").into_response())
+            .into_response(),
+    }
 }
 
 /// JSON login handler for Tauri/SPA clients (no redirect, returns JSON)
 async fn login_json(
     State(state): State<AppState>,
+    headers: HeaderMap,
     session: Session,
     Json(creds): Json<LoginForm>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
-    use svrctlrs_database::queries::users;
-
-    let user = users::get_user_by_username(&state.pool, &creds.username)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Database error during login");
-            (
+) -> Response {
+    let user = match authenticate(&state, &headers, &session, &creds).await {
+        Ok(user) => user,
+        Err(LoginFailure::RateLimited(retry_after)) => {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                [(
+                    header::RETRY_AFTER,
+                    retry_after.as_secs().max(1).to_string(),
+                )],
+                Json(serde_json::json!({"error": retry_after_message(retry_after)})),
+            )
+                .into_response();
+        }
+        Err(LoginFailure::InvalidCredentials) => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "Invalid username or password"})),
+            )
+                .into_response();
+        }
+        Err(LoginFailure::Internal) => {
+            return (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"error": "Internal server error"})),
             )
-        })?;
-
-    let user = match user {
-        Some(u) => u,
-        None => {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({"error": "Invalid username or password"})),
-            ));
+                .into_response();
         }
     };
 
-    let valid = users::verify_password(&creds.password, &user.password_hash).map_err(|e| {
-        tracing::error!(error = %e, "Password verification error");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Internal server error"})),
-        )
-    })?;
-
-    if !valid {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({"error": "Invalid username or password"})),
-        ));
-    }
-
-    session.insert(USER_ID_KEY, user.id).await.map_err(|e| {
-        tracing::error!(error = %e, "Failed to store session");
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Session error"})),
-        )
-    })?;
-
-    // Force save the session so it gets an ID assigned
-    session.save().await.map_err(|e| {
+    // Save now so the (cycled) id exists for clients that use it as a Bearer token
+    if let Err(e) = session.save().await {
         tracing::error!(error = %e, "Failed to save session");
-        (
+        return (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(serde_json::json!({"error": "Session error"})),
         )
-    })?;
-
-    // Return session ID so Tauri clients can use token-based auth
-    // (WebKitGTK doesn't reliably send cross-origin cookies)
+            .into_response();
+    }
     let session_id = session.id().map(|id| id.to_string()).unwrap_or_default();
 
     tracing::info!(username = %user.username, user_id = user.id, "User logged in (JSON)");
-    Ok(Json(
-        serde_json::json!({"success": true, "user_id": user.id, "session_id": session_id}),
-    ))
+    Json(serde_json::json!({"success": true, "user_id": user.id, "session_id": session_id}))
+        .into_response()
 }
 
 /// Logout handler

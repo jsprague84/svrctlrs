@@ -6,6 +6,7 @@ use svrctlrs_database::{Database, SqlxPool, SqlxSqlite};
 use tokio::sync::RwLock;
 
 use crate::config::Config;
+use crate::login_limiter::LoginLimiter;
 
 /// Shared application state
 ///
@@ -20,6 +21,8 @@ pub struct AppState {
     /// Origins of non-browser clients (`ALLOWED_ORIGINS`); used for CORS and to admit their
     /// WebSocket upgrades, whose `Origin` is not this server's host.
     pub allowed_origins: Arc<Vec<String>>,
+    /// Failed-login tracking for both login endpoints.
+    pub login_limiter: Arc<LoginLimiter>,
 }
 
 impl AppState {
@@ -36,6 +39,7 @@ impl AppState {
             pool,
             database: Arc::new(RwLock::new(database)),
             allowed_origins: Arc::new(allowed_origins),
+            login_limiter: Arc::new(LoginLimiter::with_defaults()),
         })
     }
 

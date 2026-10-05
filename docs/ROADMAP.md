@@ -9,7 +9,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | # | Change | Where |
 |---|---|---|
 | ~~1~~ | Done 2026-10-05: WebSocket upgrades require `Origin` = request host / `X-Forwarded-Host` or an `ALLOWED_ORIGINS` entry (403 otherwise); tested | `auth::websocket_origin_allowed`, both WS handlers |
-| ~~2~~ | Done 2026-10-05: token auth resolves the session through the store (expiry-filtered) and takes `user_id` from the record; `X-User-Id`/`?user_id=` ignored; `CurrentUser` extractor replaces per-handler session reads; tested. Still open: cycle the session id on login | `server/src/routes/ui/auth.rs` |
+| ~~2~~ | Done 2026-10-05: token auth resolves the session through the store (expiry-filtered) and takes `user_id` from the record; `X-User-Id`/`?user_id=` ignored; `CurrentUser` extractor replaces per-handler session reads; session id cycled on login; tested | `server/src/routes/ui/auth.rs` |
 | 3 | Partly done 2026-10-05 (redacted span; UI no longer sends `user_id`). Remaining: replace the native apps' query-string token with a one-time WebSocket ticket | both WS handlers, `ui/.../TerminalPane.svelte` |
 | ~~4~~ | Done 2026-10-05 for the browser (cookie only; no token in `localStorage`). Native apps: move the token to the platform keystore (P1) | `ui/src/routes/auth/login/+page.svelte`, `ui/src/lib/api/client.ts` |
 | ~~5~~ | Done 2026-10-05: `server/src/host_keys.rs` evaluates against every stored key; both connectors fail closed; tested | `host_keys.rs`, `terminal.rs`, `terminal_pty.rs` |
@@ -18,7 +18,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | 8 | Encrypt `credentials.metadata` (holds passphrases) or move the passphrase into `value`; remove the `Debug` derive that prints it | `database/src/models/credential.rs`, `server/src/routes/api/credentials.rs` |
 | ~~9~~ | Done 2026-10-05: the server refuses to start when encryption cannot initialise; the database layer refuses plaintext. (Production had run in the fallback since 2026-09-14 because the compose passed `ENCRYPTION_KEY=` empty.) | `server/src/main.rs`, `database/src/queries/credentials.rs` |
 | ~~9a~~ | Done 2026-10-05: start-up encrypts every `encrypted = 0` row in one transaction and logs the count | `encrypt_plaintext_credentials` |
-| 10 | Login rate limiting (per IP and per user) and a minimum password length | `auth.rs`, `database/src/queries/users.rs` |
+| ~~10~~ | Done 2026-10-05: sliding-window limiter (10 failures / 15 min) per client address and per username on both login routes, 429 + `Retry-After`; 12-character minimum for new passwords; session id cycled on login | `server/src/login_limiter.rs`, `auth.rs`, `users.rs` |
 | 11 | Server-crate tests for all of the above: auth middleware (cookie, Bearer, query token, exemptions), TOFU accept/mismatch, WS Origin check | `server/src/routes/**` |
 | 12 | Upgrade russh 0.51 → 0.60.3 (RUSTSEC-2026-0154/-0153: unbounded allocation a malicious SSH server can trigger; `russh-keys` is folded into `russh::keys`). The CI audit ignores these two until then. `rsa` RUSTSEC-2023-0071 (Marvin) stays ignored: transitive via `ssh-key`, no fix | `Cargo.toml`, `terminal.rs`, `terminal_pty.rs`, `.forgejo/workflows/ci.yaml` |
 

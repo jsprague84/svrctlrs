@@ -25,8 +25,9 @@ other web pages the operator visits (see CSWSH below).
 
 - **Users** — `users` table, argon2 (default parameters). The first start seeds one admin from
   `ADMIN_USERNAME`/`ADMIN_PASSWORD` when the table is empty; later starts never overwrite.
-  There is no user-management API or password-change flow yet, and no password policy, so
-  pick a strong admin password and put the UI behind the edge passkey login.
+  Passwords must be at least 12 characters. Failed logins are limited to 10 per 15 minutes
+  per client address and per username (429 with `Retry-After`). There is no user-management
+  API or password-change flow yet, so put the UI behind the edge passkey login as well.
 - **Sessions** — tower-sessions, SQLite store, `HttpOnly`, `Secure` unless
   `SESSION_SECURE=false`, `SameSite=Strict` by default; `SameSite=None` only when
   `ALLOWED_ORIGINS` is set for the native clients. Expiry: 24 h of inactivity. Logout flushes
@@ -109,16 +110,21 @@ Ordered by impact. Each has a ROADMAP entry.
 7. **`local` servers are container RCE for any user** — `is_local: true` runs `sh -c` as the
    server process. Acceptable for a single-operator install; needs a role or an explicit
    server-side opt-in before multi-user use.
-8. **No roles, no rate limiting, no 2FA, no audit log** — every user is equal; login attempts
-   are unlimited (the edge passkey login is the compensating control today).
+8. **No roles, no 2FA, no audit log** — every user is equal. Login attempts are now rate
+   limited (fixed after 3.0.0: 10 failures per 15 minutes per client address *and* per
+   username, answered with 429 and `Retry-After`; in-memory, so a restart resets it) and new
+   passwords must be at least 12 characters.
 9. **`credentials.metadata` is plaintext** — it carries SSH key passphrases. Fix: encrypt it
    or move the passphrase into `value`.
 10. ~~**Per-record access**~~ — fixed after 3.0.0: `get`/`update`/`delete` for profiles and
     quick commands are scoped to the calling user (profiles with no owner stay shared), and a
     foreign id answers 404, not 403, so ids cannot be probed. Setting a default profile no
     longer clears other users' defaults.
-11. **Session id is not rotated on login** (fixation via the cookie path), and form login /
-    logout are simple requests with no CSRF token.
+11. ~~**Session id is not rotated on login**~~ — fixed after 3.0.0: both login handlers cycle
+    the session id before storing the user. Still open: form login and logout are simple
+    requests with no CSRF token (a forged logout is a nuisance; a forged login signs the
+    victim into the attacker's account — low impact here, since the account then holds the
+    attacker's servers, not the victim's).
 12. ~~**Plaintext fallback**~~ — fixed after 3.0.0: the server refuses to start when the key
     cannot be initialised, the database layer refuses to store or return a secret without a
     key, and start-up encrypts any `encrypted = 0` rows left by an earlier plaintext run.
