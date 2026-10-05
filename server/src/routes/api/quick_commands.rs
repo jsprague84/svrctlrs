@@ -10,13 +10,11 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use svrctlrs_database::queries::quick_commands;
-use tower_sessions::Session;
 use tracing::{error, info, instrument};
 
 use super::ApiError;
+use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
-
-const USER_ID_KEY: &str = "user_id";
 
 /// Create quick commands router
 pub fn routes() -> Router<AppState> {
@@ -28,21 +26,6 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-/// Extract user_id from session or return 401
-async fn get_user_id(session: &Session) -> Result<i64, (StatusCode, Json<ApiError>)> {
-    session
-        .get::<i64>(USER_ID_KEY)
-        .await
-        .ok()
-        .flatten()
-        .ok_or_else(|| {
-            (
-                StatusCode::UNAUTHORIZED,
-                Json(ApiError::new("UNAUTHORIZED", "Not authenticated")),
-            )
-        })
-}
-
 /// Query parameters for listing commands
 #[derive(Debug, Deserialize)]
 struct ListQuery {
@@ -50,13 +33,13 @@ struct ListQuery {
 }
 
 /// List quick commands for authenticated user
-#[instrument(skip(state, session))]
+#[instrument(skip(state))]
 async fn list_commands(
     State(state): State<AppState>,
-    session: Session,
+    current_user: CurrentUser,
     Query(query): Query<ListQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let user_id = get_user_id(&session).await?;
+    let user_id = current_user.0;
 
     let commands = if let Some(server_id) = query.server_id {
         quick_commands::list_quick_commands_for_server(&state.pool, user_id, server_id).await
@@ -72,10 +55,9 @@ async fn list_commands(
 }
 
 /// Get command by ID
-#[instrument(skip(state, _session))]
+#[instrument(skip(state))]
 async fn get_command(
     State(state): State<AppState>,
-    _session: Session,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let command = quick_commands::get_quick_command(&state.pool, id)
@@ -102,13 +84,13 @@ struct CreateCommandInput {
 }
 
 /// Create a new quick command
-#[instrument(skip(state, session, input))]
+#[instrument(skip(state, input))]
 async fn create_command(
     State(state): State<AppState>,
-    session: Session,
+    current_user: CurrentUser,
     Json(input): Json<CreateCommandInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let user_id = get_user_id(&session).await?;
+    let user_id = current_user.0;
 
     info!(name = %input.name, "Creating quick command");
 
@@ -149,10 +131,9 @@ struct UpdateCommandInput {
 }
 
 /// Update an existing quick command
-#[instrument(skip(state, _session, input))]
+#[instrument(skip(state, input))]
 async fn update_command(
     State(state): State<AppState>,
-    _session: Session,
     Path(id): Path<i64>,
     Json(input): Json<UpdateCommandInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
@@ -177,10 +158,9 @@ async fn update_command(
 }
 
 /// Delete a quick command
-#[instrument(skip(state, _session))]
+#[instrument(skip(state))]
 async fn delete_command(
     State(state): State<AppState>,
-    _session: Session,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     quick_commands::delete_quick_command(&state.pool, id)

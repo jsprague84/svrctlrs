@@ -1,30 +1,54 @@
-//! Authentication routes and middleware
+//! Authentication routes, middleware and the `CurrentUser` extractor
 
 use axum::{
-    extract::{Request, State},
-    http::StatusCode,
+    extract::{FromRequestParts, Request, State},
+    http::{header, request::Parts, HeaderMap, StatusCode, Uri},
     middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
     Form, Json, Router,
 };
 use serde::Deserialize;
-use tower_sessions::Session;
+use tower_sessions::{session::Id, Session, SessionStore};
+use tower_sessions_sqlx_store::SqliteStore;
 
+use crate::routes::api::ApiError;
 use crate::state::AppState;
 
 /// Session key for the authenticated user's ID
 const USER_ID_KEY: &str = "user_id";
 
+/// The authenticated user for this request, set by [`require_auth`] on every request that
+/// passes it (cookie or token). Handlers take it as an extractor; it is the only place a
+/// handler should learn who is calling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CurrentUser(pub i64);
+
+impl<S: Send + Sync> FromRequestParts<S> for CurrentUser {
+    type Rejection = (StatusCode, Json<ApiError>);
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        parts.extensions.get::<CurrentUser>().copied().ok_or((
+            StatusCode::UNAUTHORIZED,
+            Json(ApiError::new("UNAUTHORIZED", "Not authenticated")),
+        ))
+    }
+}
+
 /// Authentication middleware that protects all routes except exempted ones.
 ///
-/// Exempt routes: /auth/login, /auth/logout, /api/v1/health, SPA static assets
+/// Exempt routes: /auth/login, /auth/logout, /api/v1/auth/login, /api/v1/health, SPA assets.
 ///
-/// Behavior for unauthenticated requests:
-/// - WebSocket upgrades: 401 Unauthorized
-/// - API requests (/api/*): 401 JSON response
-/// - Browser requests: redirect to /auth/login
-pub async fn require_auth(session: Session, request: Request, next: Next) -> Response {
+/// Two ways in, both ending with a [`CurrentUser`] extension on the request:
+/// - the session cookie, holding `user_id`;
+/// - a token (`Authorization: Bearer <session id>`, or `?token=` on WebSocket upgrades, which
+///   cannot carry headers from a browser). The token is looked up as a session record through
+///   the store, so it must be unexpired, and the user id comes from *that record* — never from
+///   anything the client sends alongside it.
+///
+/// Unauthenticated: WebSocket upgrades and `/api/*` get 401; browser requests are redirected
+/// to the login page.
+pub async fn require_auth(session: Session, mut request: Request, next: Next) -> Response {
     let path = request.uri().path();
 
     // Let CORS preflight requests through (OPTIONS method)
@@ -44,71 +68,24 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
         return next.run(request).await;
     }
 
-    // Check session cookie for authenticated user
-    let user_id: Option<i64> = session.get(USER_ID_KEY).await.unwrap_or(None);
-
-    if user_id.is_some() {
+    // Session cookie
+    if let Some(user_id) = session.get::<i64>(USER_ID_KEY).await.unwrap_or(None) {
+        request.extensions_mut().insert(CurrentUser(user_id));
         return next.run(request).await;
     }
 
-    // Fallback: token-based auth for Tauri clients
-    // (WebKitGTK doesn't send cross-origin cookies)
-    // Check Authorization header first, then query params (for WebSocket which can't send headers)
-    let (token, uid_str) = {
-        // Try Authorization header + X-User-Id header
-        let header_token = request
-            .headers()
-            .get(axum::http::header::AUTHORIZATION)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|s| s.strip_prefix("Bearer "))
-            .filter(|t| !t.is_empty())
-            .map(String::from);
-        let header_uid = request
-            .headers()
-            .get("x-user-id")
-            .and_then(|v| v.to_str().ok())
-            .map(String::from);
-
-        if header_token.is_some() {
-            (header_token, header_uid)
-        } else {
-            // Try query params (?token=...&user_id=...) for WebSocket connections
-            let query = request.uri().query().unwrap_or("");
-            let params: std::collections::HashMap<String, String> = query
-                .split('&')
-                .filter_map(|pair| {
-                    let mut parts = pair.splitn(2, '=');
-                    Some((
-                        parts.next()?.to_string(),
-                        parts.next().unwrap_or("").to_string(),
-                    ))
-                })
-                .collect();
-            (
-                params.get("token").cloned().filter(|t| !t.is_empty()),
-                params.get("user_id").cloned(),
-            )
-        }
-    };
+    // Token: Authorization header first, then the query string (WebSocket upgrades)
+    let token = bearer_token(request.headers())
+        .or_else(|| query_param(request.uri(), "token").filter(|t| !t.is_empty()));
 
     if let Some(token) = token {
-        if let Some(pool) = request
+        let pool = request
             .extensions()
             .get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>()
-        {
-            let exists =
-                svrctlrs_database::sqlx::query("SELECT id FROM tower_sessions WHERE id = ?")
-                    .bind(&token)
-                    .fetch_optional(pool)
-                    .await
-                    .ok()
-                    .flatten()
-                    .is_some();
-
-            if exists {
-                if let Some(uid) = uid_str.and_then(|s| s.parse::<i64>().ok()) {
-                    let _ = session.insert(USER_ID_KEY, uid).await;
-                }
+            .cloned();
+        if let Some(pool) = pool {
+            if let Some(user_id) = user_id_for_token(&SqliteStore::new(pool), &token).await {
+                request.extensions_mut().insert(CurrentUser(user_id));
                 return next.run(request).await;
             }
         }
@@ -138,6 +115,75 @@ pub async fn require_auth(session: Session, request: Request, next: Next) -> Res
 
     // Browser requests redirect to login
     Redirect::to("/auth/login").into_response()
+}
+
+fn bearer_token(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get(header::AUTHORIZATION)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.strip_prefix("Bearer "))
+        .filter(|t| !t.is_empty())
+        .map(String::from)
+}
+
+fn query_param(uri: &Uri, name: &str) -> Option<String> {
+    uri.query()?.split('&').find_map(|pair| {
+        let (k, v) = pair.split_once('=').unwrap_or((pair, ""));
+        (k == name).then(|| v.to_string())
+    })
+}
+
+/// Resolve a token to the user id stored in its session record. `load` only returns
+/// unexpired records, so an expired session is not a valid token either.
+async fn user_id_for_token(store: &SqliteStore, token: &str) -> Option<i64> {
+    let id: Id = token.parse().ok()?;
+    let record = store.load(&id).await.ok().flatten()?;
+    record.data.get(USER_ID_KEY)?.as_i64()
+}
+
+/// Whether a WebSocket upgrade may proceed, judged by its `Origin`.
+///
+/// Browsers always send `Origin` on a WebSocket handshake and attach cookies to it even
+/// cross-site, so without this check any page the user visits could open a shell with the
+/// user's session (cross-site WebSocket hijacking). The origin must be this server's own
+/// (same host as the request) or one of the configured `ALLOWED_ORIGINS`. Requests without
+/// an `Origin` come from non-browser clients and are left to the authentication step.
+pub fn websocket_origin_allowed(headers: &HeaderMap, allowed_origins: &[String]) -> bool {
+    let Some(origin) = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()) else {
+        return true;
+    };
+    if allowed_origins
+        .iter()
+        .any(|a| a.eq_ignore_ascii_case(origin))
+    {
+        return true;
+    }
+    let origin_host = origin
+        .split_once("://")
+        .map(|(_, rest)| rest)
+        .unwrap_or(origin)
+        .trim_end_matches('/');
+    let request_host = headers
+        .get("x-forwarded-host")
+        .or_else(|| headers.get(header::HOST))
+        .and_then(|v| v.to_str().ok())
+        .map(|h| h.split(',').next().unwrap_or(h).trim());
+    request_host.is_some_and(|h| h.eq_ignore_ascii_case(origin_host))
+}
+
+/// The request URI with `token` and `user_id` query values blanked, for logging.
+pub fn redacted_uri(uri: &Uri) -> String {
+    let Some(query) = uri.query() else {
+        return uri.path().to_string();
+    };
+    let redacted: Vec<String> = query
+        .split('&')
+        .map(|pair| match pair.split_once('=') {
+            Some((k, _)) if k == "token" || k == "user_id" => format!("{k}=[redacted]"),
+            _ => pair.to_string(),
+        })
+        .collect();
+    format!("{}?{}", uri.path(), redacted.join("&"))
 }
 
 /// Create auth router
@@ -347,4 +393,188 @@ async fn logout(session: Session) -> Result<Redirect, StatusCode> {
 
     tracing::info!("User logged out");
     Ok(Redirect::to("/auth/login"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::{body::Body, http::Request, middleware::from_fn, Extension, Router};
+    use std::collections::HashMap;
+    use svrctlrs_database::sqlx::sqlite::SqlitePoolOptions;
+    use tower::ServiceExt;
+    use tower_sessions::{session::Record, SessionManagerLayer};
+
+    fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
+        let mut h = HeaderMap::new();
+        for (k, v) in pairs {
+            h.insert(
+                axum::http::HeaderName::from_bytes(k.as_bytes()).unwrap(),
+                v.parse().unwrap(),
+            );
+        }
+        h
+    }
+
+    #[test]
+    fn redacts_token_and_user_id_only() {
+        let uri: Uri = "/ws/terminal/pty?token=abc&user_id=7&cols=80"
+            .parse()
+            .unwrap();
+        assert_eq!(
+            redacted_uri(&uri),
+            "/ws/terminal/pty?token=[redacted]&user_id=[redacted]&cols=80"
+        );
+        let plain: Uri = "/api/v1/servers".parse().unwrap();
+        assert_eq!(redacted_uri(&plain), "/api/v1/servers");
+    }
+
+    #[test]
+    fn websocket_origin_rules() {
+        let allowed = vec!["tauri://localhost".to_string()];
+        let host = ("host", "svrctlrs.js-node.app");
+
+        // Same host as the request, with and without a proxy in front.
+        assert!(websocket_origin_allowed(
+            &headers(&[host, ("origin", "https://svrctlrs.js-node.app")]),
+            &allowed
+        ));
+        assert!(websocket_origin_allowed(
+            &headers(&[
+                ("host", "10.0.0.5:8080"),
+                ("x-forwarded-host", "svrctlrs.js-node.app"),
+                ("origin", "https://svrctlrs.js-node.app"),
+            ]),
+            &allowed
+        ));
+        // A configured native-client origin.
+        assert!(websocket_origin_allowed(
+            &headers(&[host, ("origin", "tauri://localhost")]),
+            &allowed
+        ));
+        // Any other page: refused.
+        assert!(!websocket_origin_allowed(
+            &headers(&[host, ("origin", "https://evil.example")]),
+            &allowed
+        ));
+        assert!(!websocket_origin_allowed(
+            &headers(&[
+                host,
+                ("origin", "https://svrctlrs.js-node.app.evil.example")
+            ]),
+            &allowed
+        ));
+        // No Origin header: not a browser; authentication decides.
+        assert!(websocket_origin_allowed(&headers(&[host]), &allowed));
+    }
+
+    async fn app_with_store() -> (Router, SqliteStore) {
+        // One connection, or each pooled connection would get its own in-memory database.
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        let store = SqliteStore::new(pool.clone());
+        store.migrate().await.unwrap();
+        let app = Router::new()
+            .route(
+                "/api/v1/whoami",
+                get(|CurrentUser(id): CurrentUser| async move { id.to_string() }),
+            )
+            .route("/page", get(|| async { "page" }))
+            .layer(from_fn(require_auth))
+            .layer(Extension(pool))
+            .layer(SessionManagerLayer::new(store.clone()));
+        (app, store)
+    }
+
+    async fn session_token(store: &SqliteStore, user_id: i64, ttl: time::Duration) -> String {
+        let mut record = Record {
+            id: Id::default(),
+            data: HashMap::from([(USER_ID_KEY.to_string(), serde_json::json!(user_id))]),
+            expiry_date: time::OffsetDateTime::now_utc() + ttl,
+        };
+        store.create(&mut record).await.unwrap();
+        record.id.to_string()
+    }
+
+    async fn body_text(resp: Response) -> String {
+        let bytes = axum::body::to_bytes(resp.into_body(), 4096).await.unwrap();
+        String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    #[tokio::test]
+    async fn unauthenticated_requests_are_refused() {
+        let (app, _) = app_with_store().await;
+
+        let api = app
+            .clone()
+            .oneshot(Request::get("/api/v1/whoami").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(api.status(), StatusCode::UNAUTHORIZED);
+
+        let page = app
+            .oneshot(Request::get("/page").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(page.status(), StatusCode::SEE_OTHER);
+        assert_eq!(page.headers()[header::LOCATION], "/auth/login");
+    }
+
+    #[tokio::test]
+    async fn bearer_token_identity_comes_from_the_session_not_the_client() {
+        let (app, store) = app_with_store().await;
+        let token = session_token(&store, 42, time::Duration::hours(1)).await;
+
+        let resp = app
+            .oneshot(
+                Request::get("/api/v1/whoami")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .header("x-user-id", "999")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(body_text(resp).await, "42");
+    }
+
+    #[tokio::test]
+    async fn query_token_works_for_websocket_style_requests() {
+        let (app, store) = app_with_store().await;
+        let token = session_token(&store, 7, time::Duration::hours(1)).await;
+
+        let resp = app
+            .oneshot(
+                Request::get(format!("/api/v1/whoami?token={token}&user_id=999"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(body_text(resp).await, "7");
+    }
+
+    #[tokio::test]
+    async fn expired_and_unknown_tokens_are_refused() {
+        let (app, store) = app_with_store().await;
+        let expired = session_token(&store, 42, -time::Duration::minutes(1)).await;
+
+        for token in [expired.as_str(), "not-a-session-id", ""] {
+            let resp = app
+                .clone()
+                .oneshot(
+                    Request::get("/api/v1/whoami")
+                        .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "token {token:?}");
+        }
+    }
 }

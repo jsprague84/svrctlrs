@@ -17,17 +17,25 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub database: Arc<RwLock<Database>>,
     pub pool: SqlxPool<SqlxSqlite>,
+    /// Origins of non-browser clients (`ALLOWED_ORIGINS`); used for CORS and to admit their
+    /// WebSocket upgrades, whose `Origin` is not this server's host.
+    pub allowed_origins: Arc<Vec<String>>,
 }
 
 impl AppState {
     /// Create new application state
-    pub async fn new(config: Config, database: Database) -> Result<Self> {
+    pub async fn new(
+        config: Config,
+        database: Database,
+        allowed_origins: Vec<String>,
+    ) -> Result<Self> {
         let pool = database.pool().clone();
 
         Ok(Self {
             config: Arc::new(config),
             pool,
             database: Arc::new(RwLock::new(database)),
+            allowed_origins: Arc::new(allowed_origins),
         })
     }
 

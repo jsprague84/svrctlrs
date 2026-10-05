@@ -93,3 +93,7 @@ server = [
     "dep:chrono",
     "dep:futures-util"
 ]
+
+[dev-dependencies]
+# `oneshot` for driving the router in middleware tests
+tower = { workspace = true, features = ["util"] }

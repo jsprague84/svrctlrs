@@ -8,7 +8,8 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         State,
     },
-    response::IntoResponse,
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     routing::any,
     Router,
 };
@@ -53,10 +54,17 @@ pub fn routes() -> Router<AppState> {
 /// WebSocket upgrade handler
 async fn terminal_ws_handler(
     ws: WebSocketUpgrade,
+    headers: HeaderMap,
     State(state): State<AppState>,
-) -> impl IntoResponse {
+) -> Response {
+    // Cross-site WebSocket hijacking guard; see auth::websocket_origin_allowed.
+    if !crate::routes::ui::auth::websocket_origin_allowed(&headers, &state.allowed_origins) {
+        warn!("Terminal WebSocket refused: Origin not allowed");
+        return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
+    }
     info!("Terminal WebSocket connection request");
     ws.on_upgrade(move |socket| handle_terminal_socket(socket, state))
+        .into_response()
 }
 
 /// Handle the WebSocket connection

@@ -78,21 +78,19 @@ time out after 30 s; WebSockets do not. TLS is the proxy's job.
 
 Ordered by impact. Each has a ROADMAP entry.
 
-1. **Cross-site WebSocket hijacking** — neither WebSocket handler checks the `Origin` header.
-   With `ALLOWED_ORIGINS` set the session cookie is `SameSite=None`, so a malicious page the
-   operator visits can open `wss://host/ws/terminal/pty` with the operator's cookie and get a
-   shell. Mitigation today: leave `ALLOWED_ORIGINS` empty on browser-only deployments
-   (cookie stays `Strict`), or keep tinyauth in front of `/ws/`. Fix: reject upgrades whose
-   `Origin` is not the server's own origin or an allowed origin.
-2. **Client-asserted identity on token auth** — the Bearer path verifies that the session id
-   exists, then trusts the client-supplied `X-User-Id`/`user_id` and writes it into the
-   session. Any valid token lets its holder act as another user for profiles and quick
-   commands. Also, the token lookup does not check `expiry_date`, so expired sessions remain
-   valid tokens until the 5-minute sweeper deletes them. Fix: read `user_id` from the
-   session record, filter by expiry.
-3. **Token in URLs and logs** — the WebSocket token travels in the query string and the
-   request tracing span records the full URI at `info`. Fix: redact `token`/`user_id` in the
-   span, and move to a short-lived one-time WebSocket ticket.
+1. ~~**Cross-site WebSocket hijacking**~~ — fixed after 3.0.0: both WebSocket upgrades
+   refuse an `Origin` that is neither the request's own host (or `X-Forwarded-Host`) nor one
+   of `ALLOWED_ORIGINS`, with 403. Requests without `Origin` (non-browser clients) fall
+   through to authentication. Browsers always send `Origin` on a handshake, so a malicious
+   page can no longer ride the operator's cookie into `wss://host/ws/terminal/pty`.
+2. ~~**Client-asserted identity on token auth**~~ — fixed after 3.0.0: a Bearer or `?token=`
+   value is resolved through the session store, which only returns unexpired records, and the
+   user id is read from that record. `X-User-Id` and `?user_id=` are ignored. Every
+   authenticated request carries a `CurrentUser` extension; handlers take it as an extractor
+   instead of reading the session themselves.
+3. **Token in URLs** — partly fixed: the request span now logs a redacted URI
+   (`token=[redacted]`). The WebSocket token still travels in the query string, where
+   proxies may log it; the remaining fix is a short-lived one-time WebSocket ticket.
 4. **Token in `localStorage`** — the web UI stores the session id and user id in
    `localStorage` (not only the Tauri apps), which the CSP's `'unsafe-inline'` makes reachable
    to any injected script. Fix: cookies only in the browser; secure storage on devices.

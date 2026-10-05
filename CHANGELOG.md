@@ -12,6 +12,14 @@ the release workflow uses the matching section as the release notes.
   without a key.
 - On start-up, any credential rows still stored in plaintext by an earlier run are encrypted
   in one transaction; the count is logged.
+- WebSocket upgrades refuse a cross-site `Origin` (403): the origin must be the request's own
+  host or one of `ALLOWED_ORIGINS`. Closes cross-site WebSocket hijacking of a logged-in
+  browser session.
+- Token authentication (`Authorization: Bearer`, `?token=`) now resolves the session through
+  the store, so expired sessions are refused, and takes the user id from the session record.
+  The client-supplied `X-User-Id` header and `user_id` query parameter are ignored.
+- Request tracing logs a redacted URI; the WebSocket token no longer appears in logs.
+- First tests in the `server` crate: auth middleware, origin rules, URI redaction.
 
 ## [3.0.0] - 2026-10-04
 

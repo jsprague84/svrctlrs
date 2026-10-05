@@ -114,8 +114,22 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
+    // ALLOWED_ORIGINS lists the origins of non-browser clients (Tauri desktop/Android).
+    // Compose files often pass it through as an empty string, which must mean "unset":
+    // an empty value used to switch the session cookie to SameSite=None for nothing.
+    let allowed_origins: Vec<String> = std::env::var("ALLOWED_ORIGINS")
+        .ok()
+        .map(|s| {
+            s.split(',')
+                .map(str::trim)
+                .filter(|o| !o.is_empty())
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_default();
+
     // Initialize application state
-    let state = AppState::new(config, database).await?;
+    let state = AppState::new(config, database, allowed_origins.clone()).await?;
 
     // Build UI router with state (SPA + auth)
     let ui_router = routes::ui::ui_routes().with_state(state.clone());
@@ -131,14 +145,6 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(true);
     info!(secure = session_secure, "Session cookie configuration");
 
-    // ALLOWED_ORIGINS lists the origins of non-browser clients (Tauri desktop/Android).
-    // Compose files often pass it through as an empty string, which must mean "unset":
-    // an empty value used to switch the session cookie to SameSite=None for nothing.
-    let allowed_origins = std::env::var("ALLOWED_ORIGINS")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty());
-
     // When cross-origin clients are configured, use SameSite::None so cookies work across
     // origins. Otherwise keep the library default (Strict).
     let mut session_layer = SessionManagerLayer::new(session_store)
@@ -146,18 +152,18 @@ async fn main() -> anyhow::Result<()> {
         .with_expiry(tower_sessions::Expiry::OnInactivity(time::Duration::hours(
             24,
         )));
-    if allowed_origins.is_some() {
+    if !allowed_origins.is_empty() {
         session_layer = session_layer.with_same_site(tower_sessions::cookie::SameSite::None);
         info!("Session cookie SameSite=None for cross-origin access");
     }
 
     // Build CORS layer
-    let cors_layer = if let Some(origins) = allowed_origins {
-        let allowed: Vec<HeaderValue> = origins
-            .split(',')
-            .filter_map(|s| s.trim().parse().ok())
+    let cors_layer = if !allowed_origins.is_empty() {
+        let allowed: Vec<HeaderValue> = allowed_origins
+            .iter()
+            .filter_map(|s| s.parse().ok())
             .collect();
-        info!(origins = %origins, "CORS configured with allowed origins");
+        info!(origins = ?allowed_origins, "CORS configured with allowed origins");
         tower_http::cors::CorsLayer::new()
             .allow_origin(allowed)
             .allow_methods([
@@ -219,10 +225,11 @@ async fn main() -> anyhow::Result<()> {
         .layer(
             tower_http::trace::TraceLayer::new_for_http().make_span_with(
                 |request: &axum::http::Request<_>| {
+                    // Redacted: WebSocket upgrades carry the session token in the query.
                     tracing::info_span!(
                         "http_request",
                         method = %request.method(),
-                        uri = %request.uri(),
+                        uri = %routes::ui::auth::redacted_uri(request.uri()),
                     )
                 },
             ),

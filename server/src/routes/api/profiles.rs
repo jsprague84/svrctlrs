@@ -10,13 +10,11 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use svrctlrs_database::queries::terminal_profiles;
-use tower_sessions::Session;
 use tracing::{error, info, instrument};
 
 use super::ApiError;
+use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
-
-const USER_ID_KEY: &str = "user_id";
 
 /// Create profiles router
 pub fn routes() -> Router<AppState> {
@@ -28,28 +26,13 @@ pub fn routes() -> Router<AppState> {
         )
 }
 
-/// Extract user_id from session or return 401
-async fn get_user_id(session: &Session) -> Result<i64, (StatusCode, Json<ApiError>)> {
-    session
-        .get::<i64>(USER_ID_KEY)
-        .await
-        .ok()
-        .flatten()
-        .ok_or_else(|| {
-            (
-                StatusCode::UNAUTHORIZED,
-                Json(ApiError::new("UNAUTHORIZED", "Not authenticated")),
-            )
-        })
-}
-
 /// List profiles for authenticated user
-#[instrument(skip(state, session))]
+#[instrument(skip(state))]
 async fn list_profiles(
     State(state): State<AppState>,
-    session: Session,
+    current_user: CurrentUser,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let user_id = get_user_id(&session).await?;
+    let user_id = current_user.0;
 
     let profiles = terminal_profiles::list_terminal_profiles_for_user(&state.pool, user_id)
         .await
@@ -62,10 +45,9 @@ async fn list_profiles(
 }
 
 /// Get profile by ID
-#[instrument(skip(state, _session))]
+#[instrument(skip(state))]
 async fn get_profile(
     State(state): State<AppState>,
-    _session: Session,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let profile = terminal_profiles::get_terminal_profile(&state.pool, id)
@@ -97,13 +79,13 @@ fn default_layout() -> String {
 }
 
 /// Create a new profile
-#[instrument(skip(state, session, input))]
+#[instrument(skip(state, input))]
 async fn create_profile(
     State(state): State<AppState>,
-    session: Session,
+    current_user: CurrentUser,
     Json(input): Json<CreateProfileInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let user_id = get_user_id(&session).await?;
+    let user_id = current_user.0;
 
     info!(name = %input.name, "Creating terminal profile");
 
@@ -145,10 +127,9 @@ struct UpdateProfileInput {
 }
 
 /// Update an existing profile
-#[instrument(skip(state, _session, input))]
+#[instrument(skip(state, input))]
 async fn update_profile(
     State(state): State<AppState>,
-    _session: Session,
     Path(id): Path<i64>,
     Json(input): Json<UpdateProfileInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
@@ -172,10 +153,9 @@ async fn update_profile(
 }
 
 /// Delete a profile
-#[instrument(skip(state, _session))]
+#[instrument(skip(state))]
 async fn delete_profile(
     State(state): State<AppState>,
-    _session: Session,
     Path(id): Path<i64>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     terminal_profiles::delete_terminal_profile(&state.pool, id)

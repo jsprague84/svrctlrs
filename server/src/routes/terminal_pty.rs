@@ -8,7 +8,8 @@ use axum::{
         ws::{Message, WebSocket, WebSocketUpgrade},
         State,
     },
-    response::IntoResponse,
+    http::{HeaderMap, StatusCode},
+    response::{IntoResponse, Response},
     routing::any,
     Router,
 };
@@ -51,9 +52,19 @@ pub fn routes() -> Router<AppState> {
 }
 
 /// WebSocket upgrade handler for interactive PTY
-async fn pty_ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> impl IntoResponse {
+async fn pty_ws_handler(
+    ws: WebSocketUpgrade,
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> Response {
+    // Cross-site WebSocket hijacking guard; see auth::websocket_origin_allowed.
+    if !crate::routes::ui::auth::websocket_origin_allowed(&headers, &state.allowed_origins) {
+        warn!("PTY WebSocket refused: Origin not allowed");
+        return (StatusCode::FORBIDDEN, "origin not allowed").into_response();
+    }
     info!("Interactive PTY WebSocket connection request");
     ws.on_upgrade(move |socket| handle_pty_socket(socket, state))
+        .into_response()
 }
 
 /// SSH client handler for russh with host key verification
