@@ -1,293 +1,94 @@
 # SvrCtlRS
 
-**Server Control Rust** - A modern, plugin-based infrastructure monitoring and automation platform with HTMX web UI.
+Self-hosted terminal and SSH management for your servers: interactive shells in the browser,
+on the desktop, and on Android, with server profiles, encrypted credentials, multi-pane layouts
+and push notifications. One Rust binary, one SQLite file.
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/jsprague84/svrctlrs/releases)
-[![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org)
-[![HTMX](https://img.shields.io/badge/htmx-2.0-green.svg)](https://htmx.org)
-[![Docker](https://img.shields.io/badge/docker-multi--arch-blue.svg)](https://github.com/jsprague84/svrctlrs/pkgs/container/svrctlrs)
+**Version 3.0.0** · Rust (Axum) · SvelteKit 5 · xterm.js 6 · Tauri 2 · SQLite
 
-## Overview
+> 3.x is a different product from the 1.x/2.x releases. Those were a plugin-based monitoring
+> platform and were retired in March 2026; their code and documentation live in
+> `docs-archived/`.
 
-SvrCtlRS is a complete rewrite of the weatherust monitoring system with a focus on:
+## What it does
 
-- **Plugin Architecture**: Modular, extensible design for easy feature additions
-- **Built-in Scheduler**: No external dependencies like Ofelia
-- **Modern Web UI**: HTMX + Askama for interactive, lightweight frontend
-- **Axum Backend**: High-performance REST API
-- **State Management**: SQLite for persistent state and historical data
-- **Remote Execution**: SSH-based operations across multiple servers
-- **Dual Notifications**: Gotify and ntfy.sh support with action buttons
+- **Interactive terminals** — full PTY sessions over WebSocket (russh on the server, xterm.js
+  with WebGL rendering in the client). Tabs, four layouts (single, split horizontal, split
+  vertical, quad), up to 10 sessions, output search, session restore across page navigation.
+- **Command mode** — run a one-off command on a server and capture its output and exit code,
+  without a shell.
+- **Servers and credentials** — server profiles (host, port, user, credential), password and
+  SSH-key credentials encrypted at rest with AES-256-GCM, and a `local` server that opens a
+  shell inside the container.
+- **Host-key verification** — trust on first use; a changed key blocks the connection.
+- **Terminal profiles** — save a layout plus which server opens in each pane; mark one as the
+  default to auto-load at start.
+- **Quick commands** — a per-user library of snippets, grouped by category, launched from the
+  command palette (`Ctrl+K`).
+- **Notifications** — [rstify](https://git.js-node.cc/jsprague/rstify)/Gotify/ntfy push for
+  server health checks and command completion.
+- **Clients** — the web UI served by the server; a Tauri desktop app for Linux (`.deb`,
+  `.rpm`, AppImage, Flatpak); and a Tauri Android app with a mobile layout, touch gestures, an
+  extra-keys row and swipe navigation between tabs.
 
-## Architecture
-
-```
-svrctlrs/
-├── core/              # Shared types, traits, plugin system
-├── server/            # Axum backend + HTMX UI
-│   ├── src/
-│   │   ├── main.rs       # Server entry point
-│   │   ├── ui_routes.rs  # HTMX UI routes
-│   │   ├── routes/       # REST API routes
-│   │   └── templates.rs  # Askama template structs
-│   ├── templates/        # Askama HTML templates
-│   └── static/           # CSS, JS (HTMX, Alpine.js)
-├── scheduler/         # Built-in cron-like task scheduler
-├── database/          # SQLite abstraction and migrations
-└── plugins/           # Monitoring plugins
-    ├── docker/        # Docker health and updates
-    ├── updates/       # OS/package updates
-    ├── health/        # System health monitoring
-    ├── weather/       # Weather monitoring (optional)
-    └── speedtest/     # Speed test monitoring (optional)
-```
-
-## Technology Stack
-
-- **Backend**: Axum 0.8 (HTTP server + REST API)
-- **Frontend**: HTMX 2.0.3 + Alpine.js 3.14.1 + Askama 0.12
-- **Database**: SQLite with sqlx
-- **Runtime**: Tokio async runtime
-- **Notifications**: Gotify + ntfy.sh with action buttons
-- **Remote Ops**: SSH with openssh_sftp_client
-- **Bundle Size**: ~94KB JavaScript (vs 500KB+ with React/Dioxus)
-
-## Features
-
-### 🚀 Core Capabilities
-
-- ✅ **Modular Plugin System**: Easy to add new monitoring capabilities
-- ✅ **Built-in Scheduler**: Schedule tasks with cron expressions
-- ✅ **Interactive Web Dashboard**: HTMX for dynamic updates without page reloads
-- ✅ **Remote Operations**: SSH-based remote command execution
-- ✅ **REST API**: Full HTTP API for programmatic access
-- ✅ **CLI Tool**: `svrctl` command-line interface
-- ✅ **Notification System**: Rich notifications with action buttons
-- ✅ **Status Reports**: Periodic "all OK" summaries even when healthy
-- ✅ **Database Persistence**: SQLite for historical data
-- ✅ **Mobile Responsive**: Works on desktop and mobile devices
-
-### 📦 Implemented Plugins
-
-- ✅ **Docker Plugin**: Container health, resource monitoring, image updates
-- ✅ **Updates Plugin**: OS package monitoring, automated updates, cleanup
-- ✅ **Health Plugin**: System metrics (CPU, memory, disk, network)
-- ✅ **Weather Plugin**: OpenWeatherMap integration (optional)
-- ✅ **Speed Test Plugin**: Ookla speed test monitoring (optional)
-
-### 📊 Status Reports
-
-**Get regular "all systems OK" confirmations even when nothing is wrong!**
-
-SvrCtlRS supports **status report summaries** - periodic health confirmations sent even when your infrastructure is healthy. This gives you peace of mind that monitoring is working, not just silence when things are fine.
-
-**How It Works:**
-- **Alerts**: Sent immediately when issues detected (high CPU, updates available, unhealthy containers)
-- **Summaries**: Sent on schedule when everything is normal (configurable per plugin)
-
-**Example Summary Notifications:**
-
-```
-Docker Health Summary
-📊 All containers healthy ✓
-
-Containers: 19 total, 19 running, 0 stopped
-Average CPU: 12.3% | Average Memory: 45.6%
-All systems operational.
-```
-
-```
-System Health Summary
-📊 System Status ✓
-
-CPU Usage: 15.2%
-Memory Usage: 45.8%
-Disk Usage: 62.1%
-All systems within normal parameters.
-```
-
-```
-Updates Status: localhost
-📊 System Up to Date ✓
-
-Server: localhost
-Package Manager: apt
-Last Checked: 2025-11-26 14:30:00
-```
-
-**Enable Summaries:**
-1. Navigate to **Plugins** page → Click **Configure** on any plugin
-2. Check **"Send summary reports even when healthy"** checkbox
-3. Click **Save Configuration**
-4. Receive regular health confirmations according to schedule
-
-**Default Schedules:**
-- **Docker Health**: Every 5 minutes
-- **System Health**: Every 5 minutes
-- **Updates Check**: Every 6 hours
-- **Updates Report**: Daily at 9 AM (multi-server summary)
-- **Docker Cleanup**: Weekly on Sundays at 2 AM
-
-**See [TEST_SUMMARY_REPORTS.md](./TEST_SUMMARY_REPORTS.md) for testing guide.**
-
-## 🚀 Quick Start (Docker Compose - Recommended)
-
-**Get up and running in 3 minutes!**
+## Quick start (Docker)
 
 ```bash
-# 1. Create .env file (optional - has sensible defaults)
-cp env.example .env
-
-# 2. Start the application
+mkdir -p ~/docker-compose/svrctlrs && cd ~/docker-compose/svrctlrs
+curl -fsSLO https://git.js-node.cc/jsprague/svrctlrs/raw/branch/master/docker-compose.yml
+curl -fsSL  https://git.js-node.cc/jsprague/svrctlrs/raw/branch/master/.env.example -o .env
+chmod 600 .env
+# Edit .env: set ADMIN_PASSWORD and ENCRYPTION_KEY (openssl rand -hex 32)
 docker compose up -d
-
-# 3. Access the web UI
-open http://localhost:8080
-
-# 4. Configure through the UI:
-#    - Add remote servers: /servers
-#    - Enable plugins: /plugins
-#    - Setup notifications: /settings/notifications
-#    - View/run tasks: /tasks
 ```
 
-**Note**: All configuration is managed through the web UI and stored in the database. No config files needed!
+The compose file is written for a Traefik edge with a `proxy` network; for a plain host, remove
+the `labels:` and add `ports: ["8080:8080"]`. The first start creates the admin user from
+`ADMIN_USERNAME`/`ADMIN_PASSWORD`. Full instructions, including the reverse-proxy and
+cross-origin settings the desktop and Android apps need, are in
+[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-**📖 For detailed setup instructions, see [QUICKSTART.md](./QUICKSTART.md)**
+Images are published to `git.js-node.cc/jsprague/svrctlrs` with tags `latest`, `vX.Y.Z` and
+the commit SHA.
 
-### Alternative: Development Build
+## Desktop and Android
 
-```bash
-# Clone the repository
-git clone https://github.com/jsprague84/svrctlrs
-cd svrctlrs
-
-# Copy example config
-cp config/example.toml config.toml
-
-# Build and run
-cargo run --package server --features server
-
-# Server starts at http://localhost:8080
-```
-
-### Alternative: Production Binary
-
-```bash
-# Build release binary
-cargo build --release --package server --features server
-
-# Run production server
-./target/release/server --config config.toml
-```
-
-## Configuration
-
-Configuration is managed through `config.toml`:
-
-```toml
-[server]
-addr = "0.0.0.0:8080"
-database_url = "sqlite:data/svrctlrs.db"
-
-[notifications]
-gotify_url = "http://gotify:8080/message"
-gotify_key = "your-gotify-token"
-ntfy_url = "https://ntfy.sh"
-ntfy_topic = "svrctlrs-alerts"
-
-[remote]
-ssh_key_path = "/path/to/ssh/key"
-
-[[servers]]
-name = "server1"
-host = "user@host1"
-
-[[servers]]
-name = "server2"
-host = "user@host2"
-
-[plugins]
-docker_enabled = true
-updates_enabled = true
-health_enabled = true
-```
-
-## Development Workflow
-
-### Quick Iteration on `develop` Branch
-
-```bash
-# 1. Make changes
-git add .
-git commit -m "feat: add new feature"
-git push origin develop
-
-# 2. GitHub Actions builds AMD64 image (~5-8 min)
-#    Image: ghcr.io/jsprague84/svrctlrs:develop
-
-# 3. Pull and test on docker-vm
-docker-compose pull
-docker-compose up -d
-```
-
-### Production Release on `main` Branch
-
-```bash
-# 1. Merge to main
-git checkout main
-git merge develop
-git push origin main
-
-# 2. GitHub Actions builds multi-arch image (~15-20 min)
-#    Image: ghcr.io/jsprague84/svrctlrs:latest
-#    Platforms: AMD64 + ARM64
-```
-
-See [docs/deployment/docker.md](./docs/deployment/docker.md) for complete workflow documentation.
-
-## Project Structure
-
-- **`core/`**: Core library with traits and types used by all plugins
-- **`server/`**: Axum backend + HTMX UI
-  - `src/main.rs` - Server entry point
-  - `src/ui_routes.rs` - HTMX UI route handlers
-  - `src/routes/` - REST API routes
-  - `src/templates.rs` - Askama template structs
-  - `templates/` - HTML templates (Askama)
-  - `static/` - CSS, JavaScript (HTMX, Alpine.js)
-- **`scheduler/`**: Task scheduling engine
-- **`database/`**: Database layer, migrations, queries
-- **`plugins/`**: Individual monitoring plugins
-
-## Adding a New Plugin
-
-1. Create new crate: `cargo new --lib plugins/myplugin`
-2. Implement `Plugin` trait from `svrctlrs-core`
-3. Add to workspace in `Cargo.toml`
-4. Register in `server/src/state.rs`
-5. Add UI components in `server/templates/`
+Packages are attached to each [release](https://git.js-node.cc/jsprague/svrctlrs/releases). On
+first launch the app asks for your server URL and checks `/api/v1/health`; after that you log
+in with your SvrCtlRS account. The server must list the app's origin in `ALLOWED_ORIGINS` (see
+the deployment guide).
 
 ## Documentation
 
-### Getting Started
-- **[QUICKSTART.md](./QUICKSTART.md)**: 5-minute Docker Compose setup guide
-- **[.env.example](./.env.example)**: Environment variable reference
-- **[config/example.toml](./config/example.toml)**: Configuration file reference
+| Document | For |
+|---|---|
+| [docs/USER-GUIDE.md](docs/USER-GUIDE.md) | Using the terminal, layouts, profiles, quick commands, mobile gestures |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Running the server: compose, environment, reverse proxy, backups, upgrades |
+| [docs/SECURITY.md](docs/SECURITY.md) | Authentication, encryption, host keys, what to protect, known weaknesses |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Crates, UI structure, request flow, data model |
+| [docs/API.md](docs/API.md) | REST and WebSocket reference |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Building, testing, CI/CD, releasing |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Gaps and planned improvements, prioritized |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
 
-### Development & Deployment
-- **[AI_CONTEXT.md](./AI_CONTEXT.md)**: Comprehensive AI development context
-- **[DEVELOPMENT_PLAN.md](./DEVELOPMENT_PLAN.md)**: Current development roadmap
-- **[IMMEDIATE_PRIORITIES.md](./IMMEDIATE_PRIORITIES.md)**: Critical issues and next steps
-- **[FUTURE_FEATURES.md](./FUTURE_FEATURES.md)**: 📋 **Catalog of 78 proposed features**
-- **[docs/features/](./docs/features/)**: Detailed feature specifications by category
-- **[docs/architecture/plugin-development-guide.md](./docs/architecture/plugin-development-guide.md)**: Plugin development guide
+## Development
+
+```bash
+# Backend (needs a Rust toolchain)
+cargo run --package server              # http://localhost:8080, SESSION_SECURE=false for http
+# Frontend (Node 22+)
+cd ui && npm ci && npm run dev          # Vite dev server proxies /api and /ws to :8080
+```
+
+Quality gates, the same ones CI runs: `cargo fmt --all --check`,
+`cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`, and in `ui/`
+`npm run check && npm run build`. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
+CI/CD runs on Forgejo Actions at `git.js-node.cc`, on the project's own runners. Every push is
+linted and tested; `master` publishes an image and deploys; `v*` tags publish an image, the
+Android APK and the desktop packages to a release.
 
 ## License
 
-Licensed under either of:
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT license ([LICENSE-MIT](LICENSE-MIT))
-
-at your option.
+MIT or Apache-2.0, at your option — see [LICENSE-MIT](LICENSE-MIT) and
+[LICENSE-APACHE](LICENSE-APACHE).

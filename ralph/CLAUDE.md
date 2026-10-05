@@ -29,7 +29,7 @@ cargo clippy --workspace -- -D warnings   # Lint
 cargo test --workspace           # Run tests
 ```
 
-The Rust workspace has 4 crates: core, database, scheduler, server.
+The Rust workspace has 3 crates: core, database, server.
 The SvelteKit frontend is in the `ui/` directory.
 
 ## Key Project Context
@@ -37,10 +37,10 @@ The SvelteKit frontend is in the `ui/` directory.
 - **Stack**: SvelteKit 5 (Svelte 5 runes), Tailwind CSS v4, TypeScript, xterm.js, adapter-static (SPA)
 - **Backend**: Rust (Axum 0.8), SQLite (sqlx), russh (PTY), async-ssh2-tokio (CMD)
 - **Architecture**: Terminal/SSH management tool — NOT a job scheduler (that was the old main branch)
-- **Primary CLAUDE.md**: Read `/home/jsprague/Development/svrctlrs/CLAUDE.md` for architecture docs (will be rewritten in US-002)
-- **Design Spec**: Read `docs/superpowers/specs/2026-03-20-svrctlrs-next-phase-design.md` for full design
-- **Implementation Plan**: Read `docs/superpowers/plans/2026-03-20-phase1-foundation.md` for detailed task breakdown
-- **IMPORTANT**: The `main` branch is stale. Never reference it. Always branch from ralph/phase1-foundation or its predecessor.
+- **Primary CLAUDE.md**: Read the repository's `CLAUDE.md`, then `docs/ARCHITECTURE.md` and `docs/SECURITY.md`
+- **Design Spec**: `docs/history/2026-03-rewrite/specs/2026-03-20-svrctlrs-next-phase-design.md` (historical)
+- **Implementation Plan**: `docs/history/2026-03-rewrite/plans/` (historical); open work is in `docs/ROADMAP.md`
+- **Branching**: `master` is current (the ralph/* phases are merged). Branch from `master`.
 - **SvelteKit UI directory**: `ui/` — all frontend code lives here
 - **Tailwind CSS v4**: Uses `@import 'tailwindcss'` with `@theme` block in `ui/src/app.css`. Default breakpoints: sm=640px, md=768px, lg=1024px
 - **Svelte 5 Runes**: Uses `$state`, `$derived`, `$effect`, `$props` — NOT legacy `$:` reactive statements

@@ -1,40 +1,15 @@
-# Archived Documentation
+# Archived documentation
 
-**Status**: ⚠️ NOT MAINTAINED - For historical reference only
+**Not maintained. Historical reference only.** Nothing in this directory describes the
+current product; current docs are in `/README.md`, `/CLAUDE.md` and `/docs/`.
 
-This directory contains outdated documentation from before the **v2.0 architecture restructure** (Migration 011).
+SvrCtlRS has had three architectures:
 
-## What Happened
+| Era | Dates | What it was | Archived here |
+|---|---|---|---|
+| Plugin platform (1.x–2.1) | 2025-11 | fixed monitoring plugins (Docker, updates, health, weather, speedtest), cron scheduler, Dioxus then HTMX UI | `root-level/`, `old-docs/` (archived 2025-11-28) |
+| Job platform (2.2) | 2025-11 → 2025-12 | user-defined job types/templates/schedules, HTMX + Askama UI, Gotify/ntfy | `job-era-2025-12/` (archived 2026-10-04) |
+| Terminal tool (3.x) | 2026-03 → | SvelteKit SPA + Tauri clients, PTY terminals over WebSocket | — current; its design history is in `/docs/history/` |
 
-On **2024-11-26**, SvrCtlRS underwent a complete architectural restructure:
-- **Old System**: Plugin-based architecture with hardcoded monitoring features
-- **New System**: Job-based architecture with user-defined workflows
-
-## Directory Structure
-
-```
-docs-archived/
-├── root-level/          # Old root-level .md files (assessments, plans, summaries)
-└── old-docs/            # Old docs/ directory (plugin guides, feature specs)
-```
-
-## Current Documentation
-
-For current, accurate documentation, see:
-- **`/README.md`** - Project overview and quick start
-- **`/CLAUDE.md`** - Comprehensive AI development guide (v2.0 architecture)
-
-## Why Archived?
-
-These documents describe the old plugin-based system and are no longer accurate:
-- Plugin development guides (we now use job types)
-- Task-based scheduling docs (now job schedules)
-- Old architecture assessments and migration plans
-- Feature specs for deprecated patterns
-
-**Do not use this documentation for development.**
-
----
-
-**Archived**: 2025-11-28
-**Last Updated Architecture**: v2.0 (Job-Based System)
+The job platform's database schema was dropped by migration `019`; the plugin platform's by
+`011`. Both sets of docs reference tables, routes, templates and crates that no longer exist.
