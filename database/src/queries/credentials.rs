@@ -296,15 +296,12 @@ mod tests {
     }
 
     /// The key is a process-wide `OnceLock`, so every test initialises it the same way and
-    /// the second and later calls are expected to report "already initialized".
+    /// the second and later calls are expected to report "already initialized". Never via
+    /// the environment: `set_var` from one test thread races `getenv` in the others.
     fn init_test_encryption() {
-        if !encryption::is_initialized() {
-            std::env::set_var(
-                "ENCRYPTION_KEY",
-                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-            );
-            let _ = encryption::init_encryption_key();
-        }
+        let _ = encryption::init_with_hex_key(
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        );
     }
 
     async fn raw_row(pool: &Pool<Sqlite>, id: i64) -> (String, bool) {

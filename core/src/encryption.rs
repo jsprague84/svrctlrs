@@ -34,6 +34,17 @@ pub fn init_encryption_key() -> Result<()> {
     Ok(())
 }
 
+/// Initialize the global key from a 64-character hex string, bypassing the environment and
+/// the key file. For tests and tooling; mutating the process environment from test threads
+/// races with other threads reading it.
+pub fn init_with_hex_key(hex_key: &str) -> Result<()> {
+    let key = parse_hex_key(hex_key)?;
+    ENCRYPTION_KEY
+        .set(key)
+        .map_err(|_| Error::ConfigError("Encryption key already initialized".to_string()))?;
+    Ok(())
+}
+
 /// Check if the encryption key has been initialized
 pub fn is_initialized() -> bool {
     ENCRYPTION_KEY.get().is_some()
