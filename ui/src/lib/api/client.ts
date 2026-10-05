@@ -1,20 +1,16 @@
-import { getServerUrl, isTauri } from '$lib/platform/index.js';
+import { getServerUrl } from '$lib/platform/index.js';
 
 function getApiBase(): string {
 	return `${getServerUrl()}/api/v1`;
 }
 
-/** Get auth headers — includes Bearer token + user ID if available.
- * In web mode with cookies, server checks cookies first — these are ignored.
- * In Tauri mode without cookies, server uses token + user_id for auth. */
+/** Auth headers for the native apps: a Bearer token (the session id) stored at login.
+ * The browser has no token and authenticates with the session cookie instead.
+ * The server derives the user from the session; nothing else identifies the caller. */
 function getAuthHeaders(): Record<string, string> {
 	if (typeof localStorage === 'undefined') return {};
 	const token = localStorage.getItem('svrctlrs-session-token');
-	if (!token) return {};
-	const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-	const userId = localStorage.getItem('svrctlrs-user-id');
-	if (userId) headers['X-User-Id'] = userId;
-	return headers;
+	return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export class ApiError extends Error {
@@ -32,12 +28,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 	const url = `${getApiBase()}${path}`;
 	const res = await fetch(url, {
 		credentials: 'include',
+		...options,
 		headers: {
 			'Content-Type': 'application/json',
 			...getAuthHeaders(),
-			...options.headers
-		},
-		...options
+			...(options.headers as Record<string, string> | undefined)
+		}
 	});
 
 	if (res.status === 401) {

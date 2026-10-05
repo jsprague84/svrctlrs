@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { isTauri } from '$lib/platform/index.js';
 	import { getServerUrl } from '$lib/platform/index.js';
-	import { goto } from '$app/navigation';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import * as toast from '$lib/state/toast.svelte.js';
@@ -26,12 +25,14 @@
 
 			if (res.ok) {
 				const data = await res.json().catch(() => ({}));
-				// Store session token + user_id for Tauri mode (WebKitGTK can't send cross-origin cookies)
-				if (data.session_id) {
+				// Only the native apps keep a token: WebKitGTK does not send cross-origin cookies.
+				// In the browser the session cookie (HttpOnly) is the credential; a copy in
+				// localStorage would only widen what an injected script could steal.
+				if (isTauri() && data.session_id) {
 					localStorage.setItem('svrctlrs-session-token', data.session_id);
-					localStorage.setItem('svrctlrs-user-id', String(data.user_id ?? ''));
 				}
-				// Full reload — token is in localStorage, survives reload
+				localStorage.removeItem('svrctlrs-user-id');
+				// Full reload so every state module starts from the authenticated session
 				window.location.href = '/';
 			} else {
 				const data = await res.json().catch(() => ({ error: 'Login failed' }));
@@ -44,11 +45,6 @@
 		}
 	}
 
-	// In web mode (not Tauri), redirect to server's login page
-	if (typeof window !== 'undefined' && !isTauri()) {
-		// Web mode — the server handles login via its own HTML page
-		// This SvelteKit route is only used in Tauri mode
-	}
 </script>
 
 <div class="min-h-screen flex items-center justify-center bg-background px-4">

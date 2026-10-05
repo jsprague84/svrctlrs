@@ -173,8 +173,10 @@
 	const MAX_HISTORY = 50;
 	const PING_INTERVAL = 30_000;
 	const MAX_OUTPUT_HISTORY = 10_000;
-	const MAX_RECONNECT_ATTEMPTS = 5;
 	const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
+	const MAX_RECONNECT_ATTEMPTS = RECONNECT_DELAYS.length;
+	/** Set by onerror when an established session drops; onclose fires after and reads it. */
+	let lostWhileConnected = false;
 
 	function setStatus(s: ConnectionStatus) {
 		status = s;
@@ -192,13 +194,10 @@
 			const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 			url = `${protocol}//${window.location.host}${path}`;
 		}
-		// Append auth token as query param (WebSocket API doesn't support custom headers)
+		// Native apps pass their token as a query parameter (the WebSocket API cannot set
+		// headers); the browser relies on the session cookie.
 		const token = localStorage.getItem('svrctlrs-session-token');
-		const userId = localStorage.getItem('svrctlrs-user-id');
-		if (token) {
-			url += `?token=${encodeURIComponent(token)}`;
-			if (userId) url += `&user_id=${encodeURIComponent(userId)}`;
-		}
+		if (token) url += `?token=${encodeURIComponent(token)}`;
 		return url;
 	}
 
@@ -465,12 +464,16 @@
 		};
 
 		socket.onerror = () => {
+			// onclose follows and decides about reconnecting; remember that this was an
+			// established session, since the status is about to read 'error'.
+			if (status === 'connected') lostWhileConnected = true;
 			terminal!.writeln('\r\n\x1b[31m✗ Connection error\x1b[0m');
 			setStatus('error');
 		};
 
 		socket.onclose = () => {
-			const wasConnected = status === 'connected';
+			const wasConnected = status === 'connected' || lostWhileConnected;
+			lostWhileConnected = false;
 			setStatus('disconnected');
 			cleanupPty();
 			if (pingInterval) {
