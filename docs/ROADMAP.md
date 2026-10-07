@@ -60,7 +60,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 - Remove the global `npm i -g @tauri-apps/cli` from both Tauri CI images (the devDependency is
   used); confirm `flatpak-builder` runs unprivileged on the runner or move it out.
 - Done 2026-10-05/06: all in-range JS updates; SvelteKit 3 + adapter-static 4 + TypeScript 6
-  (`$lib` kept via alias; `#lib` rename pending). Tauri JS pinned to ~2.10 because the Rust
+  (`$lib` imports renamed to the `#lib` subpath; tsconfig extends `$app/tsconfig`). Tauri JS pinned to ~2.10 because the Rust
   crate's newest 2.x is 2.10.3 and the CLI refuses a newer JS package (Android build broke).
   Left: lucide 1.0 and TypeScript 7 (typescript-eslint supports <6.1 today).
 - Tag hygiene: `v0.1.0` is newer than `v0.1.1`; both are superseded by `v3.0.0`. Leave them (a
