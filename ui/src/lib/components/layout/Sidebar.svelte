@@ -1,9 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/state';
-	import { base } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import type { Pathname } from '$app/types';
+	import type { PathnameWithSearchOrHash as Pathname } from '$app/types';
 	import {
 		Terminal,
 		Server,
@@ -56,15 +55,15 @@
 	}: Props = $props();
 
 	const navItems = [
-		{ href: `${base}/`, icon: Terminal, label: 'Terminal' },
-		{ href: `${base}/servers`, icon: Server, label: 'Servers' },
-		{ href: `${base}/credentials`, icon: KeyRound, label: 'Credentials' },
-		{ href: `${base}/settings`, icon: Settings, label: 'Settings' }
+		{ href: '/', icon: Terminal, label: 'Terminal' },
+		{ href: '/servers', icon: Server, label: 'Servers' },
+		{ href: '/credentials', icon: KeyRound, label: 'Credentials' },
+		{ href: '/settings', icon: Settings, label: 'Settings' }
 	];
 
 	function isActive(href: string): boolean {
 		const path = page.url?.pathname ?? '';
-		if (href === `${base}/`) return path === `${base}/` || path === base;
+		if (href === '/') return path === '/';
 		return path.startsWith(href);
 	}
 

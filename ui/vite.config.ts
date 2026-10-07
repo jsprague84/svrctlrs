@@ -1,3 +1,4 @@
+import adapter from '@sveltejs/adapter-static';
 import { sveltekit } from '@sveltejs/kit/vite';
 import tailwindcss from '@tailwindcss/vite';
 import { readFileSync } from 'node:fs';
@@ -8,7 +9,22 @@ import { defineConfig } from 'vitest/config';
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 
 export default defineConfig({
-	plugins: [tailwindcss(), sveltekit()],
+	plugins: [
+		tailwindcss(),
+		// SvelteKit 3: configuration lives here, not in svelte.config.js
+		sveltekit({
+			adapter: adapter({
+				pages: 'build',
+				assets: 'build',
+				fallback: 'index.html',
+				precompress: false,
+				strict: true
+			}),
+			paths: { base: '' },
+			// Kit 3 renamed the alias to #lib; keep $lib so the 40 existing imports stay put
+			alias: { $lib: 'src/lib' }
+		})
+	],
 	define: {
 		__APP_VERSION__: JSON.stringify(pkg.version)
 	},
