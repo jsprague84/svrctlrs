@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getPlatform } from '$lib/platform/index.js';
-	import { get } from '$lib/api/client.js';
-	import Badge from '$lib/components/ui/Badge.svelte';
+	import { getPlatform } from '#lib/platform/index.js';
+	import { get } from '#lib/api/client.js';
+	import Badge from '#lib/components/ui/Badge.svelte';
 
 	let serverHealth = $state<{ status: string; version?: string } | null>(null);
 	let healthError = $state<string | null>(null);

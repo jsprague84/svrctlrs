@@ -1,4 +1,4 @@
-import { ApiError } from '$lib/api/client.js';
+import { ApiError } from '#lib/api/client.js';
 
 /** Extract a human-readable error message from any error type */
 export function extractErrorMessage(e: unknown, fallback = 'An unexpected error occurred'): string {

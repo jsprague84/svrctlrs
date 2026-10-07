@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client.js';
-import type { Credential, CreateCredential, UpdateCredential } from '$lib/types/index.js';
+import type { Credential, CreateCredential, UpdateCredential } from '#lib/types/index.js';
 
 interface CredentialsListResponse {
 	credentials: Credential[];

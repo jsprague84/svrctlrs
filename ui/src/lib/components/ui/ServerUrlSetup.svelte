@@ -1,8 +1,8 @@
 <script lang="ts">
 	import Button from './Button.svelte';
 	import Input from './Input.svelte';
-	import { setServerUrl, getPlatform } from '$lib/platform/index.js';
-	import { normalizeServerUrl } from '$lib/platform/url.js';
+	import { setServerUrl, getPlatform } from '#lib/platform/index.js';
+	import { normalizeServerUrl } from '#lib/platform/url.js';
 
 	interface Props {
 		onComplete: () => void;

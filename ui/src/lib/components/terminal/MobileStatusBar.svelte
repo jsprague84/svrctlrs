@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Menu, Plus, X } from 'lucide-svelte';
 	import TabDots from './TabDots.svelte';
-	import type { TerminalTab, ConnectionStatus } from '$lib/types/index.js';
+	import type { TerminalTab, ConnectionStatus } from '#lib/types/index.js';
 
 	interface Props {
 		serverName: string | null;

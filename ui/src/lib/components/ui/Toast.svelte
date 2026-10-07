@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-svelte';
-	import { getToasts, removeToast, type ToastType } from '$lib/state/toast.svelte.js';
+	import { getToasts, removeToast, type ToastType } from '#lib/state/toast.svelte.js';
 
 	const icons: Record<ToastType, typeof CheckCircle> = {
 		success: CheckCircle,

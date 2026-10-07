@@ -1,22 +1,22 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Server, Plus, Pencil, Trash2, Wifi, KeyRound, ShieldCheck } from 'lucide-svelte';
-	import * as serversApi from '$lib/api/servers.js';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Select from '$lib/components/ui/Select.svelte';
-	import Modal from '$lib/components/ui/Modal.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import * as serversState from '$lib/state/servers.svelte.js';
-	import * as credState from '$lib/state/credentials.svelte.js';
-	import * as toast from '$lib/state/toast.svelte.js';
-	import { extractErrorMessage } from '$lib/utils/error.js';
+	import * as serversApi from '#lib/api/servers.js';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Select from '#lib/components/ui/Select.svelte';
+	import Modal from '#lib/components/ui/Modal.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import * as serversState from '#lib/state/servers.svelte.js';
+	import * as credState from '#lib/state/credentials.svelte.js';
+	import * as toast from '#lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '#lib/utils/error.js';
 	import type {
 		CreateServer,
 		UpdateServer,
 		TestConnectionResult,
 		HostKey
-	} from '$lib/types/index.js';
+	} from '#lib/types/index.js';
 
 	let showModal = $state(false);
 	let editingId = $state<number | null>(null);

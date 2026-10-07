@@ -1,6 +1,6 @@
-import type { Credential, CreateCredential, UpdateCredential } from '$lib/types/index.js';
-import * as api from '$lib/api/credentials.js';
-import { extractErrorMessage } from '$lib/utils/error.js';
+import type { Credential, CreateCredential, UpdateCredential } from '#lib/types/index.js';
+import * as api from '#lib/api/credentials.js';
+import { extractErrorMessage } from '#lib/utils/error.js';
 
 let credentials = $state<Credential[]>([]);
 let loading = $state(false);

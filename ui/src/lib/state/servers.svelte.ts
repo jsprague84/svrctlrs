@@ -1,6 +1,6 @@
-import type { Server, CreateServer, UpdateServer, TestConnectionResult } from '$lib/types/index.js';
-import * as api from '$lib/api/servers.js';
-import { extractErrorMessage } from '$lib/utils/error.js';
+import type { Server, CreateServer, UpdateServer, TestConnectionResult } from '#lib/types/index.js';
+import * as api from '#lib/api/servers.js';
+import { extractErrorMessage } from '#lib/utils/error.js';
 
 let servers = $state<Server[]>([]);
 let loading = $state(false);

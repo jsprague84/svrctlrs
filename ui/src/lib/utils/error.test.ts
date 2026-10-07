@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ApiError } from '$lib/api/client.js';
+import { ApiError } from '#lib/api/client.js';
 import { extractErrorMessage } from './error.js';
 
 describe('extractErrorMessage', () => {

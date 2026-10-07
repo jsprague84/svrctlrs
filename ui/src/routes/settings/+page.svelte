@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { Settings, Bell, TerminalSquare, Users, ScrollText, Info } from 'lucide-svelte';
-	import { isMobile } from '$lib/state/mobile.svelte.js';
-	import GeneralSettings from '$lib/components/settings/GeneralSettings.svelte';
-	import NotificationSettings from '$lib/components/settings/NotificationSettings.svelte';
-	import QuickCommandsSettings from '$lib/components/settings/QuickCommandsSettings.svelte';
-	import AboutSettings from '$lib/components/settings/AboutSettings.svelte';
-	import UsersSettings from '$lib/components/settings/UsersSettings.svelte';
-	import AuditSettings from '$lib/components/settings/AuditSettings.svelte';
+	import { isMobile } from '#lib/state/mobile.svelte.js';
+	import GeneralSettings from '#lib/components/settings/GeneralSettings.svelte';
+	import NotificationSettings from '#lib/components/settings/NotificationSettings.svelte';
+	import QuickCommandsSettings from '#lib/components/settings/QuickCommandsSettings.svelte';
+	import AboutSettings from '#lib/components/settings/AboutSettings.svelte';
+	import UsersSettings from '#lib/components/settings/UsersSettings.svelte';
+	import AuditSettings from '#lib/components/settings/AuditSettings.svelte';
 
 	type TabId = 'general' | 'notifications' | 'commands' | 'users' | 'audit' | 'about';
 

@@ -20,9 +20,7 @@ export default defineConfig({
 				precompress: false,
 				strict: true
 			}),
-			paths: { base: '' },
-			// Kit 3 renamed the alias to #lib; keep $lib so the 40 existing imports stay put
-			alias: { $lib: 'src/lib' }
+			paths: { base: '' }
 		})
 	],
 	define: {

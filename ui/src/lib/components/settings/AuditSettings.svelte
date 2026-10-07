@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import * as auditApi from '$lib/api/audit.js';
-	import type { AuditEntry } from '$lib/api/audit.js';
-	import * as toast from '$lib/state/toast.svelte.js';
-	import { extractErrorMessage } from '$lib/utils/error.js';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import * as auditApi from '#lib/api/audit.js';
+	import type { AuditEntry } from '#lib/api/audit.js';
+	import * as toast from '#lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '#lib/utils/error.js';
 
 	let entries = $state<AuditEntry[]>([]);
 	let nextBefore = $state<number | null>(null);

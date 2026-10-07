@@ -12,11 +12,11 @@
 	import '@xterm/xterm/css/xterm.css';
 
 	import { tokyoNightTheme, lightTheme } from './terminal-theme.js';
-	import * as themeState from '$lib/state/theme.svelte.js';
-	import * as terminalPrefs from '$lib/state/terminalPrefs.svelte.js';
-	import * as terminalState from '$lib/state/terminal.svelte.js';
-	import { getServerUrl } from '$lib/platform/index.js';
-	import { post } from '$lib/api/client.js';
+	import * as themeState from '#lib/state/theme.svelte.js';
+	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
+	import * as terminalState from '#lib/state/terminal.svelte.js';
+	import { getServerUrl } from '#lib/platform/index.js';
+	import { post } from '#lib/api/client.js';
 	import type {
 		TerminalMode,
 		ConnectionStatus,
@@ -24,7 +24,7 @@
 		CmdResponse,
 		PtyRequest,
 		PtyResponse
-	} from '$lib/types/index.js';
+	} from '#lib/types/index.js';
 
 	interface Props {
 		tabId: string;

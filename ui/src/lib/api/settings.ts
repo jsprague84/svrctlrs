@@ -1,5 +1,5 @@
 import { get, post, put } from './client.js';
-import type { Setting, SettingValueType, GroupedSettings } from '$lib/types/index.js';
+import type { Setting, SettingValueType, GroupedSettings } from '#lib/types/index.js';
 
 interface SettingsListResponse {
 	settings: GroupedSettings;

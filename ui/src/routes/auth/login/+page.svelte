@@ -1,10 +1,10 @@
 <script lang="ts">
-	import { isTauri } from '$lib/platform/index.js';
-	import { getServerUrl } from '$lib/platform/index.js';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import * as toast from '$lib/state/toast.svelte.js';
-	import { extractErrorMessage } from '$lib/utils/error.js';
+	import { isTauri } from '#lib/platform/index.js';
+	import { getServerUrl } from '#lib/platform/index.js';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import * as toast from '#lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '#lib/utils/error.js';
 
 	let username = $state('');
 	let password = $state('');

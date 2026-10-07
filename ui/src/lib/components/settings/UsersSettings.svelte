@@ -1,13 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Trash2, UserPlus } from 'lucide-svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import * as usersApi from '$lib/api/users.js';
-	import type { UserAccount } from '$lib/api/users.js';
-	import * as toast from '$lib/state/toast.svelte.js';
-	import { extractErrorMessage } from '$lib/utils/error.js';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import * as usersApi from '#lib/api/users.js';
+	import type { UserAccount } from '#lib/api/users.js';
+	import * as toast from '#lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '#lib/utils/error.js';
 
 	let users = $state<UserAccount[]>([]);
 	let loading = $state(true);

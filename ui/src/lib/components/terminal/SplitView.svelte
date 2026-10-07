@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import type { LayoutMode } from '$lib/types/index.js';
-	import { isMobile } from '$lib/state/mobile.svelte.js';
+	import type { LayoutMode } from '#lib/types/index.js';
+	import { isMobile } from '#lib/state/mobile.svelte.js';
 
 	interface Props {
 		layout: LayoutMode;

@@ -1,4 +1,4 @@
-import { getServerUrl } from '$lib/platform/index.js';
+import { getServerUrl } from '#lib/platform/index.js';
 
 function getApiBase(): string {
 	return `${getServerUrl()}/api/v1`;

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { ConnectionStatus } from '$lib/types/index.js';
+	import type { ConnectionStatus } from '#lib/types/index.js';
 
 	interface Props {
 		status: ConnectionStatus;

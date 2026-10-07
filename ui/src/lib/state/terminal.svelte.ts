@@ -1,5 +1,5 @@
-import type { TerminalTab, TerminalMode, ConnectionStatus, LayoutMode } from '$lib/types/index.js';
-import { isMobile } from '$lib/state/mobile.svelte.js';
+import type { TerminalTab, TerminalMode, ConnectionStatus, LayoutMode } from '#lib/types/index.js';
+import { isMobile } from '#lib/state/mobile.svelte.js';
 
 const tabs = $state<TerminalTab[]>([]);
 let activeTabId = $state<string | null>(null);

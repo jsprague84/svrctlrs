@@ -1,17 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { KeyRound, Plus, Pencil, Trash2, Sparkles, Copy } from 'lucide-svelte';
-	import * as credApi from '$lib/api/credentials.js';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Select from '$lib/components/ui/Select.svelte';
-	import Modal from '$lib/components/ui/Modal.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import * as credState from '$lib/state/credentials.svelte.js';
-	import * as toast from '$lib/state/toast.svelte.js';
-	import { extractErrorMessage } from '$lib/utils/error.js';
-	import type { CredentialType, CreateCredential, UpdateCredential } from '$lib/types/index.js';
-	import { CREDENTIAL_TYPE_LABELS } from '$lib/types/credential.js';
+	import * as credApi from '#lib/api/credentials.js';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Select from '#lib/components/ui/Select.svelte';
+	import Modal from '#lib/components/ui/Modal.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import * as credState from '#lib/state/credentials.svelte.js';
+	import * as toast from '#lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '#lib/utils/error.js';
+	import type { CredentialType, CreateCredential, UpdateCredential } from '#lib/types/index.js';
+	import { CREDENTIAL_TYPE_LABELS } from '#lib/types/credential.js';
 
 	let showModal = $state(false);
 	let editingId = $state<number | null>(null);

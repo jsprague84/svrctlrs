@@ -1,7 +1,7 @@
-import type { Setting, GroupedSettings } from '$lib/types/index.js';
-import type { CreateSettingInput } from '$lib/api/settings.js';
-import * as api from '$lib/api/settings.js';
-import { extractErrorMessage } from '$lib/utils/error.js';
+import type { Setting, GroupedSettings } from '#lib/types/index.js';
+import type { CreateSettingInput } from '#lib/api/settings.js';
+import * as api from '#lib/api/settings.js';
+import { extractErrorMessage } from '#lib/utils/error.js';
 
 let settings = $state<GroupedSettings>({});
 let loading = $state(false);

@@ -1,4 +1,4 @@
-import type { TerminalPreferences } from '$lib/types/index.js';
+import type { TerminalPreferences } from '#lib/types/index.js';
 
 const STORAGE_KEY = 'svrctlrs-terminal-prefs';
 

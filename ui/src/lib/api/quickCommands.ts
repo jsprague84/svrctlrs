@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client.js';
-import type { QuickCommand, CreateQuickCommand, UpdateQuickCommand } from '$lib/types/index.js';
+import type { QuickCommand, CreateQuickCommand, UpdateQuickCommand } from '#lib/types/index.js';
 
 interface CommandsListResponse {
 	commands: QuickCommand[];

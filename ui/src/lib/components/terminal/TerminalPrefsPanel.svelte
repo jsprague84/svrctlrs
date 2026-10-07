@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { X } from 'lucide-svelte';
-	import * as terminalPrefs from '$lib/state/terminalPrefs.svelte.js';
-	import type { CursorStyle, FontWeightOption } from '$lib/types/index.js';
+	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
+	import type { CursorStyle, FontWeightOption } from '#lib/types/index.js';
 
 	interface Props {
 		open: boolean;

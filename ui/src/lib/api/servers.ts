@@ -5,7 +5,7 @@ import type {
 	UpdateServer,
 	TestConnectionResult,
 	HostKey
-} from '$lib/types/index.js';
+} from '#lib/types/index.js';
 
 interface ServersListResponse {
 	servers: Server[];

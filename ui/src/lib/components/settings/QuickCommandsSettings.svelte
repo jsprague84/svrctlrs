@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Plus, Pencil, Trash2 } from 'lucide-svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import Modal from '$lib/components/ui/Modal.svelte';
-	import Badge from '$lib/components/ui/Badge.svelte';
-	import * as quickCommandsState from '$lib/state/quickCommands.svelte.js';
-	import * as serversState from '$lib/state/servers.svelte.js';
-	import * as toast from '$lib/state/toast.svelte.js';
-	import { extractErrorMessage } from '$lib/utils/error.js';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import Modal from '#lib/components/ui/Modal.svelte';
+	import Badge from '#lib/components/ui/Badge.svelte';
+	import * as quickCommandsState from '#lib/state/quickCommands.svelte.js';
+	import * as serversState from '#lib/state/servers.svelte.js';
+	import * as toast from '#lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '#lib/utils/error.js';
 
 	let commands = $derived(quickCommandsState.getCommands());
 	let servers = $derived(serversState.getServers());

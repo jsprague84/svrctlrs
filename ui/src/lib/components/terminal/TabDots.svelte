@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { TerminalTab } from '$lib/types/index.js';
+	import type { TerminalTab } from '#lib/types/index.js';
 
 	interface Props {
 		tabs: TerminalTab[];

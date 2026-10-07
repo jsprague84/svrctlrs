@@ -1,5 +1,5 @@
 import { get, post, put, del } from './client.js';
-import type { TerminalProfile, CreateProfile, UpdateProfile } from '$lib/types/index.js';
+import type { TerminalProfile, CreateProfile, UpdateProfile } from '#lib/types/index.js';
 
 interface ProfilesListResponse {
 	profiles: TerminalProfile[];

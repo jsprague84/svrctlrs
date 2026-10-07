@@ -19,10 +19,10 @@
 		Pencil,
 		Plus
 	} from 'lucide-svelte';
-	import type { Server as ServerType, TerminalProfile } from '$lib/types/index.js';
-	import { logout } from '$lib/api/client.js';
-	import * as themeState from '$lib/state/theme.svelte.js';
-	import { isMobile } from '$lib/state/mobile.svelte.js';
+	import type { Server as ServerType, TerminalProfile } from '#lib/types/index.js';
+	import { logout } from '#lib/api/client.js';
+	import * as themeState from '#lib/state/theme.svelte.js';
+	import { isMobile } from '#lib/state/mobile.svelte.js';
 
 	interface Props {
 		servers: ServerType[];

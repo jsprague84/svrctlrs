@@ -1,6 +1,6 @@
-import type { TerminalProfile, CreateProfile, UpdateProfile } from '$lib/types/index.js';
-import * as api from '$lib/api/profiles.js';
-import { extractErrorMessage } from '$lib/utils/error.js';
+import type { TerminalProfile, CreateProfile, UpdateProfile } from '#lib/types/index.js';
+import * as api from '#lib/api/profiles.js';
+import { extractErrorMessage } from '#lib/utils/error.js';
 
 let profiles = $state<TerminalProfile[]>([]);
 let loading = $state(false);

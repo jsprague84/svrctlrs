@@ -1,11 +1,11 @@
 <script lang="ts">
-	import Modal from '$lib/components/ui/Modal.svelte';
-	import Button from '$lib/components/ui/Button.svelte';
-	import Input from '$lib/components/ui/Input.svelte';
-	import * as profilesState from '$lib/state/profiles.svelte.js';
-	import * as terminalState from '$lib/state/terminal.svelte.js';
-	import * as toast from '$lib/state/toast.svelte.js';
-	import { extractErrorMessage } from '$lib/utils/error.js';
+	import Modal from '#lib/components/ui/Modal.svelte';
+	import Button from '#lib/components/ui/Button.svelte';
+	import Input from '#lib/components/ui/Input.svelte';
+	import * as profilesState from '#lib/state/profiles.svelte.js';
+	import * as terminalState from '#lib/state/terminal.svelte.js';
+	import * as toast from '#lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '#lib/utils/error.js';
 
 	interface Props {
 		open: boolean;

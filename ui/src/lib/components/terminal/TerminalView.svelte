@@ -17,16 +17,16 @@
 	import ProfileManager from './ProfileManager.svelte';
 	import MobileStatusBar from './MobileStatusBar.svelte';
 	import ExtraKeysRow from './ExtraKeysRow.svelte';
-	import * as terminalState from '$lib/state/terminal.svelte.js';
-	import * as serversState from '$lib/state/servers.svelte.js';
-	import * as profilesState from '$lib/state/profiles.svelte.js';
-	import * as toast from '$lib/state/toast.svelte.js';
-	import { isMobile } from '$lib/state/mobile.svelte.js';
+	import * as terminalState from '#lib/state/terminal.svelte.js';
+	import * as serversState from '#lib/state/servers.svelte.js';
+	import * as profilesState from '#lib/state/profiles.svelte.js';
+	import * as toast from '#lib/state/toast.svelte.js';
+	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import {
 		initKeyboardDetection,
 		destroyKeyboardDetection
-	} from '$lib/platform/keyboard.svelte.js';
-	import type { TerminalMode, ConnectionStatus, LayoutMode } from '$lib/types/index.js';
+	} from '#lib/platform/keyboard.svelte.js';
+	import type { TerminalMode, ConnectionStatus, LayoutMode } from '#lib/types/index.js';
 
 	interface Props {
 		visible: boolean;
