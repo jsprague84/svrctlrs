@@ -3,7 +3,7 @@
 ## Toolchain
 
 - Rust stable (CI image: `git.js-node.cc/jsprague/rust-ci`, Docker build: `rust:1.98-bookworm`)
-- Node 22+ (Vite 8 needs 20.19+ or 22.12+), npm 10+
+- Node 22.17+ (SvelteKit 3's floor), npm 10+
 - For Tauri: the system deps in `.forgejo/Dockerfile.tauri-desktop` (WebKitGTK 4.1, GTK 3,
   libayatana-appindicator, librsvg) and for Android JDK 17, SDK platform 36, NDK 27.
 

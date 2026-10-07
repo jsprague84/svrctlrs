@@ -59,9 +59,10 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
   existing databases behind a version check).
 - Remove the global `npm i -g @tauri-apps/cli` from both Tauri CI images (the devDependency is
   used); confirm `flatpak-builder` runs unprivileged on the runner or move it out.
-- Done 2026-10-05: all in-range JS updates applied (Svelte 5.57, Kit 2.70, Vite 8.3, Tailwind
-  4.3, Tauri JS 2.12); unused Tauri JS plugins removed. Left: the SvelteKit 3 / adapter-static 4 /
-  lucide 1.0 / TypeScript 7 majors, and the Tauri Rust crate bump (needs a desktop CI run).
+- Done 2026-10-05/06: all in-range JS updates; SvelteKit 3 + adapter-static 4 + TypeScript 6
+  (`$lib` kept via alias; `#lib` rename pending). Tauri JS pinned to ~2.10 because the Rust
+  crate's newest 2.x is 2.10.3 and the CLI refuses a newer JS package (Android build broke).
+  Left: lucide 1.0 and TypeScript 7 (typescript-eslint supports <6.1 today).
 - Tag hygiene: `v0.1.0` is newer than `v0.1.1`; both are superseded by `v3.0.0`. Leave them (a
   tag delete breaks nothing but history) and never reuse pre-3.0 numbers.
 - GitHub: the repository there is a stale mirror of the 2025 code. Archive it, or configure a
