@@ -27,9 +27,9 @@ and push notifications. One Rust binary, one SQLite file.
   command palette (`Ctrl+K`).
 - **Notifications** — [rstify](https://git.js-node.cc/jsprague/rstify)/Gotify/ntfy push for
   server health checks and command completion.
-- **Clients** — the web UI served by the server; a Tauri desktop app for Linux (`.deb`,
-  `.rpm`, AppImage, Flatpak); and a Tauri Android app with a mobile layout, touch gestures, an
-  extra-keys row and swipe navigation between tabs.
+- **Clients** — the web UI served by the server, with a mobile layout (touch gestures, an
+  extra-keys row, swipe between tabs) that works in a phone browser; and a Tauri desktop app
+  for Linux (`.deb`, `.rpm`, AppImage).
 
 ## Quick start (Docker)
 
@@ -51,12 +51,12 @@ cross-origin settings the desktop and Android apps need, are in
 Images are published to `git.js-node.cc/jsprague/svrctlrs` with tags `latest`, `vX.Y.Z` and
 the commit SHA.
 
-## Desktop and Android
+## Desktop app
 
-Packages are attached to each [release](https://git.js-node.cc/jsprague/svrctlrs/releases). On
-first launch the app asks for your server URL and checks `/api/v1/health`; after that you log
+Linux packages are attached to each [release](https://git.js-node.cc/jsprague/svrctlrs/releases).
+On first launch the app asks for your server URL and checks `/api/v1/health`; after that you log
 in with your SvrCtlRS account. The server must list the app's origin in `ALLOWED_ORIGINS` (see
-the deployment guide).
+the deployment guide). On a phone, use the web app in the browser.
 
 ## Documentation
 

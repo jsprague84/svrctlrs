@@ -1,10 +1,9 @@
-# SvrCtlRS Linux desktop app (Tauri v2): .deb, .rpm, AppImage, and a Flatpak bundle.
+# SvrCtlRS Linux desktop app (Tauri v2): .deb, .rpm and AppImage.
 #
 # Runs on the epyc-ai `rust-high` runners in the tauri-desktop-ci image. Built only for `v*`
 # tags and on demand: a WebKitGTK build on every push is not worth the runner time.
-# The .deb/.rpm build is the gate. AppImage and Flatpak tooling (linuxdeploy, bubblewrap)
-# is fragile inside an unprivileged job container, so those steps may fail without
-# failing the job; the step log says which packages were actually produced.
+# The .deb/.rpm build is the gate. AppImage tooling (linuxdeploy) is fragile inside an
+# unprivileged job container, so that step may fail without failing the job.
 
 name: Desktop
 
@@ -43,28 +42,10 @@ jobs:
         continue-on-error: true
         run: cd ui && npm run tauri build -- --bundles appimage
 
-      - name: Build Flatpak bundle
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          BINARY=ui/src-tauri/target/release/svrctlrs-desktop
-          [ -x "${BINARY}" ] || { echo "Tauri binary not found at ${BINARY}" >&2; exit 1; }
-          ICON=ui/src-tauri/icons/128x128@2x.png
-          [ -f "${ICON}" ] || ICON=ui/src-tauri/icons/128x128.png
-          STAGE=$(mktemp -d)
-          cp "${BINARY}" "${STAGE}/svrctlrs-desktop"
-          cp .forgejo/cc.jsnode.svrctlrs.desktop .forgejo/cc.jsnode.svrctlrs.yaml "${STAGE}/"
-          cp "${ICON}" "${STAGE}/icon.png"
-          cd "${STAGE}"
-          flatpak-builder --force-clean --repo=repo builddir cc.jsnode.svrctlrs.yaml
-          flatpak build-bundle repo "svrctlrs-${GITHUB_REF_NAME}.flatpak" cc.jsnode.svrctlrs
-          mkdir -p "${GITHUB_WORKSPACE}/ui/src-tauri/target/release/bundle/flatpak"
-          cp "svrctlrs-${GITHUB_REF_NAME}.flatpak" "${GITHUB_WORKSPACE}/ui/src-tauri/target/release/bundle/flatpak/"
-
       - name: List packages
         run: |
           find ui/src-tauri/target/release/bundle -type f \
-            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*.flatpak' \) \
+            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \) \
             -exec ls -lh {} \;
 
       - name: Keep packages as a workflow artifact
@@ -76,7 +57,6 @@ jobs:
             ui/src-tauri/target/release/bundle/deb/*.deb
             ui/src-tauri/target/release/bundle/rpm/*.rpm
             ui/src-tauri/target/release/bundle/appimage/*.AppImage
-            ui/src-tauri/target/release/bundle/flatpak/*.flatpak
           retention-days: 14
 
       - name: Attach to the Forgejo release
@@ -86,7 +66,7 @@ jobs:
         run: |
           set -euo pipefail
           mapfile -t PKGS < <(find ui/src-tauri/target/release/bundle -type f \
-            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*.flatpak' \))
+            \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \))
           scripts/ci/forgejo-release.sh "${GITHUB_REF_NAME}" "${PKGS[@]}"
 
       - name: Cache stats

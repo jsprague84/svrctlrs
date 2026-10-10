@@ -24,7 +24,6 @@ on:
       - 'ralph/**'
       - 'LICENSE*'
       - '.forgejo/workflows/ci.yaml'
-      - '.forgejo/workflows/android.yaml'
       - '.forgejo/workflows/desktop.yaml'
   workflow_dispatch:
 

@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "SvrCtlRS",
   "version": "3.0.0",
-  "identifier": "app.js-node.svrctlrs",
+  "identifier": "cc.jsnode.svrctlrs",
   "build": {
     "frontendDist": "../build",
     "devUrl": "http://localhost:5173",

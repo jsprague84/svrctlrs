@@ -36,11 +36,10 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | Health | Done 2026-10-05: `/api/v1/health` pings the database and answers 503 `degraded` when it fails, so the compose healthcheck and the deploy script notice | `routes/api/mod.rs` |
 | Observability | Done 2026-10-05: `LOG_FORMAT=json`. Still open: request ids | `main.rs` |
 | Desktop | Done 2026-10-05 (unverified until the next desktop CI build): tray uses the bundled icon; close hides to the tray only when a tray was created, otherwise it quits. The tray menu already had Show/Quit | `ui/src-tauri/src/lib.rs` |
-| Identity | Tauri `app.js-node.svrctlrs` vs Flatpak `cc.jsnode.svrctlrs` → two desktop IDs | pick one (`cc.jsnode.svrctlrs` is the standard reverse-DNS of js-node.cc); note it changes the Android `applicationId`, so decide before the first signed public APK |
-| Android | Partly done 2026-10-05: the server-URL screen normalises the URL, refuses plain `http://` on Android and warns about it on desktop. Still open: AAB built but never published; biometrics plugin registered but unused | `ui/src/lib/platform/url.ts` |
+| Identity | Decided 2026-10-10 (owner): `cc.jsnode.svrctlrs` everywhere. Flatpak dropped (owner does not use it; AppImage/.deb/.rpm remain). Android workflow parked — the app is unused and due for a rethink; `gen/android` must be regenerated for the new identifier if it returns | `tauri.conf.json`, `.forgejo/workflows-parked/` |
+| Android | Parked 2026-10-10: the Tauri app's terminal input was unreliable and the owner uses the web app on the phone. Direction under evaluation: a PWA (installable web app) first; native only if that falls short | `.forgejo/workflows-parked/android.yaml` |
 | Frontend tooling | Done 2026-10-05: ESLint (flat config, Svelte + TS), Prettier, Vitest with the first unit tests, `engines.node >= 22.12`; `lint` and `test` run in CI | `ui/eslint.config.js`, `ui/.prettierrc` |
 | a11y | Done 2026-10-05: svelte-check at 0 warnings, icon buttons labelled, layout buttons `aria-pressed`, toast region `role=status aria-live`, palette is a `combobox` over a `listbox` with `aria-activedescendant`. Arrow/Home/End keys move between terminal tabs with a roving tabindex (2026-10-05) | — |
-| Flatpak | GNOME 46 runtime is end-of-life; no AppStream metainfo; bundles a binary built outside the sandbox | move to 48, add `metainfo.xml`, build inside flatpak-builder or drop Flatpak in favour of AppImage |
 | Docs | no screenshots | add to README and USER-GUIDE once the UI settles |
 
 ## P2 — Hygiene

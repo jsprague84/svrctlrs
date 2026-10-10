@@ -102,10 +102,9 @@ embedded with `sqlx::migrate!` and checksummed, so never edit a shipped migratio
 
 ## Tauri apps (`ui/src-tauri/`)
 
-One Tauri project builds both targets. Desktop registers a tray icon and hides to tray on
-close; Android registers the biometric plugin (not yet wired into the UI). The app identifier
-is `app.js-node.svrctlrs` (Android `app.js_node.svrctlrs`); the Flatpak manifest in
-`.forgejo/` still uses `cc.jsnode.svrctlrs` — see `ROADMAP.md`.
+One Tauri project; the Linux desktop build (`.deb`, `.rpm`, AppImage) registers a tray icon and
+hides to tray on close. The app identifier is `cc.jsnode.svrctlrs`. The Android target is
+parked (`.forgejo/workflows-parked/`); the phone uses the web app.
 
 ## Build and delivery
 
