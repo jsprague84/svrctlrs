@@ -39,6 +39,7 @@ the release workflow uses the matching section as the release notes.
   in-app instead of reloading the page.
 - `LOG_FORMAT=json` switches the server to JSON log lines; the image builds both binaries in
   one cargo invocation.
+- Icons from `@lucide/svelte` 1.x (`lucide-svelte` is deprecated upstream).
 - SvelteKit 3, adapter-static 4 and TypeScript 6; `svelte.config.js` folded into
   `vite.config.ts`. Tauri JS packages stay at 2.10 to match the Rust crate.
 - In-range dependency updates (Svelte 5.57, SvelteKit 2.70, Vite 8.3, Tailwind 4.3, Tauri JS
