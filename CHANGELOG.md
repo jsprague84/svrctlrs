@@ -30,6 +30,8 @@ the release workflow uses the matching section as the release notes.
   item on the known-weaknesses list.
 
 ### Changed
+- App identifier is `cc.jsnode.svrctlrs` on every platform. Flatpak packaging removed; the
+  Android build is parked (the web app is the phone client for now).
 - Health monitor: servers are probed concurrently instead of one 5-second timeout after
   another, and the result is recorded on the server (`last_seen_at`, `last_error`), so the
   Servers page reflects what the monitor knows; a server found down at the very first check
@@ -52,6 +54,11 @@ the release workflow uses the matching section as the release notes.
   The whole UI tree is Prettier-formatted (a formatting-only diff).
 
 ### Fixed
+- Sidebar and Servers page showed every enabled server as green; the dot now reflects what the
+  health monitor and connections recorded (online, unreachable with the reason, unknown).
+- A terminal whose connection died while the tab was in the background looked connected but
+  ignored input until a reload; pings are now watched for their pong, and returning to the tab
+  checks the socket immediately.
 - Saving an SSH key credential with the *public* key (`id_ed25519.pub`), a `.pub` path or a
   path from your own machine used to be accepted and then fail at connect time with
   "No such file or directory". The form and the API now refuse these and say which file to
