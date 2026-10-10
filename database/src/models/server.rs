@@ -153,7 +153,8 @@ pub struct UpdateServer {
     pub hostname: Option<String>,
     pub port: Option<i32>,
     pub username: Option<String>,
-    pub credential_id: Option<i64>,
+    /// `None` keeps the current credential, `Some(None)` unassigns it, `Some(Some(id))` sets it.
+    pub credential_id: Option<Option<i64>>,
     pub description: Option<String>,
     pub enabled: Option<bool>,
     pub os_type: Option<String>,

@@ -65,7 +65,7 @@ Codes: `BAD_REQUEST` (400), `NOT_FOUND` (404), `CONFLICT` (409), `INTERNAL_ERROR
 | GET | `/servers` | — | list |
 | POST | `/servers` | `name`, `hostname?`, `port` (default 22), `username?`, `credential_id?`, `description?`, `is_local` (bool), `enabled` (bool), `metadata?` (object) | `is_local: true` opens a shell *inside the SvrCtlRS container* — see SECURITY.md |
 | GET | `/servers/{id}` | — | |
-| PUT | `/servers/{id}` | any subset of the create fields plus `os_type?`, `os_distro?` | |
+| PUT | `/servers/{id}` | any subset of the create fields plus `os_type?`, `os_distro?` | omitted fields are kept; `""` clears `hostname`/`username`/`description`; `credential_id: null` unassigns the credential |
 | DELETE | `/servers/{id}` | — | |
 | POST | `/servers/{id}/test` | — | verifies the host key (trust on first use), authenticates with the server's credential and runs a trivial command; returns `success`, `message`, `latency_ms` |
 | GET | `/servers/{id}/host-keys` | — | stored host keys: `id`, `key_type`, `fingerprint` (`SHA256:…`, OpenSSH style), `first_seen_at`, `last_seen_at` — never the key itself |
@@ -80,10 +80,10 @@ last_seen_at, last_error, created_at, updated_at`.
 
 | Method | Path | Body |
 |---|---|---|
-| GET | `/credentials` | — (no secrets: `has_value`, `has_passphrase`) |
+| GET | `/credentials` | — (no secrets: `has_value`, `has_passphrase`, plus `key_source` (`key` \| `path`, SSH keys only), `fingerprint` (`SHA256:…` for keys with material), `in_use`, `used_by` (server names)) |
 | POST | `/credentials` | `name`, `credential_type` (`password` \| `ssh_key` \| `api_token`), `value`, `description?`, `username?`, `passphrase?` |
 | GET | `/credentials/{id}` | `has_value`, `has_passphrase`, `in_use`, and for keys with material `public_key` (the `authorized_keys` line) — never the secrets |
-| PUT | `/credentials/{id}` | `name?`, `description?`, `value?`, `username?`, `passphrase?` (omit to keep, `""` to remove) |
+| PUT | `/credentials/{id}` | `name?`, `description?` (`""` clears), `value?`, `username?` (`""` clears), `passphrase?` (omit to keep, `""` to remove) |
 | DELETE | `/credentials/{id}` | — |
 | POST | `/credentials/generate-key` | `name`, `description?`, `comment?` → 201 `{id, public_key}`; an ed25519 key stored encrypted as an `ssh_key` credential |
 

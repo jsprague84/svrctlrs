@@ -214,7 +214,10 @@ pub async fn update_credential(
         qb.push(", name = ").push_bind(name.clone());
     }
     if let Some(description) = &input.description {
-        qb.push(", description = ").push_bind(description.clone());
+        // An empty string from the form clears the description
+        qb.push(", description = NULLIF(")
+            .push_bind(description.clone())
+            .push(", '')");
     }
     if let Some(value) = &input.value {
         require_encryption()?;
@@ -223,7 +226,9 @@ pub async fn update_credential(
         qb.push(", encrypted = ").push_bind(true);
     }
     if let Some(username) = &input.username {
-        qb.push(", username = ").push_bind(username.clone());
+        qb.push(", username = NULLIF(")
+            .push_bind(username.clone())
+            .push(", '')");
     }
     if let Some(metadata) = input.metadata_string() {
         require_encryption()?;

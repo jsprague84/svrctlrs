@@ -10,13 +10,16 @@ shows the same login.
 ## Setting up a new server (the short way)
 
 1. **Credentials → Generate SSH key** once. The private key is created and stored encrypted
-   on the SvrCtlRS server; you never handle it. The public key is shown with a copy button.
-2. **Servers → Add Server** with hostname, port and user.
-3. On the server's card, **Authorize key**: pick the key and log in *once* with the account's
-   password (used immediately, never stored) or an existing credential that already works.
-   SvrCtlRS appends the public key to `~/.ssh/authorized_keys` — what `ssh-copy-id` does —
-   verifies that the key logs in, and switches the server to it.
-4. Connect. The host key is trusted on first contact.
+   on the SvrCtlRS server; you never handle it. The public key is shown with a copy button and
+   a *Authorize on a server* picker.
+2. **Servers → Add Server** with hostname, port and user. A new remote server without a
+   credential goes straight to step 3.
+3. **Authorize key** (on the server row, or from the public-key dialog): pick the key — or
+   generate one right there — and log in *once* with the account's password (used immediately,
+   never stored) or a credential that already works. SvrCtlRS appends the public key to
+   `~/.ssh/authorized_keys` — what `ssh-copy-id` does — verifies that the key logs in, and
+   switches the server to it.
+4. **Connect** on the row. The host key is trusted on first contact.
 
 Repeat step 3 for every further server; one app key can open all of them, and deleting the
 credential (then removing the line from `authorized_keys`) revokes it. If you prefer to
@@ -35,8 +38,14 @@ passphrase in the same form. Values and passphrases are encrypted at rest and ne
 again; the list only shows that they exist.
 
 **Servers** (sidebar → Servers) are the hosts you connect to: name, hostname, port, username
-and the credential to use. *Test connection* opens an SSH session and records the result.
-A **local** server opens a shell inside the SvrCtlRS container itself.
+and the credential to use. Each row shows the status dot, `user@host`, the credential in use
+(or a *no key* badge), and when the host was last seen or why it was unreachable. *Test*
+opens an SSH session and records the result in the row and in the status; *Connect* opens a
+terminal tab. The username used for SSH is the server's, else the credential's *default
+username*, else `root`. A **local** server opens a shell inside the SvrCtlRS container itself.
+Clearing a field in *Edit* (hostname, username, description, credential → *None*) really
+clears it; a credential that is still assigned to a server cannot be deleted — the row says
+which servers use it.
 
 The first connection to a server stores its SSH host key. If the server later presents a key
 that matches none stored for it, the connection is refused and the terminal shows a mismatch

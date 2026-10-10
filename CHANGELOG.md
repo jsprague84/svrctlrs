@@ -71,7 +71,34 @@ the release workflow uses the matching section as the release notes.
 - UI tooling: ESLint, Prettier and Vitest with the first unit tests; `engines.node >= 22.12`.
   The whole UI tree is Prettier-formatted (a formatting-only diff).
 
+### Changed
+- **Servers and Credentials pages reworked.** Server rows show the status dot, `user@host`,
+  the credential in use (or a *no key* badge), last seen / last error, and the inline result
+  of *Test*; a **Connect** button opens a terminal tab; icon buttons have labels and
+  phone-sized targets; a filter box appears past six servers. Creating a remote server without
+  a credential goes straight to *Authorize key*, which is now a shared dialog (also reachable
+  from a key's public-key view, with a server picker) that can generate a key on the spot,
+  names the `user@host` it will log in as, and only offers usable bootstrap credentials.
+  Credential rows show the key's `SHA256:` fingerprint, whether it is pasted material or a file
+  path, and which servers use it (Delete is disabled while in use). Forms submit with Enter,
+  validate inline (the public-key/`.pub`/relative-path mistakes are flagged as you type),
+  show a saving state, and the key form defaults to pasting. *Generate SSH key* is the primary
+  action and the empty-state call to action. Deletes use an in-app confirmation that names
+  what goes away instead of `window.confirm`.
+- The credential **Username** is now meaningful: it is the default login name when the server
+  has none (server → credential → `root`). *API Token* and *Certificate* are no longer offered
+  in the form (SSH cannot use them; existing rows are untouched).
+
 ### Fixed
+- Clearing a server's hostname, username, description or credential in *Edit* had no effect
+  (the update only applied non-empty values); the *Local server* box showed when editing but
+  was ignored. Clearing works now and the box only shows when creating.
+- A credential's description/username could not be cleared, and a stored passphrase could not
+  be removed; *Remove the stored passphrase* does that, and `has_passphrase` no longer reports
+  a passphrase for keys whose metadata is empty.
+- A terminal tab pointed at another server could try to resume the previous server's
+  session; a saved session now belongs to the server it was opened on, and only idle tabs
+  without a server are reused by *Connect*.
 - Resuming a session no longer writes "Resuming session…"/"Reconnecting…" lines into the
   shell's buffer (which left the restored prompt stranded above them until a key was pressed);
   progress shows in a small banner over the pane, and after the replay the pane sends two

@@ -129,20 +129,28 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
     if let Some(name) = &input.name {
         qb.push(", name = ").push_bind(name.clone());
     }
+    // Nullable text columns: an empty string from the form means "clear"
     if let Some(hostname) = &input.hostname {
-        qb.push(", hostname = ").push_bind(hostname.clone());
+        qb.push(", hostname = NULLIF(")
+            .push_bind(hostname.clone())
+            .push(", '')");
     }
     if let Some(port) = input.port {
         qb.push(", port = ").push_bind(port);
     }
     if let Some(username) = &input.username {
-        qb.push(", username = ").push_bind(username.clone());
+        qb.push(", username = NULLIF(")
+            .push_bind(username.clone())
+            .push(", '')");
     }
     if let Some(credential_id) = input.credential_id {
+        // `Some(None)` binds NULL and unassigns the credential
         qb.push(", credential_id = ").push_bind(credential_id);
     }
     if let Some(description) = &input.description {
-        qb.push(", description = ").push_bind(description.clone());
+        qb.push(", description = NULLIF(")
+            .push_bind(description.clone())
+            .push(", '')");
     }
     if let Some(enabled) = input.enabled {
         qb.push(", enabled = ").push_bind(enabled);

@@ -1,27 +1,43 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { KeyRound, Plus, Pencil, Trash2, Sparkles, Copy } from '@lucide/svelte';
+	import { KeyRound, Plus, Pencil, Trash2, Sparkles, Copy, ShieldCheck } from '@lucide/svelte';
 	import * as credApi from '#lib/api/credentials.js';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Input from '#lib/components/ui/Input.svelte';
 	import Select from '#lib/components/ui/Select.svelte';
+	import Textarea from '#lib/components/ui/Textarea.svelte';
 	import Modal from '#lib/components/ui/Modal.svelte';
 	import Badge from '#lib/components/ui/Badge.svelte';
+	import AuthorizeKeyModal from '#lib/components/servers/AuthorizeKeyModal.svelte';
 	import * as credState from '#lib/state/credentials.svelte.js';
+	import * as serversState from '#lib/state/servers.svelte.js';
 	import * as toast from '#lib/state/toast.svelte.js';
+	import { confirmDialog } from '#lib/state/confirm.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
-	import type { CredentialType, CreateCredential, UpdateCredential } from '#lib/types/index.js';
+	import type {
+		Credential,
+		CredentialType,
+		CreateCredential,
+		UpdateCredential,
+		Server
+	} from '#lib/types/index.js';
 	import { CREDENTIAL_TYPE_LABELS } from '#lib/types/credential.js';
 
 	let showModal = $state(false);
 	let editingId = $state<number | null>(null);
+	let editing = $state<Credential | null>(null);
+	let saving = $state(false);
+	let filter = $state<'all' | CredentialType>('all');
 	// Generate-key modal
 	let showGenerate = $state(false);
 	let genName = $state('');
 	let genDescription = $state('');
 	let generating = $state(false);
 	// Public key modal (after generating, or from the list)
-	let publicKeyFor = $state<{ name: string; key: string } | null>(null);
+	let publicKeyFor = $state<{ id: number; name: string; key: string } | null>(null);
+	let authorizeServerId = $state('');
+	let authServer = $state<Server | null>(null);
+	let authCredentialId = $state<number | null>(null);
 
 	// Form fields
 	let name = $state('');
@@ -30,14 +46,25 @@
 	let description = $state('');
 	let username = $state('');
 	let passphrase = $state('');
-	let sshKeyMode = $state<'path' | 'paste'>('path');
+	let removePassphrase = $state(false);
+	let sshKeyMode = $state<'path' | 'paste'>('paste');
 
 	let credentials = $derived(credState.getCredentials());
 	let loading = $derived(credState.isLoading());
 	let credError = $derived(credState.getError());
+	let servers = $derived(serversState.getServers());
+	let remoteServers = $derived(servers.filter((s) => !s.is_local));
+	let shown = $derived(
+		(filter === 'all'
+			? credentials
+			: credentials.filter((c) => c.credential_type === filter)
+		).slice()
+	);
+	let keyProblem = $derived(credType === 'ssh_key' && value ? sshKeyProblem(value) : null);
 
 	onMount(() => {
 		credState.loadCredentials();
+		serversState.loadServers();
 	});
 
 	function resetForm() {
@@ -47,8 +74,10 @@
 		description = '';
 		username = '';
 		passphrase = '';
+		removePassphrase = false;
 		editingId = null;
-		sshKeyMode = 'path';
+		editing = null;
+		sshKeyMode = 'paste';
 	}
 
 	function openCreate() {
@@ -56,14 +85,15 @@
 		showModal = true;
 	}
 
-	function openEdit(cred: (typeof credentials)[0]) {
+	function openEdit(cred: Credential) {
+		resetForm();
 		editingId = cred.id;
+		editing = cred;
 		name = cred.name;
 		credType = cred.credential_type;
-		value = ''; // Never show existing value
 		description = cred.description ?? '';
 		username = cred.username ?? '';
-		passphrase = ''; // Never show the existing passphrase
+		sshKeyMode = cred.key_source === 'path' ? 'path' : 'paste';
 		showModal = true;
 	}
 
@@ -83,31 +113,27 @@
 	}
 
 	async function handleSubmit() {
-		if (credType === 'ssh_key' && value) {
-			const problem = sshKeyProblem(value);
-			if (problem) {
-				toast.error(problem);
-				return;
-			}
-		}
+		if (saving || keyProblem) return;
+		saving = true;
 		try {
 			if (editingId) {
+				// Empty strings clear description/username; omitted value/passphrase keep theirs
 				const input: UpdateCredential = {
-					name: name || undefined,
+					name: name.trim() || undefined,
 					value: value || undefined,
-					description: description || undefined,
-					username: username || undefined,
-					passphrase: passphrase || undefined
+					description: description.trim(),
+					username: username.trim(),
+					passphrase: removePassphrase ? '' : passphrase || undefined
 				};
 				await credState.updateCredential(editingId, input);
 				toast.success('Credential updated');
 			} else {
 				const input: CreateCredential = {
-					name,
+					name: name.trim(),
 					credential_type: credType,
 					value,
-					description: description || undefined,
-					username: username || undefined,
+					description: description.trim() || undefined,
+					username: username.trim() || undefined,
 					passphrase: credType === 'ssh_key' && passphrase ? passphrase : undefined
 				};
 				await credState.createCredential(input);
@@ -116,6 +142,8 @@
 			showModal = false;
 		} catch (e) {
 			toast.error(extractErrorMessage(e, 'Operation failed'));
+		} finally {
+			saving = false;
 		}
 	}
 
@@ -129,7 +157,8 @@
 			});
 			await credState.loadCredentials();
 			showGenerate = false;
-			publicKeyFor = { name: genName.trim(), key: res.public_key };
+			publicKeyFor = { id: res.id, name: genName.trim(), key: res.public_key };
+			authorizeServerId = '';
 			genName = '';
 			genDescription = '';
 		} catch (e) {
@@ -138,18 +167,30 @@
 			generating = false;
 		}
 	}
-	async function showPublicKey(cred: { id: number; name: string }) {
+
+	async function showPublicKey(cred: Credential) {
 		try {
 			const full = await credApi.getCredential(cred.id);
 			if (!full.public_key) {
 				toast.error('No public key: this credential holds a path, not key material');
 				return;
 			}
-			publicKeyFor = { name: cred.name, key: full.public_key };
+			publicKeyFor = { id: cred.id, name: cred.name, key: full.public_key };
+			authorizeServerId = '';
 		} catch (e) {
 			toast.error(extractErrorMessage(e, 'Failed to load the public key'));
 		}
 	}
+
+	function authorizeFromPublicKey() {
+		if (!publicKeyFor || !authorizeServerId) return;
+		const server = servers.find((s) => s.id === Number(authorizeServerId));
+		if (!server) return;
+		authCredentialId = publicKeyFor.id;
+		authServer = server;
+		publicKeyFor = null;
+	}
+
 	async function copyText(text: string) {
 		try {
 			await navigator.clipboard.writeText(text);
@@ -158,13 +199,23 @@
 			toast.error('Clipboard unavailable; select and copy the text');
 		}
 	}
-	async function handleDelete(id: number) {
-		if (!confirm('Delete this credential?')) return;
+
+	async function handleDelete(cred: Credential) {
+		const ok = await confirmDialog({
+			title: `Delete ${cred.name}?`,
+			message:
+				cred.credential_type === 'ssh_key'
+					? 'The private key stored here is destroyed. Servers that trust its public half keep working with other keys only.'
+					: 'The stored secret is destroyed.',
+			confirmLabel: 'Delete',
+			destructive: true
+		});
+		if (!ok) return;
 		try {
-			await credState.deleteCredential(id);
+			await credState.deleteCredential(cred.id);
 			toast.success('Credential deleted');
 		} catch (e) {
-			toast.error(extractErrorMessage(e, 'Delete failed (may be in use by a server)'));
+			toast.error(extractErrorMessage(e, 'Delete failed'));
 		}
 	}
 
@@ -186,16 +237,29 @@
 			<Badge>{credentials.length}</Badge>
 		</div>
 		<div class="flex items-center gap-2">
-			<Button variant="secondary" onclick={() => (showGenerate = true)}>
+			{#if credentials.length > 4}
+				<select
+					bind:value={filter}
+					aria-label="Filter by type"
+					class="px-2 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary"
+				>
+					<option value="all">All types</option>
+					<option value="ssh_key">SSH keys</option>
+					<option value="password">Passwords</option>
+				</select>
+			{/if}
+			<Button variant="secondary" onclick={openCreate}>
+				<Plus class="w-4 h-4" /> Add existing
+			</Button>
+			<Button onclick={() => (showGenerate = true)}>
 				<Sparkles class="w-4 h-4" /> Generate SSH key
 			</Button>
-			<Button onclick={openCreate}><Plus class="w-4 h-4" /> Add Credential</Button>
 		</div>
 	</div>
 
 	<div class="flex-1 overflow-y-auto p-4 md:p-6">
-		{#if loading}
-			<div class="text-text-muted">Loading...</div>
+		{#if loading && credentials.length === 0}
+			<div class="text-text-muted text-sm py-8 text-center">Loading credentials…</div>
 		{:else if credError}
 			<div class="text-center py-8">
 				<p class="text-error">{credError}</p>
@@ -204,187 +268,216 @@
 				>
 			</div>
 		{:else if credentials.length === 0}
-			<div class="text-center text-text-muted">
-				<p>No credentials configured yet.</p>
-				<Button variant="secondary" class="mt-3" onclick={openCreate}
-					>Add your first credential</Button
-				>
+			<div class="text-center text-text-muted py-8">
+				<p>No credentials yet.</p>
+				<p class="text-xs mt-1">
+					The easy path: generate a key here, then <em>Authorize key</em> on each server.
+				</p>
+				<div class="flex items-center justify-center gap-2 mt-3">
+					<Button onclick={() => (showGenerate = true)}>
+						<Sparkles class="w-4 h-4" /> Generate SSH key
+					</Button>
+					<Button variant="secondary" onclick={openCreate}>Add an existing one</Button>
+				</div>
 			</div>
 		{:else}
-			<div class="flex flex-col gap-2">
-				{#each credentials as cred (cred.id)}
-					<div
-						class="flex flex-col md:flex-row md:items-center gap-1 md:gap-4 border border-border/50 rounded-lg px-4 py-3 hover:bg-surface-raised/30"
+			<ul class="flex flex-col gap-2">
+				{#each shown as cred (cred.id)}
+					<li
+						class="border border-border/50 rounded-lg px-3 md:px-4 py-3 hover:bg-surface-raised/30 flex flex-col md:flex-row md:items-center gap-2 md:gap-4"
 					>
-						<div class="flex items-center gap-2 min-w-0 w-full md:w-auto md:flex-1">
-							<span class="text-text-primary font-medium truncate">{cred.name}</span>
-						</div>
-						<div class="w-full md:w-auto md:flex-shrink-0">
-							<Badge variant={typeVariant[cred.credential_type]}>
-								{CREDENTIAL_TYPE_LABELS[cred.credential_type]}
-							</Badge>
-						</div>
-						{#if cred.username}
-							<div class="text-text-secondary text-xs w-full md:w-auto md:flex-1 truncate">
-								User: {cred.username}
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center gap-2 min-w-0 flex-wrap">
+								<span class="text-text-primary font-medium truncate">{cred.name}</span>
+								<Badge variant={typeVariant[cred.credential_type]}>
+									{CREDENTIAL_TYPE_LABELS[cred.credential_type]}{cred.key_source === 'path'
+										? ' (file path)'
+										: ''}
+								</Badge>
+								{#if cred.has_passphrase}
+									<Badge>passphrase</Badge>
+								{/if}
+								{#if cred.username}
+									<span class="text-xs text-text-muted"
+										>default user <code>{cred.username}</code></span
+									>
+								{/if}
 							</div>
-						{/if}
-						{#if cred.has_passphrase}
-							<div class="w-full md:w-auto md:flex-shrink-0"><Badge>passphrase</Badge></div>
-						{/if}
-						{#if cred.description}
-							<div class="text-text-muted text-xs w-full md:flex-1 truncate">
-								{cred.description}
+							{#if cred.fingerprint}
+								<div class="mt-0.5 text-[11px] font-mono text-text-secondary truncate">
+									{cred.fingerprint}
+								</div>
+							{/if}
+							<div class="mt-0.5 text-xs text-text-muted truncate">
+								{#if cred.used_by && cred.used_by.length > 0}
+									Used by {cred.used_by.join(', ')}
+								{:else}
+									Not used by any server
+								{/if}
+								{#if cred.description}
+									· {cred.description}
+								{/if}
 							</div>
-						{/if}
-						<div class="flex items-center gap-1 w-full md:w-auto md:flex-shrink-0">
-							{#if cred.credential_type === 'ssh_key'}
+						</div>
+						<div class="flex items-center gap-1 flex-wrap md:flex-nowrap md:flex-shrink-0">
+							{#if cred.credential_type === 'ssh_key' && cred.key_source !== 'path'}
 								<Button
 									variant="ghost"
 									size="sm"
+									class="min-h-9 md:min-h-0"
 									onclick={() => showPublicKey(cred)}
-									title="Show public key"
+									title="Show the public key / authorize it on a server"
 								>
-									<KeyRound class="w-3.5 h-3.5" />
-									<span class="hidden md:inline">Public key</span>
+									<ShieldCheck class="w-3.5 h-3.5" />
+									Public key
 								</Button>
 							{/if}
-							<Button variant="ghost" size="sm" onclick={() => openEdit(cred)}>
+							<Button
+								variant="ghost"
+								size="sm"
+								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
+								onclick={() => openEdit(cred)}
+								aria-label="Edit credential"
+								title="Edit"
+							>
 								<Pencil class="w-3.5 h-3.5" />
-								<span class="hidden md:inline">Edit</span>
+								<span class="hidden lg:inline">Edit</span>
 							</Button>
-							<Button variant="ghost" size="sm" onclick={() => handleDelete(cred.id)}>
+							<Button
+								variant="ghost"
+								size="sm"
+								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
+								onclick={() => handleDelete(cred)}
+								disabled={cred.in_use}
+								aria-label="Delete credential"
+								title={cred.in_use
+									? `In use by ${cred.used_by?.join(', ')} — change those servers first`
+									: 'Delete'}
+							>
 								<Trash2 class="w-3.5 h-3.5 text-error" />
-								<span class="hidden md:inline">Delete</span>
+								<span class="hidden lg:inline">Delete</span>
 							</Button>
 						</div>
-					</div>
+					</li>
 				{/each}
-			</div>
+			</ul>
 		{/if}
 	</div>
 </div>
 
 <Modal
 	open={showModal}
-	title={editingId ? 'Edit Credential' : 'Add Credential'}
+	title={editingId ? `Edit ${editing?.name ?? 'credential'}` : 'Add an existing credential'}
 	onClose={() => (showModal = false)}
 >
 	<form
+		id="credential-form"
 		class="flex flex-col gap-3"
 		onsubmit={(e) => {
 			e.preventDefault();
 			handleSubmit();
 		}}
 	>
-		<Input label="Name" bind:value={name} required placeholder="my-ssh-key" />
+		<Input label="Name" bind:value={name} required placeholder="laptop key" />
 		{#if !editingId}
 			<Select label="Type" bind:value={credType}>
-				<option value="ssh_key">SSH Key</option>
+				<option value="ssh_key">SSH key</option>
 				<option value="password">Password</option>
-				<option value="api_token">API Token</option>
-				<option value="certificate">Certificate</option>
 			</Select>
 		{/if}
 
 		{#if credType === 'ssh_key'}
-			<div class="flex items-center gap-2 mb-1">
-				<span class="text-xs text-text-muted">Input mode:</span>
-				<button
-					type="button"
-					class="text-xs px-2 py-0.5 rounded-sm transition-colors {sshKeyMode === 'path'
-						? 'bg-accent text-accent-foreground'
-						: 'bg-surface-raised text-text-muted hover:text-text-primary'}"
-					onclick={() => {
-						sshKeyMode = 'path';
-						value = '';
-					}}>File path</button
-				>
-				<button
-					type="button"
-					class="text-xs px-2 py-0.5 rounded-sm transition-colors {sshKeyMode === 'paste'
-						? 'bg-accent text-accent-foreground'
-						: 'bg-surface-raised text-text-muted hover:text-text-primary'}"
-					onclick={() => {
-						sshKeyMode = 'paste';
-						value = '';
-					}}>Paste key</button
-				>
-			</div>
-			<p class="text-xs text-text-muted">
-				{#if sshKeyMode === 'paste'}
-					Paste the <strong>private</strong> key — the file <em>without</em> <code>.pub</code>,
-					starting with
-					<code>-----BEGIN OPENSSH PRIVATE KEY-----</code>. It is stored encrypted and never leaves
-					the server.
-				{:else}
-					An absolute path on the <strong>SvrCtlRS server</strong> (inside its container, e.g.
-					<code>/home/svrctlrs/.ssh/id_ed25519</code>) — not a path on this machine. Prefer pasting
-					the key.
-				{/if}
-			</p>
+			{#if !editingId || editing?.key_source}
+				<div class="flex items-center gap-2" role="group" aria-label="Key input mode">
+					<span class="text-xs text-text-muted">Provide the key as</span>
+					<button
+						type="button"
+						class="text-xs px-2 py-1 rounded-sm transition-colors {sshKeyMode === 'paste'
+							? 'bg-accent text-accent-foreground'
+							: 'bg-surface-raised text-text-muted hover:text-text-primary'}"
+						aria-pressed={sshKeyMode === 'paste'}
+						onclick={() => (sshKeyMode = 'paste')}>Pasted private key</button
+					>
+					<button
+						type="button"
+						class="text-xs px-2 py-1 rounded-sm transition-colors {sshKeyMode === 'path'
+							? 'bg-accent text-accent-foreground'
+							: 'bg-surface-raised text-text-muted hover:text-text-primary'}"
+						aria-pressed={sshKeyMode === 'path'}
+						onclick={() => (sshKeyMode = 'path')}>File path on the server</button
+					>
+				</div>
+			{/if}
 			{#if sshKeyMode === 'path'}
 				<Input
-					label={editingId ? 'New SSH Key Path (leave empty to keep)' : 'SSH Key Path'}
+					label={editingId ? 'New key path (leave empty to keep)' : 'Key path'}
 					bind:value
-					placeholder="/home/user/.ssh/id_ed25519"
+					placeholder="/home/svrctlrs/.ssh/id_ed25519"
 					required={!editingId}
+					error={keyProblem ?? ''}
 				/>
+				<p class="text-[11px] text-text-muted">
+					An absolute path inside the SvrCtlRS container (the mounted <code>SSH_KEY_PATH</code>
+					directory) — not a path on this machine. Pasting the key is simpler and stores it encrypted.
+				</p>
 			{:else}
-				<label class="flex flex-col gap-1">
-					<span class="text-sm font-medium text-text-primary"
-						>{editingId ? 'New SSH Key (leave empty to keep)' : 'SSH Key Content'}</span
-					>
-					<textarea
-						bind:value
-						rows={6}
-						class="w-full px-3 py-2 text-sm font-mono bg-input border border-border rounded-sm text-text-primary placeholder:text-text-muted resize-y focus:ring-1 focus:ring-ring focus:outline-none"
-						placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
-						required={!editingId}></textarea>
+				<Textarea
+					label={editingId ? 'New private key (leave empty to keep)' : 'Private key'}
+					bind:value
+					rows={6}
+					mono
+					placeholder="-----BEGIN OPENSSH PRIVATE KEY-----"
+					required={!editingId}
+					error={keyProblem ?? ''}
+					hint="The file without .pub. Stored encrypted; never shown again."
+				/>
+			{/if}
+			{#if editing?.has_passphrase}
+				<label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+					<input type="checkbox" bind:checked={removePassphrase} class="rounded" />
+					Remove the stored passphrase
 				</label>
 			{/if}
-			<Input
-				label={editingId
-					? 'New Passphrase (leave empty to keep)'
-					: 'Passphrase (if the key is encrypted)'}
-				type="password"
-				bind:value={passphrase}
-				placeholder="optional"
-			/>
+			{#if !removePassphrase}
+				<Input
+					label={editingId
+						? 'New passphrase (leave empty to keep)'
+						: 'Passphrase (only if the key is encrypted)'}
+					type="password"
+					bind:value={passphrase}
+					autocomplete="off"
+				/>
+			{/if}
 		{:else if credType === 'password'}
 			<Input
-				label={editingId ? 'New Password (leave empty to keep)' : 'Password'}
+				label={editingId ? 'New password (leave empty to keep)' : 'Password'}
 				type="password"
 				bind:value
 				required={!editingId}
-			/>
-			<Input label="Username" bind:value={username} placeholder="root" />
-		{:else if credType === 'api_token'}
-			<Input
-				label={editingId ? 'New Token (leave empty to keep)' : 'API Token'}
-				type="password"
-				bind:value
-				required={!editingId}
-			/>
-		{:else}
-			<Input
-				label={editingId ? 'New Certificate Path (leave empty to keep)' : 'Certificate Path'}
-				bind:value
-				required={!editingId}
+				autocomplete="off"
 			/>
 		{/if}
 
-		<Input label="Description" bind:value={description} placeholder="Optional description" />
+		<Input
+			label="Default username"
+			bind:value={username}
+			placeholder="root"
+			hint="Used when a server has no username of its own"
+		/>
+		<Input label="Description" bind:value={description} placeholder="Optional" />
 	</form>
 
 	{#snippet footer()}
 		<Button variant="secondary" onclick={() => (showModal = false)}>Cancel</Button>
-		<Button onclick={handleSubmit}>{editingId ? 'Save' : 'Create'}</Button>
+		<Button type="submit" form="credential-form" disabled={saving || !!keyProblem}>
+			{saving ? 'Saving…' : editingId ? 'Save' : 'Add'}
+		</Button>
 	{/snippet}
 </Modal>
 
 <Modal open={showGenerate} title="Generate SSH key" onClose={() => (showGenerate = false)}>
 	<form
+		id="generate-key-form"
 		class="flex flex-col gap-3"
 		onsubmit={(e) => {
 			e.preventDefault();
@@ -392,18 +485,17 @@
 		}}
 	>
 		<p class="text-xs text-text-muted">
-			An ed25519 key pair is created on the SvrCtlRS server. The private key is stored encrypted and
-			never shown; you get the public key to put in each server's <code>~/.ssh/authorized_keys</code
-			>
-			— or let <em>Authorize key…</em> on a server do that for you.
+			An ed25519 key pair is created on the SvrCtlRS server. The private half is stored encrypted
+			and never shown; the public half goes into each server's <code>~/.ssh/authorized_keys</code>
+			— <em>Authorize key</em> does that for you.
 		</p>
-		<Input label="Name" bind:value={genName} required placeholder="svrctlrs-key" />
+		<Input label="Name" bind:value={genName} required placeholder="svrctlrs" />
 		<Input label="Description" bind:value={genDescription} placeholder="Optional" />
 	</form>
 	{#snippet footer()}
 		<Button variant="secondary" onclick={() => (showGenerate = false)}>Cancel</Button>
-		<Button onclick={handleGenerate} disabled={generating || !genName.trim()}>
-			{generating ? 'Generating...' : 'Generate'}
+		<Button type="submit" form="generate-key-form" disabled={generating || !genName.trim()}>
+			{generating ? 'Generating…' : 'Generate'}
 		</Button>
 	{/snippet}
 </Modal>
@@ -415,20 +507,41 @@
 >
 	{#if publicKeyFor}
 		<p class="text-xs text-text-muted mb-2">
-			Add this line to <code>~/.ssh/authorized_keys</code> on each server this key should open, or
-			use
-			<em>Authorize key…</em> on the server's card to have SvrCtlRS do it.
+			Add this line to <code>~/.ssh/authorized_keys</code> on each server this key should open — or pick
+			a server below and SvrCtlRS installs it for you.
 		</p>
 		<textarea
 			readonly
 			rows="3"
 			class="w-full px-3 py-2 text-xs font-mono bg-input border border-border rounded-sm text-text-primary resize-y"
 			value={publicKeyFor.key}></textarea>
+		{#if remoteServers.length > 0}
+			<div class="flex items-end gap-2 mt-3">
+				<div class="flex-1">
+					<Select label="Authorize on a server" bind:value={authorizeServerId}>
+						<option value="">Choose a server…</option>
+						{#each remoteServers as s (s.id)}
+							<option value={String(s.id)}>{s.name}</option>
+						{/each}
+					</Select>
+				</div>
+				<Button variant="secondary" onclick={authorizeFromPublicKey} disabled={!authorizeServerId}>
+					<ShieldCheck class="w-4 h-4" /> Authorize…
+				</Button>
+			</div>
+		{/if}
 	{/if}
 	{#snippet footer()}
 		<Button variant="secondary" onclick={() => (publicKeyFor = null)}>Close</Button>
-		<Button onclick={() => publicKeyFor && copyText(publicKeyFor.key)}
-			><Copy class="w-4 h-4" /> Copy</Button
-		>
+		<Button onclick={() => publicKeyFor && copyText(publicKeyFor.key)}>
+			<Copy class="w-4 h-4" /> Copy
+		</Button>
 	{/snippet}
 </Modal>
+
+<AuthorizeKeyModal
+	server={authServer}
+	credentialId={authCredentialId}
+	onClose={() => (authServer = null)}
+	onDone={() => credState.loadCredentials()}
+/>

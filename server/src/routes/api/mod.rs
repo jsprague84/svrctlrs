@@ -22,11 +22,22 @@ pub mod settings;
 pub mod users;
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
-use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use tracing::{debug, instrument};
 
 use crate::state::AppState;
+
+/// Deserialize an optional field so that *absent* and *null* are distinguishable:
+/// `None` when the key is missing, `Some(None)` for `null`, `Some(Some(v))` for a value.
+/// Use with `#[serde(default, deserialize_with = "double_option")]`.
+pub fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}
 
 /// Standard API error response
 #[derive(Debug, Serialize)]

@@ -499,7 +499,6 @@ async fn start_pty_session(
         .ok_or_else(|| "Server has no hostname configured".to_string())?;
 
     let port = server.port as u16;
-    let username = server.username.as_deref().unwrap_or("root").to_string();
 
     // Get credential if assigned
     let credential = if let Some(cred_id) = server.credential_id {
@@ -509,6 +508,13 @@ async fn start_pty_session(
     } else {
         None
     };
+    // The server's username, else the credential's default, else root
+    let username = server
+        .username
+        .as_deref()
+        .or_else(|| credential.as_ref().and_then(|c| c.username.as_deref()))
+        .unwrap_or("root")
+        .to_string();
 
     // Build list of SSH keys to try
     let home = std::env::var("HOME")

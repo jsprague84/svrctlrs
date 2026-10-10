@@ -215,12 +215,17 @@
 	 *  output has been shown. Both persist in sessionStorage so a reload resumes the shell. */
 	let sessionId: string | null = null;
 	let lastSeq = 0;
+	/** The server the session was opened on; the tab may be pointed elsewhere later */
+	let sessionServerId: number | null = null;
 	const sessionKey = () => `svrctlrs-term-session-${tabId}`;
 
 	function saveSession() {
 		try {
 			if (sessionId) {
-				sessionStorage.setItem(sessionKey(), JSON.stringify({ sessionId, lastSeq }));
+				sessionStorage.setItem(
+					sessionKey(),
+					JSON.stringify({ sessionId, lastSeq, serverId: sessionServerId })
+				);
 			} else {
 				sessionStorage.removeItem(sessionKey());
 			}
@@ -233,10 +238,15 @@
 		try {
 			const raw = sessionStorage.getItem(sessionKey());
 			if (!raw) return;
-			const saved = JSON.parse(raw) as { sessionId?: string; lastSeq?: number };
+			const saved = JSON.parse(raw) as {
+				sessionId?: string;
+				lastSeq?: number;
+				serverId?: number | null;
+			};
 			if (typeof saved.sessionId === 'string') {
 				sessionId = saved.sessionId;
 				lastSeq = typeof saved.lastSeq === 'number' ? saved.lastSeq : 0;
+				sessionServerId = saved.serverId ?? null;
 			}
 		} catch {
 			// ignore
@@ -486,6 +496,8 @@
 
 		intentionalDisconnect = false;
 		cleanupSocket(false);
+		// A session resumes only on the server it was opened on
+		if (sessionId && sessionServerId !== null && sessionServerId !== serverId) forgetSession();
 		setStatus('connecting');
 		const gen = ++connectGen;
 
@@ -568,6 +580,7 @@
 						case 'connected':
 							if (res.session_id) {
 								sessionId = res.session_id;
+								sessionServerId = serverId;
 								saveSession();
 							}
 							terminal!.write(res.data);

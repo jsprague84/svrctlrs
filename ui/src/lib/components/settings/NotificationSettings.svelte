@@ -147,8 +147,11 @@
 	<div class="border-t border-border/50 pt-4">
 		<div class="flex items-center justify-between py-2">
 			<div>
-				<p class="text-sm text-text-primary">Server Health Checks</p>
-				<p class="text-[10px] text-text-muted">Notify when servers go down/up</p>
+				<p class="text-sm text-text-primary">Server Health Notifications</p>
+				<p class="text-[10px] text-text-muted">
+					Reachability is always probed (that is what the status dots show); this sends a
+					notification when a server goes down or comes back.
+				</p>
 			</div>
 			<label class="relative inline-flex items-center cursor-pointer">
 				<input type="checkbox" bind:checked={healthCheckEnabled} class="sr-only peer" />
@@ -170,8 +173,7 @@
 				>
 					<option value="60">Every 1 minute</option>
 					<option value="300">Every 5 minutes</option>
-					<option value="900">Every 15 minutes</option>
-					<option value="1800">Every 30 minutes</option>
+					<option value="600">Every 10 minutes</option>
 				</select>
 			</div>
 		{/if}

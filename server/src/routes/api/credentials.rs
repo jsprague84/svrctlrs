@@ -46,10 +46,28 @@ async fn list_credentials(
             ApiError::internal_error(format!("Failed to list credentials: {}", e))
         })?;
 
-    // Redact credential values for security
+    // Which servers use each credential: the list is what tells you whether deleting is safe
+    let servers = svrctlrs_database::queries::servers::list_servers(&state.pool)
+        .await
+        .unwrap_or_default();
+
+    // Redact credential values for security; derive what the page can show instead
     let redacted: Vec<_> = creds
         .into_iter()
         .map(|c| {
+            let used_by: Vec<&str> = servers
+                .iter()
+                .filter(|s| s.credential_id == Some(c.id))
+                .map(|s| s.name.as_str())
+                .collect();
+            let public_key = crate::ssh_keys::public_key_of(&c);
+            let key_source = if !c.is_ssh_key() {
+                None
+            } else if c.value_is_key_material() {
+                Some("key")
+            } else {
+                Some("path")
+            };
             json!({
                 "id": c.id,
                 "name": c.name,
@@ -57,7 +75,11 @@ async fn list_credentials(
                 "description": c.description,
                 "username": c.username,
                 "has_value": !c.value.is_empty(),
-                "has_passphrase": c.metadata.is_some(),
+                "has_passphrase": c.passphrase().is_some(),
+                "key_source": key_source,
+                "fingerprint": public_key.as_deref().map(crate::host_keys::fingerprint),
+                "in_use": !used_by.is_empty(),
+                "used_by": used_by,
                 "created_at": c.created_at,
                 "updated_at": c.updated_at
             })

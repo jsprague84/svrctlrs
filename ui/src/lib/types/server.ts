@@ -41,12 +41,13 @@ export interface CreateServer {
 	tag_ids?: number[];
 }
 
+/** Omitted fields are kept; empty strings clear text fields; `credential_id: null` unassigns. */
 export interface UpdateServer {
 	name?: string;
 	hostname?: string;
 	port?: number;
 	username?: string;
-	credential_id?: number;
+	credential_id?: number | null;
 	description?: string;
 	enabled?: boolean;
 	tag_ids?: number[];

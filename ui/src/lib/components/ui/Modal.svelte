@@ -82,7 +82,7 @@
 		<!-- Content -->
 		<div
 			bind:this={contentEl}
-			class="relative bg-surface border border-border rounded-lg shadow-lg w-[calc(100%-1rem)] md:w-full max-w-lg mx-auto max-h-[90vh] flex flex-col"
+			class="relative bg-surface border border-border rounded-lg shadow-lg w-[calc(100%-1rem)] md:w-full max-w-lg mx-auto max-h-[90dvh] flex flex-col"
 		>
 			<!-- Header -->
 			<div class="flex items-center justify-between px-4 py-3 border-b border-border">

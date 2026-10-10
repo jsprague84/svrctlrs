@@ -343,7 +343,12 @@ pub(crate) async fn execute_ssh_command(
         .ok_or_else(|| "Server has no hostname configured".to_string())?;
 
     let port = server.port as u16;
-    let username = server.username.as_deref().unwrap_or("root");
+    // The server's username, else the credential's default, else root
+    let username = server
+        .username
+        .as_deref()
+        .or_else(|| credential.and_then(|c| c.username.as_deref()))
+        .unwrap_or("root");
 
     // Determine authentication method
     let auth_method = if let Some(cred) = credential {

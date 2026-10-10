@@ -110,6 +110,28 @@ export function createTab(
 	return tab;
 }
 
+/**
+ * Open a PTY tab for a server and queue its connect; the caller navigates to the terminal.
+ * Reuses an idle tab that has no server (never one that may hold a resumable session).
+ * Returns the tab id, or null when the tab limit is reached.
+ */
+export function connectToServer(serverId: number, serverName: string): string | null {
+	let tab = tabs.find((t) => t.status === 'disconnected' && t.serverId === null);
+	if (tab) {
+		tab.serverId = serverId;
+		tab.serverName = serverName;
+		tab.label = serverName;
+		tab.mode = 'pty';
+		activeTabId = tab.id;
+		assignSlots();
+	} else {
+		tab = createTab(serverId, serverName, 'pty') ?? undefined;
+	}
+	if (!tab) return null;
+	pendingAutoConnect = tab.id;
+	return tab.id;
+}
+
 export function closeTab(id: string) {
 	const idx = tabs.findIndex((t) => t.id === id);
 	if (idx === -1) return;

@@ -11,7 +11,13 @@ export interface Credential {
 	has_passphrase?: boolean;
 	/** Public half of an SSH key credential (on single reads), for authorized_keys. */
 	public_key?: string | null;
+	/** `key`: pasted or generated material; `path`: a file on the SvrCtlRS server. SSH keys only. */
+	key_source?: 'key' | 'path' | null;
+	/** `SHA256:…` of the public key, for keys with material (list and single reads). */
+	fingerprint?: string | null;
 	in_use?: boolean;
+	/** Names of the servers assigned this credential (list reads). */
+	used_by?: string[];
 	created_at: string;
 	updated_at: string;
 }
@@ -29,7 +35,9 @@ export interface CreateCredential {
 export interface UpdateCredential {
 	name?: string;
 	value?: string;
+	/** Empty string clears */
 	description?: string;
+	/** Empty string clears */
 	username?: string;
 	/** New passphrase; omit to keep, empty string to remove. */
 	passphrase?: string;

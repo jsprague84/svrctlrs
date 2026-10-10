@@ -4,6 +4,7 @@
 	import Sidebar from '#lib/components/layout/Sidebar.svelte';
 	import TerminalView from '#lib/components/terminal/TerminalView.svelte';
 	import Toast from '#lib/components/ui/Toast.svelte';
+	import ConfirmDialog from '#lib/components/ui/ConfirmDialog.svelte';
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import * as profilesState from '#lib/state/profiles.svelte.js';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
@@ -90,18 +91,9 @@
 	}
 
 	function handleConnectServer(server: Server) {
-		// Reuse an existing disconnected tab if available, otherwise create new
-		const tabs = terminalState.getTabs();
-		let tab = tabs.find((t) => t.status === 'disconnected');
-		if (tab) {
-			terminalState.updateTabServer(tab.id, server.id, server.name);
-			terminalState.updateTabMode(tab.id, 'pty');
-			terminalState.setActiveTab(tab.id);
-		} else {
-			tab = terminalState.createTab(server.id, server.name, 'pty') ?? undefined;
-		}
-		if (tab) {
-			terminalState.setPendingAutoConnect(tab.id);
+		if (!terminalState.connectToServer(server.id, server.name)) {
+			toast.error('Tab limit reached — close a terminal first');
+			return;
 		}
 		// Close sidebar on mobile, navigate to terminal if not already there
 		mobileOpen = false;
@@ -204,4 +196,5 @@
 		{/if}
 	</div>
 	<Toast />
+	<ConfirmDialog />
 {/if}

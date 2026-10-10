@@ -185,7 +185,7 @@ async fn authorize_key(
     }
 
     let update = UpdateServer {
-        credential_id: Some(key_cred.id),
+        credential_id: Some(Some(key_cred.id)),
         ..Default::default()
     };
     servers::update_server(&state.pool, id, &update)
@@ -403,8 +403,9 @@ struct UpdateServerInput {
     port: Option<i32>,
     #[serde(default)]
     username: Option<String>,
-    #[serde(default)]
-    credential_id: Option<i64>,
+    /// Absent keeps the credential, `null` unassigns it, a number sets it
+    #[serde(default, deserialize_with = "super::double_option")]
+    credential_id: Option<Option<i64>>,
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]

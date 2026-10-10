@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { confirmDialog } from '#lib/state/confirm.svelte.js';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -229,8 +230,16 @@
 								</button>
 								<button
 									class="p-1 text-sidebar-muted hover:text-error opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-									onclick={() => {
-										if (confirm('Delete this profile?')) onDeleteProfile?.(profile.id);
+									onclick={async () => {
+										if (
+											await confirmDialog({
+												title: `Delete profile ${profile.name}?`,
+												message: 'The saved layout is removed. Open terminals are not affected.',
+												confirmLabel: 'Delete',
+												destructive: true
+											})
+										)
+											onDeleteProfile?.(profile.id);
 									}}
 									aria-label="Delete profile"
 								>

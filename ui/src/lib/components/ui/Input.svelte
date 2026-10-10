@@ -4,10 +4,20 @@
 	interface Props extends HTMLInputAttributes {
 		label?: string;
 		error?: string;
+		/** Muted helper text under the field (hidden while an error shows) */
+		hint?: string;
 		value?: string | number;
 	}
 
-	let { label, error, value = $bindable(''), class: className = '', id, ...rest }: Props = $props();
+	let {
+		label,
+		error,
+		hint,
+		value = $bindable(''),
+		class: className = '',
+		id,
+		...rest
+	}: Props = $props();
 
 	// Stable per instance, and tracks a later change to the `id` prop
 	const uid = $props.id();
@@ -23,9 +33,12 @@
 		bind:value
 		class="px-3 py-1.5 text-sm bg-input border rounded-sm text-text-primary placeholder:text-text-muted
 			{error ? 'border-error' : 'border-border'} {className}"
+		aria-invalid={error ? 'true' : undefined}
 		{...rest}
 	/>
 	{#if error}
 		<p class="text-xs text-error">{error}</p>
+	{:else if hint}
+		<p class="text-xs text-text-muted">{hint}</p>
 	{/if}
 </div>
