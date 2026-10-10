@@ -4,6 +4,8 @@ export interface UserAccount {
 	id: number;
 	username: string;
 	is_me: boolean;
+	/** Most recent successful login from the audit log, if any */
+	last_login_at: string | null;
 	created_at: string;
 	updated_at: string;
 }

@@ -24,6 +24,11 @@ struct AuditQuery {
     #[serde(default = "default_limit")]
     limit: i64,
     before: Option<i64>,
+    /// Comma-separated action prefixes, e.g. `login,session.`
+    action: Option<String>,
+    user_id: Option<i64>,
+    /// Free-text search over action, target, details, user and address
+    q: Option<String>,
 }
 
 fn default_limit() -> i64 {
@@ -37,7 +42,16 @@ async fn list_audit(
     Query(q): Query<AuditQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     let limit = q.limit.clamp(1, 500);
-    let entries = audit::list(&state.pool, limit, q.before)
+    let filter = audit::AuditFilter {
+        action_prefixes: q
+            .action
+            .as_deref()
+            .map(|a| a.split(',').map(|s| s.trim().to_string()).collect())
+            .unwrap_or_default(),
+        user_id: q.user_id,
+        text: q.q,
+    };
+    let entries = audit::list_filtered(&state.pool, limit, q.before, &filter)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to list audit log");

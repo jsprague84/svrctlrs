@@ -14,23 +14,51 @@ pub fn routes() -> Router<AppState> {
     Router::new().route("/test", post(test_notification))
 }
 
+/// Optional unsaved values to test with (`POST /notifications/test`)
+#[derive(Debug, Default, serde::Deserialize)]
+struct TestInput {
+    provider: Option<String>,
+    url: Option<String>,
+    token: Option<String>,
+    topic: Option<String>,
+}
+
 /// Send a test notification to verify configuration
 #[instrument(skip(state))]
 async fn test_notification(
     State(state): State<AppState>,
+    body: Option<Json<TestInput>>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     info!("Sending test notification");
 
-    let config = settings::get_notification_config(&state.pool)
+    let mut config = settings::get_notification_config(&state.pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to load notification config");
             ApiError::internal_error(format!("Failed to load config: {}", e))
         })?;
 
+    // The form's current values, so a test does not need a save first. An empty token means
+    // "the stored one" (the UI never sees the stored token).
+    if let Some(Json(input)) = body {
+        if let Some(p) = input.provider {
+            config.provider = svrctlrs_core::notifications::NotificationProvider::parse(&p);
+        }
+        if let Some(u) = input.url {
+            config.url = u;
+        }
+        if let Some(t) = input.token.filter(|t| !t.is_empty()) {
+            config.token = t;
+        }
+        if let Some(t) = input.topic {
+            config.topic = t;
+        }
+        config.enabled = true;
+    }
+
     if !config.enabled || config.url.is_empty() {
         return Err(ApiError::bad_request(
-            "Notifications not configured. Set notification.enabled, notification.url, and notification.token in settings.",
+            "Notifications not configured: set a provider URL (and token) first.",
         ));
     }
 

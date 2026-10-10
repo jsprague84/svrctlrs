@@ -2,71 +2,92 @@
 	import { onMount } from 'svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Input from '#lib/components/ui/Input.svelte';
+	import Select from '#lib/components/ui/Select.svelte';
+	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import SettingsSection from '#lib/components/ui/SettingsSection.svelte';
 	import * as settingsState from '#lib/state/settings.svelte.js';
+	import * as settingsApi from '#lib/api/settings.js';
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
-	import { post, put } from '#lib/api/client.js';
+	import { post } from '#lib/api/client.js';
 
-	let enabled = $state(false);
-	let provider = $state('gotify');
-	let url = $state('');
-	let token = $state('');
-	let topic = $state('svrctlrs');
-	let healthCheckEnabled = $state(false);
-	let healthCheckInterval = $state('300');
+	interface Form {
+		enabled: boolean;
+		provider: string;
+		url: string;
+		/** Empty means "keep the stored token" — the API never returns it */
+		token: string;
+		topic: string;
+		healthNotify: boolean;
+		healthInterval: string;
+	}
+
+	const EMPTY: Form = {
+		enabled: false,
+		provider: 'gotify',
+		url: '',
+		token: '',
+		topic: 'svrctlrs',
+		healthNotify: false,
+		healthInterval: '300'
+	};
+
+	let form = $state<Form>({ ...EMPTY });
+	let saved = $state<Form>({ ...EMPTY });
+	let tokenSet = $state(false);
+	let loading = $state(true);
+	let loadError = $state<string | null>(null);
 	let saving = $state(false);
 	let testing = $state(false);
 
-	onMount(async () => {
-		await settingsState.loadSettings();
-		applySettings();
-	});
+	let dirty = $derived(JSON.stringify(form) !== JSON.stringify(saved));
+	let urlError = $derived(
+		form.url && !/^https?:\/\/\S+$/.test(form.url.trim())
+			? 'Must start with http:// or https://'
+			: ''
+	);
+	let canTest = $derived(!testing && !urlError && !!form.url.trim() && (tokenSet || !!form.token));
 
-	function applySettings() {
-		const settings = settingsState.getSettings();
-		const notif = settings['notification'] ?? [];
-		for (const s of notif) {
-			switch (s.key) {
-				case 'notification.enabled':
-					enabled = s.value === 'true';
-					break;
-				case 'notification.provider':
-					provider = s.value || 'gotify';
-					break;
-				case 'notification.url':
-					url = s.value;
-					break;
-				case 'notification.token':
-					token = s.value;
-					break;
-				case 'notification.topic':
-					topic = s.value || 'svrctlrs';
-					break;
-				case 'notification.health_check_enabled':
-					healthCheckEnabled = s.value === 'true';
-					break;
-				case 'notification.health_check_interval_seconds':
-					healthCheckInterval = s.value || '300';
-					break;
-			}
-		}
+	onMount(load);
+
+	async function load() {
+		loading = true;
+		loadError = null;
+		await settingsState.loadSettings();
+		loadError = settingsState.getError();
+		const v = (key: string, fallback = '') => settingsState.getSetting(key)?.value || fallback;
+		const next: Form = {
+			enabled: v('notification.enabled') === 'true',
+			provider: v('notification.provider', 'gotify'),
+			url: v('notification.url'),
+			token: '',
+			topic: v('notification.topic', 'svrctlrs'),
+			healthNotify: v('notification.health_check_enabled') === 'true',
+			healthInterval: v('notification.health_check_interval_seconds', '300')
+		};
+		tokenSet = settingsState.getSetting('notification.token')?.is_set ?? false;
+		form = { ...next };
+		saved = { ...next };
+		loading = false;
 	}
 
 	async function save() {
+		if (saving || urlError) return;
 		saving = true;
 		try {
-			const updates: Record<string, string> = {
-				'notification.enabled': String(enabled),
-				'notification.provider': provider,
-				'notification.url': url,
-				'notification.token': token,
-				'notification.topic': topic,
-				'notification.health_check_enabled': String(healthCheckEnabled),
-				'notification.health_check_interval_seconds': healthCheckInterval
-			};
-			for (const [key, value] of Object.entries(updates)) {
-				await put(`/settings/${key}`, { value });
-			}
+			// One request; the server skips an empty token so the stored one survives
+			await settingsApi.updateSettings({
+				'notification.enabled': String(form.enabled),
+				'notification.provider': form.provider,
+				'notification.url': form.url.trim(),
+				'notification.token': form.token,
+				'notification.topic': form.topic.trim() || 'svrctlrs',
+				'notification.health_check_enabled': String(form.healthNotify),
+				'notification.health_check_interval_seconds': form.healthInterval
+			});
+			if (form.token) tokenSet = true;
+			form.token = '';
+			saved = { ...form };
 			toast.success('Notification settings saved');
 		} catch (e) {
 			toast.error(extractErrorMessage(e, 'Failed to save'));
@@ -75,11 +96,17 @@
 		}
 	}
 
+	/** Tests what is on screen, saved or not */
 	async function testNotification() {
 		testing = true;
 		try {
-			await post('/notifications/test');
-			toast.success('Test notification sent!');
+			await post('/notifications/test', {
+				provider: form.provider,
+				url: form.url.trim(),
+				token: form.token,
+				topic: form.topic.trim() || 'svrctlrs'
+			});
+			toast.success('Test notification sent');
 		} catch (e) {
 			toast.error(extractErrorMessage(e, 'Failed to send test'));
 		} finally {
@@ -88,104 +115,85 @@
 	}
 </script>
 
-<div class="flex flex-col gap-6">
-	<!-- Enable toggle -->
-	<div class="flex items-center justify-between py-2 border-b border-border/50">
-		<div>
-			<p class="text-sm text-text-primary">Enable Notifications</p>
-			<p class="text-[10px] text-text-muted">Send alerts via rstify/Gotify/ntfy</p>
+<div class="flex flex-col gap-6 max-w-2xl">
+	{#if loadError}
+		<div
+			class="flex items-center justify-between gap-3 rounded-sm border border-error/40 bg-error/10 px-3 py-2"
+		>
+			<span class="text-sm text-error">{loadError}</span>
+			<Button size="sm" variant="secondary" onclick={load}>Retry</Button>
 		</div>
-		<label class="relative inline-flex items-center cursor-pointer">
-			<input type="checkbox" bind:checked={enabled} class="sr-only peer" />
-			<div
-				class="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:bg-success transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"
-			></div>
-		</label>
-	</div>
-
-	<!-- Provider -->
-	<div>
-		<label for="notif-provider" class="block text-[11px] text-text-muted mb-1">Provider</label>
-		<select
-			id="notif-provider"
-			bind:value={provider}
-			class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary"
-		>
-			<option value="gotify">Gotify (rstify compatible)</option>
-			<option value="ntfy">ntfy</option>
-		</select>
-	</div>
-
-	<!-- URL -->
-	<Input
-		label="Server URL"
-		bind:value={url}
-		placeholder="https://rstify.example.com"
-		class="font-mono"
-	/>
-
-	<!-- Token -->
-	<div>
-		<label for="notif-token" class="block text-[11px] text-text-muted mb-1">Application Token</label
-		>
-		<input
-			id="notif-token"
-			type="password"
-			bind:value={token}
-			autocomplete="off"
-			class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary"
-			placeholder="Paste your app token"
-		/>
-	</div>
-
-	<!-- Topic (ntfy only) -->
-	{#if provider === 'ntfy'}
-		<Input label="Topic" bind:value={topic} placeholder="svrctlrs" />
 	{/if}
 
-	<!-- Health checks -->
-	<div class="border-t border-border/50 pt-4">
-		<div class="flex items-center justify-between py-2">
-			<div>
-				<p class="text-sm text-text-primary">Server Health Notifications</p>
-				<p class="text-[10px] text-text-muted">
-					Reachability is always probed (that is what the status dots show); this sends a
-					notification when a server goes down or comes back.
-				</p>
-			</div>
-			<label class="relative inline-flex items-center cursor-pointer">
-				<input type="checkbox" bind:checked={healthCheckEnabled} class="sr-only peer" />
-				<div
-					class="w-9 h-5 bg-surface-raised rounded-full peer peer-checked:bg-success transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-4"
-				></div>
-			</label>
+	<SettingsSection
+		title="Push notifications"
+		description="Server down/up alerts via Gotify (rstify) or ntfy."
+	>
+		<div class="flex flex-col gap-3" class:opacity-60={loading}>
+			<Toggle bind:checked={form.enabled} label="Enable notifications" disabled={loading} />
+			<Select label="Provider" bind:value={form.provider} disabled={loading}>
+				<option value="gotify">Gotify (rstify compatible)</option>
+				<option value="ntfy">ntfy</option>
+			</Select>
+			<Input
+				label="Server URL"
+				bind:value={form.url}
+				placeholder="https://rstify.example.com"
+				class="font-mono"
+				error={urlError}
+				disabled={loading}
+				inputmode="url"
+			/>
+			<Input
+				label={form.provider === 'ntfy'
+					? 'Access token (if the topic is protected)'
+					: 'Application token'}
+				type="password"
+				bind:value={form.token}
+				autocomplete="off"
+				placeholder={tokenSet
+					? '•••••••• (stored — enter a new one to replace)'
+					: 'Paste the token'}
+				hint={tokenSet ? 'A token is stored; it is never shown again.' : undefined}
+				disabled={loading}
+			/>
+			{#if form.provider === 'ntfy'}
+				<Input label="Topic" bind:value={form.topic} placeholder="svrctlrs" disabled={loading} />
+			{/if}
 		</div>
+	</SettingsSection>
 
-		{#if healthCheckEnabled}
-			<div class="mt-2">
-				<label for="notif-interval" class="block text-[11px] text-text-muted mb-1"
-					>Check Interval</label
-				>
-				<select
-					id="notif-interval"
-					bind:value={healthCheckInterval}
-					class="px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary"
-				>
-					<option value="60">Every 1 minute</option>
-					<option value="300">Every 5 minutes</option>
-					<option value="600">Every 10 minutes</option>
-				</select>
-			</div>
-		{/if}
-	</div>
+	<SettingsSection
+		title="Monitoring"
+		description="Reachability is always probed — that is what the status dots and the Servers page show. This only decides whether a change gets a push notification."
+	>
+		<Toggle
+			bind:checked={form.healthNotify}
+			label="Notify when a server goes down or comes back"
+			disabled={loading}
+		/>
+		<div class="w-56">
+			<Select label="Probe interval" bind:value={form.healthInterval} disabled={loading}>
+				<option value="60">Every minute</option>
+				<option value="300">Every 5 minutes</option>
+				<option value="600">Every 10 minutes</option>
+			</Select>
+		</div>
+	</SettingsSection>
 
-	<!-- Actions -->
-	<div class="flex gap-2 pt-2">
-		<Button variant="secondary" onclick={testNotification} disabled={testing || !url || !token}>
-			{testing ? 'Sending...' : '🔔 Test Notification'}
-		</Button>
-		<Button onclick={save} disabled={saving}>
-			{saving ? 'Saving...' : 'Save'}
-		</Button>
+	<div
+		class="sticky bottom-0 -mx-4 md:-mx-6 px-4 md:px-6 py-3 bg-background/95 backdrop-blur border-t border-border flex items-center justify-between gap-2"
+	>
+		<span class="text-xs text-text-muted">
+			{#if dirty}Unsaved changes{:else if loading}Loading…{:else}All changes saved{/if}
+		</span>
+		<div class="flex gap-2">
+			<Button variant="secondary" onclick={testNotification} disabled={!canTest}>
+				{testing ? 'Sending…' : 'Send test'}
+			</Button>
+			<Button onclick={save} disabled={saving || !dirty || !!urlError}>
+				{saving ? 'Saving…' : 'Save changes'}
+			</Button>
+		</div>
 	</div>
 </div>

@@ -20,8 +20,29 @@ use crate::state::AppState;
 /// Create settings router
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/", get(list_settings).post(create_setting))
+        .route(
+            "/",
+            get(list_settings).post(create_setting).put(update_settings),
+        )
         .route("/{key}", get(get_setting).put(update_setting))
+}
+
+/// Settings that are write-only through the API: reads say whether they are set, never what.
+fn is_secret(key: &str) -> bool {
+    key == "notification.token"
+}
+
+fn setting_json(s: &svrctlrs_database::models::Setting) -> serde_json::Value {
+    let secret = is_secret(&s.key);
+    json!({
+        "key": s.key,
+        "value": if secret { "" } else { s.value.as_str() },
+        "secret": secret,
+        "is_set": !s.value.is_empty(),
+        "value_type": s.value_type,
+        "description": s.description,
+        "updated_at": s.updated_at
+    })
 }
 
 /// List all settings
@@ -46,15 +67,10 @@ async fn list_settings(
             .unwrap_or("general")
             .to_string();
 
-        let entry = json!({
-            "key": setting.key,
-            "value": setting.value,
-            "value_type": setting.value_type,
-            "description": setting.description,
-            "updated_at": setting.updated_at
-        });
-
-        categories.entry(category).or_default().push(entry);
+        categories
+            .entry(category)
+            .or_default()
+            .push(setting_json(&setting));
     }
 
     Ok(Json(json!({
@@ -75,13 +91,42 @@ async fn get_setting(
             ApiError::not_found("Setting")
         })?;
 
-    Ok(Json(json!({
-        "key": setting.key,
-        "value": setting.value,
-        "value_type": setting.value_type,
-        "description": setting.description,
-        "updated_at": setting.updated_at
-    })))
+    Ok(Json(setting_json(&setting)))
+}
+
+/// Batch update input: `{"values": {"notification.url": "…", …}}`
+#[derive(Debug, Deserialize)]
+struct UpdateSettingsInput {
+    values: std::collections::BTreeMap<String, String>,
+}
+
+/// Update several settings at once (upsert each). A secret key with an empty value is left
+/// untouched, so a form can resend everything without knowing the stored token.
+#[instrument(skip(state, input), fields(keys = input.values.len()))]
+async fn update_settings(
+    State(state): State<AppState>,
+    Json(input): Json<UpdateSettingsInput>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+    let mut written = Vec::new();
+    for (key, value) in &input.values {
+        if key.trim().is_empty() {
+            return Err(ApiError::bad_request("Setting key cannot be empty"));
+        }
+        if is_secret(key) && value.is_empty() {
+            continue;
+        }
+        settings::set_setting(&state.pool, key, value)
+            .await
+            .map_err(|e| {
+                error!(error = %e, key = %key, "Failed to update setting");
+                ApiError::internal_error(format!("Failed to update {key}: {e}"))
+            })?;
+        written.push(key.clone());
+    }
+    info!(count = written.len(), "Settings updated");
+    Ok(Json(
+        json!({ "updated": written, "message": "Settings updated" }),
+    ))
 }
 
 /// Create setting input

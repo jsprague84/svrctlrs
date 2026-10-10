@@ -56,7 +56,9 @@ trust it afresh.
 
 ## Audit log
 
-Settings → Audit shows who did what: logins (including failed and rate-limited attempts,
+Settings → Audit (`/settings?tab=audit`) shows who did what, filtered by kind (logins,
+sessions, changes), user and free text; on a phone, tap a row for the address and details.
+It shows: logins (including failed and rate-limited attempts,
 with the client address), logouts, interactive sessions opened, commands run in command mode
 with their exit code, and every change to servers, credentials and accounts. Entries are kept
 for 180 days. Commands are recorded as typed, so keep secrets out of command lines.
@@ -141,8 +143,11 @@ General) to open it automatically when the app starts.
 ## Notifications
 
 Settings → Notifications: enable push, choose rstify/Gotify or ntfy, set URL and token (and
-topic for ntfy), and optionally turn on periodic server health checks with an interval. *Send
-test* verifies the setup.
+topic for ntfy). *Send test* tries what is on screen, saved or not; *Save changes* writes
+everything in one go. The token is write-only — once stored it is never shown again; leave
+the field empty to keep it. Under **Monitoring**, reachability is always probed (that is what
+the status dots show, every 1–10 minutes); the toggle only decides whether a server going
+down or coming back sends a push notification.
 
 ## Themes
 

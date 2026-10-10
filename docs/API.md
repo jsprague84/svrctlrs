@@ -97,8 +97,9 @@ path is refused with 400 and a message saying why.
 
 | Method | Path | Body |
 |---|---|---|
-| GET | `/settings` | — |
+| GET | `/settings` | — grouped by prefix; each setting has `key, value, value_type, description, updated_at, secret, is_set`. A secret (`notification.token`) is write-only: `value` is always `""`, `is_set` says whether one is stored |
 | POST | `/settings` | `key`, `value`, `value_type` (`string` \| `number` \| `boolean` \| `json`), `description?` |
+| PUT | `/settings` | `{"values": {"key": "value", …}}` — upserts all in one request; a secret with an empty value is left untouched. Returns `updated` |
 | GET | `/settings/{key}` | — |
 | PUT | `/settings/{key}` | `{"value": "…"}` — validated against the stored `value_type` |
 
@@ -129,7 +130,7 @@ Every account is an administrator until roles exist, so any user may manage acco
 
 | Method | Path | Body | Notes |
 |---|---|---|---|
-| GET | `/users` | — | `id`, `username`, `is_me`, timestamps; never hashes |
+| GET | `/users` | — | `id`, `username`, `is_me`, `last_login_at` (from the audit log, may be null), timestamps; never hashes |
 | POST | `/users` | `username` (1–64 chars), `password` (≥ 12 chars) | 409 if the name exists |
 | DELETE | `/users/{id}` | — | refused for your own account and for the last account |
 | PUT | `/users/me/password` | `current_password`, `new_password` (≥ 12 chars) | 401 when the current password is wrong |
@@ -140,7 +141,7 @@ Deleting a user cascades to their sessions, profiles and quick commands.
 
 | Method | Path | Query | Response |
 |---|---|---|---|
-| GET | `/audit` | `limit` (1–500, default 100), `before` (id cursor) | `entries` newest first, `next_before` for the following page or `null` |
+| GET | `/audit` | `limit` (1–500, default 100), `before` (id cursor), `action` (comma-separated prefixes, e.g. `login,session.`), `user_id`, `q` (case-insensitive substring of action, target name, details, username or address) | `entries` newest first, `next_before` for the following page or `null` |
 
 Entry: `id, at, user_id, username, client_ip, action, target_type, target_id, target_name,
 details` (a JSON object string). Actions: `login`, `login.failed`, `login.rate_limited`,
@@ -154,7 +155,7 @@ secrets, are kept for 180 days, and outlive deleted users.
 
 | Method | Path | Body | Effect |
 |---|---|---|---|
-| POST | `/notifications/test` | — | sends a test message with the current `notification.*` settings |
+| POST | `/notifications/test` | optional `provider?`, `url?`, `token?`, `topic?` | sends a test message; with a body, those values override the stored settings (an empty `token` means the stored one), so a form can be tested before saving |
 
 ## WebSocket protocol
 

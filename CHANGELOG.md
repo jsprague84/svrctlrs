@@ -72,6 +72,17 @@ the release workflow uses the matching section as the release notes.
   The whole UI tree is Prettier-formatted (a formatting-only diff).
 
 ### Changed
+- **Settings reworked.** Tabs live in the URL (`/settings?tab=audit`), are real `tablist`
+  tabs with arrow-key navigation, and keep their labels on phones. Notifications: one *Save
+  changes* request with dirty tracking, *Send test* tests the form as it is on screen, the
+  token is write-only (never returned by the API; "stored" shown instead), URL validated
+  inline, and a *Monitoring* section that says plainly that reachability is always probed.
+  Audit: filter chips (logins / sessions / changes), a user filter, free-text search, relative
+  times (absolute on hover), rows expand on phones to show address and details, and a real
+  error state. Users: inline password errors, last login per account, in-app delete
+  confirmation. Quick commands: a proper form (Enter submits), category suggestions, server
+  scope as a select, labelled icon buttons. General: no more fake "Connected" line, server
+  change asks first, default profile under *Terminal*.
 - **Servers and Credentials pages reworked.** Server rows show the status dot, `user@host`,
   the credential in use (or a *no key* badge), last seen / last error, and the inline result
   of *Test*; a **Connect** button opens a terminal tab; icon buttons have labels and

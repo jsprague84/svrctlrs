@@ -27,11 +27,16 @@ pub fn routes() -> Router<AppState> {
         .route("/{id}", axum::routing::delete(delete_user))
 }
 
-fn user_json(u: &svrctlrs_database::models::User, me: i64) -> serde_json::Value {
+fn user_json(
+    u: &svrctlrs_database::models::User,
+    me: i64,
+    last_login_at: Option<chrono::DateTime<chrono::Utc>>,
+) -> serde_json::Value {
     json!({
         "id": u.id,
         "username": u.username,
         "is_me": u.id == me,
+        "last_login_at": last_login_at,
         "created_at": u.created_at,
         "updated_at": u.updated_at,
     })
@@ -56,7 +61,17 @@ async fn list_users(
     let list = users::list_users(&state.pool)
         .await
         .map_err(|e| map_err(e, "list users"))?;
-    let list: Vec<_> = list.iter().map(|u| user_json(u, me)).collect();
+    // From the audit log; a missing entry just means no login since the log began
+    let last: std::collections::HashMap<i64, chrono::DateTime<chrono::Utc>> =
+        svrctlrs_database::queries::audit::last_logins(&state.pool)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+    let list: Vec<_> = list
+        .iter()
+        .map(|u| user_json(u, me, last.get(&u.id).copied()))
+        .collect();
     Ok(Json(json!({ "users": list })))
 }
 

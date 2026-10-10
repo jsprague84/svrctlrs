@@ -36,3 +36,9 @@ export async function createSetting(input: CreateSettingInput): Promise<void> {
 export async function updateSetting(key: string, value: string): Promise<void> {
 	await put(`/settings/${encodeURIComponent(key)}`, { value });
 }
+
+/** Upsert several settings in one request; a secret key with an empty value is left as is. */
+export async function updateSettings(values: Record<string, string>): Promise<string[]> {
+	const res = await put<{ updated: string[] }>('/settings', { values });
+	return res.updated;
+}
