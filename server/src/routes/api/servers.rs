@@ -14,7 +14,7 @@ use serde_json::json;
 use svrctlrs_database::{models::NewAuditEntry, queries::servers, CreateServer, UpdateServer};
 
 use crate::routes::ui::auth::{client_ip, CurrentUser};
-use tracing::{error, info, instrument};
+use tracing::{error, info, instrument, warn};
 
 use super::ApiError;
 use crate::state::AppState;
@@ -569,6 +569,10 @@ async fn test_connection(
                 elapsed_ms = elapsed.as_millis(),
                 "Connection test succeeded"
             );
+            // What the sidebar dot and the Servers page show; a green test must count as online
+            if let Err(e) = servers::update_server_status(&state.pool, id, None).await {
+                warn!(id, error = %e, "Failed to record test result");
+            }
 
             Ok(Json(json!({
                 "success": true,
@@ -582,6 +586,9 @@ async fn test_connection(
         Err(e) => {
             let elapsed = started.elapsed();
             error!(id = id, error = %e, elapsed_ms = elapsed.as_millis(), "Connection test failed");
+            if let Err(db) = servers::update_server_last_error(&state.pool, id, &e).await {
+                warn!(id, error = %db, "Failed to record test failure");
+            }
 
             Ok(Json(json!({
                 "success": false,

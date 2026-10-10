@@ -32,6 +32,8 @@
 		mode: TerminalMode;
 		active?: boolean;
 		onStatusChange?: (tabId: string, status: ConnectionStatus) => void;
+		/** The pending CTL/ALT from the extra-keys row was used up by a typed character */
+		onModifierConsumed?: () => void;
 		onOpenPalette?: () => void;
 	}
 
@@ -41,10 +43,17 @@
 		mode = 'pty',
 		active = true,
 		onStatusChange,
+		onModifierConsumed,
 		onOpenPalette
 	}: Props = $props();
 
 	let showReconnectOverlay = $state(false);
+	/** Connection progress shown over the pane instead of being written into the shell's buffer. */
+	let statusNote = $state<string | null>(null);
+	/** Bumped by every connect(); handlers of an older socket ignore their events. */
+	let connectGen = 0;
+	/** Set from the mobile extra-keys row: the next typed character becomes Ctrl+/Alt+ it. */
+	let pendingModifier: 'ctl' | 'alt' | null = null;
 	let shellEl: HTMLDivElement;
 
 	// ── Gesture state machine (PointerEvent-based, capture phase) ───────
@@ -426,7 +435,7 @@
 		pongTimeout = setTimeout(() => {
 			pongTimeout = null;
 			if (!socket || intentionalDisconnect) return;
-			terminal?.writeln('\r\n\x1b[33m[Connection unresponsive — reconnecting]\x1b[0m');
+			statusNote = 'Connection unresponsive — reconnecting';
 			lostWhileConnected = status === 'connected';
 			socket.close();
 		}, PONG_TIMEOUT);
@@ -435,6 +444,8 @@
 	/** Called when the tab becomes visible again. */
 	function checkAlive() {
 		if (intentionalDisconnect) return;
+		// A connect is in flight: let it finish rather than starting a second one
+		if (status === 'connecting' || reconnectTimeout) return;
 		if (!socket || socket.readyState !== WebSocket.OPEN) {
 			// Died in the background without a close event we acted on
 			lostWhileConnected = true;
@@ -447,7 +458,7 @@
 
 	function attemptReconnect() {
 		if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
-			terminal?.writeln('\r\n\x1b[31m[Max reconnection attempts reached]\x1b[0m');
+			statusNote = null;
 			showReconnectOverlay = true;
 			return;
 		}
@@ -455,9 +466,7 @@
 		const base = RECONNECT_DELAYS[Math.min(reconnectAttempt, RECONNECT_DELAYS.length - 1)];
 		const delay = Math.round(base * (0.85 + Math.random() * 0.3));
 		reconnectAttempt++;
-		terminal?.writeln(
-			`\r\n\x1b[33m[Reconnecting... attempt ${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}]\x1b[0m`
-		);
+		statusNote = `Reconnecting… (${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`;
 		reconnectTimeout = setTimeout(() => {
 			reconnectTimeout = null;
 			connect();
@@ -478,6 +487,7 @@
 		intentionalDisconnect = false;
 		cleanupSocket(false);
 		setStatus('connecting');
+		const gen = ++connectGen;
 
 		if (reconnectAttempt === 0) {
 			terminal.clear();
@@ -486,23 +496,28 @@
 			// screen is empty, so ask the server for everything it still has.
 			if (!restoreBuffer()) lastSeq = 0;
 		}
-		terminal.writeln(
-			sessionId ? '\x1b[33mResuming session...\x1b[0m' : '\x1b[33mConnecting...\x1b[0m'
-		);
+		// Progress goes in the banner, never into the shell's buffer: a resumed screen must look
+		// exactly as it did, prompt and cursor included.
+		statusNote = sessionId ? 'Resuming session…' : 'Connecting…';
 
 		const wsUrl = await getWsUrl(mode);
-		// The ticket request yields; the tab may have been closed meanwhile.
-		if (!terminal || intentionalDisconnect) return;
+		// The ticket request yields; the tab may have been closed or reconnected meanwhile.
+		if (!terminal || intentionalDisconnect || gen !== connectGen) return;
 
+		let ws: WebSocket;
 		try {
-			socket = new WebSocket(wsUrl);
+			ws = new WebSocket(wsUrl);
 		} catch (e) {
 			terminal.writeln(`\r\n\x1b[31mFailed to create WebSocket: ${e}\x1b[0m`);
+			statusNote = null;
 			setStatus('error');
 			return;
 		}
+		socket = ws;
+		const stale = () => ws !== socket;
 
-		socket.onopen = () => {
+		ws.onopen = () => {
+			if (stale()) return;
 			setStatus('connected');
 			reconnectAttempt = 0;
 
@@ -513,21 +528,21 @@
 				const req: PtyRequest = sessionId
 					? { type: 'attach', session_id: sessionId, last_seq: lastSeq, cols, rows }
 					: { type: 'shell', server_id: serverId!, cols, rows };
-				socket!.send(JSON.stringify(req));
+				ws.send(JSON.stringify(req));
 
 				// Forward keyboard input to PTY
+				cleanupPty();
 				ptyInputDisposable = terminal!.onData((data: string) => {
-					if (socket?.readyState === WebSocket.OPEN) {
-						const req: PtyRequest = { type: 'input', data };
-						socket.send(JSON.stringify(req));
-					}
+					if (ws.readyState !== WebSocket.OPEN) return;
+					const req: PtyRequest = { type: 'input', data: applyPendingModifier(data) };
+					ws.send(JSON.stringify(req));
 				});
 
 				// Forward resize events
 				ptyResizeDisposable = terminal!.onResize(({ cols, rows }) => {
-					if (socket?.readyState === WebSocket.OPEN) {
+					if (ws.readyState === WebSocket.OPEN) {
 						const req: PtyRequest = { type: 'resize', cols, rows };
-						socket.send(JSON.stringify(req));
+						ws.send(JSON.stringify(req));
 					}
 				});
 
@@ -539,7 +554,8 @@
 			pingInterval = setInterval(() => sendPing(), PING_INTERVAL);
 		};
 
-		socket.onmessage = (event: MessageEvent) => {
+		ws.onmessage = (event: MessageEvent) => {
+			if (stale()) return;
 			try {
 				if (mode === 'pty') {
 					const res = JSON.parse(event.data) as PtyResponse;
@@ -555,6 +571,7 @@
 								saveSession();
 							}
 							terminal!.write(res.data);
+							if (res.data) statusNote = null; // a new shell; a resume clears at replay_end
 							terminal!.focus();
 							break;
 						case 'replay_start':
@@ -571,9 +588,12 @@
 							lastSeq = 0;
 							break;
 						case 'replay_end':
+							statusNote = null;
 							terminal!.focus();
+							nudgeRedraw();
 							break;
 						case 'closed':
+							statusNote = null;
 							terminal!.writeln(`\r\n\x1b[33m[${res.data || 'Session ended'}]\x1b[0m`);
 							forgetSession();
 							stopReconnecting();
@@ -587,12 +607,13 @@
 								forgetSession();
 								terminal!.reset();
 								outputHistory = [];
+								statusNote = 'Previous session ended — starting a new shell';
 								terminal!.writeln(
 									'\x1b[33m[Previous session has ended — starting a new shell]\x1b[0m'
 								);
 								const { cols, rows } = terminal!;
 								const req: PtyRequest = { type: 'shell', server_id: serverId!, cols, rows };
-								socket?.send(JSON.stringify(req));
+								ws.send(JSON.stringify(req));
 							} else {
 								terminal!.write(res.data);
 							}
@@ -620,15 +641,17 @@
 			}
 		};
 
-		socket.onerror = () => {
+		ws.onerror = () => {
+			if (stale()) return;
 			// onclose follows and decides about reconnecting; remember that this was an
 			// established session, since the status is about to read 'error'.
 			if (status === 'connected') lostWhileConnected = true;
-			terminal!.writeln('\r\n\x1b[31m✗ Connection error\x1b[0m');
+			statusNote = 'Connection error';
 			setStatus('error');
 		};
 
-		socket.onclose = () => {
+		ws.onclose = () => {
+			if (stale()) return;
 			const wasConnected = status === 'connected' || lostWhileConnected;
 			lostWhileConnected = false;
 			setStatus('disconnected');
@@ -640,15 +663,50 @@
 			clearPongTimeout();
 
 			if (wasConnected && !intentionalDisconnect) {
-				terminal!.writeln('\r\n\x1b[33m[Connection lost]\x1b[0m');
+				statusNote = 'Connection lost';
 				attemptReconnect();
 			} else if (!intentionalDisconnect && reconnectAttempt > 0) {
 				// Reconnect attempt failed before fully connecting
 				attemptReconnect();
-			} else if (wasConnected) {
-				terminal!.writeln('\r\n\x1b[33m[Disconnected]\x1b[0m');
+			} else if (!intentionalDisconnect) {
+				// Refused before it ever connected (auth, origin, server down)
+				statusNote = 'Could not connect';
+				setStatus('error');
+			} else {
+				statusNote = null;
 			}
 		};
+	}
+
+	/**
+	 * After a resume the screen is restored from the saved buffer plus replayed output, but the
+	 * shell does not know anyone is looking. Two window-size changes give every program a
+	 * SIGWINCH, so prompts, editors and `top` repaint themselves at the real size.
+	 */
+	function nudgeRedraw() {
+		const ws = socket;
+		if (!terminal || !ws || ws.readyState !== WebSocket.OPEN) return;
+		fit();
+		const { cols, rows } = terminal;
+		ws.send(JSON.stringify({ type: 'resize', cols, rows: Math.max(2, rows - 1) }));
+		setTimeout(() => {
+			if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'resize', cols, rows }));
+		}, 60);
+	}
+
+	/** Mobile extra keys: CTL/ALT apply to the next character typed on the soft keyboard. */
+	export function setPendingModifier(mod: 'ctl' | 'alt' | null) {
+		pendingModifier = mod;
+	}
+
+	function applyPendingModifier(data: string): string {
+		if (!pendingModifier || data.length !== 1) return data;
+		const mod = pendingModifier;
+		pendingModifier = null;
+		onModifierConsumed?.();
+		if (mod === 'alt') return '\x1b' + data;
+		const code = data.toUpperCase().charCodeAt(0) - 64;
+		return code >= 0 && code <= 31 ? String.fromCharCode(code) : data;
 	}
 
 	/** Execute a single command in CMD mode */
@@ -681,6 +739,8 @@
 				socket.send(JSON.stringify({ type: kill ? 'close' : 'detach' }));
 			}
 			socket.onclose = null;
+			socket.onerror = null;
+			socket.onmessage = null;
 			socket.close();
 			socket = null;
 		}
@@ -701,6 +761,7 @@
 		stopReconnecting();
 		cleanupSocket(true);
 		forgetSession();
+		statusNote = null;
 		setStatus('disconnected');
 	}
 
@@ -940,6 +1001,18 @@
 	bind:this={shellEl}
 >
 	<div class="terminal-viewport h-full w-full" bind:this={containerEl}></div>
+
+	{#if statusNote}
+		<div
+			class="absolute top-2 right-2 z-10 px-2 py-1 rounded-sm bg-surface/90 border border-border text-[11px] text-text-secondary pointer-events-none"
+			role="status"
+			aria-live="polite"
+		>
+			<span
+				class="inline-block w-1.5 h-1.5 rounded-full bg-warning mr-1.5 align-middle animate-pulse"
+			></span>{statusNote}
+		</div>
+	{/if}
 
 	{#if showReconnectOverlay}
 		<div

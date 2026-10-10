@@ -72,6 +72,22 @@ the release workflow uses the matching section as the release notes.
   The whole UI tree is Prettier-formatted (a formatting-only diff).
 
 ### Fixed
+- Resuming a session no longer writes "Resuming session…"/"Reconnecting…" lines into the
+  shell's buffer (which left the restored prompt stranded above them until a key was pressed);
+  progress shows in a small banner over the pane, and after the replay the pane sends two
+  window-size changes so prompts, editors and `top` repaint themselves.
+- Overlapping connects (a tab shown again while a reconnect was already in flight) could leave
+  a pane reporting "Connecting…" forever or bind input to a dead socket; connects are now
+  serialized and events from a superseded socket are ignored. A connection refused before it
+  opened now reports an error instead of staying "connecting".
+- Mobile: the CTL/ALT keys in the extra-keys row now apply to the next character typed on the
+  soft keyboard (so `CTL` then `c` sends Ctrl+C), and there is a `^C` key. Previously the
+  modifiers only affected the row's own keys, so there was no way to interrupt `top`.
+- Sidebar and Servers-page status dots were stale (orange/grey) because the reachability probe
+  only ran when health *notifications* were enabled. The probe (one TCP connect per server,
+  every `notification.health_check_interval_seconds`, 30 s–1 h, default 5 min) now always runs;
+  the setting only gates the up/down notifications. **Test connection** now records its
+  result too, so a green test shows as online immediately.
 - Sidebar and Servers page showed every enabled server as green; the dot now reflects what the
   health monitor and connections recorded (online, unreachable with the reason, unknown).
 - A terminal whose connection died while the tab was in the background looked connected but

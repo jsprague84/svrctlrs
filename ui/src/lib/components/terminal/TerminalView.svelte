@@ -44,6 +44,7 @@
 	let selectedServerId = $state<number | null>(null);
 	let selectedMode = $state<TerminalMode>('pty');
 	let paneRefs = $state<Record<string, ReturnType<typeof TerminalPane>>>({});
+	let extraKeysRow = $state<ReturnType<typeof ExtraKeysRow> | null>(null);
 	let searchOpen = $state(false);
 	let searchTerm = $state('');
 	let prefsOpen = $state(false);
@@ -641,6 +642,7 @@
 						mode={tab.mode}
 						active={tab.slot !== null}
 						onStatusChange={handleStatusChange}
+						onModifierConsumed={() => extraKeysRow?.clearModifiers()}
 						onOpenPalette={() => (paletteOpen = true)}
 					/>
 				</div>
@@ -717,10 +719,14 @@
 			style:padding-bottom={!mobileKeyboardOpen ? 'env(safe-area-inset-bottom, 0px)' : undefined}
 		>
 			<ExtraKeysRow
+				bind:this={extraKeysRow}
 				onKeyPress={(seq) => {
 					if (activeTabId && paneRefs[activeTabId]) {
 						paneRefs[activeTabId].injectInput(seq);
 					}
+				}}
+				onModifier={(mod) => {
+					if (activeTabId) paneRefs[activeTabId]?.setPendingModifier(mod);
 				}}
 			/>
 		</div>

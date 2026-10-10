@@ -1,9 +1,17 @@
 <script lang="ts">
 	interface Props {
 		onKeyPress: (sequence: string) => void;
+		/** CTL/ALT also apply to the next character typed on the soft keyboard */
+		onModifier?: (mod: 'ctl' | 'alt' | null) => void;
 	}
 
-	let { onKeyPress }: Props = $props();
+	let { onKeyPress, onModifier }: Props = $props();
+
+	/** Called by the pane once a typed character consumed the modifier */
+	export function clearModifiers() {
+		ctlActive = false;
+		altActive = false;
+	}
 
 	let ctlActive = $state(false);
 	let altActive = $state(false);
@@ -19,6 +27,7 @@
 			}
 			ctlActive = false;
 			altActive = false;
+			onModifier?.(null);
 			return;
 		}
 		if (altActive) {
@@ -26,6 +35,7 @@
 			onKeyPress('\x1b' + key);
 			altActive = false;
 			ctlActive = false;
+			onModifier?.(null);
 			return;
 		}
 		onKeyPress(sequence);
@@ -34,14 +44,17 @@
 	function toggleCtl() {
 		ctlActive = !ctlActive;
 		if (ctlActive) altActive = false;
+		onModifier?.(ctlActive ? 'ctl' : null);
 	}
 
 	function toggleAlt() {
 		altActive = !altActive;
 		if (altActive) ctlActive = false;
+		onModifier?.(altActive ? 'alt' : null);
 	}
 
 	const keys = [
+		{ label: '^C', action: () => onKeyPress('\x03') },
 		{ label: 'ESC', action: () => sendKey('', '\x1b') },
 		{ label: 'TAB', action: () => sendKey('', '\t') },
 		{ label: 'CTL', action: toggleCtl, toggle: true, active: () => ctlActive },

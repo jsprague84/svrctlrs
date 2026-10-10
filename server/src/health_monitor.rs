@@ -41,14 +41,13 @@ pub fn start_health_monitor(state: AppState) {
 
 /// Run one cycle of health checks. Returns the interval for next check.
 async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyhow::Result<u64> {
-    // Check if health monitoring is enabled
-    let enabled =
+    // The reachability probe always runs: it is a 5 s TCP connect per server and it is what
+    // the sidebar dots and the Servers page show. The setting only decides whether up/down
+    // transitions are *notified*.
+    let notify =
         settings::get_setting_value_or(&state.pool, "notification.health_check_enabled", "false")
-            .await?;
-    if enabled != "true" {
-        debug!("Health check disabled, sleeping");
-        return Ok(60); // Check again in 60s if disabled (in case it gets enabled)
-    }
+            .await?
+            == "true";
 
     // Get interval
     let interval_str = settings::get_setting_value_or(
@@ -57,7 +56,7 @@ async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyho
         "300",
     )
     .await?;
-    let interval: u64 = interval_str.parse().unwrap_or(300);
+    let interval: u64 = interval_str.parse().unwrap_or(300).clamp(30, 3600);
 
     // Load notification config
     let config = settings::get_notification_config(&state.pool).await?;
@@ -111,7 +110,9 @@ async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyho
         match (previous, reachable) {
             (Some(true), false) => {
                 warn!(server = %server.name, "Server went UNREACHABLE");
-                if let Err(e) = client
+                if !notify {
+                    // recorded above; nothing to send
+                } else if let Err(e) = client
                     .send(
                         &format!("Server Down: {}", server.name),
                         &format!("Server '{}' ({hostname}) is unreachable", server.name),
@@ -129,7 +130,9 @@ async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyho
             }
             (Some(false), true) => {
                 info!(server = %server.name, "Server is back ONLINE");
-                if let Err(e) = client
+                if !notify {
+                    // recorded above; nothing to send
+                } else if let Err(e) = client
                     .send(
                         &format!("Server Up: {}", server.name),
                         &format!("Server '{}' ({hostname}) is back online", server.name),
