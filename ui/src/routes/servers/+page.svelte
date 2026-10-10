@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Server, Plus, Pencil, Trash2, Wifi, KeyRound, ShieldCheck } from 'lucide-svelte';
+	import { Server, Plus, Pencil, Trash2, Wifi, KeyRound, ShieldCheck } from '@lucide/svelte';
 	import * as serversApi from '#lib/api/servers.js';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Input from '#lib/components/ui/Input.svelte';

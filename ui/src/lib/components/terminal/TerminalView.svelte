@@ -6,7 +6,7 @@
 		Trash2,
 		ClipboardCopy,
 		Download
-	} from 'lucide-svelte';
+	} from '@lucide/svelte';
 	import TerminalPane from './TerminalPane.svelte';
 	import TerminalTabs from './TerminalTabs.svelte';
 	import SplitView from './SplitView.svelte';

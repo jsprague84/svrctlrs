@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { Search } from 'lucide-svelte';
+	import { Search } from '@lucide/svelte';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import * as quickCommandsState from '#lib/state/quickCommands.svelte.js';
 	import * as serversState from '#lib/state/servers.svelte.js';

@@ -17,7 +17,7 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { Menu } from 'lucide-svelte';
+	import { Menu } from '@lucide/svelte';
 
 	let { children } = $props();
 

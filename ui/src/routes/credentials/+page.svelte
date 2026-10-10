@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { KeyRound, Plus, Pencil, Trash2, Sparkles, Copy } from 'lucide-svelte';
+	import { KeyRound, Plus, Pencil, Trash2, Sparkles, Copy } from '@lucide/svelte';
 	import * as credApi from '#lib/api/credentials.js';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Input from '#lib/components/ui/Input.svelte';

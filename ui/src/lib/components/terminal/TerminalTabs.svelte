@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Plus, X, Columns2, Rows2, LayoutGrid, Square } from 'lucide-svelte';
+	import { Plus, X, Columns2, Rows2, LayoutGrid, Square } from '@lucide/svelte';
 	import type { TerminalTab, LayoutMode } from '#lib/types/index.js';
 
 	interface Props {

@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Trash2, UserPlus } from 'lucide-svelte';
+	import { Trash2, UserPlus } from '@lucide/svelte';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Input from '#lib/components/ui/Input.svelte';
 	import Badge from '#lib/components/ui/Badge.svelte';

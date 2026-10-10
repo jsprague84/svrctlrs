@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Settings, Bell, TerminalSquare, Users, ScrollText, Info } from 'lucide-svelte';
+	import { Settings, Bell, TerminalSquare, Users, ScrollText, Info } from '@lucide/svelte';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import GeneralSettings from '#lib/components/settings/GeneralSettings.svelte';
 	import NotificationSettings from '#lib/components/settings/NotificationSettings.svelte';

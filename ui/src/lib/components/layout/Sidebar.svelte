@@ -18,7 +18,7 @@
 		Trash2,
 		Pencil,
 		Plus
-	} from 'lucide-svelte';
+	} from '@lucide/svelte';
 	import type { Server as ServerType, TerminalProfile } from '#lib/types/index.js';
 	import { logout } from '#lib/api/client.js';
 	import * as themeState from '#lib/state/theme.svelte.js';

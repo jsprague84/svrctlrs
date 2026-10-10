@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Menu, Plus, X } from 'lucide-svelte';
+	import { Menu, Plus, X } from '@lucide/svelte';
 	import TabDots from './TabDots.svelte';
 	import type { TerminalTab, ConnectionStatus } from '#lib/types/index.js';
 
