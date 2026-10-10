@@ -22,6 +22,13 @@
 	import * as profilesState from '#lib/state/profiles.svelte.js';
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
+	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
+	import {
+		isLeaderChord,
+		leaderAction,
+		LEADER_BINDINGS,
+		LEADER_KEY_LABELS
+	} from '#lib/utils/leader.js';
 	import {
 		initKeyboardDetection,
 		destroyKeyboardDetection
@@ -43,6 +50,14 @@
 	let paletteOpen = $state(false);
 	let profileSaveOpen = $state(false);
 	let showGestureHint = $state(false);
+	/** Leader armed: the next key is a command; the overlay lists them. */
+	let leaderArmed = $state(false);
+	let leaderHelpPinned = $state(false);
+	let leaderTimer: ReturnType<typeof setTimeout> | null = null;
+	const LEADER_TIMEOUT = 3000;
+	/** Where `` ` `` goes back to. */
+	let lastActiveTabId: string | null = null;
+	let currentTabIdSeen: string | null = null;
 	let mobileViewHeight = $state(0);
 	let mobileKeyboardOpen = $state(false);
 
@@ -55,6 +70,15 @@
 	let layout = $derived(terminalState.getLayout());
 	let visibleTabs = $derived(terminalState.getVisibleTabs());
 	let pendingAutoConnect = $derived(terminalState.getPendingAutoConnect());
+
+	// Remember the previously active tab for the leader's "last tab" (`)
+	$effect(() => {
+		const id = activeTabId;
+		if (id !== currentTabIdSeen) {
+			lastActiveTabId = currentTabIdSeen;
+			currentTabIdSeen = id;
+		}
+	});
 
 	// Auto-connect when a pending tab's pane is ready
 	$effect(() => {
@@ -142,9 +166,129 @@
 			}
 		}
 
+		function disarmLeader() {
+			leaderArmed = false;
+			leaderHelpPinned = false;
+			if (leaderTimer) {
+				clearTimeout(leaderTimer);
+				leaderTimer = null;
+			}
+		}
+
+		function armLeader() {
+			leaderArmed = true;
+			if (leaderTimer) clearTimeout(leaderTimer);
+			leaderTimer = setTimeout(() => {
+				if (!leaderHelpPinned) disarmLeader();
+			}, LEADER_TIMEOUT);
+		}
+
+		function closeTabWithConfirm(id: string) {
+			const tab = tabs.find((t) => t.id === id);
+			if (tab?.status === 'connected' && !confirm('Terminal is connected. Close anyway?')) return;
+			paneRefs[id]?.disconnect();
+			delete paneRefs[id];
+			terminalState.closeTab(id);
+		}
+
+		function cycleLayout() {
+			const modes: LayoutMode[] = ['single', 'split-h', 'split-v', 'quad'];
+			const idx = modes.indexOf(layout);
+			terminalState.setLayout(modes[(idx + 1) % modes.length]);
+		}
+
+		/** Run the key that followed the leader. Returns false when it was not bound. */
+		function runLeaderAction(e: KeyboardEvent): boolean {
+			const action = leaderAction(e);
+			if (action === null) {
+				// A bare modifier keeps the leader armed; anything else unbound cancels it
+				if (!['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) disarmLeader();
+				return false;
+			}
+			if (action.type !== 'help') disarmLeader();
+			switch (action.type) {
+				case 'new-tab':
+					terminalState.createTab(null, null, selectedMode);
+					break;
+				case 'close-tab':
+					if (activeTabId) closeTabWithConfirm(activeTabId);
+					break;
+				case 'next-tab':
+					terminalState.nextTab();
+					focusTerminal(terminalState.getActiveTabId());
+					break;
+				case 'prev-tab':
+					terminalState.prevTab();
+					focusTerminal(terminalState.getActiveTabId());
+					break;
+				case 'goto-tab': {
+					const target = tabs[action.index];
+					if (target) {
+						terminalState.setActiveTab(target.id);
+						focusTerminal(target.id);
+					}
+					break;
+				}
+				case 'last-tab':
+					if (lastActiveTabId && tabs.some((t) => t.id === lastActiveTabId)) {
+						terminalState.setActiveTab(lastActiveTabId);
+						focusTerminal(lastActiveTabId);
+					}
+					break;
+				case 'focus':
+					focusTerminal(terminalState.focusDirection(action.direction));
+					break;
+				case 'next-pane':
+					focusTerminal(terminalState.focusNextPane());
+					break;
+				case 'prev-pane':
+					focusTerminal(terminalState.focusPrevPane());
+					break;
+				case 'cycle-layout':
+					cycleLayout();
+					break;
+				case 'search':
+					searchOpen = !searchOpen;
+					break;
+				case 'palette':
+					paletteOpen = true;
+					break;
+				case 'help':
+					leaderHelpPinned = !leaderHelpPinned;
+					if (!leaderHelpPinned) disarmLeader();
+					break;
+				case 'cancel':
+					break;
+			}
+			return true;
+		}
+
 		// Keyboard shortcuts — only active when terminal view is visible
 		function handleKeydown(e: KeyboardEvent) {
 			if (!visible) return;
+
+			// Leader key: arm on the chord, run the next key as a command. Browsers reserve
+			// Ctrl+Tab and Ctrl+Shift+T/W, so this is the dependable way to move around.
+			const leaderKey = terminalPrefs.getPrefs().leaderKey;
+			if (!paletteOpen && !profileSaveOpen) {
+				if (leaderArmed) {
+					if (isLeaderChord(e, leaderKey)) {
+						// Pressed twice: let the shell have the chord itself
+						disarmLeader();
+						return;
+					}
+					e.preventDefault();
+					e.stopPropagation();
+					runLeaderAction(e);
+					return;
+				}
+				if (isLeaderChord(e, leaderKey)) {
+					e.preventDefault();
+					e.stopPropagation();
+					armLeader();
+					return;
+				}
+			}
 
 			// Ctrl+K / Cmd+K — command palette
 			if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -163,7 +307,7 @@
 			// Ctrl+Shift+W — close tab
 			if (e.ctrlKey && e.shiftKey && e.key === 'W') {
 				e.preventDefault();
-				if (activeTabId) terminalState.closeTab(activeTabId);
+				if (activeTabId) closeTabWithConfirm(activeTabId);
 			}
 			// Ctrl+Tab — next tab (cycles all tabs, rearranges slots)
 			if (e.ctrlKey && e.key === 'Tab' && !e.shiftKey) {
@@ -211,14 +355,7 @@
 			// Ctrl+\ — toggle split
 			if (e.ctrlKey && e.key === '\\') {
 				e.preventDefault();
-				const modes: Array<'single' | 'split-h' | 'split-v' | 'quad'> = [
-					'single',
-					'split-h',
-					'split-v',
-					'quad'
-				];
-				const idx = modes.indexOf(layout);
-				terminalState.setLayout(modes[(idx + 1) % modes.length]);
+				cycleLayout();
 			}
 			// Ctrl+Shift+F — search
 			if (e.ctrlKey && e.shiftKey && e.key === 'F') {
@@ -239,6 +376,7 @@
 
 		window.addEventListener('keydown', handleKeydown, true);
 		return () => {
+			disarmLeader();
 			window.removeEventListener('keydown', handleKeydown, true);
 			window.removeEventListener('save-profile', handleSaveProfile);
 			if (updateViewHeight) {
@@ -551,6 +689,26 @@
 			}}
 		/>
 	</div>
+
+	{#if leaderArmed}
+		<div
+			class="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 max-w-[95%] px-3 py-2 rounded-md bg-surface/95 border border-border shadow-lg text-xs text-text-secondary pointer-events-none"
+			role="status"
+			aria-live="polite"
+		>
+			<div class="flex flex-wrap gap-x-3 gap-y-1 justify-center">
+				<span class="font-semibold text-accent">
+					{LEADER_KEY_LABELS[terminalPrefs.getPrefs().leaderKey]} …
+				</span>
+				{#each LEADER_BINDINGS as b (b.keys)}
+					<span><kbd class="font-mono text-text-primary">{b.keys}</kbd> {b.action}</span>
+				{/each}
+				{#if !leaderHelpPinned}
+					<span><kbd class="font-mono text-text-primary">?</kbd> keep open</span>
+				{/if}
+			</div>
+		</div>
+	{/if}
 
 	<!-- Extra keys row (mobile only, in flex flow so it stays above keyboard) -->
 	{#if isMobile()}

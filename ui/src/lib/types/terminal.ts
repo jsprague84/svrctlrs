@@ -65,6 +65,7 @@ export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'er
 export type LayoutMode = 'single' | 'split-h' | 'split-v' | 'quad';
 
 export type CursorStyle = 'block' | 'underline' | 'bar';
+export type { LeaderKeyOption } from '#lib/utils/leader.js';
 export type FontWeightOption = 300 | 400 | 500 | 600 | 700;
 
 export interface TerminalPreferences {
@@ -84,6 +85,8 @@ export interface TerminalPreferences {
 	tabStopWidth: number;
 	drawBoldTextInBrightColors: boolean;
 	minimumContrastRatio: number;
+	/** Chord that arms tmux-style navigation (`#lib/utils/leader.ts`) */
+	leaderKey: import('#lib/utils/leader.js').LeaderKeyOption;
 }
 
 export interface TerminalTab {

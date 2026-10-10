@@ -38,7 +38,8 @@ impl<S: Send + Sync> FromRequestParts<S> for CurrentUser {
 
 /// Authentication middleware that protects all routes except exempted ones.
 ///
-/// Exempt routes: /auth/login, /auth/logout, /api/v1/auth/login, /api/v1/health, SPA assets.
+/// Exempt routes: /auth/login, /auth/logout, /api/v1/auth/login, /api/v1/health, SPA assets
+/// (`/_app/*`, icons, favicon, web manifest, service worker — none of which carry data).
 ///
 /// Two ways in, both ending with a [`CurrentUser`] extension on the request:
 /// - the session cookie, holding `user_id`;
@@ -63,8 +64,12 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
         || path_lower == "/auth/logout"
         || path_lower == "/api/v1/auth/login"
         || path_lower == "/api/v1/health"
-        // SPA static assets (SvelteKit immutable hashed chunks)
+        // SPA static assets (SvelteKit immutable hashed chunks) and the installable-app shell
         || path_lower.starts_with("/_app/")
+        || path_lower.starts_with("/icons/")
+        || path_lower == "/favicon.svg"
+        || path_lower == "/manifest.webmanifest"
+        || path_lower == "/service-worker.js"
     {
         return next.run(request).await;
     }

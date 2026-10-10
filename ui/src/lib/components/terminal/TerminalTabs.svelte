@@ -99,7 +99,7 @@
 		<button
 			class="flex items-center gap-1 p-2 md:p-1.5 text-xs text-text-muted hover:text-text-primary hover:bg-surface-raised/50"
 			onclick={onNewTab}
-			title="New terminal (Ctrl+Shift+T)"
+			title="New terminal (Leader, c)"
 			aria-label="New terminal"
 		>
 			<Plus class="w-3.5 h-3.5" />

@@ -16,6 +16,14 @@ the release workflow uses the matching section as the release notes.
   `replay_start`/`replay_end`/`replay_window_lost`, `closed`, `error {code: session_gone}`;
   `GET /api/v1/sessions`, `DELETE /api/v1/sessions/{id}`; `SESSION_MAX_PER_USER` (default 16).
   The "leave page?" prompt is gone for PTY tabs.
+- **Leader key.** `Ctrl+Space` (Preferences → Behavior: `Ctrl+Shift+Space`, `Alt+Space` or
+  off) then one key: `c`/`x` new/close tab, `n`/`p` next/previous, `1`–`9` tab by number,
+  `` ` `` last tab, `h j k l` focus pane, `[`/`]` cycle panes, `s` layout, `/` search, `:`
+  palette, `?` keeps the cheat sheet open. Browsers reserve `Ctrl+Tab` and `Ctrl+Shift+T/W`,
+  which made keyboard navigation unreliable in the web app.
+- **Installable web app.** Web manifest, icons and a service worker that caches only the hashed
+  app shell (never `/api/`, `/ws/` or pages). "Add to Home screen" on a phone gives a standalone
+  window; together with persistent sessions this replaces the parked Android app.
 - Key setup without leaving the app: **Generate SSH key** (ed25519, private half stored
   encrypted, public half shown), **Public key** on any key credential, and **Authorize key** on
   a server, which installs the public key in `~/.ssh/authorized_keys` over a one-time password

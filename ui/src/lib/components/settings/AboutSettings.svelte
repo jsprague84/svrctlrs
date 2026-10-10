@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
+	import { LEADER_KEY_LABELS } from '#lib/utils/leader.js';
 	import { getPlatform } from '#lib/platform/index.js';
 	import { get } from '#lib/api/client.js';
 	import Badge from '#lib/components/ui/Badge.svelte';
@@ -21,6 +23,15 @@
 		platform === 'web' ? 'Web' : platform === 'tauri-desktop' ? 'Desktop' : 'Mobile';
 
 	const shortcuts = [
+		{ category: 'Leader', keys: 'Leader, c', action: 'New tab' },
+		{ category: 'Leader', keys: 'Leader, x', action: 'Close tab' },
+		{ category: 'Leader', keys: 'Leader, n / p', action: 'Next / previous tab' },
+		{ category: 'Leader', keys: 'Leader, 1–9', action: 'Tab by number' },
+		{ category: 'Leader', keys: 'Leader, `', action: 'Last tab' },
+		{ category: 'Leader', keys: 'Leader, h j k l', action: 'Focus pane' },
+		{ category: 'Leader', keys: 'Leader, s', action: 'Cycle layouts' },
+		{ category: 'Leader', keys: 'Leader, / or :', action: 'Search / command palette' },
+		{ category: 'Leader', keys: 'Leader, ?', action: 'Show the bindings' },
 		{ category: 'Tabs', keys: 'Ctrl+Shift+T', action: 'New tab' },
 		{ category: 'Tabs', keys: 'Ctrl+Shift+W', action: 'Close tab' },
 		{ category: 'Tabs', keys: 'Ctrl+Tab', action: 'Next tab' },
@@ -34,6 +45,7 @@
 	];
 
 	let categories = $derived([...new Set(shortcuts.map((s) => s.category))]);
+	let leaderLabel = $derived(LEADER_KEY_LABELS[terminalPrefs.getPrefs().leaderKey]);
 </script>
 
 <div class="flex flex-col gap-6">
@@ -86,7 +98,10 @@
 		</h3>
 		{#each categories as cat (cat)}
 			<div class="mb-3">
-				<p class="text-xs font-medium text-text-secondary mb-1">{cat}</p>
+				<p class="text-xs font-medium text-text-secondary mb-1">
+					{cat}{#if cat === 'Leader'}
+						<span class="text-text-muted"> — Leader is {leaderLabel}</span>{/if}
+				</p>
 				<div class="flex flex-col gap-1">
 					{#each shortcuts.filter((s) => s.category === cat) as shortcut (shortcut.keys)}
 						<div class="flex items-center justify-between py-0.5">

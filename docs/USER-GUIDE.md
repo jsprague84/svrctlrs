@@ -84,6 +84,26 @@ the life of the browser tab, so a reload brings them back with their shells.
 
 ### Keyboard shortcuts
 
+Browsers keep `Ctrl+Tab`, `Ctrl+Shift+T` and `Ctrl+Shift+W` for themselves, so the terminal has
+a **leader key**, tmux style: press `Ctrl+Space` (change it under Preferences → Behavior), then
+one key. A small panel lists the bindings while the leader is armed; `?` keeps it open.
+Pressing the leader twice sends the chord to the shell.
+
+| After the leader | Action |
+|---|---|
+| `c` / `x` | New / close tab |
+| `n` / `p` (or `Tab` / `Shift+Tab`) | Next / previous tab |
+| `1`–`9` | Tab by number |
+| `` ` `` | Last tab |
+| `h` `j` `k` `l` or arrows | Focus the pane in that direction |
+| `[` / `]` | Previous / next visible pane |
+| `s` | Cycle layouts |
+| `/` | Search output |
+| `:` | Command palette |
+| `Esc` | Cancel |
+
+Direct shortcuts still work where the browser or desktop app lets them through:
+
 | Keys | Action |
 |---|---|
 | `Ctrl+K` | Command palette |
@@ -124,6 +144,10 @@ Tokyo Night dark is the default; switch to light in the sidebar. The terminal co
 - The sidebar becomes a drawer; the status bar at the top shows the connection state and the
   current tab as dots.
 - **Swipe left/right** on the terminal to move between tabs; a one-time hint explains this.
+- **Install it**: the web app is installable — "Add to Home screen" (Android Chrome, iOS Safari
+  share sheet) gives a standalone window without browser chrome, its own icon and the full
+  screen for the terminal. Shells keep running while the app is in the background and resume
+  when you come back (see "The terminal").
 - The **extra keys row** above the keyboard provides `Esc`, `Tab`, `Ctrl`, `Alt`, arrows and
   `|`. Hold `Ctrl`/`Alt` then tap a letter.
 - Preferences open as a bottom sheet. Only one pane is shown at a time.

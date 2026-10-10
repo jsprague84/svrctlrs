@@ -63,14 +63,17 @@ See `ARCHITECTURE.md`. Conventions for code live in `CLAUDE.md`; they apply to h
 ## CI/CD
 
 Everything runs on Forgejo Actions at `git.js-node.cc/jsprague/svrctlrs` using the dev-space
-standard runners on epyc-ai. GitHub is no longer used for CI or hosting.
+standard runners on epyc-ai. GitHub (`github.com/jsprague84/svrctlrs`) is a **push mirror**
+only — Forgejo pushes every commit there (and every 8 h) with a fine-grained GitHub token that
+has *Contents: read and write* on that one repository; nothing runs on GitHub. Mirror state:
+repository Settings → Mirror settings, or `GET /api/v1/repos/jsprague/svrctlrs/push_mirrors`.
 
 | Workflow | Trigger | Runner | Does |
 |---|---|---|---|
 | `ci.yaml` | every branch, tags, PRs to master | `rust-high` | fmt, clippy, cargo-audit, tests, svelte-check, eslint + prettier, vitest, SPA build, npm audit |
 | `docker.yaml` | `master`, `v*`, manual | `build` | builds the image with buildx, pushes `latest`/`sha`/`vX.Y.Z` to the Forgejo registry; on tags creates the release; on `master` waits for CI to be green and deploys to docker-vm |
-| `android.yaml` | `master`, `v*`, manual | `android` | debug APK as a workflow artifact; on tags a signed release APK attached to the release |
-| `desktop.yaml` | `v*`, manual | `rust-high` | `.deb`/`.rpm` (gate), AppImage and Flatpak (best effort), attached to the release |
+| `desktop.yaml` | `v*`, manual | `rust-high` | `.deb`/`.rpm` (gate) and AppImage (best effort), attached to the release |
+| `workflows-parked/android.yaml` | — | `android` | parked 2026-10-10 (the Android app is unused; the installable web app replaces it). Move it back to `workflows/` and run `tauri android init` for the `cc.jsnode.svrctlrs` identifier to revive it |
 
 Rules, from the forgejo-ci standard: pick runners by label (`rust-high`, `build`, `android`),
 never `runs-on: docker`; Rust jobs run in `svrctlrs-ci` (rust-ci + Node 22) and clone by hand;

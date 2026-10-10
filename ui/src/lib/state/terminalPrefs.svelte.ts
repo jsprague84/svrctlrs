@@ -28,7 +28,8 @@ const DEFAULTS: TerminalPreferences = {
 	scrollOnUserInput: true,
 	tabStopWidth: 4,
 	drawBoldTextInBrightColors: true,
-	minimumContrastRatio: 1
+	minimumContrastRatio: 1,
+	leaderKey: 'ctrl-space'
 };
 
 function loadFromStorage(): TerminalPreferences {

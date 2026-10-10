@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { X } from '@lucide/svelte';
 	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
-	import type { CursorStyle, FontWeightOption } from '#lib/types/index.js';
+	import type { CursorStyle, FontWeightOption, LeaderKeyOption } from '#lib/types/index.js';
+	import { LEADER_KEY_LABELS } from '#lib/utils/leader.js';
 
 	interface Props {
 		open: boolean;
@@ -351,6 +352,27 @@
 						class="accent-accent"
 					/>
 					<span class="text-xs text-text-secondary">Scroll on User Input</span>
+				</label>
+
+				<label class="block">
+					<span class="text-xs text-text-secondary">Leader Key</span>
+					<select
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						value={prefs.leaderKey}
+						onchange={(e) =>
+							terminalPrefs.updatePref(
+								'leaderKey',
+								(e.target as HTMLSelectElement).value as LeaderKeyOption
+							)}
+					>
+						{#each Object.entries(LEADER_KEY_LABELS) as [value, label] (value)}
+							<option {value}>{label}</option>
+						{/each}
+					</select>
+					<span class="block mt-0.5 text-[10px] text-text-muted">
+						Press it, then a key: c new tab, n/p next/previous, 1–9 tab, h j k l pane, s layout, ?
+						for the list. Pressing it twice sends it to the shell.
+					</span>
 				</label>
 			</div>
 		</section>

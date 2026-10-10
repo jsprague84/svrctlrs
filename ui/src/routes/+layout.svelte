@@ -41,6 +41,14 @@
 	});
 
 	onMount(() => {
+		// Installable web app: the service worker caches only the hashed app shell. Tauri loads
+		// the UI from its own scheme, where a worker is pointless (and may be unsupported).
+		if (!isTauri() && location.protocol.startsWith('http') && 'serviceWorker' in navigator) {
+			navigator.serviceWorker.register('/service-worker.js').catch(() => {
+				// e.g. plain http on a LAN: the app works without it
+			});
+		}
+
 		// Load sidebar preference
 		const saved = localStorage.getItem('svrctlrs-sidebar-collapsed');
 		if (saved === 'true') sidebarCollapsed = true;

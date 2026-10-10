@@ -20,7 +20,9 @@ export default defineConfig({
 				precompress: false,
 				strict: true
 			}),
-			paths: { base: '' }
+			paths: { base: '' },
+			// Registered by hand in +layout.svelte: only over http(s), never inside Tauri
+			serviceWorker: { register: false }
 		})
 	],
 	define: {
