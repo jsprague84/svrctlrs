@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { serverStatus } from '#lib/utils/serverStatus.js';
 	import type { PathnameWithSearchOrHash as Pathname } from '$app/types';
 	import {
 		Terminal,
@@ -170,11 +171,9 @@
 								class="flex items-center gap-2 px-2 py-2.5 md:py-1.5 text-xs rounded-sm text-left w-full
 									text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
 								onclick={() => handleServerConnect(server)}
-								title="Connect to {server.name}"
+								title="{serverStatus(server).label} — connect to {server.name}"
 							>
-								<span
-									class="w-1.5 h-1.5 rounded-full flex-shrink-0
-									{server.enabled ? 'bg-success' : 'bg-text-muted'}"
+								<span class="w-1.5 h-1.5 rounded-full flex-shrink-0 {serverStatus(server).dot}"
 								></span>
 								<span class="truncate">{server.name}</span>
 								{#if server.is_local}

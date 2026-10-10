@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Server, Plus, Pencil, Trash2, Wifi, KeyRound, ShieldCheck } from '@lucide/svelte';
 	import * as serversApi from '#lib/api/servers.js';
+	import { serverStatus } from '#lib/utils/serverStatus.js';
 	import Button from '#lib/components/ui/Button.svelte';
 	import Input from '#lib/components/ui/Input.svelte';
 	import Select from '#lib/components/ui/Select.svelte';
@@ -242,11 +243,15 @@
 								<Badge variant="info">local</Badge>
 							{/if}
 						</div>
-						<div class="w-full md:w-24 md:flex-shrink-0">
-							{#if server.enabled}
-								<Badge variant="success">Enabled</Badge>
-							{:else}
+						<div class="w-full md:w-28 md:flex-shrink-0" title={serverStatus(server).label}>
+							{#if !server.enabled}
 								<Badge variant="warning">Disabled</Badge>
+							{:else if serverStatus(server).kind === 'online'}
+								<Badge variant="success">Online</Badge>
+							{:else if serverStatus(server).kind === 'unreachable'}
+								<Badge variant="warning">Unreachable</Badge>
+							{:else}
+								<Badge>Unknown</Badge>
 							{/if}
 						</div>
 						<div class="text-text-secondary font-mono text-xs w-full md:w-auto md:flex-1 truncate">

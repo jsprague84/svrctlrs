@@ -60,7 +60,16 @@
 			mobileOpen = !mobileOpen;
 		};
 		window.addEventListener('toggle-sidebar', handleToggleSidebar);
-		return () => window.removeEventListener('toggle-sidebar', handleToggleSidebar);
+
+		// The health monitor records reachability; refresh so the sidebar dots follow it.
+		const refresh = setInterval(() => {
+			if (!isAuthPage && !document.hidden) serversState.loadServers();
+		}, 60_000);
+
+		return () => {
+			window.removeEventListener('toggle-sidebar', handleToggleSidebar);
+			clearInterval(refresh);
+		};
 	});
 
 	function toggleSidebar() {

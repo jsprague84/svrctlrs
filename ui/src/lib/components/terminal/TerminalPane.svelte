@@ -194,6 +194,9 @@
 	const HISTORY_KEY = 'svrctlrs-cmd-history';
 	const MAX_HISTORY = 50;
 	const PING_INTERVAL = 30_000;
+	/** A ping unanswered for this long means the socket is dead even if the browser says OPEN. */
+	const PONG_TIMEOUT = 8_000;
+	let pongTimeout: ReturnType<typeof setTimeout> | null = null;
 	const MAX_OUTPUT_HISTORY = 10_000;
 	const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
 	const MAX_RECONNECT_ATTEMPTS = RECONNECT_DELAYS.length;
@@ -371,6 +374,40 @@
 		}
 	}
 
+	function clearPongTimeout() {
+		if (pongTimeout) {
+			clearTimeout(pongTimeout);
+			pongTimeout = null;
+		}
+	}
+
+	/** Ping and arm the watchdog; a missing pong tears the socket down so onclose reconnects. */
+	function sendPing() {
+		if (!socket || socket.readyState !== WebSocket.OPEN) return;
+		socket.send(JSON.stringify({ type: 'ping' }));
+		if (pongTimeout) return;
+		pongTimeout = setTimeout(() => {
+			pongTimeout = null;
+			if (!socket || intentionalDisconnect) return;
+			terminal?.writeln('\r\n\x1b[33m[Connection unresponsive — reconnecting]\x1b[0m');
+			lostWhileConnected = status === 'connected';
+			socket.close();
+		}, PONG_TIMEOUT);
+	}
+
+	/** Called when the tab becomes visible again. */
+	function checkAlive() {
+		if (intentionalDisconnect) return;
+		if (!socket || socket.readyState !== WebSocket.OPEN) {
+			// Died in the background without a close event we acted on
+			lostWhileConnected = true;
+			reconnectAttempt = 0;
+			attemptReconnect();
+			return;
+		}
+		sendPing();
+	}
+
 	function attemptReconnect() {
 		if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
 			terminal?.writeln('\r\n\x1b[31m[Max reconnection attempts reached]\x1b[0m');
@@ -455,12 +492,8 @@
 			}
 			// CMD mode: nothing to send on open — commands sent via executeCommand()
 
-			// Start keep-alive pings
-			pingInterval = setInterval(() => {
-				if (socket?.readyState === WebSocket.OPEN) {
-					socket.send(JSON.stringify({ type: 'ping' }));
-				}
-			}, PING_INTERVAL);
+			// Start keep-alive pings; each one arms a watchdog that the pong disarms
+			pingInterval = setInterval(() => sendPing(), PING_INTERVAL);
 		};
 
 		socket.onmessage = (event: MessageEvent) => {
@@ -480,6 +513,7 @@
 							terminal!.write(res.data);
 							break;
 						case 'pong':
+							clearPongTimeout();
 							break;
 					}
 				} else {
@@ -492,6 +526,7 @@
 							appendOutput(res.data);
 							break;
 						case 'pong':
+							clearPongTimeout();
 							break;
 					}
 				}
@@ -517,6 +552,7 @@
 				clearInterval(pingInterval);
 				pingInterval = null;
 			}
+			clearPongTimeout();
 
 			if (wasConnected && !intentionalDisconnect) {
 				terminal!.writeln('\r\n\x1b[33m[Connection lost]\x1b[0m');
@@ -743,9 +779,15 @@
 		shellEl.addEventListener('touchmove', suppressTouch, { capture: true, passive: false });
 		shellEl.addEventListener('touchend', suppressTouch, { capture: true, passive: false });
 
-		// Serialize buffer when tab is hidden or page is unloading
+		// Serialize buffer when tab is hidden; on return, make sure the socket is really alive.
+		// Browsers throttle or drop background sockets without firing onclose promptly, which
+		// left a terminal that looked connected but swallowed every keystroke.
 		const handleVisibilityChange = () => {
-			if (document.hidden) serializeBuffer();
+			if (document.hidden) {
+				serializeBuffer();
+			} else if (status === 'connected' || status === 'error') {
+				checkAlive();
+			}
 		};
 		const handleBeforeUnload = () => serializeBuffer();
 		document.addEventListener('visibilitychange', handleVisibilityChange);
