@@ -24,6 +24,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::routes::ui::auth::CurrentUser;
+use crate::sessions::{LiveSession, PtyCommand, SessionEvent};
 use crate::state::AppState;
 use svrctlrs_database::models::NewAuditEntry;
 
@@ -38,6 +39,10 @@ struct PtyRequest {
     /// Terminal dimensions for resize
     cols: Option<u32>,
     rows: Option<u32>,
+    /// `attach`: the session to resume and the last output sequence the client has shown
+    session_id: Option<String>,
+    #[serde(default)]
+    last_seq: u64,
 }
 
 /// Interactive terminal response to frontend
@@ -46,6 +51,27 @@ struct PtyResponse {
     #[serde(rename = "type")]
     response_type: String,
     data: String,
+    /// Sequence number of an `output` frame, so a reconnecting client can ask for the rest
+    #[serde(skip_serializing_if = "Option::is_none")]
+    seq: Option<u64>,
+    /// On `connected`: the session to reattach to later
+    #[serde(skip_serializing_if = "Option::is_none")]
+    session_id: Option<String>,
+    /// On `error`: a machine-readable reason (`session_gone`, `quota`, ...)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<String>,
+}
+
+impl PtyResponse {
+    fn plain(kind: &str, data: impl Into<String>) -> Self {
+        Self {
+            response_type: kind.to_string(),
+            data: data.into(),
+            seq: None,
+            session_id: None,
+            code: None,
+        }
+    }
 }
 
 /// Create PTY terminal routes
@@ -112,185 +138,181 @@ impl client::Handler for SshClientHandler {
 }
 
 /// Commands to send to the PTY session
-enum PtyCommand {
-    Data(Vec<u8>),
-    Resize { cols: u32, rows: u32 },
-    Close,
-}
-
-/// Active PTY session state
-struct PtySession {
-    command_tx: mpsc::Sender<PtyCommand>,
-}
-
-impl PtySession {
-    /// Send data to the PTY
-    async fn send_data(&self, data: &[u8]) -> Result<(), String> {
-        self.command_tx
-            .send(PtyCommand::Data(data.to_vec()))
-            .await
-            .map_err(|_| "Channel closed".to_string())
-    }
-
-    /// Resize the PTY window
-    async fn resize(&self, cols: u32, rows: u32) -> Result<(), String> {
-        self.command_tx
-            .send(PtyCommand::Resize { cols, rows })
-            .await
-            .map_err(|_| "Channel closed".to_string())
-    }
-
-    /// Close the session
-    async fn close(self) {
-        let _ = self.command_tx.send(PtyCommand::Close).await;
-    }
-}
-
-/// Handle the interactive PTY WebSocket connection
 async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, client_ip: String) {
-    let (mut ws_sender, mut ws_receiver) = socket.split();
+    let (ws_sender, mut ws_receiver) = socket.split();
+    let ws_sender = Arc::new(tokio::sync::Mutex::new(ws_sender));
 
     info!("Interactive PTY WebSocket connected");
 
-    // Send welcome message
-    let welcome = PtyResponse {
-        response_type: "output".to_string(),
-        data: "\x1b[1;36m╔════════════════════════════════════════════════════╗\x1b[0m\r\n\
-               \x1b[1;36m║\x1b[0m    \x1b[1mSvrCtlRS Interactive Terminal (PTY)\x1b[0m             \x1b[1;36m║\x1b[0m\r\n\
-               \x1b[1;36m╚════════════════════════════════════════════════════╝\x1b[0m\r\n\r\n\
-               \x1b[90mSend 'shell' message with server_id to start interactive session.\x1b[0m\r\n\r\n"
-            .to_string(),
-    };
+    // The session this socket is attached to, and the task streaming its output here.
+    let mut session: Option<Arc<LiveSession>> = None;
+    let mut forwarder: Option<tokio::task::JoinHandle<()>> = None;
+    // `close` means "kill the shell"; anything else leaving a session behind only detaches it.
+    let mut close_on_exit = false;
 
-    if let Ok(json) = serde_json::to_string(&welcome) {
-        if ws_sender.send(Message::Text(json.into())).await.is_err() {
-            return;
-        }
-    }
-
-    // Channel for SSH -> WebSocket output
-    let (ssh_tx, mut ssh_rx) = mpsc::channel::<String>(256);
-
-    // State for active SSH session
-    let mut active_session: Option<PtySession> = None;
-
-    // Spawn task to forward SSH output to WebSocket
-    let ws_sender_clone = Arc::new(tokio::sync::Mutex::new(ws_sender));
-    let ws_sender_for_output = ws_sender_clone.clone();
-
-    let output_task = tokio::spawn(async move {
-        while let Some(data) = ssh_rx.recv().await {
-            let response = PtyResponse {
-                response_type: "output".to_string(),
-                data,
-            };
-            if let Ok(json) = serde_json::to_string(&response) {
-                let mut sender = ws_sender_for_output.lock().await;
-                if let Err(e) = sender.send(Message::Text(json.into())).await {
-                    tracing::debug!(
-                        "PTY output WebSocket send failed (client likely disconnected): {e}"
-                    );
-                    break;
-                }
-            }
-        }
-    });
-
-    // Handle WebSocket messages
     while let Some(msg) = ws_receiver.next().await {
         match msg {
             Ok(Message::Text(text)) => {
-                match serde_json::from_str::<PtyRequest>(&text) {
-                    Ok(req) => {
-                        match req.request_type.as_str() {
-                            "shell" => {
-                                // Start interactive shell session
-                                if let Some(server_id) = req.server_id {
-                                    let cols = req.cols.unwrap_or(80);
-                                    let rows = req.rows.unwrap_or(24);
-
-                                    match start_pty_session(
-                                        &state,
-                                        user_id,
-                                        &client_ip,
-                                        server_id,
-                                        cols,
-                                        rows,
-                                        ssh_tx.clone(),
+                let req = match serde_json::from_str::<PtyRequest>(&text) {
+                    Ok(r) => r,
+                    Err(e) => {
+                        error!("Failed to parse PTY request: {}", e);
+                        continue;
+                    }
+                };
+                match req.request_type.as_str() {
+                    "shell" => {
+                        if session.is_some() {
+                            send(
+                                &ws_sender,
+                                PtyResponse::plain(
+                                    "error",
+                                    "A session is already attached on this connection",
+                                ),
+                            )
+                            .await;
+                            continue;
+                        }
+                        let Some(server_id) = req.server_id else {
+                            send(
+                                &ws_sender,
+                                PtyResponse::plain("error", "shell needs a server_id"),
+                            )
+                            .await;
+                            continue;
+                        };
+                        // The banner belongs to a new shell only; a reattach must not paint
+                        // it into the middle of the restored screen.
+                        send(&ws_sender, PtyResponse::plain("output",
+                            "\x1b[1;36m╔════════════════════════════════════════════════════╗\x1b[0m\r\n\
+                             \x1b[1;36m║\x1b[0m    \x1b[1mSvrCtlRS Interactive Terminal (PTY)\x1b[0m             \x1b[1;36m║\x1b[0m\r\n\
+                             \x1b[1;36m╚════════════════════════════════════════════════════╝\x1b[0m\r\n\r\n")).await;
+                        let cols = req.cols.unwrap_or(80);
+                        let rows = req.rows.unwrap_or(24);
+                        match start_pty_session(&state, user_id, &client_ip, server_id, cols, rows)
+                            .await
+                        {
+                            Ok(live) => {
+                                if let Err(e) = state.sessions.insert(live.clone()).await {
+                                    live.close().await;
+                                    live.mark_closed(&e);
+                                    send(
+                                        &ws_sender,
+                                        PtyResponse {
+                                            code: Some("quota".into()),
+                                            ..PtyResponse::plain(
+                                                "error",
+                                                format!("\x1b[31m✗ {e}\x1b[0m\r\n"),
+                                            )
+                                        },
                                     )
-                                    .await
-                                    {
-                                        Ok(session) => {
-                                            active_session = Some(session);
-                                            let connected = PtyResponse {
-                                                response_type: "connected".to_string(),
-                                                data: "\x1b[32m✓ Interactive shell session started\x1b[0m\r\n".to_string(),
-                                            };
-                                            if let Ok(json) = serde_json::to_string(&connected) {
-                                                let mut sender = ws_sender_clone.lock().await;
-                                                sender.send(Message::Text(json.into())).await.ok();
-                                            }
-                                        }
-                                        Err(e) => {
-                                            let error_msg = PtyResponse {
-                                                response_type: "error".to_string(),
-                                                data: format!("\x1b[31m✗ Failed to start shell: {}\x1b[0m\r\n", e),
-                                            };
-                                            if let Ok(json) = serde_json::to_string(&error_msg) {
-                                                let mut sender = ws_sender_clone.lock().await;
-                                                sender.send(Message::Text(json.into())).await.ok();
-                                            }
-                                        }
-                                    }
+                                    .await;
+                                    continue;
                                 }
+                                state.sessions.attach_new(&live);
+                                forwarder =
+                                    Some(spawn_forwarder(live.clone(), 0, ws_sender.clone()));
+                                send(&ws_sender, PtyResponse {
+                                    session_id: Some(live.id.clone()),
+                                    ..PtyResponse::plain("connected", "\x1b[32m✓ Interactive shell session started\x1b[0m\r\n")
+                                }).await;
+                                session = Some(live);
                             }
-                            "input" => {
-                                // Send input to PTY
-                                if let (Some(ref mut session), Some(data)) =
-                                    (&mut active_session, req.data)
-                                {
-                                    if let Err(e) = session.send_data(data.as_bytes()).await {
-                                        warn!("Failed to send data to PTY: {}", e);
-                                    }
-                                }
-                            }
-                            "resize" => {
-                                // Resize PTY
-                                if let Some(ref mut session) = active_session {
-                                    let cols = req.cols.unwrap_or(80);
-                                    let rows = req.rows.unwrap_or(24);
-                                    if let Err(e) = session.resize(cols, rows).await {
-                                        warn!("Failed to resize PTY: {}", e);
-                                    } else {
-                                        debug!("PTY resized to {}x{}", cols, rows);
-                                    }
-                                }
-                            }
-                            "ping" => {
-                                let pong = PtyResponse {
-                                    response_type: "pong".to_string(),
-                                    data: String::new(),
-                                };
-                                if let Ok(json) = serde_json::to_string(&pong) {
-                                    let mut sender = ws_sender_clone.lock().await;
-                                    sender.send(Message::Text(json.into())).await.ok();
-                                }
-                            }
-                            "close" => {
-                                // Close the session
-                                if let Some(session) = active_session.take() {
-                                    session.close().await;
-                                }
-                                break;
-                            }
-                            _ => {
-                                warn!("Unknown PTY request type: {}", req.request_type);
+                            Err(e) => {
+                                send(
+                                    &ws_sender,
+                                    PtyResponse::plain(
+                                        "error",
+                                        format!(
+                                            "\x1b[31m✗ Failed to start shell: {}\x1b[0m\r\n",
+                                            e
+                                        ),
+                                    ),
+                                )
+                                .await;
                             }
                         }
                     }
-                    Err(e) => {
-                        error!("Failed to parse PTY request: {}", e);
+                    "attach" => {
+                        if session.is_some() {
+                            send(
+                                &ws_sender,
+                                PtyResponse::plain(
+                                    "error",
+                                    "A session is already attached on this connection",
+                                ),
+                            )
+                            .await;
+                            continue;
+                        }
+                        let Some(id) = req.session_id.as_deref() else {
+                            send(
+                                &ws_sender,
+                                PtyResponse::plain("error", "attach needs a session_id"),
+                            )
+                            .await;
+                            continue;
+                        };
+                        match state.sessions.attach(id, user_id).await {
+                            Some(live) => {
+                                info!(session_id = %live.id, server = %live.server_name, "Client reattached to session");
+                                if let (Some(cols), Some(rows)) = (req.cols, req.rows) {
+                                    let _ = live.resize(cols, rows).await;
+                                }
+                                send(
+                                    &ws_sender,
+                                    PtyResponse {
+                                        session_id: Some(live.id.clone()),
+                                        ..PtyResponse::plain("connected", "")
+                                    },
+                                )
+                                .await;
+                                forwarder = Some(spawn_forwarder(
+                                    live.clone(),
+                                    req.last_seq,
+                                    ws_sender.clone(),
+                                ));
+                                session = Some(live);
+                            }
+                            None => {
+                                send(
+                                    &ws_sender,
+                                    PtyResponse {
+                                        code: Some("session_gone".into()),
+                                        ..PtyResponse::plain("error", "That session has ended")
+                                    },
+                                )
+                                .await;
+                            }
+                        }
                     }
+                    "input" => {
+                        if let (Some(live), Some(data)) = (&session, req.data) {
+                            if let Err(e) = live.send_input(data.as_bytes()).await {
+                                warn!("Failed to send data to PTY: {}", e);
+                            }
+                        }
+                    }
+                    "resize" => {
+                        if let Some(live) = &session {
+                            let cols = req.cols.unwrap_or(80);
+                            let rows = req.rows.unwrap_or(24);
+                            if let Err(e) = live.resize(cols, rows).await {
+                                warn!("Failed to resize PTY: {}", e);
+                            } else {
+                                debug!("PTY resized to {}x{}", cols, rows);
+                            }
+                        }
+                    }
+                    "ping" => {
+                        send(&ws_sender, PtyResponse::plain("pong", "")).await;
+                    }
+                    "close" => {
+                        close_on_exit = true;
+                        break;
+                    }
+                    "detach" => break,
+                    other => warn!("Unknown PTY request type: {}", other),
                 }
             }
             Ok(Message::Close(_)) => {
@@ -298,8 +320,7 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
                 break;
             }
             Ok(Message::Ping(data)) => {
-                let mut sender = ws_sender_clone.lock().await;
-                sender.send(Message::Pong(data)).await.ok();
+                ws_sender.lock().await.send(Message::Pong(data)).await.ok();
             }
             Err(e) => {
                 error!("PTY WebSocket error: {}", e);
@@ -309,13 +330,151 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
         }
     }
 
-    // Clean up
-    if let Some(session) = active_session {
-        session.close().await;
+    if let Some(task) = forwarder {
+        task.abort();
     }
-
-    output_task.abort();
+    if let Some(live) = session {
+        if close_on_exit {
+            live.close().await;
+            live.mark_closed("Session closed");
+            state.sessions.remove(&live.id).await;
+        } else {
+            // Reload, lost link, backgrounded tab: keep the shell for a while.
+            state.sessions.detach(&live).await;
+            info!(session_id = %live.id, ttl_secs = state.sessions.detach_ttl().as_secs(),
+                "Client detached; session kept for reattach");
+        }
+    }
     info!("Interactive PTY WebSocket connection ended");
+}
+
+type WsSender = Arc<tokio::sync::Mutex<futures_util::stream::SplitSink<WebSocket, Message>>>;
+
+async fn send(sender: &WsSender, response: PtyResponse) -> bool {
+    match serde_json::to_string(&response) {
+        Ok(json) => sender
+            .lock()
+            .await
+            .send(Message::Text(json.into()))
+            .await
+            .is_ok(),
+        Err(_) => false,
+    }
+}
+
+/// Stream a session's output to one socket: first everything after `last_seq` from the replay
+/// ring, then live frames. A lagging subscriber is caught up from the ring instead of silently
+/// losing frames; a client too far behind the ring is told to redraw from scratch.
+fn spawn_forwarder(
+    live: Arc<LiveSession>,
+    last_seq: u64,
+    sender: WsSender,
+) -> tokio::task::JoinHandle<()> {
+    tokio::spawn(async move {
+        let mut events = live.subscribe();
+        let mut sent = last_seq;
+
+        if last_seq > 0 || live.latest_seq().await > 0 {
+            send(&sender, PtyResponse::plain("replay_start", "")).await;
+            match live.replay_since(last_seq).await {
+                Ok(frames) => {
+                    for f in frames {
+                        if !send(
+                            &sender,
+                            PtyResponse {
+                                seq: Some(f.seq),
+                                ..PtyResponse::plain("output", f.data.to_string())
+                            },
+                        )
+                        .await
+                        {
+                            return;
+                        }
+                        sent = f.seq;
+                    }
+                }
+                Err(_) => {
+                    // Redraw from what the ring still has.
+                    send(&sender, PtyResponse::plain("replay_window_lost", "")).await;
+                    if let Ok(frames) = live.replay_since(0).await {
+                        for f in frames {
+                            if !send(
+                                &sender,
+                                PtyResponse {
+                                    seq: Some(f.seq),
+                                    ..PtyResponse::plain("output", f.data.to_string())
+                                },
+                            )
+                            .await
+                            {
+                                return;
+                            }
+                            sent = f.seq;
+                        }
+                    }
+                }
+            }
+            send(&sender, PtyResponse::plain("replay_end", "")).await;
+        }
+        if live.is_closed() {
+            send(&sender, PtyResponse::plain("closed", "Session ended")).await;
+            return;
+        }
+
+        loop {
+            match events.recv().await {
+                Ok(SessionEvent::Output(f)) => {
+                    if f.seq <= sent {
+                        continue; // already replayed
+                    }
+                    if !send(
+                        &sender,
+                        PtyResponse {
+                            seq: Some(f.seq),
+                            ..PtyResponse::plain("output", f.data.to_string())
+                        },
+                    )
+                    .await
+                    {
+                        return;
+                    }
+                    sent = f.seq;
+                }
+                Ok(SessionEvent::Closed(reason)) => {
+                    send(&sender, PtyResponse::plain("closed", reason.to_string())).await;
+                    return;
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
+                    debug!(
+                        lagged = n,
+                        "Slow PTY client; catching up from the replay ring"
+                    );
+                    match live.replay_since(sent).await {
+                        Ok(frames) => {
+                            for f in frames {
+                                if !send(
+                                    &sender,
+                                    PtyResponse {
+                                        seq: Some(f.seq),
+                                        ..PtyResponse::plain("output", f.data.to_string())
+                                    },
+                                )
+                                .await
+                                {
+                                    return;
+                                }
+                                sent = f.seq;
+                            }
+                        }
+                        Err(_) => {
+                            send(&sender, PtyResponse::plain("replay_window_lost", "")).await;
+                        }
+                    }
+                }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+            }
+        }
+    })
 }
 
 /// Start an interactive PTY session
@@ -326,8 +485,7 @@ async fn start_pty_session(
     server_id: i64,
     cols: u32,
     rows: u32,
-    output_tx: mpsc::Sender<String>,
-) -> Result<PtySession, String> {
+) -> Result<Arc<LiveSession>, String> {
     use svrctlrs_database::queries;
 
     // Get server from database
@@ -496,12 +654,17 @@ async fn start_pty_session(
                     .await
                     .map_err(|e| format!("Failed to start shell: {}", e))?;
 
-                // Create command channel for sending data/commands to the PTY
+                // The session owns the PTY from here on; sockets attach to it.
                 let (command_tx, mut command_rx) = mpsc::channel::<PtyCommand>(256);
+                let live = LiveSession::new(user_id, server.id, server.name.clone(), command_tx);
+                let session_for_driver = live.clone();
+                let registry = state.sessions.clone();
 
                 // Spawn task to handle channel I/O - owns the channel
                 tokio::spawn(async move {
+                    let live = session_for_driver;
                     let mut channel = channel;
+                    let mut reason = "Session ended".to_string();
                     loop {
                         tokio::select! {
                             // Handle commands from WebSocket
@@ -528,28 +691,22 @@ async fn start_pty_session(
                             msg = channel.wait() => {
                                 match msg {
                                     Some(russh::ChannelMsg::Data { data }) => {
-                                        let text = String::from_utf8_lossy(&data).to_string();
-                                        if output_tx.send(text).await.is_err() {
-                                            break;
-                                        }
+                                        live.push_output(String::from_utf8_lossy(&data).to_string()).await;
                                     }
                                     Some(russh::ChannelMsg::ExtendedData { data, .. }) => {
                                         // Extended data (usually stderr)
-                                        let text = String::from_utf8_lossy(&data).to_string();
-                                        if output_tx.send(text).await.is_err() {
-                                            break;
-                                        }
+                                        live.push_output(String::from_utf8_lossy(&data).to_string()).await;
                                     }
                                     Some(russh::ChannelMsg::Eof) => {
-                                        output_tx.send("\r\n\x1b[33m[Session ended]\x1b[0m\r\n".to_string()).await.ok();
+                                        live.push_output("\r\n\x1b[33m[Session ended]\x1b[0m\r\n".to_string()).await;
                                         break;
                                     }
                                     Some(russh::ChannelMsg::Close) => {
                                         break;
                                     }
                                     Some(russh::ChannelMsg::ExitStatus { exit_status }) => {
-                                        let msg = format!("\r\n\x1b[90m[Exit status: {}]\x1b[0m\r\n", exit_status);
-                                        output_tx.send(msg).await.ok();
+                                        reason = format!("Shell exited with status {exit_status}");
+                                        live.push_output(format!("\r\n\x1b[90m[Exit status: {}]\x1b[0m\r\n", exit_status)).await;
                                     }
                                     None => break,
                                     _ => {}
@@ -557,9 +714,11 @@ async fn start_pty_session(
                             }
                         }
                     }
+                    live.mark_closed(&reason);
+                    registry.remove(&live.id).await;
                 });
 
-                return Ok(PtySession { command_tx });
+                return Ok(live);
             }
             _ => {
                 debug!("Key rejected by server: {}", key_path);

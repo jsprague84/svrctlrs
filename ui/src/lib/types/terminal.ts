@@ -14,18 +14,48 @@ export interface CmdResponse {
 	exit_code?: number;
 }
 
-/** PTY mode — interactive shell session */
+/** PTY mode — interactive shell session.
+ *  `shell` starts a new session; `attach` resumes one the server kept after a disconnect.
+ *  `close` ends the shell, `detach` (or just dropping the socket) keeps it for a while. */
 export interface PtyRequest {
-	type: 'shell' | 'input' | 'resize' | 'ping' | 'close';
+	type: 'shell' | 'attach' | 'input' | 'resize' | 'ping' | 'close' | 'detach';
 	server_id?: number;
 	data?: string;
 	cols?: number;
 	rows?: number;
+	/** `attach`: the session to resume */
+	session_id?: string;
+	/** `attach`: the last output `seq` this client has displayed; the server replays the rest */
+	last_seq?: number;
 }
 
 export interface PtyResponse {
-	type: 'output' | 'connected' | 'error' | 'pong';
+	type:
+		| 'output'
+		| 'connected'
+		| 'error'
+		| 'pong'
+		| 'replay_start'
+		| 'replay_end'
+		| 'replay_window_lost'
+		| 'closed';
 	data: string;
+	/** `output` frames are numbered so a reconnect can ask for the gap */
+	seq?: number;
+	/** `connected`: the id to `attach` to later */
+	session_id?: string;
+	/** `error`: `session_gone` (start a new shell), `quota` */
+	code?: string;
+}
+
+/** A live session as listed by `GET /api/v1/sessions` */
+export interface LiveSession {
+	id: string;
+	server_id: number;
+	server_name: string;
+	created_at: string;
+	attachments: number;
+	closed: boolean;
 }
 
 export type TerminalMode = 'cmd' | 'pty';

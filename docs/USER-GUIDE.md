@@ -61,8 +61,11 @@ configured server and manage accounts; there are no roles yet.
 
 ## The terminal
 
-The terminal page is always mounted, so switching to Servers or Settings and back keeps your
-sessions running.
+Shells run in the server, not in your browser tab. Switching to Servers or Settings and back,
+reloading the page, losing Wi-Fi for a minute or putting the phone to sleep does not end them:
+the pane reattaches and the server resends what you missed. A shell with nobody attached is
+closed after 15 minutes by default (`SESSION_DETACH_TTL_SECS`); open tabs are remembered for
+the life of the browser tab, so a reload brings them back with their shells.
 
 - **New tab**: `Ctrl+Shift+T` or the `+` in the tab bar, then pick a server. Up to 10 tabs.
 - **Modes**: *PTY* (default) is an interactive shell. *Command* runs one command and shows its
@@ -71,8 +74,10 @@ sessions running.
   visible slots; `Alt+1`–`Alt+4` focuses a slot, `Alt+[`/`Alt+]` cycles panes, `Alt+Arrow`
   moves spatially.
 - **Search output**: `Ctrl+Shift+F`.
-- **Reconnect**: if the WebSocket drops, the pane retries with backoff and restores the last
-  screen contents; a reconnect opens a fresh shell.
+- **Reconnect**: if the connection drops, the pane retries with backoff and resumes the same
+  shell, replaying the output you missed. If the shell has ended meanwhile (exit, 15-minute
+  grace period, server restart) the pane says so and offers **Reconnect** (new shell) or
+  **New Session**. **Disconnect** and closing a tab end the shell for good.
 - **Preferences** (gear icon): font, size, weight, line height, cursor style and blink,
   scrollback, scroll speed, tab width, contrast. Stored in the browser/app.
 - **Download**: a pane's visible text can be saved as a file.

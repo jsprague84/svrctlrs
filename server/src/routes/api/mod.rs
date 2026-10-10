@@ -17,6 +17,7 @@ pub mod notifications;
 pub mod profiles;
 pub mod quick_commands;
 pub mod servers;
+pub mod sessions;
 pub mod settings;
 pub mod users;
 
@@ -92,6 +93,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/notifications", notifications::routes())
         .nest("/users", users::routes())
         .nest("/audit", audit::routes())
+        .nest("/sessions", sessions::routes())
 }
 
 /// Health check endpoint. Unauthenticated, so it reveals only version and revision; it does

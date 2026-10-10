@@ -30,6 +30,8 @@ docker compose logs -f svrctlrs
 | `DATABASE_URL` | no | `sqlite:/app/data/svrctlrs.db` | SQLite location (WAL mode; `-wal`/`-shm` files sit beside it) |
 | `SESSION_SECURE` | no | `true` | set `false` only when serving plain HTTP on a trusted LAN |
 | `ALLOWED_ORIGINS` | for native clients | unset | comma-separated origins of the Tauri apps, e.g. `tauri://localhost,https://tauri.localhost,http://tauri.localhost`. Enables CORS for them and switches the session cookie to `SameSite=None`. Leave empty for browser-only use. |
+| `SESSION_DETACH_TTL_SECS` | no | `900` | how long an interactive shell is kept after its last client disconnects (reload, lost link, phone backgrounded) before it is closed |
+| `SESSION_MAX_PER_USER` | no | `16` | live interactive sessions per user; the 17th `shell` request fails with `quota` |
 | `SPA_DIR` | no | `/app/ui/build` | where the built SPA lives |
 | `RUST_LOG` | no | `info` | tracing filter |
 | `LOG_FORMAT` | no | text | `json` for one JSON object per line (log shippers); text otherwise |
@@ -116,6 +118,8 @@ still publishes.
 - `docker exec svrctlrs /app/svrctl health` — JSON with `version` and `revision`.
 - `docker logs svrctlrs` — tracing output; `RUST_LOG=debug` for more. Login failures are
   logged at `warn` with the attempted username.
-- A changed SSH host key on a target refuses the connection with an error in the terminal.
-  There is no UI to clear a stored key yet; delete the row from `server_host_keys` (ROADMAP).
+- A changed SSH host key on a target refuses the connection with an error in the terminal;
+  Servers → Keys → **Forget all keys** clears the stored keys.
+- Interactive sessions survive a client disconnect but not a server restart: `docker compose
+  up -d` after a pull ends every open shell (the terminal shows "Server shutting down").
 - `Session cookie SameSite=None` in the start-up log means `ALLOWED_ORIGINS` is set.

@@ -47,9 +47,14 @@ cd ui && npm run check && npm run lint && npm run test && npm run build && npm a
 (JS + typescript-eslint + eslint-plugin-svelte, Prettier-compatible) plus a Prettier check.
 Unit tests are Vitest files next to the code (`*.test.ts`); keep them for pure modules.
 
-Tests today: 65 Rust tests across `core`, `database` and `server` (auth middleware, host keys,
-limiter, tickets, svrctl backup) and 7 Vitest tests in the UI. Security-relevant changes come
-with tests.
+Tests today: 74 Rust tests across `core`, `database` and `server` (auth middleware, host keys,
+limiter, tickets, session registry and replay ring, svrctl backup) and 11 Vitest tests in the
+UI. Security-relevant changes come with tests.
+
+`scripts/dev/pty-session-e2e.py` drives the persistent-session protocol end to end (shell,
+dropped socket, reattach with replay, `closed`, `session_gone`, TTL) against a locally running
+server and a real SSH target; its docstring has the exact invocation. Run it after touching
+`sessions.rs`, `terminal_pty.rs` or the pane's attach logic.
 
 ## Repository layout
 

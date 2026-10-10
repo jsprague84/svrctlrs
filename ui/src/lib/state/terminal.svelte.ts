@@ -9,6 +9,58 @@ let pendingAutoConnect = $state<string | null>(null);
 
 const MAX_TABS = 10;
 
+/** Tabs survive a reload of this browser tab so their server-side sessions can be resumed. */
+const TABS_KEY = 'svrctlrs-terminal-tabs';
+
+interface SavedTabs {
+	tabs: TerminalTab[];
+	activeTabId: string | null;
+	layout: LayoutMode;
+	tabCounter: number;
+}
+
+function restoreTabs() {
+	if (typeof sessionStorage === 'undefined') return;
+	try {
+		const raw = sessionStorage.getItem(TABS_KEY);
+		if (!raw) return;
+		const saved = JSON.parse(raw) as SavedTabs;
+		if (!Array.isArray(saved.tabs)) return;
+		for (const t of saved.tabs) {
+			tabs.push({ ...t, status: 'disconnected' });
+		}
+		activeTabId = saved.activeTabId;
+		layout = saved.layout ?? 'single';
+		tabCounter = saved.tabCounter ?? tabs.length;
+	} catch {
+		// unreadable: start empty
+	}
+}
+
+function saveTabs() {
+	if (typeof sessionStorage === 'undefined') return;
+	try {
+		const snapshot: SavedTabs = {
+			tabs: $state.snapshot(tabs),
+			activeTabId,
+			layout,
+			tabCounter
+		};
+		sessionStorage.setItem(TABS_KEY, JSON.stringify(snapshot));
+	} catch {
+		// storage full or unavailable
+	}
+}
+
+restoreTabs();
+if (typeof window !== 'undefined') {
+	$effect.root(() => {
+		$effect(() => {
+			saveTabs();
+		});
+	});
+}
+
 export function getTabs() {
 	return tabs;
 }

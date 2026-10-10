@@ -202,6 +202,43 @@
 	const MAX_RECONNECT_ATTEMPTS = RECONNECT_DELAYS.length;
 	/** Set by onerror when an established session drops; onclose fires after and reads it. */
 	let lostWhileConnected = false;
+	/** The server-side session this pane is (or was last) attached to, and how much of its
+	 *  output has been shown. Both persist in sessionStorage so a reload resumes the shell. */
+	let sessionId: string | null = null;
+	let lastSeq = 0;
+	const sessionKey = () => `svrctlrs-term-session-${tabId}`;
+
+	function saveSession() {
+		try {
+			if (sessionId) {
+				sessionStorage.setItem(sessionKey(), JSON.stringify({ sessionId, lastSeq }));
+			} else {
+				sessionStorage.removeItem(sessionKey());
+			}
+		} catch {
+			// storage unavailable
+		}
+	}
+
+	function loadSession() {
+		try {
+			const raw = sessionStorage.getItem(sessionKey());
+			if (!raw) return;
+			const saved = JSON.parse(raw) as { sessionId?: string; lastSeq?: number };
+			if (typeof saved.sessionId === 'string') {
+				sessionId = saved.sessionId;
+				lastSeq = typeof saved.lastSeq === 'number' ? saved.lastSeq : 0;
+			}
+		} catch {
+			// ignore
+		}
+	}
+
+	function forgetSession() {
+		sessionId = null;
+		lastSeq = 0;
+		saveSession();
+	}
 
 	function setStatus(s: ConnectionStatus) {
 		status = s;
@@ -439,15 +476,19 @@
 		}
 
 		intentionalDisconnect = false;
-		cleanupSocket();
+		cleanupSocket(false);
 		setStatus('connecting');
 
 		if (reconnectAttempt === 0) {
 			terminal.clear();
 			outputHistory = [];
-			restoreBuffer();
+			// The saved buffer and the saved lastSeq were written together; without the buffer the
+			// screen is empty, so ask the server for everything it still has.
+			if (!restoreBuffer()) lastSeq = 0;
 		}
-		terminal.writeln('\x1b[33mConnecting...\x1b[0m');
+		terminal.writeln(
+			sessionId ? '\x1b[33mResuming session...\x1b[0m' : '\x1b[33mConnecting...\x1b[0m'
+		);
 
 		const wsUrl = await getWsUrl(mode);
 		// The ticket request yields; the tab may have been closed meanwhile.
@@ -468,8 +509,10 @@
 			const { cols, rows } = terminal!;
 
 			if (mode === 'pty') {
-				// PTY: send shell request
-				const req: PtyRequest = { type: 'shell', server_id: serverId!, cols, rows };
+				// Resume the server-side session if we have one, otherwise start a shell
+				const req: PtyRequest = sessionId
+					? { type: 'attach', session_id: sessionId, last_seq: lastSeq, cols, rows }
+					: { type: 'shell', server_id: serverId!, cols, rows };
 				socket!.send(JSON.stringify(req));
 
 				// Forward keyboard input to PTY
@@ -504,13 +547,55 @@
 						case 'output':
 							terminal!.write(res.data);
 							appendOutput(res.data);
+							if (res.seq !== undefined) lastSeq = res.seq;
 							break;
 						case 'connected':
+							if (res.session_id) {
+								sessionId = res.session_id;
+								saveSession();
+							}
 							terminal!.write(res.data);
 							terminal!.focus();
 							break;
+						case 'replay_start':
+							// Nothing of this session on screen yet: the ring is redrawn from the top
+							if (lastSeq === 0) {
+								terminal!.reset();
+								outputHistory = [];
+							}
+							break;
+						case 'replay_window_lost':
+							// Too far behind the ring; the server now resends what it still has
+							terminal!.reset();
+							outputHistory = [];
+							lastSeq = 0;
+							break;
+						case 'replay_end':
+							terminal!.focus();
+							break;
+						case 'closed':
+							terminal!.writeln(`\r\n\x1b[33m[${res.data || 'Session ended'}]\x1b[0m`);
+							forgetSession();
+							stopReconnecting();
+							cleanupSocket(false);
+							setStatus('disconnected');
+							showReconnectOverlay = true;
+							break;
 						case 'error':
-							terminal!.write(res.data);
+							if (res.code === 'session_gone') {
+								// Kept too long or killed elsewhere; fall back to a fresh shell
+								forgetSession();
+								terminal!.reset();
+								outputHistory = [];
+								terminal!.writeln(
+									'\x1b[33m[Previous session has ended — starting a new shell]\x1b[0m'
+								);
+								const { cols, rows } = terminal!;
+								const req: PtyRequest = { type: 'shell', server_id: serverId!, cols, rows };
+								socket?.send(JSON.stringify(req));
+							} else {
+								terminal!.write(res.data);
+							}
 							break;
 						case 'pong':
 							clearPongTimeout();
@@ -583,7 +668,8 @@
 		ptyResizeDisposable = null;
 	}
 
-	function cleanupSocket() {
+	/** Drop the socket; `kill` ends the shell too, otherwise the server keeps it for reattach. */
+	function cleanupSocket(kill: boolean) {
 		if (pingInterval) {
 			clearInterval(pingInterval);
 			pingInterval = null;
@@ -592,23 +678,37 @@
 
 		if (socket) {
 			if (mode === 'pty' && socket.readyState === WebSocket.OPEN) {
-				socket.send(JSON.stringify({ type: 'close' }));
+				socket.send(JSON.stringify({ type: kill ? 'close' : 'detach' }));
 			}
+			socket.onclose = null;
 			socket.close();
 			socket = null;
 		}
 	}
 
-	/** Disconnect the WebSocket */
-	export function disconnect() {
-		serializeBuffer();
+	function stopReconnecting() {
 		intentionalDisconnect = true;
 		reconnectAttempt = 0;
 		if (reconnectTimeout) {
 			clearTimeout(reconnectTimeout);
 			reconnectTimeout = null;
 		}
-		cleanupSocket();
+	}
+
+	/** End the shell and the connection (Disconnect button, tab close). */
+	export function disconnect() {
+		serializeBuffer();
+		stopReconnecting();
+		cleanupSocket(true);
+		forgetSession();
+		setStatus('disconnected');
+	}
+
+	/** Leave the shell running on the server and drop only this connection (pane unmount). */
+	export function detach() {
+		serializeBuffer();
+		stopReconnecting();
+		cleanupSocket(false);
 		setStatus('disconnected');
 	}
 
@@ -617,26 +717,34 @@
 		if (!serializeAddon || !terminal) return;
 		try {
 			const data = serializeAddon.serialize();
-			if (data.length > 512 * 1024) return; // Skip if > 512KB
-			sessionStorage.setItem(`svrctlrs-term-buffer-${tabId}`, data);
+			if (data.length > 512 * 1024) {
+				// Too big to keep: a resume redraws from the server's replay ring instead
+				sessionStorage.removeItem(`svrctlrs-term-buffer-${tabId}`);
+			} else {
+				sessionStorage.setItem(`svrctlrs-term-buffer-${tabId}`, data);
+			}
+			saveSession();
 		} catch {
 			// sessionStorage full or unavailable
 		}
 	}
 
-	/** Restore terminal buffer from sessionStorage */
-	function restoreBuffer() {
+	/** Restore terminal buffer from sessionStorage; true when something was written */
+	function restoreBuffer(): boolean {
 		const key = `svrctlrs-term-buffer-${tabId}`;
 		const data = sessionStorage.getItem(key);
 		if (data && terminal) {
 			terminal.write(data);
 			sessionStorage.removeItem(key);
+			return true;
 		}
+		return false;
 	}
 
-	/** Remove saved buffer (called when tab is explicitly closed) */
+	/** Remove saved buffer and session record (called when tab is explicitly closed) */
 	export function clearSavedBuffer() {
 		sessionStorage.removeItem(`svrctlrs-term-buffer-${tabId}`);
+		sessionStorage.removeItem(sessionKey());
 	}
 
 	/** Inject text into the terminal as if the user typed it (PTY mode) */
@@ -756,6 +864,11 @@
 	onMount(() => {
 		loadHistory();
 		initTerminal();
+		loadSession();
+		// Coming back to the terminal page (or reloading it): pick the shell up where it was
+		if (sessionId && mode === 'pty' && serverId !== null) {
+			requestAnimationFrame(() => connect());
+		}
 
 		// Capture-phase pointer listeners on the shell — intercepts touch
 		// BEFORE xterm.js can handle it and focus the hidden textarea.
@@ -804,7 +917,7 @@
 			shellEl.removeEventListener('touchend', suppressTouch, { capture: true });
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
 			window.removeEventListener('beforeunload', handleBeforeUnload);
-			disconnect();
+			detach();
 			if (resizeTimer) clearTimeout(resizeTimer);
 			resizeObserver?.disconnect();
 			if (webglAddon) {
@@ -843,6 +956,7 @@
 				<button
 					class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-sm hover:opacity-90"
 					onclick={() => {
+						forgetSession();
 						clear();
 						connect();
 					}}

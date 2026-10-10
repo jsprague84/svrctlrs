@@ -65,9 +65,10 @@
 		}
 	});
 
-	// Warn before unloading if any tab is connected
+	// Warn before unloading while a command-mode tab is connected. Interactive shells survive a
+	// reload: the server keeps the session and the pane reattaches.
 	$effect(() => {
-		const hasConnected = tabs.some((t) => t.status === 'connected');
+		const hasConnected = tabs.some((t) => t.status === 'connected' && t.mode === 'cmd');
 		const handler = (e: BeforeUnloadEvent) => {
 			e.preventDefault();
 		};

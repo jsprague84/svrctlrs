@@ -168,14 +168,32 @@ Client → server:
 
 | `type` | Fields | Meaning |
 |---|---|---|
-| `shell` | `server_id`, `cols`, `rows` | open a PTY on the server (omit `server_id` for none configured → error) |
+| `shell` | `server_id`, `cols`, `rows` | open a PTY on the server; answered with `connected` carrying a `session_id` |
+| `attach` | `session_id`, `last_seq`, `cols?`, `rows?` | resume a session this user owns; the server replays output after `last_seq` |
 | `input` | `data` | keystrokes |
 | `resize` | `cols`, `rows` | terminal resized |
 | `ping` | — | keepalive |
-| `close` | — | end the session |
+| `detach` | — | drop the connection, keep the shell (the same happens when the socket just closes) |
+| `close` | — | end the shell |
 
-Server → client: `{"type": "connected"}` once the shell is up, `{"type": "output", "data": "…"}`
-for terminal output, `{"type": "error", "data": "…"}`, `{"type": "pong"}`.
+Server → client:
+
+| `type` | Fields | Meaning |
+|---|---|---|
+| `connected` | `session_id`, `data` | the shell is up (`shell`) or reattached (`attach`) |
+| `output` | `seq`, `data` | terminal output; `seq` increases by one per frame |
+| `replay_start` / `replay_end` | — | brackets the frames resent after an `attach` |
+| `replay_window_lost` | — | the client was further behind than the ring holds; redraw from scratch, the whole ring follows |
+| `closed` | `data` | the shell ended (exit, `close`, TTL expiry, server shutdown); the socket stays open but the session is gone |
+| `error` | `data`, `code?` | `code: "session_gone"` — the id is unknown or expired, send `shell`; `code: "quota"` — too many sessions |
+| `pong` | — | — |
+
+Sessions live in the server, not in the socket. A session with no attached client is kept for
+`SESSION_DETACH_TTL_SECS` (default 900) and then closed; a user may have at most
+`SESSION_MAX_PER_USER` (default 16). The replay ring holds the last 4096 frames or 2 MiB of
+output per session. Live sessions of the calling user are listed by `GET /api/v1/sessions`
+(`sessions[]` with `id`, `server_id`, `server_name`, `created_at`, `attachments`, `closed`, plus
+`detach_ttl_secs`) and ended by `DELETE /api/v1/sessions/{id}`.
 
 ### `/ws/terminal` — command mode
 

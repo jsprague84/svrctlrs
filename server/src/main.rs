@@ -6,6 +6,7 @@ mod health_monitor;
 mod host_keys;
 mod login_limiter;
 mod routes;
+mod sessions;
 mod ssh_keys;
 mod state;
 mod ws_tickets;
@@ -282,8 +283,13 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(&args.addr).await?;
     info!(addr = %args.addr, "Server listening");
 
+    let sessions = state.sessions.clone();
     axum::serve(listener, app.into_make_service())
-        .with_graceful_shutdown(shutdown_signal())
+        .with_graceful_shutdown(async move {
+            shutdown_signal().await;
+            // Open sockets end with the server; tell the shells behind them, too.
+            sessions.close_all().await;
+        })
         .await?;
 
     info!("Server shut down gracefully");

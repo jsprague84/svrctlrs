@@ -6,6 +6,16 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Added
+- **Persistent terminal sessions.** An interactive shell now lives in the server
+  (`server/src/sessions.rs`), not in the WebSocket. When the connection drops — page reload,
+  lost Wi-Fi, a phone that slept, leaving the terminal page — the shell keeps running for
+  `SESSION_DETACH_TTL_SECS` (default 15 min) and the pane reattaches to it, replaying the output
+  it missed from a per-session ring (4096 frames / 2 MiB). Open tabs are remembered for the life
+  of the browser tab, so a reload brings them back attached. **Disconnect** and closing a tab
+  still end the shell. Protocol: `attach {session_id, last_seq}`, numbered `output` frames,
+  `replay_start`/`replay_end`/`replay_window_lost`, `closed`, `error {code: session_gone}`;
+  `GET /api/v1/sessions`, `DELETE /api/v1/sessions/{id}`; `SESSION_MAX_PER_USER` (default 16).
+  The "leave page?" prompt is gone for PTY tabs.
 - Key setup without leaving the app: **Generate SSH key** (ed25519, private half stored
   encrypted, public half shown), **Public key** on any key credential, and **Authorize key** on
   a server, which installs the public key in `~/.ssh/authorized_keys` over a one-time password

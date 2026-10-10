@@ -7,6 +7,7 @@ use tokio::sync::RwLock;
 
 use crate::config::Config;
 use crate::login_limiter::LoginLimiter;
+use crate::sessions::SessionRegistry;
 use crate::ws_tickets::WsTickets;
 
 /// Shared application state
@@ -26,6 +27,8 @@ pub struct AppState {
     pub login_limiter: Arc<LoginLimiter>,
     /// One-time tickets that authenticate WebSocket upgrades from native clients.
     pub ws_tickets: Arc<WsTickets>,
+    /// Live interactive sessions; they outlive the sockets that use them.
+    pub sessions: Arc<SessionRegistry>,
 }
 
 impl AppState {
@@ -44,6 +47,7 @@ impl AppState {
             allowed_origins: Arc::new(allowed_origins),
             login_limiter: Arc::new(LoginLimiter::with_defaults()),
             ws_tickets: Arc::new(WsTickets::default()),
+            sessions: SessionRegistry::from_env(),
         })
     }
 
