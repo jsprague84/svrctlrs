@@ -17,6 +17,7 @@
 	import * as terminalState from '#lib/state/terminal.svelte.js';
 	import { getServerUrl } from '#lib/platform/index.js';
 	import { post } from '#lib/api/client.js';
+	import * as toast from '#lib/state/toast.svelte.js';
 	import type {
 		TerminalMode,
 		ConnectionStatus,
@@ -78,28 +79,114 @@
 	const AXIS_BIAS = 1.2;
 	const SWIPE_COMMIT_PX = 60;
 	const CELL_HEIGHT_FALLBACK = 18;
+	const CELL_WIDTH_FALLBACK = 9;
+	const LONG_PRESS_MS = 500;
+	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+	let longPressFired = false;
 
-	function getCellHeight(): number {
+	function getCellSize(): { width: number; height: number } {
 		try {
 			// xterm has no public cell-size API; this reaches into its render service.
 			const internals = terminal as unknown as {
-				_core?: { _renderService?: { dimensions?: { css?: { cell?: { height?: number } } } } };
+				_core?: {
+					_renderService?: {
+						dimensions?: { css?: { cell?: { height?: number; width?: number } } };
+					};
+				};
 			};
-			const dims = internals?._core?._renderService?.dimensions;
-			if (dims?.css?.cell?.height) return dims.css.cell.height;
+			const cell = internals?._core?._renderService?.dimensions?.css?.cell;
+			if (cell?.height && cell?.width) return { width: cell.width, height: cell.height };
 		} catch {
 			/* ignore */
 		}
-		return CELL_HEIGHT_FALLBACK;
+		return { width: CELL_WIDTH_FALLBACK, height: CELL_HEIGHT_FALLBACK };
+	}
+
+	function getCellHeight(): number {
+		return getCellSize().height;
+	}
+
+	/** The buffer cell under a point on screen, or null when outside the text area. */
+	function cellAt(clientX: number, clientY: number): { col: number; row: number } | null {
+		const screen = terminal?.element?.querySelector('.xterm-screen');
+		if (!terminal || !screen) return null;
+		const rect = screen.getBoundingClientRect();
+		const { width, height } = getCellSize();
+		const col = Math.floor((clientX - rect.left) / width);
+		const row = Math.floor((clientY - rect.top) / height);
+		if (col < 0 || row < 0 || col >= terminal.cols || row >= terminal.rows) return null;
+		return { col, row };
+	}
+
+	/**
+	 * Tap on the line being edited: move the shell's cursor there with arrow keys. Only in the
+	 * normal buffer (a full-screen program gets nothing) and only on the cursor's own row.
+	 */
+	function moveCursorTo(clientX: number, clientY: number) {
+		if (!terminal || mode !== 'pty' || !socket || socket.readyState !== WebSocket.OPEN) return;
+		const buf = terminal.buffer.active;
+		if (buf.type !== 'normal') return;
+		const cell = cellAt(clientX, clientY);
+		if (!cell) return;
+		const cursorViewportRow = buf.baseY + buf.cursorY - buf.viewportY;
+		if (cell.row !== cursorViewportRow) return;
+		const delta = cell.col - buf.cursorX;
+		if (delta === 0 || Math.abs(delta) > 200) return;
+		const seq = delta > 0 ? '\x1b[C' : '\x1b[D';
+		injectInput(seq.repeat(Math.abs(delta)));
+	}
+
+	/** Long-press: select the word under the finger and copy it. */
+	function copyWordAt(clientX: number, clientY: number) {
+		if (!terminal) return;
+		const cell = cellAt(clientX, clientY);
+		if (!cell) return;
+		const buf = terminal.buffer.active;
+		const absRow = buf.viewportY + cell.row;
+		const text = buf.getLine(absRow)?.translateToString(true) ?? '';
+		if (cell.col >= text.length || /\s/.test(text[cell.col])) return;
+		let start = cell.col;
+		let end = cell.col;
+		while (start > 0 && !/\s/.test(text[start - 1])) start--;
+		while (end < text.length - 1 && !/\s/.test(text[end + 1])) end++;
+		const word = text.slice(start, end + 1);
+		terminal.select(start, absRow, word.length);
+		navigator.clipboard
+			?.writeText(word)
+			.then(() => toast.success(`Copied “${word.length > 40 ? word.slice(0, 40) + '…' : word}”`))
+			.catch(() => toast.error('Clipboard unavailable'));
+		if (navigator.vibrate) navigator.vibrate(15);
+	}
+
+	function clearLongPress() {
+		if (longPressTimer) {
+			clearTimeout(longPressTimer);
+			longPressTimer = null;
+		}
+	}
+
+	/** Controls drawn over the terminal (reconnect overlay, banners) must get their taps. */
+	function isPassthroughTarget(e: Event): boolean {
+		const t = e.target as Element | null;
+		return !!t?.closest?.('button, a, input, select, [role="dialog"], [data-touch-passthrough]');
 	}
 
 	function handlePointerDown(e: PointerEvent) {
-		if (e.pointerType !== 'touch') return;
+		if (e.pointerType !== 'touch' || isPassthroughTarget(e)) return;
 		e.stopPropagation(); // prevent xterm.js from seeing this touch
 		gestureMode = 'pending';
 		startX = e.clientX;
 		startY = lastY = e.clientY;
 		startTime = performance.now();
+		longPressFired = false;
+		clearLongPress();
+		const { clientX, clientY } = e;
+		longPressTimer = setTimeout(() => {
+			longPressTimer = null;
+			if (gestureMode !== 'pending') return;
+			longPressFired = true;
+			copyWordAt(clientX, clientY);
+		}, LONG_PRESS_MS);
 		shellEl.setPointerCapture(e.pointerId);
 	}
 
@@ -114,6 +201,7 @@
 
 		if (gestureMode === 'pending') {
 			if (adx < LOCK_DISTANCE && ady < LOCK_DISTANCE) return;
+			clearLongPress();
 
 			if (ady > adx * AXIS_BIAS) {
 				gestureMode = 'vertical-scroll';
@@ -142,13 +230,16 @@
 	}
 
 	function handlePointerUp(e: PointerEvent) {
-		if (e.pointerType !== 'touch') return;
+		if (e.pointerType !== 'touch' || gestureMode === 'idle') return;
 		e.stopPropagation();
+		clearLongPress();
 
 		const elapsed = performance.now() - startTime;
 		const moved = Math.hypot(e.clientX - startX, e.clientY - startY);
 
-		if (gestureMode === 'pending' && elapsed <= TAP_MAX_MS && moved < LOCK_DISTANCE) {
+		if (longPressFired) {
+			longPressFired = false;
+		} else if (gestureMode === 'pending' && elapsed <= TAP_MAX_MS && moved < LOCK_DISTANCE) {
 			const now = performance.now();
 			if (now - lastTapTime <= DOUBLE_TAP_MS) {
 				// Double-tap → cancel pending focus, open command palette
@@ -162,8 +253,10 @@
 				// Single tap → delay focus so double-tap can cancel it
 				lastTapTime = now;
 				if (tapFocusTimeout) clearTimeout(tapFocusTimeout);
+				const { clientX, clientY } = e;
 				tapFocusTimeout = setTimeout(() => {
 					terminal?.focus();
+					moveCursorTo(clientX, clientY);
 					tapFocusTimeout = null;
 				}, FOCUS_DELAY_MS);
 			}
@@ -530,7 +623,8 @@
 
 		ws.onopen = () => {
 			if (stale()) return;
-			setStatus('connected');
+			// A PTY counts as connected once the shell is up, not when the socket opens
+			if (mode !== 'pty') setStatus('connected');
 			reconnectAttempt = 0;
 
 			const { cols, rows } = terminal!;
@@ -578,6 +672,7 @@
 							if (res.seq !== undefined) lastSeq = res.seq;
 							break;
 						case 'connected':
+							setStatus('connected');
 							if (res.session_id) {
 								sessionId = res.session_id;
 								sessionServerId = serverId;
@@ -629,6 +724,11 @@
 								ws.send(JSON.stringify(req));
 							} else {
 								terminal!.write(res.data);
+								if (!sessionId) {
+									// The shell never came up (auth, host key, unreachable)
+									statusNote = null;
+									setStatus('error');
+								}
 							}
 							break;
 						case 'pong':
@@ -959,6 +1059,7 @@
 		// passive: false is REQUIRED — browsers default touchstart to passive,
 		//   which silently ignores preventDefault().
 		const suppressTouch = (e: Event) => {
+			if (isPassthroughTarget(e)) return;
 			e.stopPropagation();
 			e.preventDefault();
 		};

@@ -158,6 +158,8 @@ Tokyo Night dark is the default; switch to light in the sidebar. The terminal co
 - The sidebar becomes a drawer; the status bar at the top shows the connection state and the
   current tab as dots.
 - **Swipe left/right** on the terminal to move between tabs; a one-time hint explains this.
+  **Tap** the prompt line to move the cursor there (arrow keys are sent), **long-press** a word
+  to select and copy it, **double-tap** for the command palette.
 - The **extra-keys row** above the keyboard has `^C`, Esc, Tab, arrows and `|`. **CTL** and
   **ALT** are sticky for one key: tap CTL then type `d` on the keyboard to send Ctrl+D, or tap
   CTL then an arrow key.

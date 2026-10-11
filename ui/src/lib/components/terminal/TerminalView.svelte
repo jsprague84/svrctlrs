@@ -624,6 +624,10 @@
 					class:ring-accent={tab.id === activeTabId &&
 						layout !== 'single' &&
 						visibleTabs.length > 1}
+					onfocusin={() => {
+						// Clicking or tapping into a pane makes its tab the active one, in place
+						if (tab.slot !== null && tab.id !== activeTabId) terminalState.focusSlot(tab.slot);
+					}}
 				>
 					{#if tab.slot !== null && layout !== 'single' && visibleTabs.length > 1}
 						<div

@@ -101,6 +101,15 @@ the release workflow uses the matching section as the release notes.
   in the form (SSH cannot use them; existing rows are untouched).
 
 ### Fixed
+- Terminal tab dots showed green as soon as the WebSocket opened, before the SSH shell was up;
+  a PTY tab now turns green on the shell's `connected` and red when the shell fails to start.
+- In split layouts, clicking or tapping into a pane only moved keyboard focus; the toolbar,
+  shortcuts and palette still acted on pane 1. Focusing a pane now makes its tab active in
+  place, and selecting an already visible tab no longer rearranges the panes.
+- Mobile: the *Reconnect* / *New Session* buttons after a shell ended ignored taps — the
+  pane's touch interception swallowed them. Controls drawn over the terminal now receive
+  touches. Tapping the prompt line moves the cursor there; long-pressing a word selects and
+  copies it.
 - Clearing a server's hostname, username, description or credential in *Edit* had no effect
   (the update only applied non-empty values); the *Local server* box showed when editing but
   was ignored. Clearing works now and the box only shows when creating.

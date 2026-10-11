@@ -145,27 +145,24 @@ export function closeTab(id: string) {
 	assignSlots();
 }
 
+/** Make a tab active; visible panes stay where they are, a hidden tab is brought into view. */
 export function setActiveTab(id: string) {
-	if (tabs.find((t) => t.id === id)) {
-		activeTabId = id;
-		assignSlots();
-	}
+	const tab = tabs.find((t) => t.id === id);
+	if (!tab) return;
+	activeTabId = id;
+	if (tab.slot === null) assignSlots();
 }
 
 export function nextTab() {
 	if (tabs.length <= 1) return;
 	const idx = tabs.findIndex((t) => t.id === activeTabId);
-	const next = (idx + 1) % tabs.length;
-	activeTabId = tabs[next].id;
-	assignSlots();
+	setActiveTab(tabs[(idx + 1) % tabs.length].id);
 }
 
 export function prevTab() {
 	if (tabs.length <= 1) return;
 	const idx = tabs.findIndex((t) => t.id === activeTabId);
-	const prev = (idx - 1 + tabs.length) % tabs.length;
-	activeTabId = tabs[prev].id;
-	assignSlots();
+	setActiveTab(tabs[(idx - 1 + tabs.length) % tabs.length].id);
 }
 
 /** Focus the tab at a specific visible slot (0-3) without rearranging slots */
