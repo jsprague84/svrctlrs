@@ -7,8 +7,7 @@ and push notifications. One Rust binary, one SQLite file.
 **Version 3.0.0** · Rust (Axum) · SvelteKit 5 · xterm.js 6 · Tauri 2 · SQLite
 
 > 3.x is a different product from the 1.x/2.x releases. Those were a plugin-based monitoring
-> platform and were retired in March 2026; their code and documentation live in
-> `docs-archived/`.
+> platform and were retired in March 2026; nothing from them survives in this repository.
 
 ## What it does
 

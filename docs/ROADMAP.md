@@ -90,5 +90,5 @@ that hosts the shortcut table and this guide.
   `node_modules`, builds and the Tauri tree.
 - Compose: Forgejo image, `secure-auth-chain@file` for the UI and headers-only for API/WS,
   no Docker group id.
-- Docs rewritten for the current product; job-era docs archived; design artifacts under
-  `docs/history/`.
+- Docs rewritten for the current product; the retired job-era and rewrite-planning docs were
+  removed (they remain in git history).

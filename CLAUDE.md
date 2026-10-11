@@ -1,11 +1,11 @@
 # CLAUDE.md — AI development guide
 
-**Updated:** 2026-10-04 · **Version:** 3.0.0 · **Default branch:** `master`
+**Updated:** 2026-10-11 · **Version:** 3.0.0 · **Default branch:** `master`
 
 SvrCtlRS is a self-hosted **terminal/SSH management tool**: a Rust (Axum) server with a
 SvelteKit 5 SPA, wrapped by Tauri 2 for Linux desktop and Android. It is *not* the 1.x/2.x
-plugin-based monitoring platform; that code is gone and its docs live in `docs-archived/`.
-If anything you read (an old doc, a brain note, a chat summary) talks about plugins,
+plugin-based monitoring platform; that product was retired in March 2026 and its code and docs
+are gone. If anything you read (an old doc, a brain note, a chat summary) talks about plugins,
 schedulers, jobs, HTMX or Askama, it is describing the retired product.
 
 ## Read first
@@ -27,7 +27,6 @@ ui/          SvelteKit 5 SPA (adapter-static → ui/build, served by the server 
 ui/src-tauri/  Tauri 2 desktop + Android (excluded from the Cargo workspace)
 .forgejo/    CI images and workflows (ci, docker, android, desktop)
 scripts/ci/  release helper; scripts/deploy/ docker-vm deploy (forced-command target)
-ralph/       autonomous-loop tooling (PRD, progress); not part of the product
 ```
 
 ## Commands

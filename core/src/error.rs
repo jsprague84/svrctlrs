@@ -24,9 +24,6 @@ pub enum Error {
     #[error("Configuration error: {0}")]
     ConfigError(String),
 
-    #[error("Scheduler error: {0}")]
-    SchedulerError(String),
-
     #[error("IO error: {0}")]
     IoError(#[from] std::io::Error),
 

@@ -187,6 +187,11 @@ the release workflow uses the matching section as the release notes.
   Show/Quit menu unreachable after the window was closed; it now uses the application icon,
   and when no tray can be created closing the window quits instead of hiding it.
 
+### Removed
+- The `ralph/` autonomous-loop tooling and the archived documentation trees (`docs-archived/`
+  and `docs/history/`), none of which were part of the product; they remain in git history.
+  The dead `SchedulerError` left over from the retired job scheduler is gone too.
+
 ## [3.0.0] - 2026-10-05
 
 First release of SvrCtlRS as a terminal/SSH management tool. The 1.x/2.x line (a plugin-based

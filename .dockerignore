@@ -4,12 +4,10 @@
 .gitattributes
 .forgejo
 .claude
-ralph
 
 # Documentation (prose cannot change the image)
 *.md
 docs/
-docs-archived/
 LICENSE*
 
 # Development and secrets

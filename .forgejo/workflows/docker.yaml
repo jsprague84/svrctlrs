@@ -19,9 +19,7 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
-      - 'docs-archived/**'
       - '.claude/**'
-      - 'ralph/**'
       - 'LICENSE*'
       - '.forgejo/workflows/ci.yaml'
       - '.forgejo/workflows/desktop.yaml'

@@ -15,9 +15,7 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
-      - 'docs-archived/**'
       - '.claude/**'
-      - 'ralph/**'
       - 'LICENSE*'
       - 'Dockerfile'
       - 'docker-compose.yml'

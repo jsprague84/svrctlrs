@@ -116,4 +116,4 @@ to `master` (or run `deploy.sh <sha>` on docker-vm).
 ## Branching
 
 `master` is the integration and deploy branch. Work on short-lived branches; CI runs on all of
-them. The `ralph/*` branches were the 2026-03 autonomous-loop phases and are merged.
+them.
