@@ -115,7 +115,15 @@ the release workflow uses the matching section as the release notes.
   arrow keys. Toasts sit under the status bar on phones instead of over the keys. The PWA's
   theme colour matches the surface and follows the theme; pull-to-refresh and pinch-zoom are
   off on the app shell; a padded maskable icon is provided. Pages below the terminal no longer
-  overflow the screen by the header height. WebGL stops retrying after three context losses.
+  overflow the screen by the header height. WebGL stops retrying after three context losses
+  and, on phones, only the visible pane keeps a WebGL context. The status bar has 40 px
+  targets: menu, server/tabs (opens a **tab sheet** to switch, close or start a terminal),
+  terminal settings, and **+** which opens a **server picker** (a new tab is never left
+  serverless). The palette offers *Terminal Settings*, uses the server picker for *New Tab*,
+  closes tabs with confirmation, and hides desktop-only items on phones. The phone's back
+  gesture closes the drawer, sheets, palette and settings instead of navigating away.
+  Font size has −/+ buttons. JetBrains Mono is bundled (woff2), so the default font no longer
+  falls back to Android's monospace.
 
 ### Fixed
 - The login form submitted twice (form submit plus the button's click handler).

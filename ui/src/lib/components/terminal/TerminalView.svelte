@@ -16,11 +16,15 @@
 	import CommandPalette from './CommandPalette.svelte';
 	import ProfileManager from './ProfileManager.svelte';
 	import MobileStatusBar from './MobileStatusBar.svelte';
+	import MobileSheet, { type SheetView } from './MobileSheet.svelte';
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import ExtraKeysRow from './ExtraKeysRow.svelte';
 	import * as terminalState from '#lib/state/terminal.svelte.js';
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import * as profilesState from '#lib/state/profiles.svelte.js';
 	import * as toast from '#lib/state/toast.svelte.js';
+	import { confirmDialog } from '#lib/state/confirm.svelte.js';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
 	import {
@@ -44,6 +48,25 @@
 	let searchOpen = $state(false);
 	let searchTerm = $state('');
 	let prefsOpen = $state(false);
+	/** Phone bottom sheet: tab list or server picker */
+	let sheetOpen = $state(false);
+	let sheetView = $state<SheetView>('tabs');
+
+	function openSheet(view: SheetView) {
+		sheetView = view;
+		sheetOpen = true;
+	}
+
+	/** Connect a (reused or new) tab to a server and focus it */
+	function connectTo(server: { id: number; name: string }) {
+		const id = terminalState.connectToServer(server.id, server.name);
+		if (!id) {
+			toast.error('Tab limit reached — close a terminal first');
+			return;
+		}
+		sheetOpen = false;
+		focusTerminal(id);
+	}
 	let paletteOpen = $state(false);
 	let profileSaveOpen = $state(false);
 	let showGestureHint = $state(false);
@@ -179,14 +202,6 @@
 			leaderTimer = setTimeout(() => {
 				if (!leaderHelpPinned) disarmLeader();
 			}, LEADER_TIMEOUT);
-		}
-
-		function closeTabWithConfirm(id: string) {
-			const tab = tabs.find((t) => t.id === id);
-			if (tab?.status === 'connected' && !confirm('Terminal is connected. Close anyway?')) return;
-			paneRefs[id]?.disconnect();
-			delete paneRefs[id];
-			terminalState.closeTab(id);
 		}
 
 		function cycleLayout() {
@@ -413,6 +428,22 @@
 		}
 	}
 
+	async function closeTabWithConfirm(id: string) {
+		const tab = tabs.find((t) => t.id === id);
+		if (tab?.status === 'connected') {
+			const ok = await confirmDialog({
+				title: `Close ${tab.label}?`,
+				message: 'The shell on the server is ended.',
+				confirmLabel: 'Close terminal',
+				destructive: true
+			});
+			if (!ok) return;
+		}
+		paneRefs[id]?.disconnect();
+		delete paneRefs[id];
+		terminalState.closeTab(id);
+	}
+
 	function isTextInput(el: Element | null): boolean {
 		return (
 			!!el &&
@@ -453,15 +484,25 @@
 			connectionStatus={activeTab?.status ?? 'disconnected'}
 			{tabs}
 			{activeTabId}
-			onNewTab={handleNewTab}
-			onCloseTab={() => {
-				if (!activeTabId) return;
-				const tab = tabs.find((t) => t.id === activeTabId);
-				if (tab?.status === 'connected' && !confirm('Terminal is connected. Close anyway?')) return;
-				paneRefs[activeTabId]?.disconnect();
-				delete paneRefs[activeTabId];
-				terminalState.closeTab(activeTabId);
+			onTapDots={() => openSheet('tabs')}
+			onNewTab={() => openSheet('servers')}
+			onOpenPrefs={() => (prefsOpen = true)}
+		/>
+		<MobileSheet
+			open={sheetOpen}
+			view={sheetView}
+			{tabs}
+			{activeTabId}
+			onClose={() => (sheetOpen = false)}
+			onSelectTab={(id) => {
+				terminalState.setActiveTab(id);
+				sheetOpen = false;
+				focusTerminal(id);
 			}}
+			onCloseTab={(id) => closeTabWithConfirm(id)}
+			onPickServer={connectTo}
+			onShowServers={() => (sheetView = 'servers')}
+			onBackToTabs={() => (sheetView = 'tabs')}
 		/>
 	{:else}
 		<!-- Desktop: full toolbar -->
@@ -603,13 +644,7 @@
 			{activeTabId}
 			{layout}
 			onSelectTab={(id) => terminalState.setActiveTab(id)}
-			onCloseTab={(id) => {
-				const tab = tabs.find((t) => t.id === id);
-				if (tab?.status === 'connected' && !confirm('Terminal is connected. Close anyway?')) return;
-				paneRefs[id]?.disconnect();
-				delete paneRefs[id];
-				terminalState.closeTab(id);
-			}}
+			onCloseTab={(id) => closeTabWithConfirm(id)}
 			onNewTab={handleNewTab}
 			onSetLayout={(mode) => terminalState.setLayout(mode)}
 		/>
@@ -705,10 +740,16 @@
 			}}
 			onConnect={handleConnect}
 			onDisconnect={handleDisconnect}
-			onConnectServer={(id, name) => {
-				const tab = terminalState.createTab(id, name, 'pty');
-				if (tab) terminalState.setPendingAutoConnect(tab.id);
+			onConnectServer={(id, name) => connectTo({ id, name })}
+			onNewTab={() => {
+				if (isMobile()) openSheet('servers');
+				else handleNewTab();
 			}}
+			onCloseTab={() => {
+				if (activeTabId) closeTabWithConfirm(activeTabId);
+			}}
+			onOpenPrefs={() => (prefsOpen = true)}
+			onOpenServers={() => goto(resolve('/servers'))}
 		/>
 	</div>
 

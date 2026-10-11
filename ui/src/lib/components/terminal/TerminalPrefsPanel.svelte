@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { X } from '@lucide/svelte';
+	import { X, Minus, Plus } from '@lucide/svelte';
+	import { confirmDialog } from '#lib/state/confirm.svelte.js';
+	import { watchClose } from '#lib/utils/closeWatcher.js';
 	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
 	import type { CursorStyle, FontWeightOption, LeaderKeyOption } from '#lib/types/index.js';
 	import { LEADER_KEY_LABELS } from '#lib/utils/leader.js';
@@ -22,11 +24,23 @@
 		return 'JetBrains Mono';
 	}
 
-	function handleReset() {
-		if (confirm('Reset all terminal preferences to defaults?')) {
-			terminalPrefs.resetPrefs();
-		}
+	async function handleReset() {
+		const ok = await confirmDialog({
+			title: 'Reset terminal preferences?',
+			message: 'Font, cursor, scrollback and the leader key go back to their defaults.',
+			confirmLabel: 'Reset',
+			destructive: true
+		});
+		if (ok) terminalPrefs.resetPrefs();
 	}
+
+	function stepFontSize(delta: number) {
+		terminalPrefs.updatePref('fontSize', Math.min(24, Math.max(8, prefs.fontSize + delta)));
+	}
+
+	$effect(() => {
+		if (open) return watchClose(onClose);
+	});
 </script>
 
 <!-- Backdrop (mobile only) -->
@@ -40,7 +54,7 @@
 {/if}
 
 <div
-	class="fixed bottom-0 left-0 right-0 h-[70vh] rounded-t-xl z-30 pb-[env(safe-area-inset-bottom)]
+	class="fixed bottom-0 left-0 right-0 h-[70dvh] rounded-t-xl z-30 pb-[env(safe-area-inset-bottom)]
 		md:absolute md:top-0 md:bottom-0 md:right-0 md:left-auto md:h-auto md:w-72 md:rounded-none md:z-20 md:pb-0
 		bg-surface border-t border-border md:border-t-0 md:border-l
 		flex flex-col transition-transform duration-200 ease-in-out overflow-hidden
@@ -85,8 +99,34 @@
 					</select>
 				</label>
 
+				<div class="flex items-center justify-between gap-2">
+					<span class="text-xs text-text-secondary">Size</span>
+					<div class="flex items-center gap-1">
+						<button
+							type="button"
+							class="w-9 h-9 flex items-center justify-center rounded-sm border border-border text-text-secondary active:bg-surface-raised disabled:opacity-40"
+							onclick={() => stepFontSize(-1)}
+							disabled={prefs.fontSize <= 8}
+							aria-label="Smaller text"
+						>
+							<Minus class="w-4 h-4" />
+						</button>
+						<span class="w-12 text-center text-sm font-mono text-text-primary"
+							>{prefs.fontSize}px</span
+						>
+						<button
+							type="button"
+							class="w-9 h-9 flex items-center justify-center rounded-sm border border-border text-text-secondary active:bg-surface-raised disabled:opacity-40"
+							onclick={() => stepFontSize(1)}
+							disabled={prefs.fontSize >= 24}
+							aria-label="Larger text"
+						>
+							<Plus class="w-4 h-4" />
+						</button>
+					</div>
+				</div>
 				<label class="block">
-					<span class="text-xs text-text-secondary">Size: {prefs.fontSize}px</span>
+					<span class="sr-only">Font size</span>
 					<input
 						type="range"
 						min="8"

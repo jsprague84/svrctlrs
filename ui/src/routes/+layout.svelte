@@ -15,6 +15,7 @@
 	import * as toast from '#lib/state/toast.svelte.js';
 	import type { Server, TerminalProfile, LayoutMode } from '#lib/types/index.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
+	import { watchClose } from '#lib/utils/closeWatcher.js';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -89,6 +90,11 @@
 	function closeMobileSidebar() {
 		mobileOpen = false;
 	}
+
+	// The platform back gesture closes the drawer instead of leaving the page
+	$effect(() => {
+		if (mobileOpen) return watchClose(closeMobileSidebar);
+	});
 
 	function handleConnectServer(server: Server) {
 		if (!terminalState.connectToServer(server.id, server.name)) {

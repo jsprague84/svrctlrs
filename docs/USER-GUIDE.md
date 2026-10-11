@@ -155,8 +155,10 @@ Tokyo Night dark is the default; switch to light in the sidebar. The terminal co
 
 ## Mobile (Android app or a phone browser)
 
-- The sidebar becomes a drawer; the status bar at the top shows the connection state and the
-  current tab as dots.
+- The sidebar becomes a drawer (menu button); the status bar shows the connection dot, the
+  server name and one dot per tab — tap it for the **tab list** (switch, close, new terminal),
+  the **+** for a server picker, the gear for terminal settings (font size has −/+ buttons).
+  The phone's back gesture closes drawers, sheets and the palette instead of leaving the app.
 - **Swipe left/right** on the terminal to move between tabs; a one-time hint explains this.
   **Tap** the prompt line to move the cursor there (arrow keys are sent), **long-press** a word
   to select and copy it, **double-tap** for the command palette.

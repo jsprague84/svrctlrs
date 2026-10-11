@@ -1041,6 +1041,21 @@
 		}
 	});
 
+	// Phones cap live WebGL contexts: only the visible pane keeps one
+	$effect(() => {
+		if (!terminal || !isMobile()) return;
+		if (active && !webglAddon && webglLosses <= 3) {
+			tryLoadWebgl();
+		} else if (!active && webglAddon) {
+			try {
+				webglAddon.dispose();
+			} catch {
+				// ignore
+			}
+			webglAddon = null;
+		}
+	});
+
 	// Update terminal theme when app theme changes
 	$effect(() => {
 		const currentTheme = themeState.getTheme();

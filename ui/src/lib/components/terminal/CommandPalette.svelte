@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { Search } from '@lucide/svelte';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
+	import { watchClose } from '#lib/utils/closeWatcher.js';
 	import * as quickCommandsState from '#lib/state/quickCommands.svelte.js';
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import * as themeState from '#lib/state/theme.svelte.js';
@@ -28,6 +29,10 @@
 		onConnect?: () => void;
 		onDisconnect?: () => void;
 		onConnectServer?: (serverId: number, serverName: string) => void;
+		onNewTab?: () => void;
+		onCloseTab?: () => void;
+		onOpenPrefs?: () => void;
+		onOpenServers?: () => void;
 	}
 
 	let {
@@ -41,7 +46,11 @@
 		onToggleSearch,
 		onConnect,
 		onDisconnect,
-		onConnectServer
+		onConnectServer,
+		onNewTab,
+		onCloseTab,
+		onOpenPrefs,
+		onOpenServers
 	}: Props = $props();
 
 	let query = $state('');
@@ -89,20 +98,24 @@
 				detail: 'Configure a new server',
 				category: 'action',
 				action: () => {
-					goto(resolve('/servers'));
+					if (onOpenServers) onOpenServers();
+					else goto(resolve('/servers'));
 				}
 			});
 		}
+
+		const mobile = isMobile();
 
 		// App actions
 		result.push(
 			{
 				id: 'action-new-tab',
 				name: 'New Tab',
-				detail: 'Open a new terminal tab',
+				detail: mobile ? 'Pick a server for a new terminal' : 'Open a new terminal tab',
 				category: 'action',
 				action: () => {
-					terminalState.createTab(null, null, 'pty');
+					if (onNewTab) onNewTab();
+					else terminalState.createTab(null, null, 'pty');
 				}
 			},
 			{
@@ -111,11 +124,26 @@
 				detail: 'Close the active terminal tab',
 				category: 'action',
 				action: () => {
-					const id = terminalState.getActiveTabId();
-					if (id) terminalState.closeTab(id);
+					if (onCloseTab) onCloseTab();
+					else {
+						const id = terminalState.getActiveTabId();
+						if (id) terminalState.closeTab(id);
+					}
 				}
 			},
 			{
+				id: 'action-prefs',
+				name: 'Terminal Settings',
+				detail: 'Font, cursor, scrollback, leader key',
+				category: 'action',
+				action: () => {
+					onOpenPrefs?.();
+				}
+			}
+		);
+		// The toolbar's Connect (uses the server chosen in the toolbar) does not exist on phones
+		if (!mobile) {
+			result.push({
 				id: 'action-connect',
 				name: 'Connect',
 				detail: 'Connect active tab to server',
@@ -123,7 +151,9 @@
 				action: () => {
 					onConnect?.();
 				}
-			},
+			});
+		}
+		result.push(
 			{
 				id: 'action-disconnect',
 				name: 'Disconnect',
@@ -161,24 +191,6 @@
 				}
 			},
 			{
-				id: 'action-search',
-				name: 'Search Output',
-				detail: 'Search terminal output',
-				category: 'action',
-				action: () => {
-					onToggleSearch?.();
-				}
-			},
-			{
-				id: 'action-save-profile',
-				name: 'Save Layout as Profile',
-				detail: 'Save current tabs and layout',
-				category: 'action',
-				action: () => {
-					onSaveProfile?.();
-				}
-			},
-			{
 				id: 'action-toggle-theme',
 				name: 'Toggle Theme',
 				detail: 'Switch between dark and light mode',
@@ -189,7 +201,36 @@
 			}
 		);
 
+		// Desktop-only: the search bar and split layouts live in the desktop toolbar
+		if (!mobile) {
+			result.push(
+				{
+					id: 'action-search',
+					name: 'Search Output',
+					detail: 'Search terminal output',
+					category: 'action',
+					action: () => {
+						onToggleSearch?.();
+					}
+				},
+				{
+					id: 'action-save-profile',
+					name: 'Save Layout as Profile',
+					detail: 'Save current tabs and layout',
+					category: 'action',
+					action: () => {
+						onSaveProfile?.();
+					}
+				}
+			);
+		}
+
 		return result;
+	});
+
+	// Platform back gesture closes the palette
+	$effect(() => {
+		if (open) return watchClose(closePalette);
 	});
 
 	// Fuzzy filter
@@ -274,7 +315,7 @@
 <div
 	class="fixed z-50 bg-surface border border-border shadow-lg flex flex-col overflow-hidden transition-opacity duration-100
 		{isMobile()
-		? 'bottom-0 inset-x-0 rounded-t-lg max-h-[42vh] pb-[env(safe-area-inset-bottom,0px)]'
+		? 'bottom-0 inset-x-0 rounded-t-lg max-h-[55dvh] pb-[env(safe-area-inset-bottom,0px)]'
 		: 'top-[20%] left-1/2 -translate-x-1/2 w-full max-w-md rounded-lg'}
 		{open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
 	role="dialog"

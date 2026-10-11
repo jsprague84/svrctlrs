@@ -1,18 +1,18 @@
 <script lang="ts">
 	import type { TerminalTab } from '#lib/types/index.js';
 
+	/** One dot per tab, coloured by that tab's own state; the active one is ringed. Presentational —
+	 *  the parent decides what a tap does. */
 	interface Props {
 		tabs: TerminalTab[];
 		activeTabId: string | null;
-		onTapDots?: () => void;
 	}
 
-	let { tabs, activeTabId, onTapDots }: Props = $props();
+	let { tabs, activeTabId }: Props = $props();
 
 	const MAX_DOTS = 8;
 
-	let statusColor = (tab: TerminalTab) => {
-		if (tab.id === activeTabId) return 'bg-accent';
+	function statusColor(tab: TerminalTab): string {
 		switch (tab.status) {
 			case 'connected':
 				return 'bg-success';
@@ -23,32 +23,23 @@
 			default:
 				return 'bg-text-muted';
 		}
-	};
+	}
 
 	let overflow = $derived(tabs.length > MAX_DOTS ? tabs.length - MAX_DOTS : 0);
 	let visibleTabs = $derived(tabs.slice(0, MAX_DOTS));
 </script>
 
 {#if tabs.length >= 2}
-	<div
-		class="flex items-center gap-[3px] cursor-pointer px-1"
-		onclick={() => onTapDots?.()}
-		role="button"
-		tabindex="0"
-		aria-label="Open tab list ({tabs.length} tabs)"
-		onkeydown={(e) => {
-			if (e.key === 'Enter') onTapDots?.();
-		}}
-	>
+	<span class="flex items-center gap-1 px-0.5" aria-hidden="true">
 		{#each visibleTabs as tab (tab.id)}
 			<span
-				class="rounded-full flex-shrink-0 {statusColor(tab)} {tab.id === activeTabId
-					? 'w-1.5 h-1.5'
-					: 'w-1 h-1'}"
+				class="rounded-full flex-shrink-0 w-1.5 h-1.5 {statusColor(tab)} {tab.id === activeTabId
+					? 'ring-2 ring-accent/70 ring-offset-1 ring-offset-surface'
+					: 'opacity-70'}"
 			></span>
 		{/each}
 		{#if overflow > 0}
 			<span class="text-[9px] text-text-muted ml-0.5">+{overflow}</span>
 		{/if}
-	</div>
+	</span>
 {/if}

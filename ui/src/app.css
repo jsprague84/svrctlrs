@@ -103,6 +103,22 @@
 	--color-sidebar-muted: #7b8394;
 }
 
+/* Bundled terminal font: the "JetBrains Mono" choice must not fall back to Android's monospace */
+@font-face {
+	font-family: 'JetBrains Mono';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+}
+@font-face {
+	font-family: 'JetBrains Mono';
+	font-style: normal;
+	font-weight: 700;
+	font-display: swap;
+	src: url('/fonts/JetBrainsMono-Bold.woff2') format('woff2');
+}
+
 /* Base */
 html,
 body {
