@@ -29,10 +29,6 @@
 		LEADER_BINDINGS,
 		LEADER_KEY_LABELS
 	} from '#lib/utils/leader.js';
-	import {
-		initKeyboardDetection,
-		destroyKeyboardDetection
-	} from '#lib/platform/keyboard.svelte.js';
 	import type { TerminalMode, ConnectionStatus, LayoutMode } from '#lib/types/index.js';
 
 	interface Props {
@@ -115,9 +111,6 @@
 	});
 
 	onMount(() => {
-		// Initialize keyboard detection for mobile extra keys row
-		if (isMobile()) initKeyboardDetection();
-
 		// Show gesture hint on first mobile visit
 		if (isMobile() && !localStorage.getItem('svrctlrs-gesture-hint-seen')) {
 			showGestureHint = true;
@@ -127,18 +120,27 @@
 			}, 5000);
 		}
 
-		// Track actual viewport height on mobile (100vh doesn't update with Android keyboard)
+		// Soft keyboard tracking. With `interactive-widget=resizes-content` (Chrome) the layout
+		// viewport — and `h-dvh` — already shrink with the keyboard; the explicit pixel height is
+		// only for browsers that merely shrink the *visual* viewport (iOS). The baseline is the
+		// height while nothing is focused, so rotation and pinch-zoom do not read as a keyboard.
 		let updateViewHeight: (() => void) | null = null;
 		if (isMobile()) {
-			const initialHeight = window.visualViewport?.height ?? window.innerHeight;
+			let baseline = window.innerHeight;
 			updateViewHeight = () => {
-				const vvHeight = window.visualViewport?.height ?? window.innerHeight;
-				mobileKeyboardOpen = initialHeight - vvHeight > 150;
-				mobileViewHeight = vvHeight;
+				const vv = window.visualViewport;
+				if (vv && vv.scale > 1.01) return; // pinch-zoomed: leave the layout alone
+				const visible = vv ? vv.height * vv.scale : window.innerHeight;
+				const typing = isTextInput(document.activeElement);
+				if (!typing) baseline = window.innerHeight;
+				mobileKeyboardOpen = typing && baseline - visible > 150;
+				// Layout viewport did not follow the visual one: size the view by hand
+				mobileViewHeight = window.innerHeight - visible > 150 ? visible : 0;
 			};
 			updateViewHeight();
 			window.addEventListener('resize', updateViewHeight);
 			window.visualViewport?.addEventListener('resize', updateViewHeight);
+			window.addEventListener('orientationchange', updateViewHeight);
 		}
 
 		// Create initial tab — either from default profile or empty
@@ -161,11 +163,6 @@
 		}
 
 		// Focus the terminal pane for a given tab id
-		function focusTerminal(tabId: string | null) {
-			if (tabId) {
-				requestAnimationFrame(() => paneRefs[tabId]?.focus());
-			}
-		}
 
 		function disarmLeader() {
 			leaderArmed = false;
@@ -384,7 +381,7 @@
 				window.removeEventListener('resize', updateViewHeight);
 				window.visualViewport?.removeEventListener('resize', updateViewHeight);
 			}
-			destroyKeyboardDetection();
+			window.removeEventListener('orientationchange', updateViewHeight!);
 		};
 	});
 
@@ -407,6 +404,20 @@
 
 	function handleNewTab() {
 		terminalState.createTab(null, null, selectedMode);
+	}
+
+	/** Put the keyboard into a pane's terminal (after the DOM has caught up) */
+	function focusTerminal(tabId: string | null) {
+		if (tabId) {
+			requestAnimationFrame(() => paneRefs[tabId]?.focus());
+		}
+	}
+
+	function isTextInput(el: Element | null): boolean {
+		return (
+			!!el &&
+			(el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || (el as HTMLElement).isContentEditable)
+		);
 	}
 
 	function handleCmdSubmit(cmd: string) {
@@ -648,6 +659,7 @@
 						onStatusChange={handleStatusChange}
 						onModifierConsumed={() => extraKeysRow?.clearModifiers()}
 						onOpenPalette={() => (paletteOpen = true)}
+						onSwipe={() => focusTerminal(terminalState.getActiveTabId())}
 					/>
 				</div>
 			{/each}
@@ -666,7 +678,11 @@
 		<ProfileManager open={profileSaveOpen} onClose={() => (profileSaveOpen = false)} />
 		<CommandPalette
 			open={paletteOpen}
-			onClose={() => (paletteOpen = false)}
+			onClose={() => {
+				paletteOpen = false;
+				// Back to typing; on a phone this also brings the soft keyboard back
+				focusTerminal(activeTabId);
+			}}
 			onInjectCommand={(cmd) => {
 				if (activeTabId && paneRefs[activeTabId] && activeTab?.status === 'connected') {
 					paneRefs[activeTabId].injectInput(cmd + '\n');
@@ -732,6 +748,7 @@
 				onModifier={(mod) => {
 					if (activeTabId) paneRefs[activeTabId]?.setPendingModifier(mod);
 				}}
+				onPalette={() => (paletteOpen = true)}
 			/>
 		</div>
 	{/if}

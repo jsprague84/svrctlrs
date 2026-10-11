@@ -149,7 +149,7 @@
 		></button>
 	{/if}
 
-	<div class="flex h-screen bg-background text-foreground relative">
+	<div class="flex h-dvh bg-background text-foreground relative">
 		<Sidebar
 			{servers}
 			{profiles}
@@ -191,7 +191,9 @@
 						</button>
 					</div>
 				{/if}
-				{@render children()}
+				<div class="flex-1 min-h-0 flex flex-col">
+					{@render children()}
+				</div>
 			</main>
 		{/if}
 	</div>

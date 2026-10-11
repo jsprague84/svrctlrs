@@ -25,4 +25,15 @@ export function toggleTheme() {
 	theme = theme === 'dark' ? 'light' : 'dark';
 	localStorage.setItem(STORAGE_KEY, theme);
 	document.documentElement.dataset.theme = theme;
+	syncThemeColor();
+}
+
+/** Keep the browser/PWA status bar the same colour as the app's surface. */
+function syncThemeColor() {
+	if (typeof document === 'undefined') return;
+	const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+	const surface = getComputedStyle(document.documentElement)
+		.getPropertyValue('--color-surface')
+		.trim();
+	if (meta && surface) meta.content = surface;
 }

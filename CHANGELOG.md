@@ -100,7 +100,25 @@ the release workflow uses the matching section as the release notes.
   has none (server → credential → `root`). *API Token* and *Certificate* are no longer offered
   in the form (SSH cannot use them; existing rows are untouched).
 
+### Changed
+- **Mobile pass.** The viewport uses `interactive-widget=resizes-content` and the shell is
+  `100dvh`, so the terminal, the extra keys and every bottom sheet sit above the soft keyboard
+  instead of behind it, and rotation or pinch-zoom no longer counts as "keyboard open".
+  Tapping the terminal focuses it inside the gesture (no 380 ms wait) and re-opens the keyboard
+  after Android Back closed it; switching tabs by swipe and closing the palette return focus to
+  the terminal. The extra-keys row is two rows (CTL, ALT, Esc, Tab, arrows, palette; `^C ^D
+  ^Z ^R`, Home/End, PgUp/PgDn, `| ~ / -`), with 36 px keys that fire on touch, repeat while
+  held, vibrate, and never steal focus; CTL/ALT work with Esc, Tab and arrows (proper CSI
+  modifiers), can be locked with a second tap, and arrows honour application cursor mode.
+  Keys injected this way go through xterm, so the view snaps to the bottom like typing. Touch
+  scrolling keeps sub-cell movement and scrolls full-screen programs (`less`, `man`) with
+  arrow keys. Toasts sit under the status bar on phones instead of over the keys. The PWA's
+  theme colour matches the surface and follows the theme; pull-to-refresh and pinch-zoom are
+  off on the app shell; a padded maskable icon is provided. Pages below the terminal no longer
+  overflow the screen by the header height. WebGL stops retrying after three context losses.
+
 ### Fixed
+- The login form submitted twice (form submit plus the button's click handler).
 - Terminal tab dots showed green as soon as the WebSocket opened, before the SSH shell was up;
   a PTY tab now turns green on the shell's `connected` and red when the shell fails to start.
 - In split layouts, clicking or tapping into a pane only moved keyboard focus; the toolbar,

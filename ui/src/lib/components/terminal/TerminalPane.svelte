@@ -15,6 +15,7 @@
 	import * as themeState from '#lib/state/theme.svelte.js';
 	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
 	import * as terminalState from '#lib/state/terminal.svelte.js';
+	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import { getServerUrl } from '#lib/platform/index.js';
 	import { post } from '#lib/api/client.js';
 	import * as toast from '#lib/state/toast.svelte.js';
@@ -35,6 +36,8 @@
 		onStatusChange?: (tabId: string, status: ConnectionStatus) => void;
 		/** The pending CTL/ALT from the extra-keys row was used up by a typed character */
 		onModifierConsumed?: () => void;
+		/** A horizontal swipe switched tabs; the view re-focuses the new one */
+		onSwipe?: () => void;
 		onOpenPalette?: () => void;
 	}
 
@@ -45,6 +48,7 @@
 		active = true,
 		onStatusChange,
 		onModifierConsumed,
+		onSwipe,
 		onOpenPalette
 	}: Props = $props();
 
@@ -65,16 +69,15 @@
 	type GestureMode = 'idle' | 'pending' | 'vertical-scroll' | 'horizontal-swipe';
 
 	let gestureMode: GestureMode = 'idle';
+	let scrollAccum = 0;
 	let startX = 0;
 	let startY = 0;
 	let lastY = 0;
 	let startTime = 0;
 	let lastTapTime = 0;
-	let tapFocusTimeout: ReturnType<typeof setTimeout> | null = null;
 
 	const TAP_MAX_MS = 220; // max pointer-down duration to count as a tap (not a drag)
 	const DOUBLE_TAP_MS = 350; // window between taps for double-tap detection
-	const FOCUS_DELAY_MS = 380; // delay focus slightly longer than double-tap window
 	const LOCK_DISTANCE = 10;
 	const AXIS_BIAS = 1.2;
 	const SWIPE_COMMIT_PX = 60;
@@ -165,6 +168,19 @@
 		}
 	}
 
+	/**
+	 * Focus for typing. Android closes the soft keyboard on Back while the textarea keeps focus,
+	 * and `focus()` on an already-focused element shows nothing — so blur first. Must run inside
+	 * the user's gesture for the keyboard to appear.
+	 */
+	function focusForTyping() {
+		if (!terminal) return;
+		const ta = terminal.textarea;
+		if (ta && document.activeElement === ta) ta.blur();
+		terminal.focus();
+		terminal.scrollToBottom();
+	}
+
 	/** Controls drawn over the terminal (reconnect overlay, banners) must get their taps. */
 	function isPassthroughTarget(e: Event): boolean {
 		const t = e.target as Element | null;
@@ -175,6 +191,7 @@
 		if (e.pointerType !== 'touch' || isPassthroughTarget(e)) return;
 		e.stopPropagation(); // prevent xterm.js from seeing this touch
 		gestureMode = 'pending';
+		scrollAccum = 0;
 		startX = e.clientX;
 		startY = lastY = e.clientY;
 		startTime = performance.now();
@@ -213,11 +230,19 @@
 		}
 
 		if (gestureMode === 'vertical-scroll' && terminal) {
-			const deltaY = e.clientY - lastY;
+			// Accumulate sub-cell movement so slow drags still scroll
+			scrollAccum += -(e.clientY - lastY);
 			const cellH = getCellHeight();
-			const lines = Math.round(-deltaY / cellH);
+			const lines = Math.trunc(scrollAccum / cellH);
 			if (lines !== 0) {
-				terminal.scrollLines(lines);
+				scrollAccum -= lines * cellH;
+				if (terminal.buffer.active.type === 'alternate') {
+					// less/man/vim: there is no scrollback, the program scrolls itself
+					const key = lines > 0 ? arrowSeq('B') : arrowSeq('A');
+					injectInput(key.repeat(Math.min(Math.abs(lines), 20)));
+				} else {
+					terminal.scrollLines(lines);
+				}
 			}
 			e.preventDefault();
 		}
@@ -242,23 +267,15 @@
 		} else if (gestureMode === 'pending' && elapsed <= TAP_MAX_MS && moved < LOCK_DISTANCE) {
 			const now = performance.now();
 			if (now - lastTapTime <= DOUBLE_TAP_MS) {
-				// Double-tap → cancel pending focus, open command palette
-				if (tapFocusTimeout) {
-					clearTimeout(tapFocusTimeout);
-					tapFocusTimeout = null;
-				}
+				// Double-tap → command palette
 				onOpenPalette?.();
 				lastTapTime = 0;
 			} else {
-				// Single tap → delay focus so double-tap can cancel it
+				// Single tap → focus now (the keyboard only appears inside the gesture) and place
+				// the cursor; a following double-tap still opens the palette on top.
 				lastTapTime = now;
-				if (tapFocusTimeout) clearTimeout(tapFocusTimeout);
-				const { clientX, clientY } = e;
-				tapFocusTimeout = setTimeout(() => {
-					terminal?.focus();
-					moveCursorTo(clientX, clientY);
-					tapFocusTimeout = null;
-				}, FOCUS_DELAY_MS);
+				focusForTyping();
+				moveCursorTo(e.clientX, e.clientY);
 			}
 		}
 
@@ -267,6 +284,7 @@
 			if (Math.abs(totalDx) > SWIPE_COMMIT_PX) {
 				if (totalDx < 0) terminalState.nextTab();
 				else terminalState.prevTab();
+				onSwipe?.();
 			}
 		}
 
@@ -432,6 +450,7 @@
 		return '';
 	}
 
+	let webglLosses = 0;
 	function tryLoadWebgl() {
 		if (!terminal) return;
 		try {
@@ -440,7 +459,8 @@
 			webglAddon.onContextLoss(() => {
 				webglAddon?.dispose();
 				webglAddon = null;
-				setTimeout(() => tryLoadWebgl(), 1000);
+				// Phones cap live WebGL contexts; after a few losses stay on the DOM renderer
+				if (++webglLosses <= 3) setTimeout(() => tryLoadWebgl(), 1000);
 			});
 		} catch {
 			webglAddon = null;
@@ -494,7 +514,7 @@
 					sixelScrolling: true,
 					sixelPaletteLimit: 256,
 					sixelSizeLimit: 25000000,
-					storageLimit: 128,
+					storageLimit: isMobile() ? 16 : 128,
 					showPlaceholder: true,
 					iipSupport: true,
 					iipSizeLimit: 20000000
@@ -508,6 +528,8 @@
 		tryLoadWebgl();
 
 		fit();
+		// Cell size changes once the web font settles; refit then so cols/rows are right
+		document.fonts?.ready.then(() => fit());
 
 		resizeObserver = new ResizeObserver(() => {
 			if (resizeTimer) clearTimeout(resizeTimer);
@@ -922,9 +944,24 @@
 	}
 
 	/** Inject text into the terminal as if the user typed it (PTY mode) */
+	/** Plain arrow in the current cursor-key mode (DECCKM switches CSI to SS3). */
+	function arrowSeq(final: 'A' | 'B' | 'C' | 'D'): string {
+		return terminal?.modes.applicationCursorKeysMode ? `\x1bO${final}` : `\x1b[${final}`;
+	}
+
+	/**
+	 * Inject keys as if typed: through xterm, so the extra-keys row, quick commands and gestures
+	 * behave like the keyboard (scroll to the bottom, the same onData path). Plain arrows are
+	 * rewritten for application cursor mode.
+	 */
 	export function injectInput(data: string) {
-		if (socket?.readyState === WebSocket.OPEN && mode === 'pty') {
-			const req: PtyRequest = { type: 'input', data };
+		if (mode !== 'pty' || !terminal) return;
+		const plainArrow = data.length === 3 && data.startsWith('\x1b[') && 'ABCD'.includes(data[2]);
+		const seq = plainArrow ? arrowSeq(data[2] as 'A' | 'B' | 'C' | 'D') : data;
+		if (ptyInputDisposable) {
+			terminal.input(seq, true);
+		} else if (socket?.readyState === WebSocket.OPEN) {
+			const req: PtyRequest = { type: 'input', data: seq };
 			socket.send(JSON.stringify(req));
 		}
 	}
@@ -945,7 +982,7 @@
 	}
 
 	export function focus() {
-		terminal?.focus();
+		focusForTyping();
 	}
 
 	export function search(term: string, caseSensitive = false): boolean {
@@ -1082,7 +1119,6 @@
 		window.addEventListener('beforeunload', handleBeforeUnload);
 
 		return () => {
-			if (tapFocusTimeout) clearTimeout(tapFocusTimeout);
 			shellEl.removeEventListener('pointerdown', handlePointerDown, { capture: true });
 			shellEl.removeEventListener('pointermove', handlePointerMove, { capture: true });
 			shellEl.removeEventListener('pointerup', handlePointerUp, { capture: true });

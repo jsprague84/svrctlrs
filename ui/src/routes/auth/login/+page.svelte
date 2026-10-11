@@ -72,7 +72,7 @@
 					class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
 				/>
 			</div>
-			<Button onclick={handleLogin} disabled={loading || !username.trim() || !password.trim()}>
+			<Button type="submit" disabled={loading || !username.trim() || !password.trim()}>
 				{loading ? 'Signing in...' : 'Sign In'}
 			</Button>
 		</form>

@@ -160,9 +160,11 @@ Tokyo Night dark is the default; switch to light in the sidebar. The terminal co
 - **Swipe left/right** on the terminal to move between tabs; a one-time hint explains this.
   **Tap** the prompt line to move the cursor there (arrow keys are sent), **long-press** a word
   to select and copy it, **double-tap** for the command palette.
-- The **extra-keys row** above the keyboard has `^C`, Esc, Tab, arrows and `|`. **CTL** and
-  **ALT** are sticky for one key: tap CTL then type `d` on the keyboard to send Ctrl+D, or tap
-  CTL then an arrow key.
+- The **extra-keys row** above the keyboard has two rows: CTL, ALT, Esc, Tab, arrows and the
+  palette key, then `^C ^D ^Z ^R`, Home/End, PgUp/PgDn and `| ~ / -` (the chevron hides the
+  second row). Keys fire on touch and repeat while held. **CTL** and **ALT** are sticky for one
+  key — tap CTL then type `d` to send Ctrl+D, or CTL then an arrow — and tapping a modifier
+  twice locks it until tapped again.
 - **Install it**: the web app is installable — "Add to Home screen" (Android Chrome, iOS Safari
   share sheet) gives a standalone window without browser chrome, its own icon and the full
   screen for the terminal. Shells keep running while the app is in the background and resume

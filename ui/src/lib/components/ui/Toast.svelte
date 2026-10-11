@@ -21,7 +21,7 @@
 
 {#if toasts.length > 0}
 	<div
-		class="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 max-w-sm"
+		class="fixed z-[100] flex flex-col gap-2 left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+2.75rem)] md:left-auto md:top-auto md:right-4 md:bottom-4 md:max-w-sm"
 		role="status"
 		aria-live="polite"
 	>
