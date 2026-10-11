@@ -528,14 +528,32 @@
 		tryLoadWebgl();
 
 		fit();
-		// Cell size changes once the web font settles; refit then so cols/rows are right
-		document.fonts?.ready.then(() => fit());
+		// The WebGL renderer builds its glyph atlas from whatever font is loaded when it starts.
+		// The bundled web font usually arrives later, so the atlas holds the fallback font's
+		// metrics while glyphs are drawn from the real one — misaligned columns and garbled text
+		// on real mobile GPUs. Once the font settles, rebuild the atlas and refit.
+		document.fonts?.ready.then(() => refreshForFontChange());
 
 		resizeObserver = new ResizeObserver(() => {
 			if (resizeTimer) clearTimeout(resizeTimer);
 			resizeTimer = setTimeout(() => fit(), 100);
 		});
 		resizeObserver.observe(containerEl);
+	}
+
+	/**
+	 * The font (or its metrics) changed under a live WebGL renderer: its glyph atlas was baked
+	 * with the old font, so drop it and let xterm rebuild it before refitting. Harmless on the
+	 * DOM renderer, which has no atlas.
+	 */
+	function refreshForFontChange() {
+		if (!terminal) return;
+		try {
+			webglAddon?.clearTextureAtlas();
+		} catch {
+			// renderer gone; ignore
+		}
+		fit();
 	}
 
 	function appendOutput(data: string) {
@@ -1084,7 +1102,8 @@
 		terminal.options.tabStopWidth = p.tabStopWidth;
 		terminal.options.drawBoldTextInBrightColors = p.drawBoldTextInBrightColors;
 		terminal.options.minimumContrastRatio = p.minimumContrastRatio;
-		requestAnimationFrame(() => fit());
+		// Font metrics may have changed; drop the WebGL atlas so it is rebuilt, then refit.
+		requestAnimationFrame(() => refreshForFontChange());
 	});
 
 	onMount(() => {

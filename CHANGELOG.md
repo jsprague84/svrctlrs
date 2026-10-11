@@ -126,6 +126,11 @@ the release workflow uses the matching section as the release notes.
   falls back to Android's monospace.
 
 ### Fixed
+- Terminal output was garbled with no clean prompt on a phone after the bundled terminal font
+  shipped. The WebGL renderer bakes a glyph atlas from whatever font is loaded when it starts,
+  and the web font arrives later, so the atlas kept the fallback font's metrics while glyphs
+  were drawn from the real one. The atlas is now rebuilt once the font settles and whenever the
+  font preferences change.
 - The login form submitted twice (form submit plus the button's click handler).
 - Terminal tab dots showed green as soon as the WebSocket opened, before the SSH shell was up;
   a PTY tab now turns green on the shell's `connected` and red when the shell fails to start.
