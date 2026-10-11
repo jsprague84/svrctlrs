@@ -126,6 +126,9 @@ the release workflow uses the matching section as the release notes.
   falls back to Android's monospace.
 
 ### Fixed
+- Reaching the open-terminal limit was a dead end on a phone: the message pointed nowhere and
+  the only way to close a terminal is the tab list. Hitting the cap now opens that list, from
+  the server picker or the sidebar, so a terminal can be closed to free a slot.
 - Terminal output was garbled with no clean prompt on a phone after the bundled terminal font
   shipped. The WebGL renderer bakes a glyph atlas from whatever font is loaded when it starts,
   and the web font arrives later, so the atlas kept the fallback font's metrics while glyphs

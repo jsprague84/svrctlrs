@@ -98,7 +98,11 @@
 
 	function handleConnectServer(server: Server) {
 		if (!terminalState.connectToServer(server.id, server.name)) {
-			toast.error('Tab limit reached — close a terminal first');
+			// No slot left. Send the user to the terminal's tab list, the only place to close one.
+			toast.error('Too many terminals open — close one to free a slot');
+			mobileOpen = false;
+			if ((page.url?.pathname ?? '') !== '/') goto(resolve('/'));
+			window.dispatchEvent(new CustomEvent('open-tab-list'));
 			return;
 		}
 		// Close sidebar on mobile, navigate to terminal if not already there

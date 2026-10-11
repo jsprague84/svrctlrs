@@ -61,7 +61,10 @@
 	function connectTo(server: { id: number; name: string }) {
 		const id = terminalState.connectToServer(server.id, server.name);
 		if (!id) {
-			toast.error('Tab limit reached — close a terminal first');
+			// Dead end otherwise: on a phone the only way to close a terminal is this list, so
+			// take the user straight to it instead of a toast that points nowhere.
+			toast.error('Too many terminals open — close one to free a slot');
+			openSheet('tabs');
 			return;
 		}
 		sheetOpen = false;
@@ -387,11 +390,16 @@
 		};
 		window.addEventListener('save-profile', handleSaveProfile);
 
+		// The sidebar hit the tab cap: open the tab list so the user can close one.
+		const handleOpenTabList = () => openSheet('tabs');
+		window.addEventListener('open-tab-list', handleOpenTabList);
+
 		window.addEventListener('keydown', handleKeydown, true);
 		return () => {
 			disarmLeader();
 			window.removeEventListener('keydown', handleKeydown, true);
 			window.removeEventListener('save-profile', handleSaveProfile);
+			window.removeEventListener('open-tab-list', handleOpenTabList);
 			if (updateViewHeight) {
 				window.removeEventListener('resize', updateViewHeight);
 				window.visualViewport?.removeEventListener('resize', updateViewHeight);
