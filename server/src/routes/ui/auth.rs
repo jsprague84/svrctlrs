@@ -67,6 +67,7 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
         // SPA static assets (SvelteKit immutable hashed chunks) and the installable-app shell
         || path_lower.starts_with("/_app/")
         || path_lower.starts_with("/icons/")
+        || path_lower.starts_with("/fonts/")
         || path_lower == "/favicon.svg"
         || path_lower == "/manifest.webmanifest"
         || path_lower == "/service-worker.js"
