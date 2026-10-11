@@ -335,6 +335,19 @@ impl SessionRegistry {
         }
     }
 
+    /// End a session the user owns, attached or not: the shell is told to exit, every attached
+    /// socket gets `Closed`, and the session leaves the registry. `false` when there is no such
+    /// session for this user (unknown id, someone else's, or already gone).
+    pub async fn close_session(&self, id: &str, user_id: i64) -> bool {
+        let Some(session) = self.get(id, user_id).await else {
+            return false;
+        };
+        session.close().await;
+        session.mark_closed("Session closed");
+        self.remove(id).await;
+        true
+    }
+
     pub async fn get(&self, id: &str, user_id: i64) -> Option<Arc<LiveSession>> {
         self.sessions
             .lock()
@@ -492,6 +505,71 @@ mod tests {
             registry.get(&id, 7).await.is_none(),
             "removed from the registry"
         );
+    }
+
+    #[tokio::test]
+    async fn listing_reports_what_the_resume_list_shows_and_skips_ended_sessions() {
+        let registry = SessionRegistry::new(Duration::from_secs(60), 16);
+        let (attached, _ra) = session(1);
+        let (detached, _rd) = session(1);
+        let (ended, _re) = session(1);
+        let (theirs, _rt) = session(2);
+        for s in [&attached, &detached, &ended, &theirs] {
+            registry.insert(s.clone()).await.unwrap();
+        }
+        registry.attach_new(&attached);
+        detached.push_output("one".into()).await;
+        detached.push_output("two".into()).await;
+        ended.mark_closed("exited");
+
+        let mine = registry.list_for_user(1).await;
+        assert_eq!(mine.len(), 2, "closed sessions are not offered for resume");
+        let by_id = |id: &str| mine.iter().find(|s| s.id == id).unwrap();
+        assert_eq!(by_id(&attached.id).attachments, 1);
+        assert_eq!(by_id(&attached.id).latest_seq, 0);
+        assert_eq!(by_id(&detached.id).attachments, 0);
+        assert_eq!(by_id(&detached.id).latest_seq, 2);
+        assert_eq!(by_id(&detached.id).server_name, "web");
+
+        // The JSON the UI reads
+        let json = serde_json::to_value(by_id(&detached.id)).unwrap();
+        for key in [
+            "id",
+            "server_id",
+            "server_name",
+            "created_at",
+            "attachments",
+            "latest_seq",
+        ] {
+            assert!(json.get(key).is_some(), "missing {key}");
+        }
+    }
+
+    #[tokio::test]
+    async fn close_session_ends_the_shell_tells_listeners_and_is_owner_only() {
+        let registry = SessionRegistry::new(Duration::from_secs(60), 16);
+        let (s, mut rx) = session(7);
+        let id = s.id.clone();
+        registry.insert(s.clone()).await.unwrap();
+        registry.attach_new(&s);
+        let mut sub = s.subscribe();
+
+        assert!(!registry.close_session(&id, 8).await, "not the owner");
+        assert!(!registry.close_session("nope", 7).await);
+        assert!(!s.is_closed());
+        assert!(
+            rx.try_recv().is_err(),
+            "a refused close must not touch the PTY"
+        );
+
+        assert!(registry.close_session(&id, 7).await);
+        assert!(s.is_closed());
+        assert!(matches!(rx.try_recv(), Ok(PtyCommand::Close)));
+        assert!(matches!(sub.recv().await.unwrap(), SessionEvent::Closed(_)));
+        assert!(registry.get(&id, 7).await.is_none());
+        assert!(registry.attach(&id, 7).await.is_none(), "cannot be resumed");
+        assert!(registry.list_for_user(7).await.is_empty());
+        assert!(!registry.close_session(&id, 7).await, "already gone");
     }
 
     #[tokio::test]

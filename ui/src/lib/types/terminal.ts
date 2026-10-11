@@ -54,8 +54,10 @@ export interface LiveSession {
 	server_id: number;
 	server_name: string;
 	created_at: string;
+	/** Sockets attached right now: 0 means the shell is detached and on its grace period */
 	attachments: number;
-	closed: boolean;
+	/** Sequence of the newest output frame the server holds */
+	latest_seq: number;
 }
 
 export type TerminalMode = 'cmd' | 'pty';

@@ -1,5 +1,6 @@
 import type { TerminalTab, TerminalMode, ConnectionStatus, LayoutMode } from '#lib/types/index.js';
 import { isMobile } from '#lib/state/mobile.svelte.js';
+import { heldSessionIds, saveSessionRecord } from '#lib/utils/sessionRecord.js';
 
 const tabs = $state<TerminalTab[]>([]);
 let activeTabId = $state<string | null>(null);
@@ -130,6 +131,27 @@ export function connectToServer(serverId: number, serverName: string): string | 
 	if (!tab) return null;
 	pendingAutoConnect = tab.id;
 	return tab.id;
+}
+
+/**
+ * Open a new PTY tab bound to a server-side session that no tab in this window holds (its tab
+ * was closed, the browser tab was lost, or it was opened on another device). The pane finds the
+ * record on mount and attaches with a full replay. Returns the tab id, or null at the tab limit.
+ */
+export function resumeSession(
+	sessionId: string,
+	serverId: number,
+	serverName: string
+): string | null {
+	const tab = createTab(serverId, serverName, 'pty');
+	if (!tab) return null;
+	saveSessionRecord(tab.id, { sessionId, lastSeq: 0, serverId });
+	return tab.id;
+}
+
+/** Which server-side sessions the tabs in this window hold: session id → tab id. */
+export function heldSessions(): Map<string, string> {
+	return heldSessionIds(tabs.map((t) => t.id));
 }
 
 export function closeTab(id: string) {

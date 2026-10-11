@@ -19,6 +19,7 @@
 	import { getServerUrl } from '#lib/platform/index.js';
 	import { post } from '#lib/api/client.js';
 	import * as toast from '#lib/state/toast.svelte.js';
+	import { loadSessionRecord, saveSessionRecord } from '#lib/utils/sessionRecord.js';
 	import type {
 		TerminalMode,
 		ConnectionStatus,
@@ -328,39 +329,17 @@
 	let lastSeq = 0;
 	/** The server the session was opened on; the tab may be pointed elsewhere later */
 	let sessionServerId: number | null = null;
-	const sessionKey = () => `svrctlrs-term-session-${tabId}`;
 
 	function saveSession() {
-		try {
-			if (sessionId) {
-				sessionStorage.setItem(
-					sessionKey(),
-					JSON.stringify({ sessionId, lastSeq, serverId: sessionServerId })
-				);
-			} else {
-				sessionStorage.removeItem(sessionKey());
-			}
-		} catch {
-			// storage unavailable
-		}
+		saveSessionRecord(tabId, sessionId ? { sessionId, lastSeq, serverId: sessionServerId } : null);
 	}
 
 	function loadSession() {
-		try {
-			const raw = sessionStorage.getItem(sessionKey());
-			if (!raw) return;
-			const saved = JSON.parse(raw) as {
-				sessionId?: string;
-				lastSeq?: number;
-				serverId?: number | null;
-			};
-			if (typeof saved.sessionId === 'string') {
-				sessionId = saved.sessionId;
-				lastSeq = typeof saved.lastSeq === 'number' ? saved.lastSeq : 0;
-				sessionServerId = saved.serverId ?? null;
-			}
-		} catch {
-			// ignore
+		const saved = loadSessionRecord(tabId);
+		if (saved) {
+			sessionId = saved.sessionId;
+			lastSeq = saved.lastSeq;
+			sessionServerId = saved.serverId;
 		}
 	}
 
@@ -958,7 +937,7 @@
 	/** Remove saved buffer and session record (called when tab is explicitly closed) */
 	export function clearSavedBuffer() {
 		sessionStorage.removeItem(`svrctlrs-term-buffer-${tabId}`);
-		sessionStorage.removeItem(sessionKey());
+		saveSessionRecord(tabId, null);
 	}
 
 	/** Inject text into the terminal as if the user typed it (PTY mode) */

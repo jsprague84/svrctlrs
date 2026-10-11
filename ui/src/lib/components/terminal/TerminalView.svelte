@@ -1,11 +1,13 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import { SvelteMap } from 'svelte/reactivity';
 	import {
 		Terminal as TerminalIcon,
 		Settings2,
 		Trash2,
 		ClipboardCopy,
-		Download
+		Download,
+		History
 	} from '@lucide/svelte';
 	import TerminalPane from './TerminalPane.svelte';
 	import TerminalTabs from './TerminalTabs.svelte';
@@ -13,6 +15,7 @@
 	import CommandInput from './CommandInput.svelte';
 	import ConnectionBadge from './ConnectionBadge.svelte';
 	import TerminalPrefsPanel from './TerminalPrefsPanel.svelte';
+	import SessionsPanel from './SessionsPanel.svelte';
 	import CommandPalette from './CommandPalette.svelte';
 	import ProfileManager from './ProfileManager.svelte';
 	import MobileStatusBar from './MobileStatusBar.svelte';
@@ -23,7 +26,9 @@
 	import * as terminalState from '#lib/state/terminal.svelte.js';
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import * as profilesState from '#lib/state/profiles.svelte.js';
+	import * as sessionsState from '#lib/state/sessions.svelte.js';
 	import * as toast from '#lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '#lib/utils/error.js';
 	import { confirmDialog } from '#lib/state/confirm.svelte.js';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
@@ -33,7 +38,12 @@
 		LEADER_BINDINGS,
 		LEADER_KEY_LABELS
 	} from '#lib/utils/leader.js';
-	import type { TerminalMode, ConnectionStatus, LayoutMode } from '#lib/types/index.js';
+	import type {
+		TerminalMode,
+		ConnectionStatus,
+		LayoutMode,
+		LiveSession
+	} from '#lib/types/index.js';
 
 	interface Props {
 		visible: boolean;
@@ -48,13 +58,100 @@
 	let searchOpen = $state(false);
 	let searchTerm = $state('');
 	let prefsOpen = $state(false);
-	/** Phone bottom sheet: tab list or server picker */
+	/** Desktop side panel listing the shells still running on the server */
+	let sessionsOpen = $state(false);
+	/** Phone bottom sheet: tab list, server picker or the sessions list */
 	let sheetOpen = $state(false);
 	let sheetView = $state<SheetView>('tabs');
 
 	function openSheet(view: SheetView) {
 		sheetView = view;
 		sheetOpen = true;
+	}
+
+	/** Which server-side sessions the tabs here hold (sessionStorage is not reactive, so it is
+	 *  re-read whenever the list is refreshed). */
+	let heldSessions = new SvelteMap<string, string>();
+	let liveSessions = $derived(sessionsState.getSessions());
+	let resumableCount = $derived(liveSessions.filter((s) => !heldSessions.has(s.id)).length);
+	let sessionsVisible = $derived(isMobile() ? sheetOpen && sheetView === 'sessions' : sessionsOpen);
+
+	function rereadHeldSessions() {
+		const held = terminalState.heldSessions();
+		for (const id of [...heldSessions.keys()]) if (!held.has(id)) heldSessions.delete(id);
+		for (const [id, tabId] of held) heldSessions.set(id, tabId);
+	}
+
+	async function refreshSessions() {
+		rereadHeldSessions();
+		await sessionsState.loadSessions();
+		rereadHeldSessions();
+	}
+
+	function openSessions() {
+		if (isMobile()) openSheet('sessions');
+		else {
+			prefsOpen = false;
+			sessionsOpen = true;
+		}
+	}
+
+	// One fetch when the terminal page first shows, so the badge can say a shell is waiting.
+	// Once only: a failure must not turn into a retry loop.
+	let sessionsFetchedOnce = false;
+	$effect(() => {
+		if (visible && !sessionsFetchedOnce) {
+			sessionsFetchedOnce = true;
+			untrack(() => refreshSessions());
+		}
+	});
+
+	// Fresh data whenever the list is shown, and every so often while it stays open. The
+	// refresh reads and writes `heldSessions`; untracked so it does not retrigger itself.
+	$effect(() => {
+		if (!sessionsVisible) return;
+		untrack(() => refreshSessions());
+		const t = setInterval(refreshSessions, 15_000);
+		return () => clearInterval(t);
+	});
+
+	/** Open a tab attached to a shell that no tab here holds */
+	function resumeSession(session: LiveSession) {
+		const id = terminalState.resumeSession(session.id, session.server_id, session.server_name);
+		if (!id) {
+			toast.error('Too many terminals open — close one to free a slot');
+			if (isMobile()) openSheet('tabs');
+			return;
+		}
+		heldSessions.set(session.id, id);
+		sessionsOpen = false;
+		sheetOpen = false;
+		focusTerminal(id);
+	}
+
+	/** End a shell for good, attached or not */
+	async function endSession(session: LiveSession) {
+		const ok = await confirmDialog({
+			title: `End the shell on ${session.server_name}?`,
+			message: 'Whatever is running in it is terminated. This cannot be undone.',
+			confirmLabel: 'End session',
+			destructive: true
+		});
+		if (!ok) return;
+		try {
+			await sessionsState.endSession(session.id);
+			toast.success(`Ended the shell on ${session.server_name}`);
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Failed to end the session'));
+			refreshSessions();
+		}
+	}
+
+	function goToSessionTab(tabId: string) {
+		terminalState.setActiveTab(tabId);
+		sessionsOpen = false;
+		sheetOpen = false;
+		focusTerminal(tabId);
 	}
 
 	/** Connect a (reused or new) tab to a server and focus it */
@@ -510,7 +607,17 @@
 			onCloseTab={(id) => closeTabWithConfirm(id)}
 			onPickServer={connectTo}
 			onShowServers={() => (sheetView = 'servers')}
+			onShowSessions={() => (sheetView = 'sessions')}
 			onBackToTabs={() => (sheetView = 'tabs')}
+			sessions={liveSessions}
+			held={heldSessions}
+			detachTtlSecs={sessionsState.getDetachTtlSecs()}
+			sessionsLoading={sessionsState.isLoading()}
+			sessionsError={sessionsState.getError()}
+			sessionsLoaded={sessionsState.hasLoaded()}
+			onRefreshSessions={refreshSessions}
+			onResumeSession={resumeSession}
+			onEndSession={endSession}
 		/>
 	{:else}
 		<!-- Desktop: full toolbar -->
@@ -600,9 +707,34 @@
 					<Download class="w-4 h-4" />
 				</button>
 				<button
+					class="relative p-2 md:p-1 text-text-muted hover:text-text-primary"
+					class:text-accent={sessionsOpen}
+					onclick={() => {
+						if (sessionsOpen) sessionsOpen = false;
+						else openSessions();
+					}}
+					title="Sessions on the server (resume a lost shell)"
+					aria-label="Sessions on the server{resumableCount > 0
+						? `, ${resumableCount} to resume`
+						: ''}"
+				>
+					<History class="w-4 h-4" />
+					{#if resumableCount > 0}
+						<span
+							class="absolute -top-0.5 -right-0.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-accent text-background text-[9px] font-semibold leading-3.5 text-center"
+							aria-hidden="true"
+						>
+							{resumableCount}
+						</span>
+					{/if}
+				</button>
+				<button
 					class="p-2 md:p-1 text-text-muted hover:text-text-primary"
 					class:text-accent={prefsOpen}
-					onclick={() => (prefsOpen = !prefsOpen)}
+					onclick={() => {
+						prefsOpen = !prefsOpen;
+						if (prefsOpen) sessionsOpen = false;
+					}}
 					title="Terminal Preferences"
 					aria-label="Terminal preferences"
 				>
@@ -718,6 +850,22 @@
 		{/if}
 
 		<TerminalPrefsPanel open={prefsOpen} onClose={() => (prefsOpen = false)} />
+		{#if !isMobile()}
+			<SessionsPanel
+				open={sessionsOpen}
+				sessions={liveSessions}
+				held={heldSessions}
+				detachTtlSecs={sessionsState.getDetachTtlSecs()}
+				loading={sessionsState.isLoading()}
+				error={sessionsState.getError()}
+				loaded={sessionsState.hasLoaded()}
+				onClose={() => (sessionsOpen = false)}
+				onRefresh={refreshSessions}
+				onResume={resumeSession}
+				onEnd={endSession}
+				onGoToTab={goToSessionTab}
+			/>
+		{/if}
 		<ProfileManager open={profileSaveOpen} onClose={() => (profileSaveOpen = false)} />
 		<CommandPalette
 			open={paletteOpen}
@@ -758,6 +906,7 @@
 			}}
 			onOpenPrefs={() => (prefsOpen = true)}
 			onOpenServers={() => goto(resolve('/servers'))}
+			onOpenSessions={openSessions}
 		/>
 	</div>
 

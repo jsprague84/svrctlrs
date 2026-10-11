@@ -6,6 +6,15 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Added
+- **Resume lost sessions.** A shell whose tab was closed, whose browser tab was lost, or that
+  was opened on another device is still running on the server for the grace period; it can now
+  be picked up again. The terminal toolbar's **Sessions** button (phone: *Sessions on the
+  server* in the tab sheet; palette: *Resume Session*) lists the account's live shells from
+  `GET /api/v1/sessions`, split into *Not open here* (**Resume** opens a tab attached to it with
+  a full replay, **End** terminates it via `DELETE /api/v1/sessions/{id}`) and *Open in this
+  window* (jump to the tab, or end it). The button shows how many shells are waiting. A refused
+  end (unknown id, another user's session) answers 404; ending a session a pane here is attached
+  to drops that pane to its *Session ended* overlay.
 - **Persistent terminal sessions.** An interactive shell now lives in the server
   (`server/src/sessions.rs`), not in the WebSocket. When the connection drops — page reload,
   lost Wi-Fi, a phone that slept, leaving the terminal page — the shell keeps running for

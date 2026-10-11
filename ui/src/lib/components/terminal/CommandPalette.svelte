@@ -33,6 +33,7 @@
 		onCloseTab?: () => void;
 		onOpenPrefs?: () => void;
 		onOpenServers?: () => void;
+		onOpenSessions?: () => void;
 	}
 
 	let {
@@ -50,7 +51,8 @@
 		onNewTab,
 		onCloseTab,
 		onOpenPrefs,
-		onOpenServers
+		onOpenServers,
+		onOpenSessions
 	}: Props = $props();
 
 	let query = $state('');
@@ -129,6 +131,15 @@
 						const id = terminalState.getActiveTabId();
 						if (id) terminalState.closeTab(id);
 					}
+				}
+			},
+			{
+				id: 'action-sessions',
+				name: 'Resume Session',
+				detail: 'Shells still running on the server; reattach or end one',
+				category: 'action',
+				action: () => {
+					onOpenSessions?.();
 				}
 			},
 			{

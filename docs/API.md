@@ -193,8 +193,11 @@ Sessions live in the server, not in the socket. A session with no attached clien
 `SESSION_DETACH_TTL_SECS` (default 900) and then closed; a user may have at most
 `SESSION_MAX_PER_USER` (default 16). The replay ring holds the last 4096 frames or 2 MiB of
 output per session. Live sessions of the calling user are listed by `GET /api/v1/sessions`
-(`sessions[]` with `id`, `server_id`, `server_name`, `created_at`, `attachments`, `closed`, plus
-`detach_ttl_secs`) and ended by `DELETE /api/v1/sessions/{id}`.
+(`sessions[]` with `id`, `server_id`, `server_name`, `created_at`, `attachments` — sockets
+attached right now, 0 while detached — and `latest_seq`, oldest first, plus `detach_ttl_secs`;
+ended sessions are not listed) and ended by `DELETE /api/v1/sessions/{id}` (404 for an unknown
+id or another user's session; every attached socket receives `closed`). The terminal UI's
+**Sessions** panel is built on these two calls.
 
 ### `/ws/terminal` — command mode
 

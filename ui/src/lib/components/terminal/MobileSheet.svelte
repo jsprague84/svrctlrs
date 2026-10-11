@@ -1,15 +1,17 @@
 <script lang="ts">
 	/**
-	 * Bottom sheet for phones: the tab list (switch, close, open a new one) and the server picker
-	 * that a new tab starts from. The platform back gesture closes it.
+	 * Bottom sheet for phones: the tab list (switch, close, open a new one), the server picker
+	 * that a new tab starts from, and the shells still running on the server (resume or end).
+	 * The platform back gesture closes it.
 	 */
-	import { X, Plus, ChevronLeft } from '@lucide/svelte';
+	import { X, Plus, ChevronLeft, History } from '@lucide/svelte';
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import { serverStatus } from '#lib/utils/serverStatus.js';
 	import { watchClose } from '#lib/utils/closeWatcher.js';
-	import type { TerminalTab, Server } from '#lib/types/index.js';
+	import SessionList from './SessionList.svelte';
+	import type { TerminalTab, Server, LiveSession } from '#lib/types/index.js';
 
-	export type SheetView = 'tabs' | 'servers';
+	export type SheetView = 'tabs' | 'servers' | 'sessions';
 
 	interface Props {
 		open: boolean;
@@ -21,7 +23,18 @@
 		onCloseTab: (id: string) => void;
 		onPickServer: (server: Server) => void;
 		onShowServers: () => void;
+		onShowSessions: () => void;
 		onBackToTabs: () => void;
+		/** Server-side sessions, for the `sessions` view and the count on its entry */
+		sessions: LiveSession[];
+		held: Map<string, string>;
+		detachTtlSecs: number;
+		sessionsLoading: boolean;
+		sessionsError: string | null;
+		sessionsLoaded: boolean;
+		onRefreshSessions: () => void;
+		onResumeSession: (session: LiveSession) => void;
+		onEndSession: (session: LiveSession) => void;
 	}
 
 	let {
@@ -34,10 +47,27 @@
 		onCloseTab,
 		onPickServer,
 		onShowServers,
-		onBackToTabs
+		onShowSessions,
+		onBackToTabs,
+		sessions,
+		held,
+		detachTtlSecs,
+		sessionsLoading,
+		sessionsError,
+		sessionsLoaded,
+		onRefreshSessions,
+		onResumeSession,
+		onEndSession
 	}: Props = $props();
 
 	let servers = $derived(serversState.getServers().filter((s) => s.enabled));
+	/** Shells no tab here holds — the ones worth a badge */
+	let resumableCount = $derived(sessions.filter((s) => !held.has(s.id)).length);
+	const titles: Record<SheetView, (n: number) => string> = {
+		tabs: (n) => `Terminals (${n})`,
+		servers: () => 'Connect to…',
+		sessions: () => 'Sessions'
+	};
 
 	$effect(() => {
 		if (open) return watchClose(onClose);
@@ -63,14 +93,18 @@
 		class="fixed bottom-0 inset-x-0 z-50 bg-surface border-t border-border rounded-t-xl pb-[env(safe-area-inset-bottom,0px)] max-h-[70dvh] flex flex-col"
 		role="dialog"
 		aria-modal="true"
-		aria-label={view === 'tabs' ? 'Terminals' : 'Connect to a server'}
+		aria-label={view === 'tabs'
+			? 'Terminals'
+			: view === 'servers'
+				? 'Connect to a server'
+				: 'Sessions on the server'}
 	>
 		<div class="flex justify-center pt-2 pb-1">
 			<div class="w-10 h-1 rounded-full bg-text-muted/30"></div>
 		</div>
 		<div class="flex items-center justify-between px-3 py-1">
 			<div class="flex items-center gap-1">
-				{#if view === 'servers' && tabs.length > 0}
+				{#if view !== 'tabs' && tabs.length > 0}
 					<button
 						type="button"
 						class="w-9 h-9 flex items-center justify-center rounded-md text-text-muted active:bg-surface-raised"
@@ -81,7 +115,7 @@
 					</button>
 				{/if}
 				<h2 class="text-sm font-semibold text-text-primary">
-					{view === 'tabs' ? `Terminals (${tabs.length})` : 'Connect to…'}
+					{titles[view](tabs.length)}
 				</h2>
 			</div>
 			<button
@@ -134,6 +168,37 @@
 				>
 					<Plus class="w-4 h-4" /> New terminal
 				</button>
+				<!-- Shells still running on the server; a lost tab is recovered from here -->
+				<button
+					type="button"
+					class="mt-1 w-full h-11 flex items-center justify-center gap-2 rounded-md text-sm text-text-secondary active:bg-surface-raised"
+					onclick={onShowSessions}
+				>
+					<History class="w-4 h-4" /> Sessions on the server
+					{#if resumableCount > 0}
+						<span
+							class="ml-1 min-w-5 px-1.5 py-0.5 rounded-full bg-accent/20 text-accent text-[11px] font-medium"
+							aria-label="{resumableCount} to resume"
+						>
+							{resumableCount}
+						</span>
+					{/if}
+				</button>
+			{:else if view === 'sessions'}
+				<div class="px-1 py-1">
+					<SessionList
+						{sessions}
+						{held}
+						{detachTtlSecs}
+						loading={sessionsLoading}
+						error={sessionsError}
+						loaded={sessionsLoaded}
+						onRefresh={onRefreshSessions}
+						onResume={onResumeSession}
+						onEnd={onEndSession}
+						onGoToTab={onSelectTab}
+					/>
+				</div>
 			{:else}
 				{#if servers.length === 0}
 					<p class="text-sm text-text-muted px-3 py-6 text-center">

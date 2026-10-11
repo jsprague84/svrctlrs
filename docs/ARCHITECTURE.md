@@ -85,14 +85,18 @@ embedded with `sqlx::migrate!` and checksummed, so never edit a shipped migratio
 - **Routes**: `/` (terminal, rendered by the layout so it survives navigation), `/servers`,
   `/credentials`, `/settings` (General, Notifications, Quick Commands, About), `/auth/login`.
 - **State**: `ui/src/lib/state/*.svelte.ts` — `terminal` (tabs, slots, layouts, profile
-  apply), `terminalPrefs` (xterm options, localStorage), `servers`, `credentials`, `profiles`,
+  apply, `resumeSession`), `terminalPrefs` (xterm options, localStorage), `sessions` (the
+  user's live server-side shells, for the resume list), `servers`, `credentials`, `profiles`,
   `quickCommands`, `settings`, `theme`, `toast`, `mobile`.
 - **API client**: `ui/src/lib/api/client.ts` adds `Authorization: Bearer` + `X-User-Id` when a
   token is stored, redirects to login on 401.
 - **Terminal**: `components/terminal/TerminalPane.svelte` (xterm.js 6 + WebSocket, WebGL with
   DOM fallback, reconnect, buffer restore via the serialize addon, touch gestures),
   `TerminalView.svelte` (layouts, keyboard shortcuts, command palette), `TerminalTabs`,
-  `SplitView`, `CommandPalette`, `TerminalPrefsPanel`, `ProfileManager`.
+  `SplitView`, `CommandPalette`, `TerminalPrefsPanel`, `ProfileManager`, `SessionsPanel` +
+  `SessionList` (resume or end the shells still running on the server; a pane's session record
+  in sessionStorage — `utils/sessionRecord.ts` — is what ties a tab to a session, so resuming a
+  lost one is "write the record, open the tab, let the pane attach").
 - **Mobile**: `MobileStatusBar`, `TabDots`, `ExtraKeysRow`, swipe between tabs, visual-viewport
   keyboard detection (`platform/keyboard.svelte.ts`).
 - **Platform**: `platform/index.ts` detects Tauri and stores the server URL; in the browser the

@@ -40,11 +40,8 @@ async fn close_session(
     CurrentUser(me): CurrentUser,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let Some(live) = state.sessions.get(&id, me).await else {
+    if !state.sessions.close_session(&id, me).await {
         return Err(ApiError::not_found("Session"));
-    };
-    live.close().await;
-    live.mark_closed("Session closed");
-    state.sessions.remove(&id).await;
+    }
     Ok(Json(json!({ "id": id, "message": "Session closed" })))
 }
