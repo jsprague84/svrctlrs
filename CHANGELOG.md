@@ -187,6 +187,14 @@ the release workflow uses the matching section as the release notes.
   Show/Quit menu unreachable after the window was closed; it now uses the application icon,
   and when no tray can be created closing the window quits instead of hiding it.
 
+### Added
+- Server-crate tests for the authentication middleware: a session cookie, a Bearer token and a
+  query token each identify the user from the stored session (never from client-supplied
+  headers), expired and unknown tokens are refused, one-time WebSocket tickets redeem exactly
+  once and only on upgrades, every exempt route passes through while its lookalikes stay
+  protected, and an OPTIONS preflight bypasses auth. With the existing TOFU host-key and
+  WebSocket-origin unit tests, the security-critical request paths are now covered.
+
 ### Removed
 - The `ralph/` autonomous-loop tooling and the archived documentation trees (`docs-archived/`
   and `docs/history/`), none of which were part of the product; they remain in git history.

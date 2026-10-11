@@ -661,6 +661,20 @@ mod tests {
                 get(|CurrentUser(id): CurrentUser| async move { id.to_string() }),
             )
             .route("/page", get(|| async { "page" }))
+            // Exempt login route: writes the session so SessionManagerLayer issues a cookie.
+            .route(
+                "/api/v1/auth/login",
+                get(
+                    |session: Session,
+                     axum::extract::Query(q): axum::extract::Query<
+                        HashMap<String, String>,
+                    >| async move {
+                        let id: i64 = q.get("id").and_then(|s| s.parse().ok()).unwrap_or(0);
+                        session.insert(USER_ID_KEY, id).await.unwrap();
+                        "ok"
+                    },
+                ),
+            )
             .layer(from_fn(require_auth))
             .layer(Extension(pool))
             .layer(Extension(tickets.clone()))
@@ -787,5 +801,123 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn a_session_cookie_authenticates() {
+        let (app, _, _) = app_with_store().await;
+
+        // Log in: the handler writes the session, the layer returns a Set-Cookie.
+        let login = app
+            .clone()
+            .oneshot(
+                Request::get("/api/v1/auth/login?id=5")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(login.status(), StatusCode::OK);
+        let cookie = login
+            .headers()
+            .get(header::SET_COOKIE)
+            .expect("a session cookie was set")
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .to_string();
+
+        // Replaying that cookie identifies the user, with no token or header.
+        let resp = app
+            .oneshot(
+                Request::get("/api/v1/whoami")
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(body_text(resp).await, "5");
+    }
+
+    #[tokio::test]
+    async fn exempt_routes_bypass_auth() {
+        let (app, _, _) = app_with_store().await;
+
+        // None of these are mounted, so passing auth lands on 404 — not 401 or a login redirect.
+        for path in [
+            "/api/v1/health",
+            "/auth/login",
+            "/auth/logout",
+            "/_app/immutable/chunk.js",
+            "/icons/icon-192.png",
+            "/fonts/JetBrainsMono-Regular.woff2",
+            "/favicon.svg",
+            "/manifest.webmanifest",
+            "/service-worker.js",
+        ] {
+            let resp = app
+                .clone()
+                .oneshot(Request::get(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(
+                resp.status(),
+                StatusCode::NOT_FOUND,
+                "exempt path {path:?} should pass auth and reach routing"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn exempt_lookalikes_are_still_protected() {
+        let (app, _, _) = app_with_store().await;
+
+        // A near-miss of an exact or prefix match must not inherit the exemption.
+        for path in ["/api/v1/healthz", "/api/v1/health/extra"] {
+            let resp = app
+                .clone()
+                .oneshot(Request::get(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(
+                resp.status(),
+                StatusCode::UNAUTHORIZED,
+                "api lookalike {path:?} must require auth"
+            );
+        }
+        for path in ["/fonts", "/_app", "/manifest.webmanifest.evil"] {
+            let resp = app
+                .clone()
+                .oneshot(Request::get(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(
+                resp.status(),
+                StatusCode::SEE_OTHER,
+                "page lookalike {path:?} must redirect to login"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn options_preflight_bypasses_auth() {
+        let (app, _, _) = app_with_store().await;
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method(axum::http::Method::OPTIONS)
+                    .uri("/api/v1/whoami")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        // The route only handles GET, so reaching routing yields 405 — proof auth was bypassed.
+        assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
     }
 }
