@@ -5,6 +5,7 @@ mod config;
 mod health_monitor;
 mod host_keys;
 mod login_limiter;
+mod request_id;
 mod routes;
 mod sessions;
 mod ssh_keys;
@@ -246,8 +247,10 @@ async fn main() -> anyhow::Result<()> {
             tower_http::trace::TraceLayer::new_for_http().make_span_with(
                 |request: &axum::http::Request<_>| {
                     // Redacted: WebSocket upgrades carry the session token in the query.
+                    // The request id is also the `x-request-id` response header.
                     tracing::info_span!(
                         "http_request",
+                        request_id = %request_id::from_headers(request.headers()),
                         method = %request.method(),
                         uri = %routes::ui::auth::redacted_uri(request.uri()),
                     )
@@ -275,6 +278,8 @@ async fn main() -> anyhow::Result<()> {
             ),
         ))
         .layer(cors_layer);
+    // Outermost: mint the request id before anything logs
+    let app = request_id::with_request_ids(app);
 
     // Start background health monitor
     health_monitor::start_health_monitor(state.clone());

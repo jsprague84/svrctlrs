@@ -117,7 +117,8 @@ still publishes.
 
 - `docker exec svrctlrs /app/svrctl health` — JSON with `version` and `revision`.
 - `docker logs svrctlrs` — tracing output; `RUST_LOG=debug` for more. Login failures are
-  logged at `warn` with the attempted username.
+  logged at `warn` with the attempted username. Every response has an `x-request-id` header
+  (browser dev tools → Network); grep the logs for that value to see the request's span.
 - A changed SSH host key on a target refuses the connection with an error in the terminal;
   Servers → Keys → **Forget all keys** clears the stored keys.
 - Interactive sessions survive a client disconnect but not a server restart: `docker compose

@@ -51,6 +51,10 @@ Successful responses return the resource directly (an object or an array). Error
 
 Codes: `BAD_REQUEST` (400), `NOT_FOUND` (404), `CONFLICT` (409), `INTERNAL_ERROR` (500).
 
+Every response carries an `x-request-id` header (a UUID minted by the server; a value sent by
+the client is discarded). The same id is the `request_id` field of the request's log span, so
+a failure reported with its header can be found in `docker logs` directly.
+
 ## Health and status
 
 | Method | Path | Auth | Response |

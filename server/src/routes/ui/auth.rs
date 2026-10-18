@@ -238,7 +238,9 @@ pub fn redacted_uri(uri: &Uri) -> String {
     let redacted: Vec<String> = query
         .split('&')
         .map(|pair| match pair.split_once('=') {
-            Some((k, _)) if k == "token" || k == "user_id" => format!("{k}=[redacted]"),
+            Some((k, _)) if k == "token" || k == "ticket" || k == "user_id" => {
+                format!("{k}=[redacted]")
+            }
             _ => pair.to_string(),
         })
         .collect();
@@ -568,6 +570,9 @@ mod tests {
         );
         let plain: Uri = "/api/v1/servers".parse().unwrap();
         assert_eq!(redacted_uri(&plain), "/api/v1/servers");
+        // One-time tickets are short-lived, but a log line is not
+        let ticket: Uri = "/ws/terminal/pty?ticket=abc".parse().unwrap();
+        assert_eq!(redacted_uri(&ticket), "/ws/terminal/pty?ticket=[redacted]");
     }
 
     #[test]

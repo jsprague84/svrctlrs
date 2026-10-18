@@ -5,6 +5,10 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Security
+- rustls 0.23.45 → 0.23.46 for RUSTSEC-2026-0346 through -0349 (TLS secrets in `Debug` output,
+  ECH and certificate-decompression issues); the CI audit gate caught them.
+
 ### Fixed
 - **Multibyte characters no longer garble in the terminal.** PTY output used to be converted to
   text per SSH read, so a box-drawing character, emoji or accented letter that straddled two
@@ -14,6 +18,10 @@ the release workflow uses the matching section as the release notes.
   this; the JSON `output` frames remain for older clients.
 
 ### Added
+- **Request ids.** Every HTTP response carries an `x-request-id` header with a UUID the server
+  minted (a client-supplied value is dropped, so the log cannot be written to from outside), and
+  the request's log span has the same `request_id` field. WebSocket upgrade URIs now also redact
+  the one-time `ticket` value in logs.
 - **Resume lost sessions.** A shell whose tab was closed, whose browser tab was lost, or that
   was opened on another device is still running on the server for the grace period; it can now
   be picked up again. The terminal toolbar's **Sessions** button (phone: *Sessions on the

@@ -98,7 +98,8 @@ Ordered by impact. Each has a ROADMAP entry.
    instead of reading the session themselves.
 3. ~~**Token in URLs**~~ — fixed after 3.0.0: native apps exchange their token for a one-time
    ticket (`POST /api/v1/auth/ws-ticket`, 30 s, consumed on first use) and put only that in
-   the WebSocket URL; the request span logs a redacted URI. `?token=` is still accepted for
+   the WebSocket URL; the request span logs a redacted URI (`token`, `ticket` and `user_id`
+   query values are replaced). `?token=` is still accepted for
    older app builds and is deprecated; remove it once the 3.x APK is on every device.
 4. ~~**Token in `localStorage`**~~ — fixed after 3.0.0 for the browser: the web UI no longer
    stores the session id (the HttpOnly cookie is the only credential) and nothing sends a

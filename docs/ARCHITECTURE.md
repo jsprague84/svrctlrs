@@ -34,8 +34,10 @@ does not pull in Tauri's GTK/WebKit dependencies.
 
 ## Request flow
 
-1. **Middleware** (outermost first): CORS → security headers (CSP, Referrer-Policy,
-   X-Frame-Options, nosniff) → gzip → tracing → session manager → `require_auth`.
+1. **Middleware** (outermost first): request id (`server/src/request_id.rs`: minted per
+   request, client values dropped, echoed as `x-request-id`) → CORS → security headers (CSP,
+   Referrer-Policy, X-Frame-Options, nosniff) → gzip → tracing (span carries `request_id`,
+   method and a redacted URI) → session manager → `require_auth`.
    HTTP routes also sit behind a 30 s `TimeoutLayer`; WebSocket routes do not.
 2. **`require_auth`** (`server/src/routes/ui/auth.rs`) exempts `/auth/login`, `/auth/logout`,
    `/api/v1/auth/login`, `/api/v1/health`, `/_app/*` and `OPTIONS`. Everything else needs
