@@ -11,7 +11,10 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use svrctlrs_database::{models::NewAuditEntry, queries::servers, CreateServer, UpdateServer};
+use svrctlrs_database::{
+    models::{CreateServer, NewAuditEntry, UpdateServer},
+    queries::servers,
+};
 
 use crate::routes::ui::auth::{client_ip, CurrentUser};
 use tracing::{error, info, instrument, warn};

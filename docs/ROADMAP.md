@@ -52,8 +52,8 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
   `config/example.toml` and the `toml` dependency are gone. So are `core::types` (`Server`, `ServerStatus`,
   `MetricValue`), monitoring-era types nothing used.
 - Replace stringly `core::Error` variants with typed errors and `IntoResponse`.
-- `database/src/lib.rs` `#![allow(ambiguous_glob_reexports)]` hides name collisions; export
-  explicitly.
+- Done 2026-10-18: the database crate root no longer glob-re-exports `models::*` and
+  `queries::*` (which collided on their module names); callers import by module path.
 - Removed 2026-10-05: `Header.svelte`, `ServerSelector.svelte`, `api/index.ts`,
   `platform/biometrics.ts` and the unused `plugin-http`/`plugin-os`/`plugin-biometric` JS
   packages (the Rust plugins stay registered). Still: unused exports in state modules.

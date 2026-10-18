@@ -1,17 +1,13 @@
-//! Database layer with SQLite
-
-#![allow(ambiguous_glob_reexports)]
+//! Database layer with SQLite: the connection pool, embedded migrations, and the `models` and
+//! `queries` modules. Import from those modules by path; the crate root re-exports nothing of
+//! theirs (the two globs used to collide on their shared module names).
 
 use sqlx::{sqlite::SqlitePool, Pool, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::info;
 
-// Export models and queries
 pub mod models;
 pub mod queries;
-
-pub use models::*;
-pub use queries::*;
 
 // Re-export sqlx types for convenience
 pub use sqlx::{self, Pool as SqlxPool, Sqlite as SqlxSqlite};

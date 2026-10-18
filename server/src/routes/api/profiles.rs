@@ -98,7 +98,7 @@ async fn create_profile(
 
     info!(name = %input.name, "Creating terminal profile");
 
-    let create = svrctlrs_database::CreateTerminalProfile {
+    let create = svrctlrs_database::models::CreateTerminalProfile {
         name: input.name,
         description: input.description,
         layout: input.layout,
@@ -143,7 +143,7 @@ async fn update_profile(
     current_user: CurrentUser,
     Json(input): Json<UpdateProfileInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let update = svrctlrs_database::UpdateTerminalProfile {
+    let update = svrctlrs_database::models::UpdateTerminalProfile {
         name: input.name,
         description: input.description,
         layout: input.layout,

@@ -11,7 +11,10 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use svrctlrs_database::{queries::credentials, CreateCredential, UpdateCredential};
+use svrctlrs_database::{
+    models::{CreateCredential, UpdateCredential},
+    queries::credentials,
+};
 use tracing::{error, info, instrument};
 
 use super::ApiError;

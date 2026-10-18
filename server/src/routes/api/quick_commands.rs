@@ -103,7 +103,7 @@ async fn create_command(
 
     info!(name = %input.name, "Creating quick command");
 
-    let create = svrctlrs_database::CreateQuickCommand {
+    let create = svrctlrs_database::models::CreateQuickCommand {
         name: input.name,
         command: input.command,
         server_id: input.server_id,
@@ -147,7 +147,7 @@ async fn update_command(
     current_user: CurrentUser,
     Json(input): Json<UpdateCommandInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let update = svrctlrs_database::UpdateQuickCommand {
+    let update = svrctlrs_database::models::UpdateQuickCommand {
         name: input.name,
         command: input.command,
         server_id: input.server_id,
