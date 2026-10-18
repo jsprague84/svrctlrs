@@ -66,7 +66,9 @@ key is kept per server; a different key on the next attempt replaces it. From th
 connection presenting a key that matches none of the *trusted* keys for that server — whatever
 its algorithm — is refused with a mismatch error. The same decision (`server/src/host_keys.rs`)
 runs inside the one SSH client (`server/src/ssh.rs`) that the shell, the connection test, SFTP
-and "Authorize key" all use, and a database error refuses the connection. Keys are listed with
+and "Authorize key" all use, and a database error refuses the connection. A jump host is a
+server like any other: its key is confirmed and checked on its own connection before the
+target's connection is tunnelled through it, and the refusal names whose key is waiting. Keys are listed with
 their fingerprints and trust state and can be forgotten per server (Servers → Keys,
 `DELETE /api/v1/servers/{id}/host-keys`, audited as `server.host_keys_forgotten`), after which
 the next connection asks for confirmation again. Keys stored before this existed (trust on

@@ -48,6 +48,19 @@ Clearing a field in *Edit* (hostname, username, description, credential → *Non
 clears it; a credential that is still assigned to a server cannot be deleted — the row says
 which servers use it.
 
+**Jump hosts.** *Connect through* on a server picks another server to hop through, like
+`ProxyJump`: SvrCtlRS opens its SSH connection to the jump host and tunnels the target's
+connection inside it, so a private address that only the jump host can reach works as the
+hostname. Both servers need a working credential, both host keys are confirmed and checked
+(the fingerprint dialog says whose key it shows), and chains of jump hosts work up to four
+hops. The row shows *via name*. Servers behind a jump host are not probed by the health check;
+their status comes from connections and *Test*. Deleting a jump host makes its servers direct
+again.
+
+**Keepalives.** Every SSH connection sends a keepalive after 15 s of silence
+(`SSH_KEEPALIVE_SECS`; three unanswered close it), so an idle shell behind NAT or on a phone
+network is not dropped by the network, and a dead link is noticed within a minute.
+
 The first connection to a server does not go through until you have confirmed its SSH host
 key: the terminal (or a failed *Test*) shows the key type and `SHA256:` fingerprint, you compare
 it with `ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub` run on the server itself, and choose

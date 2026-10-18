@@ -192,11 +192,15 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
                             Err(e) => {
                                 let (code, details) = match &e {
                                     ConnectError::HostKeyUnconfirmed {
+                                        server_id,
+                                        server_name,
                                         key_type,
                                         fingerprint,
                                     } => (
                                         Some("host_key_unconfirmed".to_string()),
                                         Some(serde_json::json!({
+                                            "server_id": server_id,
+                                            "server_name": server_name,
                                             "key_type": key_type,
                                             "fingerprint": fingerprint,
                                         })),

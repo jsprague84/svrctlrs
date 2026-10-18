@@ -351,6 +351,9 @@ struct CreateServerInput {
     username: Option<String>,
     #[serde(default)]
     credential_id: Option<i64>,
+    /// Reach this server through another server's SSH connection (jump host)
+    #[serde(default)]
+    via_server_id: Option<i64>,
     #[serde(default)]
     description: Option<String>,
     /// Retired with command mode; `true` is refused so old clients get a clear answer.
@@ -394,9 +397,13 @@ async fn create_server(
         port: input.port,
         username: input.username,
         credential_id: input.credential_id,
+        via_server_id: input.via_server_id,
         description: input.description,
         enabled: input.enabled,
     };
+    if let Some(via) = create.via_server_id {
+        check_jump_host(&state, None, via).await?;
+    }
 
     let id = servers::create_server(&state.pool, &create).await?;
 
@@ -432,10 +439,52 @@ struct UpdateServerInput {
     /// Absent keeps the credential, `null` unassigns it, a number sets it
     #[serde(default, deserialize_with = "super::double_option")]
     credential_id: Option<Option<i64>>,
+    /// Same shape: `null` makes the server direct again
+    #[serde(default, deserialize_with = "super::double_option")]
+    via_server_id: Option<Option<i64>>,
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]
     enabled: Option<bool>,
+}
+
+/// A jump host must exist, must not be the server itself, and must not lead back to it.
+async fn check_jump_host(
+    state: &AppState,
+    server_id: Option<i64>,
+    via: i64,
+) -> Result<(), ApiError> {
+    if Some(via) == server_id {
+        return Err(ApiError::bad_request(
+            "A server cannot be its own jump host",
+        ));
+    }
+    let mut next = Some(via);
+    let mut hops = 0;
+    while let Some(id) = next {
+        let hop = servers::get_server(&state.pool, id)
+            .await
+            .map_err(|e| match e {
+                svrctlrs_core::Error::NotFound(_) => {
+                    ApiError::bad_request(format!("Jump host {id} does not exist"))
+                }
+                other => ApiError::from(other),
+            })?;
+        if Some(hop.id) == server_id {
+            return Err(ApiError::bad_request(format!(
+                "{} is reached through this server; that would be a loop",
+                hop.name
+            )));
+        }
+        hops += 1;
+        if hops > 4 {
+            return Err(ApiError::bad_request(
+                "A chain of more than four jump hosts is not supported",
+            ));
+        }
+        next = hop.via_server_id;
+    }
+    Ok(())
 }
 
 /// Update an existing server
@@ -458,10 +507,14 @@ async fn update_server(
         port: input.port,
         username: input.username,
         credential_id: input.credential_id,
+        via_server_id: input.via_server_id,
         description: input.description,
         enabled: input.enabled,
         last_error: None,
     };
+    if let Some(Some(via)) = update.via_server_id {
+        check_jump_host(&state, Some(id), via).await?;
+    }
 
     servers::update_server(&state.pool, id, &update).await?;
 

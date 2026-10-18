@@ -85,8 +85,14 @@ a failure reported with its header can be found in `docker logs` directly.
 | DELETE | `/servers/{id}/host-keys` | — | forget every recorded key; the next connection records what it sees and asks for confirmation. Returns `removed` |
 | POST | `/servers/{id}/authorize-key` | `credential_id` (an `ssh_key` with key material) plus `password` (one-time, never stored) or `bootstrap_credential_id` | installs the public key in `~/.ssh/authorized_keys` over the bootstrap login, verifies the key logs in, sets it as the server's credential. 400 with the reason otherwise |
 
-Server object: `id, name, hostname, port, username, credential_id, description, enabled,
-last_seen_at, last_error, created_at, updated_at`.
+Server object: `id, name, hostname, port, username, credential_id, via_server_id, description,
+enabled, last_seen_at, last_error, created_at, updated_at`. `via_server_id` names a jump host:
+the connection is made through that server's SSH session (`direct-tcpip`), so `hostname` is
+resolved from the jump host. On create and update it must be an existing server other than the
+server itself and must not lead back to it (400 otherwise; chains of up to four hops); `null`
+on update makes the server direct again. Deleting a jump host makes its dependants direct.
+A host-key refusal names the server whose key it is in `details.server_id`/`server_name`,
+which is the jump host's when that is the key waiting for confirmation.
 
 ## Files (SFTP)
 

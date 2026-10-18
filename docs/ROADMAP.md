@@ -39,9 +39,10 @@ users), and keep the login limiter's state in the database so a restart does not
 2. ~~**First-contact host-key confirmation.**~~ Done 2026-10-18: the first key is recorded
    unconfirmed; shell, test, SFTP and authorize-key refuse with the fingerprint until the user
    trusts it (`POST /servers/{id}/host-keys/trust`); `SECURITY.md` "SSH host keys".
-3. **SSH keepalive and jump hosts.** `keepalive_interval` on every connection so NAT and
-   phone networks stop dropping idle shells; an optional *via* server per server (ProxyJump
-   through a direct-tcpip channel of the jump connection) for hosts on isolated VLANs.
+3. ~~**SSH keepalive and jump hosts.**~~ Done 2026-10-18: keepalives on every connection
+   (`SSH_KEEPALIVE_SECS`, default 15 s, three unanswered close it); `servers.via_server_id`
+   tunnels the target through the jump host's connection (`direct-tcpip`, up to four hops,
+   loops refused, host keys confirmed on both). E2E covers shell and SFTP through a hop.
 4. **Server organisation and import.** Tags or groups with filtering in the server list,
    the palette and the phone sheet; paste an `ssh_config` block to create servers. The
    flat list stops working past a dozen hosts.

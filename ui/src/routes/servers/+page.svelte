@@ -55,6 +55,7 @@
 	let port = $state(22);
 	let username = $state('');
 	let credentialId = $state<string>('');
+	let viaServerId = $state<string>('');
 	let description = $state('');
 	let enabled = $state(true);
 
@@ -65,6 +66,9 @@
 	let credentialName = $derived(
 		(id: number | null) => credentials.find((c) => c.id === id)?.name ?? null
 	);
+	let serverName = $derived((id: number | null) => servers.find((s) => s.id === id)?.name ?? null);
+	/** Candidates for the jump-host select: every other server */
+	let jumpCandidates = $derived(servers.filter((s) => s.id !== editingId));
 	let shown = $derived.by(() => {
 		const q = search.trim().toLowerCase();
 		const list = q
@@ -90,6 +94,7 @@
 		port = 22;
 		username = '';
 		credentialId = '';
+		viaServerId = '';
 		description = '';
 		enabled = true;
 		editingId = null;
@@ -107,6 +112,7 @@
 		port = server.port;
 		username = server.username ?? '';
 		credentialId = server.credential_id ? String(server.credential_id) : '';
+		viaServerId = server.via_server_id ? String(server.via_server_id) : '';
 		description = server.description ?? '';
 		enabled = server.enabled;
 		showModal = true;
@@ -124,6 +130,7 @@
 					port,
 					username: username.trim(),
 					credential_id: credentialId ? Number(credentialId) : null,
+					via_server_id: viaServerId ? Number(viaServerId) : null,
 					description: description.trim(),
 					enabled
 				};
@@ -136,6 +143,7 @@
 					port,
 					username: username.trim() || undefined,
 					credential_id: credentialId ? Number(credentialId) : undefined,
+					via_server_id: viaServerId ? Number(viaServerId) : undefined,
 					description: description.trim() || undefined,
 					enabled
 				};
@@ -209,7 +217,7 @@
 
 	async function trustAndRetest(test: TestConnectionResult) {
 		if (!test.details) return;
-		if (await trustHostKey(test.server_id, test.details.fingerprint)) {
+		if (await trustHostKey(test.details.server_id, test.details.fingerprint)) {
 			await handleTest(test.server_id);
 		}
 	}
@@ -342,13 +350,22 @@
 								{server.username ?? 'root'}@{server.hostname}{server.port !== 22
 									? `:${server.port}`
 									: ''}
+								{#if server.via_server_id !== null}
+									<span class="font-sans text-text-muted">
+										· via {serverName(server.via_server_id) ?? `#${server.via_server_id}`}</span
+									>
+								{/if}
 								{#if server.description}
 									<span class="font-sans text-text-muted"> · {server.description}</span>
 								{/if}
 							</div>
 							{#if test && !test.success && test.code === 'HOST_KEY_UNCONFIRMED' && test.details}
 								<div class="mt-1 text-xs text-warning flex flex-wrap items-center gap-x-2 gap-y-1">
-									<span>Host key not confirmed:</span>
+									<span
+										>Host key of {test.details.server_id === server.id
+											? 'this server'
+											: test.details.server_name} not confirmed:</span
+									>
 									<span class="font-mono text-text-primary break-all select-all"
 										>{test.details.key_type} {test.details.fingerprint}</span
 									>
@@ -491,6 +508,18 @@
 			<p class="text-[11px] text-text-muted">
 				Without a credential, the SvrCtlRS server's own <code>~/.ssh/id_*</code> keys are tried.
 				Leave this empty for now and use <em>Authorize key</em> after creating.
+			</p>
+		{/if}
+		<Select label="Connect through (jump host)" bind:value={viaServerId}>
+			<option value="">Directly</option>
+			{#each jumpCandidates as jump (jump.id)}
+				<option value={String(jump.id)}>{jump.name} — {jump.hostname}</option>
+			{/each}
+		</Select>
+		{#if viaServerId}
+			<p class="text-[11px] text-text-muted">
+				The hostname above is resolved from the jump host, so a private address on its network
+				works. Both host keys are checked and both servers need a working credential.
 			</p>
 		{/if}
 		<Input label="Description" bind:value={description} placeholder="Optional" />

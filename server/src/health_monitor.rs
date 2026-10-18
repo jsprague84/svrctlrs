@@ -64,7 +64,12 @@ async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyho
 
     // Load all enabled servers
     let all_servers = servers::list_servers(&state.pool).await?;
-    let enabled_servers: Vec<_> = all_servers.into_iter().filter(|s| s.enabled).collect();
+    // A server behind a jump host is not reachable from here by design; only a connection
+    // through the jump host (shell, test) can say anything about it.
+    let enabled_servers: Vec<_> = all_servers
+        .into_iter()
+        .filter(|s| s.enabled && s.via_server_id.is_none())
+        .collect();
 
     if enabled_servers.is_empty() {
         debug!("No enabled remote servers to check");

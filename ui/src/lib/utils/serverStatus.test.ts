@@ -9,6 +9,7 @@ const base: Server = {
 	port: 22,
 	username: 'root',
 	credential_id: null,
+	via_server_id: null,
 	description: null,
 	enabled: true,
 	last_seen_at: null,

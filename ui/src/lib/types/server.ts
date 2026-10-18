@@ -6,6 +6,8 @@ export interface Server {
 	/** null means the credential's user, else root */
 	username: string | null;
 	credential_id: number | null;
+	/** Reached through this server's SSH connection (jump host), when set */
+	via_server_id: number | null;
 	description: string | null;
 	enabled: boolean;
 	last_seen_at: string | null;
@@ -26,8 +28,11 @@ export interface HostKey {
 	trusted: boolean;
 }
 
-/** What the user has to compare before a first connection goes through. */
+/** What the user has to compare before a first connection goes through. The key belongs to
+ *  `server_id`, which is the jump host when one is in the way. */
 export interface HostKeyChallenge {
+	server_id: number;
+	server_name: string;
 	key_type: string;
 	fingerprint: string;
 }
@@ -38,6 +43,7 @@ export interface CreateServer {
 	port?: number;
 	username?: string;
 	credential_id?: number;
+	via_server_id?: number;
 	description?: string;
 	enabled?: boolean;
 }
@@ -49,6 +55,7 @@ export interface UpdateServer {
 	port?: number;
 	username?: string;
 	credential_id?: number | null;
+	via_server_id?: number | null;
 	description?: string;
 	enabled?: boolean;
 }

@@ -115,9 +115,9 @@ pub fn fingerprint(openssh_key: &str) -> String {
 }
 
 /// What the user reads when a server's key is not confirmed yet.
-pub fn unconfirmed_message(key_type: &str, fingerprint: &str) -> String {
+pub fn unconfirmed_message(server_name: &str, key_type: &str, fingerprint: &str) -> String {
     format!(
-        "This server's host key is not confirmed yet.\r\n\
+        "The host key of {server_name} is not confirmed yet.\r\n\
          {key_type} {fingerprint}\r\n\
          Compare it with `ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub` on the host, then trust it \
          here or under Servers \u{2192} Keys and connect again."

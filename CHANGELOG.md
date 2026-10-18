@@ -16,6 +16,18 @@ the release workflow uses the matching section as the release notes.
   (`host_key_unconfirmed` on the PTY socket). Confirming and forgetting are audited
   (`server.host_key_trusted`, `server.host_keys_forgotten`). Keys stored before this upgrade
   stay trusted; nothing to confirm for existing servers.
+
+### Added
+- **Jump hosts.** *Connect through* on a server (API `via_server_id`) reaches it through
+  another server's SSH connection, like `ProxyJump`: the target's hostname is resolved from the
+  jump host, so hosts on a private VLAN work. Both host keys are confirmed and checked, chains
+  of up to four hops work, loops are refused (400), deleting a jump host makes its servers
+  direct again, and the health check leaves such servers to connections and *Test*. The shell,
+  *Test*, SFTP and *Authorize key* all go through it.
+- **SSH keepalives.** Every SSH connection sends a keepalive after 15 s of silence and drops
+  after three unanswered ones (`SSH_KEEPALIVE_SECS`, `0` disables), so idle shells survive NAT
+  timeouts and phone networks and a dead link is noticed within a minute. Nagle's algorithm is
+  off on the SSH socket for snappier keystrokes.
 - rustls 0.23.45 → 0.23.46 for RUSTSEC-2026-0346 through -0349 (TLS secrets in `Debug` output,
   ECH and certificate-decompression issues); the CI audit gate caught them.
 

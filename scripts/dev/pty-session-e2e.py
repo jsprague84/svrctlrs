@@ -96,6 +96,34 @@ bad_test = api("POST", f"/api/v1/servers/{bad_sid}/test")
 assert bad_test.get("success") is False and "assword" in json.dumps(bad_test), bad_test
 print("wrong password refused ok")
 
+# Jump host: reach the same box through the trusted server's SSH connection (direct-tcpip).
+# Its host key is seen afresh for the new server row, so first contact asks again.
+hop = api("POST", "/api/v1/servers", {"name": f"e2e via {RUN}", "hostname": "127.0.0.1", "port": 22, "username": SSH_USER, "credential_id": cid, "via_server_id": sid})
+hop_sid = hop["id"] if "id" in hop else hop["data"]["id"]
+assert api("GET", f"/api/v1/servers/{hop_sid}")["server"]["via_server_id"] == sid
+t = api("POST", f"/api/v1/servers/{hop_sid}/test")
+assert t.get("code") == "HOST_KEY_UNCONFIRMED" and t["details"]["server_id"] == hop_sid, t
+api("POST", f"/api/v1/servers/{hop_sid}/host-keys/trust", {"fingerprint": t["details"]["fingerprint"]})
+t = api("POST", f"/api/v1/servers/{hop_sid}/test")
+assert t.get("success") is True, t
+print("jump host ok:", t["message"], t["latency_ms"], "ms")
+listing = api("GET", f"/api/v1/servers/{hop_sid}/files")
+assert listing["path"].startswith("/") and isinstance(listing["entries"], list), listing
+print("sftp through jump host ok")
+# loops and self-references are refused
+for bad_via in (hop_sid,):
+    try:
+        api("PUT", f"/api/v1/servers/{sid}", {"via_server_id": bad_via})
+        raise AssertionError("jump loop accepted")
+    except urllib.error.HTTPError as e:
+        assert e.code == 400, e.code
+try:
+    api("PUT", f"/api/v1/servers/{hop_sid}", {"via_server_id": hop_sid})
+    raise AssertionError("self jump accepted")
+except urllib.error.HTTPError as e:
+    assert e.code == 400, e.code
+print("jump loop refused ok")
+
 # A shell on a server whose key is not confirmed yet gets a structured refusal
 fresh_srv = api("POST", "/api/v1/servers", {"name": f"e2e unconfirmed {RUN}", "hostname": SSH_HOST, "port": 22, "username": SSH_USER, "credential_id": cid})
 fresh_sid = fresh_srv["id"] if "id" in fresh_srv else fresh_srv["data"]["id"]
@@ -194,6 +222,18 @@ async def main():
         await ws.send(json.dumps({"type": "input", "data": "exit\n"}))
         await recv_until(ws, lambda m: m["type"] == "closed", 15)
         print("shell after confirmation ok")
+
+    # 0b. a shell through the jump host
+    async with websockets.connect(WS, additional_headers=hdrs) as ws:
+        await ws.send(json.dumps({"type": "shell", "server_id": hop_sid, "cols": 80, "rows": 24, "binary": BINARY}))
+        fr = await recv_until(ws, lambda m: m["type"] in ("connected", "error"), 30)
+        assert fr[-1]["type"] == "connected", fr
+        await ws.send(json.dumps({"type": "input", "data": "echo VIA-$((60+6))\n"}))
+        fr = await recv_until(ws, lambda m: m["type"] == "output" and "VIA-66" in m["data"] and not m["data"].startswith("echo"), 15)
+        assert fr, "no output through the jump host"
+        await ws.send(json.dumps({"type": "input", "data": "exit\n"}))
+        await recv_until(ws, lambda m: m["type"] == "closed", 15)
+        print("shell through jump host ok")
 
     # 1. open a shell, run a marker command, note the last seq, then drop the socket (no close)
     async with websockets.connect(WS, additional_headers=hdrs) as ws:

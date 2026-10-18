@@ -135,6 +135,8 @@ impl From<crate::ssh::ConnectError> for ApiError {
         use crate::ssh::ConnectError;
         match &e {
             ConnectError::HostKeyUnconfirmed {
+                server_id,
+                server_name,
                 key_type,
                 fingerprint,
             } => ApiError::new(
@@ -142,7 +144,12 @@ impl From<crate::ssh::ConnectError> for ApiError {
                 "HOST_KEY_UNCONFIRMED",
                 e.to_string(),
             )
-            .with_details(json!({ "key_type": key_type, "fingerprint": fingerprint })),
+            .with_details(json!({
+                "server_id": server_id,
+                "server_name": server_name,
+                "key_type": key_type,
+                "fingerprint": fingerprint,
+            })),
             ConnectError::HostKeyMismatch(msg) => {
                 ApiError::new(StatusCode::CONFLICT, "HOST_KEY_MISMATCH", msg.clone())
             }

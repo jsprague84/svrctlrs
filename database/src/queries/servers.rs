@@ -12,8 +12,8 @@ use crate::models::{CreateServer, Server, UpdateServer};
 pub async fn list_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, description, enabled,
-               last_seen_at, last_error, created_at, updated_at
+        SELECT id, name, hostname, port, username, credential_id, via_server_id, description,
+               enabled, last_seen_at, last_error, created_at, updated_at
         FROM servers
         ORDER BY name
         "#,
@@ -29,8 +29,8 @@ pub async fn list_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
 pub async fn get_server(pool: &Pool<Sqlite>, id: i64) -> Result<Server> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, description, enabled,
-               last_seen_at, last_error, created_at, updated_at
+        SELECT id, name, hostname, port, username, credential_id, via_server_id, description,
+               enabled, last_seen_at, last_error, created_at, updated_at
         FROM servers
         WHERE id = ?
         "#,
@@ -48,8 +48,8 @@ pub async fn get_server(pool: &Pool<Sqlite>, id: i64) -> Result<Server> {
 pub async fn get_server_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<Server> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, description, enabled,
-               last_seen_at, last_error, created_at, updated_at
+        SELECT id, name, hostname, port, username, credential_id, via_server_id, description,
+               enabled, last_seen_at, last_error, created_at, updated_at
         FROM servers
         WHERE name = ?
         "#,
@@ -70,8 +70,9 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
 
     let result = sqlx::query(
         r#"
-        INSERT INTO servers (name, hostname, port, username, credential_id, description, enabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO servers (name, hostname, port, username, credential_id, via_server_id,
+                             description, enabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&input.name)
@@ -79,6 +80,7 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
     .bind(input.port)
     .bind(&input.username)
     .bind(input.credential_id)
+    .bind(input.via_server_id)
     .bind(&input.description)
     .bind(input.enabled)
     .execute(pool)
@@ -118,6 +120,9 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
     if let Some(credential_id) = input.credential_id {
         // `Some(None)` binds NULL and unassigns the credential
         qb.push(", credential_id = ").push_bind(credential_id);
+    }
+    if let Some(via_server_id) = input.via_server_id {
+        qb.push(", via_server_id = ").push_bind(via_server_id);
     }
     if let Some(description) = &input.description {
         qb.push(", description = NULLIF(")
@@ -197,8 +202,8 @@ pub async fn update_server_status(
 pub async fn list_enabled_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, description, enabled,
-               last_seen_at, last_error, created_at, updated_at
+        SELECT id, name, hostname, port, username, credential_id, via_server_id, description,
+               enabled, last_seen_at, last_error, created_at, updated_at
         FROM servers
         WHERE enabled = 1
         ORDER BY name
@@ -228,6 +233,7 @@ mod tests {
             port: 22,
             username: Some("root".to_string()),
             credential_id: None,
+            via_server_id: None,
             description: None,
             enabled: true,
         }
@@ -261,6 +267,7 @@ mod tests {
             port: 22,
             username: Some("admin".to_string()),
             credential_id: None,
+            via_server_id: None,
             description: Some("Test server".to_string()),
             enabled: true,
         };
@@ -290,6 +297,53 @@ mod tests {
 
         // Verify deleted
         assert!(get_server(&pool, id).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn deleting_a_jump_host_makes_its_dependants_direct() {
+        let pool = setup_test_db().await;
+        sqlx::query("PRAGMA foreign_keys = ON")
+            .execute(&pool)
+            .await
+            .unwrap();
+        let jump = create_server(&pool, &host("bastion")).await.unwrap();
+        let inner = create_server(
+            &pool,
+            &CreateServer {
+                via_server_id: Some(jump),
+                ..host("inner")
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(
+            get_server(&pool, inner).await.unwrap().via_server_id,
+            Some(jump)
+        );
+        // `Some(None)` clears it; `None` keeps it
+        update_server(
+            &pool,
+            inner,
+            &UpdateServer {
+                via_server_id: Some(None),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(get_server(&pool, inner).await.unwrap().via_server_id, None);
+        update_server(
+            &pool,
+            inner,
+            &UpdateServer {
+                via_server_id: Some(Some(jump)),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        delete_server(&pool, jump).await.unwrap();
+        assert_eq!(get_server(&pool, inner).await.unwrap().via_server_id, None);
     }
 
     #[tokio::test]

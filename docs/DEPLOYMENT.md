@@ -32,6 +32,7 @@ docker compose logs -f svrctlrs
 | `ALLOWED_ORIGINS` | for native clients | unset | comma-separated origins of the Tauri apps, e.g. `tauri://localhost,https://tauri.localhost,http://tauri.localhost`. Enables CORS for them and switches the session cookie to `SameSite=None`. Leave empty for browser-only use. |
 | `SESSION_DETACH_TTL_SECS` | no | `900` | how long an interactive shell is kept after its last client disconnects (reload, lost link, phone backgrounded) before it is closed |
 | `SESSION_MAX_PER_USER` | no | `16` | live interactive sessions per user; the 17th `shell` request fails with `quota` |
+| `SSH_KEEPALIVE_SECS` | no | `15` | seconds of silence before the SSH client sends a keepalive to the target; three unanswered close the connection. `0` disables keepalives |
 | `SPA_DIR` | no | `/app/ui/build` | where the built SPA lives |
 | `RUST_LOG` | no | `info` | tracing filter |
 | `LOG_FORMAT` | no | text | `json` for one JSON object per line (log shippers); text otherwise |

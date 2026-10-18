@@ -15,6 +15,8 @@ pub struct Server {
     pub username: Option<String>,
     /// Foreign key to credentials
     pub credential_id: Option<i64>,
+    /// Reached through this server's SSH connection (a jump host), when set
+    pub via_server_id: Option<i64>,
     pub description: Option<String>,
     pub enabled: bool,
 
@@ -47,6 +49,8 @@ pub struct CreateServer {
     pub port: i32,
     pub username: Option<String>,
     pub credential_id: Option<i64>,
+    #[serde(default)]
+    pub via_server_id: Option<i64>,
     pub description: Option<String>,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
@@ -77,6 +81,8 @@ pub struct UpdateServer {
     pub username: Option<String>,
     /// `None` keeps the current credential, `Some(None)` unassigns it, `Some(Some(id))` sets it.
     pub credential_id: Option<Option<i64>>,
+    /// Same shape: `Some(None)` makes the server direct again.
+    pub via_server_id: Option<Option<i64>>,
     pub description: Option<String>,
     pub enabled: Option<bool>,
     pub last_error: Option<String>,
@@ -90,6 +96,7 @@ impl UpdateServer {
             || self.port.is_some()
             || self.username.is_some()
             || self.credential_id.is_some()
+            || self.via_server_id.is_some()
             || self.description.is_some()
             || self.enabled.is_some()
             || self.last_error.is_some()
@@ -116,6 +123,7 @@ mod tests {
             port,
             username: username.map(String::from),
             credential_id: None,
+            via_server_id: None,
             description: None,
             enabled: true,
             last_seen_at: None,
@@ -146,6 +154,7 @@ mod tests {
             port: 22,
             username: Some("admin".to_string()),
             credential_id: Some(1),
+            via_server_id: None,
             description: None,
             enabled: true,
         };

@@ -58,6 +58,9 @@ does not pull in Tauri's GTK/WebKit dependencies.
    host key verified during the handshake (first contact recorded and refused until the user
    confirms the fingerprint, mismatch refused, fail closed), password or key
    authentication with the credential's key first and the container's default keys after.
+   A server with `via_server_id` is reached through the jump host's own connection (made the
+   same way, recursively, at most four hops) over a `direct-tcpip` channel; every connection
+   sends keepalives (`SSH_KEEPALIVE_SECS`).
 5. **Static files**: `ServeDir(SPA_DIR)` with `index.html` fallback, so client-side routes
    work on reload.
 
@@ -79,9 +82,9 @@ does not pull in Tauri's GTK/WebKit dependencies.
 |---|---|
 | `users` | username, argon2 hash |
 | `tower_sessions` | session records (managed by the store) |
-| `servers` | name, hostname, port, username (NULL = the credential's user, else root), `credential_id`, `enabled`, `last_seen_at`, `last_error` |
+| `servers` | name, hostname, port, username (NULL = the credential's user, else root), `credential_id`, `via_server_id` (jump host; `ON DELETE SET NULL`), `enabled`, `last_seen_at`, `last_error` |
 | `credentials` | name, type (`password`, `ssh_key`, …), encrypted `value`, optional `username`, JSON `metadata`, `encrypted` flag |
-| `server_host_keys` | `(server_id, key_type)` → public key, first/last seen |
+| `server_host_keys` | `(server_id, key_type)` → public key, first/last seen, `trusted_at` (NULL = waiting for confirmation) |
 | `terminal_profiles` | per-user layout + pane configs (`server_id` per pane), `is_default` |
 | `quick_commands` | per-user snippets: name, command, optional `server_id`, category, sort order |
 | `settings` | key/value with `value_type`; `notification.*` and `app.default_profile_id` are seeded |

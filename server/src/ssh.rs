@@ -4,7 +4,12 @@
 //! confirms its fingerprint; a mismatch is refused outright), and the same
 //! authentication order everywhere: a password credential logs in with its password; a key
 //! credential tries its key first, then the server's own default keys; no credential tries the
-//! default keys alone. Local execution does not exist: a server is something to SSH into.
+//! default keys alone. A server with a jump host (`via_server_id`) is reached through a
+//! `direct-tcpip` channel of the jump host's own connection, which is made the same way (its
+//! host key checked, its credential used), so a chain of jumps is just recursion. Every
+//! connection sends keepalives (`SSH_KEEPALIVE_SECS`, default 15) so NAT boxes and phone
+//! networks do not drop an idle shell. Local execution does not exist: a server is something
+//! to SSH into.
 
 use std::sync::Arc;
 
@@ -13,6 +18,7 @@ use russh::keys::key::PrivateKeyWithHashAlg;
 use russh::keys::{Algorithm, HashAlg};
 use russh::ChannelMsg;
 use svrctlrs_database::models::{Credential, CredentialType, Server};
+use svrctlrs_database::queries;
 use svrctlrs_database::sqlx::{Pool, Sqlite};
 use tokio::sync::Mutex;
 use tracing::{debug, error, info};
@@ -110,8 +116,11 @@ pub async fn plan_auth(credential: Option<&Credential>) -> Result<AuthPlan, Stri
 /// else is a sentence meant for the user.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConnectError {
-    /// First contact: the key was recorded and waits for the user's confirmation.
+    /// First contact: the key was recorded and waits for the user's confirmation. Names the
+    /// server whose key it is, which is the jump host when one is in the way.
     HostKeyUnconfirmed {
+        server_id: i64,
+        server_name: String,
         key_type: String,
         fingerprint: String,
     },
@@ -124,9 +133,15 @@ impl std::fmt::Display for ConnectError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::HostKeyUnconfirmed {
+                server_name,
                 key_type,
                 fingerprint,
-            } => f.write_str(&host_keys::unconfirmed_message(key_type, fingerprint)),
+                ..
+            } => f.write_str(&host_keys::unconfirmed_message(
+                server_name,
+                key_type,
+                fingerprint,
+            )),
             Self::HostKeyMismatch(msg) | Self::Failed(msg) => f.write_str(msg),
         }
     }
@@ -147,6 +162,7 @@ impl From<String> for ConnectError {
 pub struct Handler {
     pool: Pool<Sqlite>,
     server_id: i64,
+    server_name: String,
     refusal: Arc<Mutex<Option<ConnectError>>>,
 }
 
@@ -169,6 +185,8 @@ impl client::Handler for Handler {
             {
                 Ok(Verdict::Trusted) => return Ok(true),
                 Ok(Verdict::Unconfirmed) => ConnectError::HostKeyUnconfirmed {
+                    server_id: self.server_id,
+                    server_name: self.server_name.clone(),
                     fingerprint: host_keys::fingerprint(&openssh_key),
                     key_type,
                 },
@@ -192,27 +210,119 @@ pub struct Connection {
     pub target: Target,
     /// `password`, or the label of the key that was accepted
     pub auth: String,
+    /// The jump host's connection, kept open for as long as this one lives
+    _via: Option<Box<Connection>>,
 }
 
-/// Connect and authenticate.
+/// Longest chain of jump hosts followed before giving up (also stops a loop in the data).
+const MAX_JUMPS: usize = 4;
+
+/// Default `SSH_KEEPALIVE_SECS`.
+const DEFAULT_KEEPALIVE_SECS: u64 = 15;
+
+/// The client configuration every connection uses: keepalives (three unanswered close the
+/// connection) and no Nagle delay on an interactive link.
+pub fn client_config() -> Arc<client::Config> {
+    let keepalive = std::env::var("SSH_KEEPALIVE_SECS")
+        .ok()
+        .and_then(|v| v.trim().parse::<u64>().ok())
+        .unwrap_or(DEFAULT_KEEPALIVE_SECS);
+    Arc::new(client::Config {
+        keepalive_interval: (keepalive > 0).then(|| std::time::Duration::from_secs(keepalive)),
+        keepalive_max: 3,
+        nodelay: true,
+        ..client::Config::default()
+    })
+}
+
+/// Connect and authenticate, through the server's jump host if it has one.
 pub async fn connect(
     pool: &Pool<Sqlite>,
     server: &Server,
     credential: Option<&Credential>,
 ) -> Result<Connection, ConnectError> {
-    let target = target(server, credential)?;
-    let plan = plan_auth(credential).await?;
-    let login = target.login();
+    connect_via(pool, server, credential, &mut Vec::new()).await
+}
 
-    let refusal = Arc::new(Mutex::new(None));
-    let handler = Handler {
-        pool: pool.clone(),
-        server_id: server.id,
-        refusal: refusal.clone(),
-    };
-    let config = Arc::new(client::Config::default());
-    let mut handle =
-        match client::connect(config, (target.hostname.as_str(), target.port), handler).await {
+/// `visited` holds the ids on the way down, so a loop in `via_server_id` is an error rather
+/// than a stack overflow.
+fn connect_via<'a>(
+    pool: &'a Pool<Sqlite>,
+    server: &'a Server,
+    credential: Option<&'a Credential>,
+    visited: &'a mut Vec<i64>,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<Connection, ConnectError>> + Send + 'a>,
+> {
+    Box::pin(async move {
+        let target = target(server, credential)?;
+        let plan = plan_auth(credential).await?;
+        let login = target.login();
+
+        let via = match server.via_server_id {
+            None => None,
+            Some(via_id) => {
+                if visited.contains(&via_id) || via_id == server.id || visited.len() >= MAX_JUMPS {
+                    return Err(ConnectError::Failed(format!(
+                        "Jump hosts for {} form a loop or a chain longer than {MAX_JUMPS}",
+                        server.name
+                    )));
+                }
+                visited.push(server.id);
+                let jump = queries::servers::get_server(pool, via_id)
+                    .await
+                    .map_err(|e| format!("Jump host of {}: {e}", server.name))?;
+                let jump_credential = match jump.credential_id {
+                    Some(id) => Some(
+                        queries::credentials::get_credential(pool, id)
+                            .await
+                            .map_err(|e| format!("Credential of jump host {}: {e}", jump.name))?,
+                    ),
+                    None => None,
+                };
+                let conn = connect_via(pool, &jump, jump_credential.as_ref(), visited)
+                    .await
+                    .map_err(|e| match e {
+                        ConnectError::Failed(msg) => {
+                            ConnectError::Failed(format!("Jump host {}: {msg}", jump.name))
+                        }
+                        other => other,
+                    })?;
+                Some(Box::new(conn))
+            }
+        };
+
+        let refusal = Arc::new(Mutex::new(None));
+        let handler = Handler {
+            pool: pool.clone(),
+            server_id: server.id,
+            server_name: server.name.clone(),
+            refusal: refusal.clone(),
+        };
+        let config = client_config();
+        let connected = match &via {
+            None => client::connect(config, (target.hostname.as_str(), target.port), handler).await,
+            Some(jump) => {
+                // A TCP connection opened by the jump host, carried as an SSH channel
+                let channel = jump
+                    .handle
+                    .channel_open_direct_tcpip(
+                        target.hostname.as_str(),
+                        u32::from(target.port),
+                        "127.0.0.1",
+                        0,
+                    )
+                    .await
+                    .map_err(|e| {
+                        ConnectError::Failed(format!(
+                            "Jump host {} could not reach {}:{}: {e}",
+                            jump.target.hostname, target.hostname, target.port
+                        ))
+                    })?;
+                client::connect_stream(config, channel.into_stream(), handler).await
+            }
+        };
+        let mut handle = match connected {
             Ok(h) => h,
             Err(e) => {
                 let why = refusal.lock().await.take();
@@ -222,84 +332,86 @@ pub async fn connect(
             }
         };
 
-    let auth = match plan {
-        AuthPlan::Password(password) => match handle
-            .authenticate_password(target.username.clone(), password)
-            .await
-        {
-            Ok(AuthResult::Success) => "password".to_string(),
-            Ok(AuthResult::Failure { .. }) => {
-                return Err(ConnectError::Failed(format!(
-                    "Password authentication failed for {login}"
-                )));
-            }
-            Err(e) => {
-                return Err(ConnectError::Failed(format!(
-                    "Password authentication failed for {login}: {e}"
-                )))
-            }
-        },
-        AuthPlan::Keys(keys) => {
-            let mut tried = Vec::with_capacity(keys.len());
-            let mut last_error = String::from("no key could be used");
-            let mut accepted = None;
-            for key in &keys {
-                tried.push(key.label.clone());
-                let key_pair = match russh::keys::decode_secret_key(
-                    &key.material,
-                    key.passphrase.as_deref(),
-                ) {
-                    Ok(k) => k,
-                    Err(e) => {
-                        debug!(key = %key.label, error = %e, "Could not decode SSH key");
-                        last_error = format!("could not decode {}: {e}", key.label);
-                        continue;
-                    }
-                };
-                // RSA needs an explicit SHA-2 signature; legacy ssh-rsa (SHA-1) is refused
-                // by modern servers. Other algorithms carry their own.
-                let hash_alg = match key_pair.algorithm() {
-                    Algorithm::Rsa { .. } => Some(HashAlg::Sha256),
-                    _ => None,
-                };
-                match handle
-                    .authenticate_publickey(
-                        target.username.clone(),
-                        PrivateKeyWithHashAlg::new(Arc::new(key_pair), hash_alg),
-                    )
-                    .await
-                {
-                    Ok(AuthResult::Success) => {
-                        accepted = Some(key.label.clone());
-                        break;
-                    }
-                    Ok(AuthResult::Failure { .. }) => {
-                        debug!(key = %key.label, "SSH key rejected");
-                        last_error = format!("{} was rejected", key.label);
-                    }
-                    Err(e) => {
-                        debug!(key = %key.label, error = %e, "SSH authentication error");
-                        last_error = format!("{}: {e}", key.label);
-                    }
-                }
-            }
-            match accepted {
-                Some(label) => label,
-                None => {
+        let auth = match plan {
+            AuthPlan::Password(password) => match handle
+                .authenticate_password(target.username.clone(), password)
+                .await
+            {
+                Ok(AuthResult::Success) => "password".to_string(),
+                Ok(AuthResult::Failure { .. }) => {
                     return Err(ConnectError::Failed(format!(
-                        "SSH authentication failed for {login}. Tried keys: {}. Last error: {last_error}",
-                        tried.join(", ")
+                        "Password authentication failed for {login}"
                     )));
                 }
+                Err(e) => {
+                    return Err(ConnectError::Failed(format!(
+                        "Password authentication failed for {login}: {e}"
+                    )))
+                }
+            },
+            AuthPlan::Keys(keys) => {
+                let mut tried = Vec::with_capacity(keys.len());
+                let mut last_error = String::from("no key could be used");
+                let mut accepted = None;
+                for key in &keys {
+                    tried.push(key.label.clone());
+                    let key_pair = match russh::keys::decode_secret_key(
+                        &key.material,
+                        key.passphrase.as_deref(),
+                    ) {
+                        Ok(k) => k,
+                        Err(e) => {
+                            debug!(key = %key.label, error = %e, "Could not decode SSH key");
+                            last_error = format!("could not decode {}: {e}", key.label);
+                            continue;
+                        }
+                    };
+                    // RSA needs an explicit SHA-2 signature; legacy ssh-rsa (SHA-1) is refused
+                    // by modern servers. Other algorithms carry their own.
+                    let hash_alg = match key_pair.algorithm() {
+                        Algorithm::Rsa { .. } => Some(HashAlg::Sha256),
+                        _ => None,
+                    };
+                    match handle
+                        .authenticate_publickey(
+                            target.username.clone(),
+                            PrivateKeyWithHashAlg::new(Arc::new(key_pair), hash_alg),
+                        )
+                        .await
+                    {
+                        Ok(AuthResult::Success) => {
+                            accepted = Some(key.label.clone());
+                            break;
+                        }
+                        Ok(AuthResult::Failure { .. }) => {
+                            debug!(key = %key.label, "SSH key rejected");
+                            last_error = format!("{} was rejected", key.label);
+                        }
+                        Err(e) => {
+                            debug!(key = %key.label, error = %e, "SSH authentication error");
+                            last_error = format!("{}: {e}", key.label);
+                        }
+                    }
+                }
+                match accepted {
+                    Some(label) => label,
+                    None => {
+                        return Err(ConnectError::Failed(format!(
+                            "SSH authentication failed for {login}. Tried keys: {}. Last error: {last_error}",
+                            tried.join(", ")
+                        )));
+                    }
+                }
             }
-        }
-    };
+        };
 
-    info!(login = %login, auth = %auth, "SSH authenticated");
-    Ok(Connection {
-        handle,
-        target,
-        auth,
+        info!(login = %login, auth = %auth, "SSH authenticated");
+        Ok(Connection {
+            handle,
+            target,
+            auth,
+            _via: via,
+        })
     })
 }
 
@@ -379,6 +491,7 @@ mod tests {
             port: 22,
             username: username.map(String::from),
             credential_id: None,
+            via_server_id: None,
             description: None,
             enabled: true,
             last_seen_at: None,

@@ -36,8 +36,9 @@ export interface PtyResponse {
 	/** `error`: `session_gone` (start a new shell), `quota`, `host_key_unconfirmed` (confirm
 	 *  `details` and connect again), `host_key_mismatch` */
 	code?: string;
-	/** `error` with `host_key_unconfirmed`: the key to confirm */
-	details?: { key_type: string; fingerprint: string };
+	/** `error` with `host_key_unconfirmed`: the key to confirm, and whose it is (the jump host's
+	 *  when one is in the way) */
+	details?: { server_id: number; server_name: string; key_type: string; fingerprint: string };
 }
 
 /** A live session as listed by `GET /api/v1/sessions` */

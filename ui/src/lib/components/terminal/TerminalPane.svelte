@@ -48,7 +48,12 @@
 
 	let showReconnectOverlay = $state(false);
 	/** First contact: the server refused the shell until this key is confirmed */
-	let hostKeyChallenge = $state<{ key_type: string; fingerprint: string } | null>(null);
+	let hostKeyChallenge = $state<{
+		server_id: number;
+		server_name: string;
+		key_type: string;
+		fingerprint: string;
+	} | null>(null);
 	let trustingHostKey = $state(false);
 	/** Connection progress shown over the pane instead of being written into the shell's buffer. */
 	let statusNote = $state<string | null>(null);
@@ -547,7 +552,7 @@
 		if (!hostKeyChallenge || serverId === null) return;
 		trustingHostKey = true;
 		try {
-			await serversApi.trustHostKey(serverId, hostKeyChallenge.fingerprint);
+			await serversApi.trustHostKey(hostKeyChallenge.server_id, hostKeyChallenge.fingerprint);
 			hostKeyChallenge = null;
 			terminal?.writeln('\x1b[32m✓ Host key trusted\x1b[0m');
 			await connect();
@@ -1139,9 +1144,10 @@
 					Unknown host key
 				</h3>
 				<p class="text-xs text-text-secondary">
-					This is the first connection to this server. Compare the fingerprint with the server's
-					own, for example <code class="font-mono">ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub</code>
-					on the host, before trusting it.
+					First connection to <strong>{hostKeyChallenge.server_name}</strong>. Compare the
+					fingerprint with the server's own, for example
+					<code class="font-mono">ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub</code> on the host, before
+					trusting it.
 				</p>
 				<div class="rounded-sm bg-background border border-border/60 px-3 py-2">
 					<div class="text-[11px] text-text-muted">{hostKeyChallenge.key_type}</div>
