@@ -54,8 +54,9 @@ does not pull in Tauri's GTK/WebKit dependencies.
 4. **The terminal WebSocket** carries a small JSON protocol (`API.md`, "WebSocket protocol");
    PTY output itself travels as binary frames (`seq` + raw bytes) so the terminal decodes the
    stream. PTY sessions live in `sessions.rs` and outlive their sockets. Every SSH connection
-   — the shell, the connection test, "Authorize key" — goes through `ssh.rs`: russh, host key
-   verified during the handshake (trust on first use, fail closed), password or key
+   — the shell, the connection test, SFTP, "Authorize key" — goes through `ssh.rs`: russh,
+   host key verified during the handshake (first contact recorded and refused until the user
+   confirms the fingerprint, mismatch refused, fail closed), password or key
    authentication with the credential's key first and the container's default keys after.
 5. **Static files**: `ServeDir(SPA_DIR)` with `index.html` fallback, so client-side routes
    work on reload.
@@ -69,7 +70,8 @@ does not pull in Tauri's GTK/WebKit dependencies.
   non-browser clients.
 - Credentials: `value` encrypted with AES-256-GCM (`core/src/encryption.rs`). The key comes
   from `ENCRYPTION_KEY` (64 hex chars), else `data/encryption.key`, else is generated.
-- SSH host keys: `server_host_keys` table, trust-on-first-use per `(server_id, key_type)`.
+- SSH host keys: `server_host_keys` table, one row per `(server_id, key_type)`; `trusted_at`
+  NULL is the key seen on first contact, waiting for the user to confirm its fingerprint.
 
 ## Data model
 

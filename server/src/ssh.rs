@@ -1,6 +1,7 @@
 //! The one SSH client. Every connection the server makes — an interactive shell, the
 //! connection test, "Authorize key" — goes through [`connect`]: russh, the host key checked
-//! against the stored keys on every handshake (trust on first use, fail closed), and the same
+//! against the trusted keys on every handshake (an unconfirmed key is refused until the user
+//! confirms its fingerprint; a mismatch is refused outright), and the same
 //! authentication order everywhere: a password credential logs in with its password; a key
 //! credential tries its key first, then the server's own default keys; no credential tries the
 //! default keys alone. Local execution does not exist: a server is something to SSH into.
@@ -104,13 +105,49 @@ pub async fn plan_auth(credential: Option<&Credential>) -> Result<AuthPlan, Stri
     }
 }
 
-/// Host-key check for russh: trust on first use against `server_host_keys`, fail closed on a
-/// mismatch or a database error. A refusal leaves its explanation in `refusal` so the caller
-/// can show it instead of russh's bare "unknown key".
+/// Why [`connect`] refused or failed. The host-key variants are structured so a client can
+/// offer the right action (confirm the fingerprint, or forget the stored keys); everything
+/// else is a sentence meant for the user.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConnectError {
+    /// First contact: the key was recorded and waits for the user's confirmation.
+    HostKeyUnconfirmed {
+        key_type: String,
+        fingerprint: String,
+    },
+    /// The presented key matches none of the trusted ones.
+    HostKeyMismatch(String),
+    Failed(String),
+}
+
+impl std::fmt::Display for ConnectError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::HostKeyUnconfirmed {
+                key_type,
+                fingerprint,
+            } => f.write_str(&host_keys::unconfirmed_message(key_type, fingerprint)),
+            Self::HostKeyMismatch(msg) | Self::Failed(msg) => f.write_str(msg),
+        }
+    }
+}
+
+impl std::error::Error for ConnectError {}
+
+impl From<String> for ConnectError {
+    fn from(msg: String) -> Self {
+        Self::Failed(msg)
+    }
+}
+
+/// Host-key check for russh against `server_host_keys`: trusted keys pass, a first contact is
+/// recorded and refused until confirmed, a mismatch or a database error is refused. A refusal
+/// leaves its reason in `refusal` so the caller can show it instead of russh's bare
+/// "unknown key".
 pub struct Handler {
     pool: Pool<Sqlite>,
     server_id: i64,
-    refusal: Arc<Mutex<Option<String>>>,
+    refusal: Arc<Mutex<Option<ConnectError>>>,
 }
 
 impl client::Handler for Handler {
@@ -126,22 +163,26 @@ impl client::Handler for Handler {
             .next()
             .unwrap_or("unknown")
             .to_string();
-        match host_keys::verify_and_record(&self.pool, self.server_id, &key_type, &openssh_key)
-            .await
-        {
-            Ok(Verdict::Trusted) | Ok(Verdict::FirstSeen) => Ok(true),
-            Ok(Verdict::Mismatch { stored_types }) => {
-                *self.refusal.lock().await =
-                    Some(host_keys::mismatch_message(&stored_types, &key_type));
-                Ok(false)
-            }
-            Err(e) => {
-                error!(server_id = self.server_id, error = %e,
+        let refusal =
+            match host_keys::verify_and_record(&self.pool, self.server_id, &key_type, &openssh_key)
+                .await
+            {
+                Ok(Verdict::Trusted) => return Ok(true),
+                Ok(Verdict::Unconfirmed) => ConnectError::HostKeyUnconfirmed {
+                    fingerprint: host_keys::fingerprint(&openssh_key),
+                    key_type,
+                },
+                Ok(Verdict::Mismatch { stored_types }) => ConnectError::HostKeyMismatch(
+                    host_keys::mismatch_message(&stored_types, &key_type),
+                ),
+                Err(e) => {
+                    error!(server_id = self.server_id, error = %e,
                     "Host key check failed; refusing connection");
-                *self.refusal.lock().await = Some(format!("Could not verify the host key: {e}"));
-                Ok(false)
-            }
-        }
+                    ConnectError::Failed(format!("Could not verify the host key: {e}"))
+                }
+            };
+        *self.refusal.lock().await = Some(refusal);
+        Ok(false)
     }
 }
 
@@ -153,12 +194,12 @@ pub struct Connection {
     pub auth: String,
 }
 
-/// Connect and authenticate. Errors are sentences meant for the user.
+/// Connect and authenticate.
 pub async fn connect(
     pool: &Pool<Sqlite>,
     server: &Server,
     credential: Option<&Credential>,
-) -> Result<Connection, String> {
+) -> Result<Connection, ConnectError> {
     let target = target(server, credential)?;
     let plan = plan_auth(credential).await?;
     let login = target.login();
@@ -175,7 +216,9 @@ pub async fn connect(
             Ok(h) => h,
             Err(e) => {
                 let why = refusal.lock().await.take();
-                return Err(why.unwrap_or_else(|| format!("SSH connection to {login} failed: {e}")));
+                return Err(why.unwrap_or_else(|| {
+                    ConnectError::Failed(format!("SSH connection to {login} failed: {e}"))
+                }));
             }
         };
 
@@ -186,9 +229,15 @@ pub async fn connect(
         {
             Ok(AuthResult::Success) => "password".to_string(),
             Ok(AuthResult::Failure { .. }) => {
-                return Err(format!("Password authentication failed for {login}"));
+                return Err(ConnectError::Failed(format!(
+                    "Password authentication failed for {login}"
+                )));
             }
-            Err(e) => return Err(format!("Password authentication failed for {login}: {e}")),
+            Err(e) => {
+                return Err(ConnectError::Failed(format!(
+                    "Password authentication failed for {login}: {e}"
+                )))
+            }
         },
         AuthPlan::Keys(keys) => {
             let mut tried = Vec::with_capacity(keys.len());
@@ -237,10 +286,10 @@ pub async fn connect(
             match accepted {
                 Some(label) => label,
                 None => {
-                    return Err(format!(
+                    return Err(ConnectError::Failed(format!(
                         "SSH authentication failed for {login}. Tried keys: {}. Last error: {last_error}",
                         tried.join(", ")
-                    ));
+                    )));
                 }
             }
         }
@@ -294,17 +343,17 @@ pub async fn run(
     server: &Server,
     credential: Option<&Credential>,
     command: &str,
-) -> Result<(String, String, i32), String> {
+) -> Result<(String, String, i32), ConnectError> {
     let conn = connect(pool, server, credential).await?;
     let mut channel = conn
         .handle
         .channel_open_session()
         .await
-        .map_err(|e| format!("Failed to open channel: {e}"))?;
+        .map_err(|e| ConnectError::Failed(format!("Failed to open channel: {e}")))?;
     channel
         .exec(true, command)
         .await
-        .map_err(|e| format!("Failed to run command: {e}"))?;
+        .map_err(|e| ConnectError::Failed(format!("Failed to run command: {e}")))?;
     let mut output = CommandOutput::default();
     while let Some(msg) = channel.wait().await {
         if !output.absorb(&msg) {

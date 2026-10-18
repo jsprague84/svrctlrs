@@ -36,9 +36,9 @@ users), and keep the login limiter's state in the database so a restart does not
    fresh installs; the legacy chain (`000`–`024`, frozen) finishes and is marked as baseline
    for existing databases; `is_local`, the OS-fact columns, `servers.metadata` and
    `terminal_profiles.quick_commands` left the model (ARCHITECTURE.md, "Data model").
-2. **First-contact host-key confirmation.** Today trust-on-first-use is silent. Show the
-   fingerprint and have the user accept it (shell and SFTP refuse until then), as Sshwifty
-   does. Closes the last soft spot in the host-key story. `SECURITY.md` host-key section.
+2. ~~**First-contact host-key confirmation.**~~ Done 2026-10-18: the first key is recorded
+   unconfirmed; shell, test, SFTP and authorize-key refuse with the fingerprint until the user
+   trusts it (`POST /servers/{id}/host-keys/trust`); `SECURITY.md` "SSH host keys".
 3. **SSH keepalive and jump hosts.** `keepalive_interval` on every connection so NAT and
    phone networks stop dropping idle shells; an optional *via* server per server (ProxyJump
    through a direct-tcpip channel of the jump connection) for hosts on isolated VLANs.

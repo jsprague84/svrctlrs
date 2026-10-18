@@ -11,32 +11,36 @@ use tracing::{error, info};
 /// Outcome of checking a presented host key against what is stored for the server.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Verdict {
-    /// Matches a stored key.
+    /// Matches a trusted key.
     Trusted,
-    /// Nothing stored yet; the key has been recorded.
-    FirstSeen,
-    /// Stored keys exist and none matches. Holds the stored key types for the message.
+    /// No trusted key yet. The presented key is recorded, unconfirmed, and the connection is
+    /// refused until the user confirms its fingerprint.
+    Unconfirmed,
+    /// Trusted keys exist and none matches. Holds the trusted key types for the message.
     Mismatch { stored_types: Vec<String> },
 }
 
-/// Pure decision, separated so it can be tested without a database.
+/// Pure decision, separated so it can be tested without a database. Only *trusted* keys count:
+/// an unconfirmed key recorded on an earlier attempt neither matches nor mismatches.
 pub fn evaluate(stored: &[ServerHostKey], key_type: &str, public_key: &str) -> Verdict {
-    if stored.is_empty() {
-        Verdict::FirstSeen
-    } else if stored
+    let trusted: Vec<&ServerHostKey> = stored.iter().filter(|k| k.is_trusted()).collect();
+    if trusted.is_empty() {
+        Verdict::Unconfirmed
+    } else if trusted
         .iter()
         .any(|k| k.key_type == key_type && k.public_key == public_key)
     {
         Verdict::Trusted
     } else {
         Verdict::Mismatch {
-            stored_types: stored.iter().map(|k| k.key_type.clone()).collect(),
+            stored_types: trusted.iter().map(|k| k.key_type.clone()).collect(),
         }
     }
 }
 
-/// Check a presented key and record the outcome: refresh `last_seen_at` on a match, store the
-/// key on first contact. A database error is returned as `Err`; never treat it as trust.
+/// Check a presented key and record the outcome: refresh `last_seen_at` on a match, record the
+/// key unconfirmed on first contact. A database error is returned as `Err`; never treat it as
+/// trust.
 pub async fn verify_and_record(
     pool: &SqlxPool<SqlxSqlite>,
     server_id: i64,
@@ -55,14 +59,16 @@ pub async fn verify_and_record(
                 .await
                 .ok();
         }
-        Verdict::FirstSeen => {
+        Verdict::Unconfirmed => {
             info!(
                 server_id,
-                key_type, "First connection - storing host key (TOFU)"
+                key_type,
+                fingerprint = %fingerprint(public_key),
+                "First contact: host key recorded, waiting for confirmation"
             );
-            server_host_keys::store_host_key(pool, server_id, key_type, public_key)
+            server_host_keys::record_unconfirmed_host_key(pool, server_id, key_type, public_key)
                 .await
-                .map_err(|e| format!("Failed to store host key: {e}"))?;
+                .map_err(|e| format!("Failed to record host key: {e}"))?;
         }
         Verdict::Mismatch { stored_types } => {
             error!(
@@ -108,6 +114,16 @@ pub fn fingerprint(openssh_key: &str) -> String {
     )
 }
 
+/// What the user reads when a server's key is not confirmed yet.
+pub fn unconfirmed_message(key_type: &str, fingerprint: &str) -> String {
+    format!(
+        "This server's host key is not confirmed yet.\r\n\
+         {key_type} {fingerprint}\r\n\
+         Compare it with `ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub` on the host, then trust it \
+         here or under Servers \u{2192} Keys and connect again."
+    )
+}
+
 /// The warning shown in the terminal when a key does not match.
 pub fn mismatch_message(stored_types: &[String], presented_type: &str) -> String {
     format!(
@@ -117,7 +133,7 @@ pub fn mismatch_message(stored_types: &[String], presented_type: &str) -> String
          Stored key type(s): {}\r\n\
          Presented key type: {}\r\n\
          Connection refused. If the server's key legitimately changed, forget its stored keys \
-         under Servers → Host keys and connect again.",
+         under Servers \u{2192} Keys and connect again.",
         stored_types.join(", "),
         presented_type
     )
@@ -136,6 +152,14 @@ mod tests {
             public_key: public_key.to_string(),
             first_seen_at: Utc::now(),
             last_seen_at: Utc::now(),
+            trusted_at: Some(Utc::now()),
+        }
+    }
+
+    fn unconfirmed(key_type: &str, public_key: &str) -> ServerHostKey {
+        ServerHostKey {
+            trusted_at: None,
+            ..stored(key_type, public_key)
         }
     }
 
@@ -157,10 +181,35 @@ mod tests {
     }
 
     #[test]
-    fn first_contact_when_nothing_is_stored() {
+    fn first_contact_when_nothing_is_trusted() {
         assert_eq!(
             evaluate(&[], "ssh-ed25519", "ssh-ed25519 AAAA1"),
-            Verdict::FirstSeen
+            Verdict::Unconfirmed
+        );
+        // A key recorded on an earlier attempt but never confirmed is not trust, even when it
+        // is the very key presented again.
+        let waiting = [unconfirmed("ssh-ed25519", "ssh-ed25519 AAAA1")];
+        assert_eq!(
+            evaluate(&waiting, "ssh-ed25519", "ssh-ed25519 AAAA1"),
+            Verdict::Unconfirmed
+        );
+        assert_eq!(
+            evaluate(&waiting, "ssh-rsa", "ssh-rsa CCCC3"),
+            Verdict::Unconfirmed
+        );
+    }
+
+    #[test]
+    fn unconfirmed_keys_do_not_soften_a_mismatch() {
+        let keys = [
+            stored("ssh-ed25519", "ssh-ed25519 AAAA1"),
+            unconfirmed("ssh-rsa", "ssh-rsa CCCC3"),
+        ];
+        assert_eq!(
+            evaluate(&keys, "ssh-rsa", "ssh-rsa CCCC3"),
+            Verdict::Mismatch {
+                stored_types: vec!["ssh-ed25519".to_string()]
+            }
         );
     }
 

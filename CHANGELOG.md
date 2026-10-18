@@ -6,6 +6,16 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Security
+- **First contact asks before trusting.** The first connection to a server used to store its
+  host key silently. It now records the key unconfirmed and refuses the shell, the connection
+  test, SFTP and *Authorize key* until the user has compared the key type and `SHA256:`
+  fingerprint and chosen **Trust and connect** in the terminal (or **Trust key** on a failed
+  *Test*, or **Trust** under Servers → Keys). API: `GET /servers/{id}/host-keys` reports
+  `trusted`/`trusted_at`, `POST /servers/{id}/host-keys/trust` takes the fingerprint that was
+  compared, refusals are `428 HOST_KEY_UNCONFIRMED` with the fingerprint in `error.details`
+  (`host_key_unconfirmed` on the PTY socket). Confirming and forgetting are audited
+  (`server.host_key_trusted`, `server.host_keys_forgotten`). Keys stored before this upgrade
+  stay trusted; nothing to confirm for existing servers.
 - rustls 0.23.45 → 0.23.46 for RUSTSEC-2026-0346 through -0349 (TLS secrets in `Debug` output,
   ECH and certificate-decompression issues); the CI audit gate caught them.
 

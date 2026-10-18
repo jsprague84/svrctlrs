@@ -18,7 +18,9 @@
 	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import { getServerUrl } from '#lib/platform/index.js';
 	import { post } from '#lib/api/client.js';
+	import * as serversApi from '#lib/api/servers.js';
 	import * as toast from '#lib/state/toast.svelte.js';
+	import { extractErrorMessage } from '#lib/utils/error.js';
 	import { loadSessionRecord, saveSessionRecord } from '#lib/utils/sessionRecord.js';
 	import type { ConnectionStatus, PtyRequest, PtyResponse } from '#lib/types/index.js';
 
@@ -45,6 +47,9 @@
 	}: Props = $props();
 
 	let showReconnectOverlay = $state(false);
+	/** First contact: the server refused the shell until this key is confirmed */
+	let hostKeyChallenge = $state<{ key_type: string; fingerprint: string } | null>(null);
+	let trustingHostKey = $state(false);
 	/** Connection progress shown over the pane instead of being written into the shell's buffer. */
 	let statusNote = $state<string | null>(null);
 	/** Bumped by every connect(); handlers of an older socket ignore their events. */
@@ -537,9 +542,26 @@
 		}, delay);
 	}
 
+	/** The user compared the fingerprint and accepts it: trust the key, then connect again. */
+	async function trustHostKey() {
+		if (!hostKeyChallenge || serverId === null) return;
+		trustingHostKey = true;
+		try {
+			await serversApi.trustHostKey(serverId, hostKeyChallenge.fingerprint);
+			hostKeyChallenge = null;
+			terminal?.writeln('\x1b[32m✓ Host key trusted\x1b[0m');
+			await connect();
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Could not trust the host key'));
+		} finally {
+			trustingHostKey = false;
+		}
+	}
+
 	/** Open the PTY WebSocket for the current serverId (new shell, or reattach) */
 	export async function connect() {
 		if (!terminal || serverId === null) return;
+		hostKeyChallenge = null;
 		showReconnectOverlay = false;
 
 		// Cancel any pending reconnect
@@ -693,6 +715,9 @@
 							ws.send(JSON.stringify(req));
 						} else {
 							terminal!.write(res.data);
+							if (res.code === 'host_key_unconfirmed' && res.details) {
+								hostKeyChallenge = res.details;
+							}
 							if (!sessionId) {
 								// The shell never came up (auth, host key, unreachable)
 								statusNote = null;
@@ -1098,6 +1123,49 @@
 			<span
 				class="inline-block w-1.5 h-1.5 rounded-full bg-warning mr-1.5 align-middle animate-pulse"
 			></span>{statusNote}
+		</div>
+	{/if}
+
+	{#if hostKeyChallenge}
+		<div
+			class="absolute inset-0 bg-background/85 flex items-center justify-center z-20 p-4"
+			role="dialog"
+			aria-labelledby="hostkey-title-{tabId}"
+		>
+			<div
+				class="w-full max-w-md bg-surface border border-border rounded-lg p-4 flex flex-col gap-3"
+			>
+				<h3 id="hostkey-title-{tabId}" class="text-sm font-semibold text-text-primary">
+					Unknown host key
+				</h3>
+				<p class="text-xs text-text-secondary">
+					This is the first connection to this server. Compare the fingerprint with the server's
+					own, for example <code class="font-mono">ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub</code>
+					on the host, before trusting it.
+				</p>
+				<div class="rounded-sm bg-background border border-border/60 px-3 py-2">
+					<div class="text-[11px] text-text-muted">{hostKeyChallenge.key_type}</div>
+					<div class="font-mono text-xs text-text-primary break-all select-all">
+						{hostKeyChallenge.fingerprint}
+					</div>
+				</div>
+				<div class="flex gap-2 justify-end">
+					<button
+						class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-sm hover:opacity-90"
+						onclick={() => (hostKeyChallenge = null)}
+						disabled={trustingHostKey}
+					>
+						Cancel
+					</button>
+					<button
+						class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-sm hover:opacity-90 disabled:opacity-60"
+						onclick={trustHostKey}
+						disabled={trustingHostKey}
+					>
+						{trustingHostKey ? 'Trusting…' : 'Trust and connect'}
+					</button>
+				</div>
+			</div>
 		</div>
 	{/if}
 

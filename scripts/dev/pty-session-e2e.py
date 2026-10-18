@@ -50,19 +50,55 @@ srv = api("POST", "/api/v1/servers", {"name": f"e2e target {RUN}", "hostname": S
 sid = srv["id"] if "id" in srv else srv["data"]["id"]
 print("server", sid, "credential", cid)
 
-# The connection test goes through the same SSH client as the shell (host key TOFU + key auth)
+# First contact: the connection test records the host key and refuses until it is confirmed
+test = api("POST", f"/api/v1/servers/{sid}/test")
+assert test.get("success") is False and test.get("code") == "HOST_KEY_UNCONFIRMED", test
+challenge = test["details"]
+assert challenge["fingerprint"].startswith("SHA256:") and challenge["key_type"], challenge
+keys = api("GET", f"/api/v1/servers/{sid}/host-keys")["host_keys"]
+assert len(keys) == 1 and keys[0]["trusted"] is False and keys[0]["fingerprint"] == challenge["fingerprint"], keys
+# SFTP is refused the same way, with the fingerprint in the error details
+try:
+    api("GET", f"/api/v1/servers/{sid}/files")
+    raise AssertionError("files listed before the host key was confirmed")
+except urllib.error.HTTPError as e:
+    body = json.loads(e.read())
+    assert e.code == 428 and body["error"]["code"] == "HOST_KEY_UNCONFIRMED", (e.code, body)
+    assert body["error"]["details"]["fingerprint"] == challenge["fingerprint"], body
+# A wrong fingerprint is not trusted
+try:
+    api("POST", f"/api/v1/servers/{sid}/host-keys/trust", {"fingerprint": "SHA256:not-the-one"})
+    raise AssertionError("wrong fingerprint accepted")
+except urllib.error.HTTPError as e:
+    assert e.code == 404, e.code
+trusted = api("POST", f"/api/v1/servers/{sid}/host-keys/trust", {"fingerprint": challenge["fingerprint"]})["host_key"]
+assert trusted["trusted"] is True and trusted["trusted_at"], trusted
+print("host key confirmed:", challenge["key_type"], challenge["fingerprint"])
+
+# With the key trusted, the test goes through the same SSH client as the shell (key auth)
 test = api("POST", f"/api/v1/servers/{sid}/test")
 assert test.get("success") is True, test
 print("connection test ok:", test.get("message") or test)
+
+def trust_first_contact(server_id):
+    t = api("POST", f"/api/v1/servers/{server_id}/test")
+    assert t.get("code") == "HOST_KEY_UNCONFIRMED", t
+    assert t["details"]["fingerprint"] == challenge["fingerprint"], t["details"]
+    api("POST", f"/api/v1/servers/{server_id}/host-keys/trust", {"fingerprint": t["details"]["fingerprint"]})
 
 # A wrong password must reach the server and come back as a password failure, not a crash
 bad = api("POST", "/api/v1/credentials", {"name": f"e2e bad password {RUN}", "credential_type": "password", "value": "definitely-wrong", "username": SSH_USER})
 bad_id = bad["id"] if "id" in bad else bad["data"]["id"]
 bad_srv = api("POST", "/api/v1/servers", {"name": f"e2e bad target {RUN}", "hostname": SSH_HOST, "port": 22, "username": SSH_USER, "credential_id": bad_id})
 bad_sid = bad_srv["id"] if "id" in bad_srv else bad_srv["data"]["id"]
+trust_first_contact(bad_sid)
 bad_test = api("POST", f"/api/v1/servers/{bad_sid}/test")
 assert bad_test.get("success") is False and "assword" in json.dumps(bad_test), bad_test
 print("wrong password refused ok")
+
+# A shell on a server whose key is not confirmed yet gets a structured refusal
+fresh_srv = api("POST", "/api/v1/servers", {"name": f"e2e unconfirmed {RUN}", "hostname": SSH_HOST, "port": 22, "username": SSH_USER, "credential_id": cid})
+fresh_sid = fresh_srv["id"] if "id" in fresh_srv else fresh_srv["data"]["id"]
 
 # SFTP file browser: list home, make a folder, upload, download back, rename, delete, rmdir
 import urllib.parse
@@ -142,6 +178,23 @@ async def recv_until(ws, pred, timeout=15):
     return frames
 
 async def main():
+    # 0. a shell on an unconfirmed server is refused with the fingerprint to confirm
+    async with websockets.connect(WS, additional_headers=hdrs) as ws:
+        await ws.send(json.dumps({"type": "shell", "server_id": fresh_sid, "cols": 80, "rows": 24, "binary": BINARY}))
+        fr = await recv_until(ws, lambda m: m["type"] in ("connected", "error"), 30)
+        err = fr[-1]
+        assert err["type"] == "error" and err.get("code") == "host_key_unconfirmed", fr
+        assert err["details"]["fingerprint"] == challenge["fingerprint"], err
+        print("shell refused until confirmed ok")
+        # confirm it and the same socket opens a shell
+        api("POST", f"/api/v1/servers/{fresh_sid}/host-keys/trust", {"fingerprint": err["details"]["fingerprint"]})
+        await ws.send(json.dumps({"type": "shell", "server_id": fresh_sid, "cols": 80, "rows": 24, "binary": BINARY}))
+        fr = await recv_until(ws, lambda m: m["type"] in ("connected", "error"), 30)
+        assert fr[-1]["type"] == "connected", fr
+        await ws.send(json.dumps({"type": "input", "data": "exit\n"}))
+        await recv_until(ws, lambda m: m["type"] == "closed", 15)
+        print("shell after confirmation ok")
+
     # 1. open a shell, run a marker command, note the last seq, then drop the socket (no close)
     async with websockets.connect(WS, additional_headers=hdrs) as ws:
         await ws.send(json.dumps({"type": "shell", "server_id": sid, "cols": 100, "rows": 30, "binary": BINARY}))

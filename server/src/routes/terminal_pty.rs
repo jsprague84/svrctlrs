@@ -21,6 +21,7 @@ use tracing::{debug, error, info, warn};
 
 use crate::routes::ui::auth::CurrentUser;
 use crate::sessions::{LiveSession, OutputFrame, PtyCommand, SessionEvent};
+use crate::ssh::ConnectError;
 use crate::state::AppState;
 use svrctlrs_database::models::NewAuditEntry;
 
@@ -57,9 +58,14 @@ struct PtyResponse {
     /// On `connected`: the session to reattach to later
     #[serde(skip_serializing_if = "Option::is_none")]
     session_id: Option<String>,
-    /// On `error`: a machine-readable reason (`session_gone`, `quota`, ...)
+    /// On `error`: a machine-readable reason (`session_gone`, `quota`, `host_key_unconfirmed`,
+    /// ...)
     #[serde(skip_serializing_if = "Option::is_none")]
     code: Option<String>,
+    /// On `error`: what the client needs to act on the reason (`host_key_unconfirmed`:
+    /// `key_type`, `fingerprint`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<serde_json::Value>,
 }
 
 impl PtyResponse {
@@ -70,6 +76,7 @@ impl PtyResponse {
             seq: None,
             session_id: None,
             code: None,
+            details: None,
         }
     }
 }
@@ -183,15 +190,34 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
                                 session = Some(live);
                             }
                             Err(e) => {
+                                let (code, details) = match &e {
+                                    ConnectError::HostKeyUnconfirmed {
+                                        key_type,
+                                        fingerprint,
+                                    } => (
+                                        Some("host_key_unconfirmed".to_string()),
+                                        Some(serde_json::json!({
+                                            "key_type": key_type,
+                                            "fingerprint": fingerprint,
+                                        })),
+                                    ),
+                                    ConnectError::HostKeyMismatch(_) => {
+                                        (Some("host_key_mismatch".to_string()), None)
+                                    }
+                                    ConnectError::Failed(_) => (None, None),
+                                };
                                 send(
                                     &ws_sender,
-                                    PtyResponse::plain(
-                                        "error",
-                                        format!(
-                                            "\x1b[31m✗ Failed to start shell: {}\x1b[0m\r\n",
-                                            e
-                                        ),
-                                    ),
+                                    PtyResponse {
+                                        code,
+                                        details,
+                                        ..PtyResponse::plain(
+                                            "error",
+                                            format!(
+                                                "\x1b[31m✗ Failed to start shell: {e}\x1b[0m\r\n"
+                                            ),
+                                        )
+                                    },
                                 )
                                 .await;
                             }
@@ -449,7 +475,7 @@ async fn start_pty_session(
     server_id: i64,
     cols: u32,
     rows: u32,
-) -> Result<Arc<LiveSession>, String> {
+) -> Result<Arc<LiveSession>, ConnectError> {
     use svrctlrs_database::queries;
 
     let server = queries::servers::get_server(&state.pool, server_id)

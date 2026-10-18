@@ -35,6 +35,7 @@ pub fn routes() -> Router<AppState> {
             "/{id}/host-keys",
             get(list_host_keys).delete(forget_host_keys),
         )
+        .route("/{id}/host-keys/trust", post(trust_host_key))
         .route("/{id}/authorize-key", post(authorize_key))
 }
 
@@ -120,6 +121,10 @@ async fn authorize_key(
     let (stdout, stderr, code) = crate::ssh::run(&state.pool, &server, Some(&bootstrap), &install)
         .await
         .map_err(|e| {
+            // A host-key refusal keeps its code and details so the client can offer the fix
+            let crate::ssh::ConnectError::Failed(e) = e else {
+                return ApiError::from(e);
+            };
             let login = format!(
                 "{}@{}:{}",
                 server.username.as_deref().unwrap_or("root"),
@@ -207,7 +212,20 @@ mod tests {
     }
 }
 
-/// Stored SSH host keys for a server, with OpenSSH-style fingerprints (no key material).
+fn host_key_json(k: &svrctlrs_database::models::ServerHostKey) -> serde_json::Value {
+    json!({
+        "id": k.id,
+        "key_type": k.key_type,
+        "fingerprint": crate::host_keys::fingerprint(&k.public_key),
+        "first_seen_at": k.first_seen_at,
+        "last_seen_at": k.last_seen_at,
+        "trusted_at": k.trusted_at,
+        "trusted": k.is_trusted(),
+    })
+}
+
+/// SSH host keys recorded for a server, with OpenSSH-style fingerprints (no key material):
+/// the trusted ones, and the unconfirmed one from a first contact, if any.
 #[instrument(skip(state))]
 async fn list_host_keys(
     State(state): State<AppState>,
@@ -217,23 +235,62 @@ async fn list_host_keys(
 
     servers::get_server(&state.pool, id).await?;
     let keys = server_host_keys::list_host_keys_for_server(&state.pool, id).await?;
-    let keys: Vec<_> = keys
-        .iter()
-        .map(|k| {
-            json!({
-                "id": k.id,
-                "key_type": k.key_type,
-                "fingerprint": crate::host_keys::fingerprint(&k.public_key),
-                "first_seen_at": k.first_seen_at,
-                "last_seen_at": k.last_seen_at,
-            })
-        })
-        .collect();
+    let keys: Vec<_> = keys.iter().map(host_key_json).collect();
     Ok(Json(json!({ "server_id": id, "host_keys": keys })))
 }
 
-/// Forget every stored host key for a server. The next connection trusts the key it sees
-/// (TOFU), so do this only after confirming out of band that the server's key changed.
+#[derive(Debug, Deserialize)]
+struct TrustHostKeyInput {
+    /// The fingerprint the user compared, so a key that changed between showing and
+    /// confirming is not trusted by accident.
+    fingerprint: String,
+}
+
+/// Trust the host key recorded on first contact, identified by the fingerprint the user saw.
+/// 404 when no unconfirmed key with that fingerprint is waiting (connect once to record it).
+#[instrument(skip(state, input))]
+async fn trust_host_key(
+    State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(input): Json<TrustHostKeyInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    use svrctlrs_database::queries::server_host_keys;
+
+    let server = servers::get_server(&state.pool, id).await?;
+    let wanted = input.fingerprint.trim();
+    let keys = server_host_keys::list_host_keys_for_server(&state.pool, id).await?;
+    let waiting = keys
+        .iter()
+        .find(|k| !k.is_trusted() && crate::host_keys::fingerprint(&k.public_key) == wanted)
+        .ok_or_else(|| {
+            ApiError::not_found(
+                "An unconfirmed host key with that fingerprint; connect once to record the server's key, then compare again",
+            )
+        })?;
+    let trusted = server_host_keys::trust_host_key(&state.pool, id, waiting.id).await?;
+    info!(
+        server_id = id,
+        key_type = %trusted.key_type,
+        fingerprint = wanted,
+        "Host key confirmed by the user"
+    );
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("server.host_key_trusted")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("server", id, &server.name)
+            .details(json!({ "key_type": trusted.key_type, "fingerprint": wanted })),
+    );
+    Ok(Json(
+        json!({ "server_id": id, "host_key": host_key_json(&trusted) }),
+    ))
+}
+
+/// Forget every host key recorded for a server. The next connection records the key it sees
+/// and asks for confirmation again; do this after the server's key legitimately changed.
 #[instrument(skip(state))]
 async fn forget_host_keys(
     State(state): State<AppState>,
@@ -243,12 +300,20 @@ async fn forget_host_keys(
 ) -> Result<impl IntoResponse, ApiError> {
     use svrctlrs_database::queries::server_host_keys;
 
-    servers::get_server(&state.pool, id).await?;
+    let server = servers::get_server(&state.pool, id).await?;
     let removed = server_host_keys::delete_host_keys_for_server(&state.pool, id).await?;
     tracing::warn!(
         server_id = id,
         removed,
-        "Stored host keys forgotten; next connection re-trusts"
+        "Stored host keys forgotten; the next connection asks for confirmation again"
+    );
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("server.host_keys_forgotten")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("server", id, &server.name)
+            .details(json!({ "removed": removed })),
     );
     Ok(Json(json!({ "server_id": id, "removed": removed })))
 }
@@ -513,14 +578,41 @@ async fn test_connection(
         }
         Err(e) => {
             let elapsed = started.elapsed();
-            error!(id = id, error = %e, elapsed_ms = elapsed.as_millis(), "Connection test failed");
-            if let Err(db) = servers::update_server_last_error(&state.pool, id, &e).await {
+            // The same shape as the error envelope, so the client can offer the fix: confirm
+            // the fingerprint, or forget the stored keys.
+            let api_err = ApiError::from(e);
+            let recorded = match api_err.code {
+                "HOST_KEY_UNCONFIRMED" => {
+                    // An expected step on first contact, not a failure
+                    info!(
+                        id,
+                        elapsed_ms = elapsed.as_millis(),
+                        "Connection test: host key waits for confirmation"
+                    );
+                    "Host key not confirmed yet".to_string()
+                }
+                "HOST_KEY_MISMATCH" => {
+                    error!(
+                        id,
+                        elapsed_ms = elapsed.as_millis(),
+                        "Connection test refused: host key mismatch"
+                    );
+                    "Host key mismatch".to_string()
+                }
+                _ => {
+                    error!(id, error = %api_err.message, elapsed_ms = elapsed.as_millis(), "Connection test failed");
+                    api_err.message.clone()
+                }
+            };
+            if let Err(db) = servers::update_server_last_error(&state.pool, id, &recorded).await {
                 warn!(id, error = %db, "Failed to record test failure");
             }
 
             Ok(Json(json!({
                 "success": false,
-                "message": e,
+                "message": api_err.message,
+                "code": api_err.code,
+                "details": api_err.details,
                 "server_id": id,
                 "hostname": server.hostname,
                 "port": server.port,

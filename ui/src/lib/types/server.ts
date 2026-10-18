@@ -14,13 +14,22 @@ export interface Server {
 	updated_at: string;
 }
 
-/** A stored SSH host key, as returned by GET /servers/{id}/host-keys (no key material). */
+/** An SSH host key recorded for a server, as returned by GET /servers/{id}/host-keys (no key
+ *  material). `trusted` is false for the key seen on first contact until the user confirms it. */
 export interface HostKey {
 	id: number;
 	key_type: string;
 	fingerprint: string;
 	first_seen_at: string;
 	last_seen_at: string;
+	trusted_at: string | null;
+	trusted: boolean;
+}
+
+/** What the user has to compare before a first connection goes through. */
+export interface HostKeyChallenge {
+	key_type: string;
+	fingerprint: string;
 }
 
 export interface CreateServer {
@@ -47,6 +56,9 @@ export interface UpdateServer {
 export interface TestConnectionResult {
 	success: boolean;
 	message: string;
+	/** On failure: `HOST_KEY_UNCONFIRMED` (with `details`), `HOST_KEY_MISMATCH`, `BAD_REQUEST` */
+	code?: string;
+	details?: HostKeyChallenge | null;
 	server_id: number;
 	hostname: string;
 	port: number;

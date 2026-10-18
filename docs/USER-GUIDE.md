@@ -19,7 +19,8 @@ shows the same login.
    never stored) or a credential that already works. SvrCtlRS appends the public key to
    `~/.ssh/authorized_keys` — what `ssh-copy-id` does — verifies that the key logs in, and
    switches the server to it.
-4. **Connect** on the row. The host key is trusted on first contact.
+4. **Connect** on the row. On first contact the terminal shows the server's host-key
+   fingerprint; compare it with the host's own and choose **Trust and connect**.
 
 Repeat step 3 for every further server; one app key can open all of them, and deleting the
 credential (then removing the line from `authorized_keys`) revokes it. If you prefer to
@@ -47,12 +48,15 @@ Clearing a field in *Edit* (hostname, username, description, credential → *Non
 clears it; a credential that is still assigned to a server cannot be deleted — the row says
 which servers use it.
 
-The first connection to a server stores its SSH host key. If the server later presents a key
-that matches none stored for it, the connection is refused and the terminal shows a mismatch
-error. The **Keys** button on a server lists the stored keys with their `SHA256:` fingerprints
-(compare with `ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub` on the server) and, once you have
-confirmed out of band that the key really changed, **Forget all keys** lets the next connection
-trust it afresh.
+The first connection to a server does not go through until you have confirmed its SSH host
+key: the terminal (or a failed *Test*) shows the key type and `SHA256:` fingerprint, you compare
+it with `ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub` run on the server itself, and choose
+**Trust and connect** (or **Trust key** on the row, or **Trust** under **Keys**). The file
+browser refuses with the same fingerprint until then. If the server later presents a key that
+matches none trusted for it, the connection is refused and the terminal shows a mismatch
+error. The **Keys** button on a server lists the recorded keys, trusted or unconfirmed, with
+their fingerprints and, once you have confirmed out of band that the key really changed,
+**Forget all keys** makes the next connection ask for confirmation again.
 
 ## Audit log
 

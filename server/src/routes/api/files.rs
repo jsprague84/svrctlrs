@@ -178,9 +178,7 @@ async fn open(state: &AppState, server_id: i64) -> ApiResult<Sftp> {
             .ok(),
         None => None,
     };
-    let conn = crate::ssh::connect(&state.pool, &server, credential.as_ref())
-        .await
-        .map_err(ApiError::bad_request)?;
+    let conn = crate::ssh::connect(&state.pool, &server, credential.as_ref()).await?;
     let channel = conn
         .handle
         .channel_open_session()

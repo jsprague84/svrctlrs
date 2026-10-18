@@ -49,6 +49,9 @@ pub struct ApiError {
     pub status: StatusCode,
     pub code: &'static str,
     pub message: String,
+    /// Machine-readable extras for errors a client can act on (for example the fingerprint of
+    /// an unconfirmed host key). Serialized as `error.details` when present.
+    pub details: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -61,6 +64,8 @@ struct ApiErrorBody<'a> {
 struct ApiErrorDetails<'a> {
     code: &'a str,
     message: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<&'a serde_json::Value>,
 }
 
 impl ApiError {
@@ -69,7 +74,13 @@ impl ApiError {
             status,
             code,
             message: message.into(),
+            details: None,
         }
+    }
+
+    pub fn with_details(mut self, details: serde_json::Value) -> Self {
+        self.details = Some(details);
+        self
     }
 
     pub fn not_found(resource: &str) -> Self {
@@ -108,9 +119,35 @@ impl IntoResponse for ApiError {
             error: ApiErrorDetails {
                 code: self.code,
                 message: &self.message,
+                details: self.details.as_ref(),
             },
         };
         (self.status, Json(body)).into_response()
+    }
+}
+
+/// An SSH connection that did not happen. An unconfirmed host key is `428 HOST_KEY_UNCONFIRMED`
+/// with the `key_type` and `fingerprint` to confirm in `details`; a mismatch is
+/// `409 HOST_KEY_MISMATCH`; anything else (unreachable, authentication) is a 400 with the
+/// reason, since it is the server's configuration that is wrong, not ours.
+impl From<crate::ssh::ConnectError> for ApiError {
+    fn from(e: crate::ssh::ConnectError) -> Self {
+        use crate::ssh::ConnectError;
+        match &e {
+            ConnectError::HostKeyUnconfirmed {
+                key_type,
+                fingerprint,
+            } => ApiError::new(
+                StatusCode::PRECONDITION_REQUIRED,
+                "HOST_KEY_UNCONFIRMED",
+                e.to_string(),
+            )
+            .with_details(json!({ "key_type": key_type, "fingerprint": fingerprint })),
+            ConnectError::HostKeyMismatch(msg) => {
+                ApiError::new(StatusCode::CONFLICT, "HOST_KEY_MISMATCH", msg.clone())
+            }
+            ConnectError::Failed(msg) => ApiError::bad_request(msg.clone()),
+        }
     }
 }
 

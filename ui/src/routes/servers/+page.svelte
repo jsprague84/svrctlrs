@@ -194,12 +194,32 @@
 		}
 	}
 
+	/** Trust the key recorded on first contact, from the Keys modal or a failed Test. */
+	async function trustHostKey(serverId: number, fingerprint: string): Promise<boolean> {
+		try {
+			await serversApi.trustHostKey(serverId, fingerprint);
+			toast.success('Host key trusted');
+			if (keysServer?.id === serverId) hostKeys = await serversApi.listHostKeys(serverId);
+			return true;
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Could not trust the host key'));
+			return false;
+		}
+	}
+
+	async function trustAndRetest(test: TestConnectionResult) {
+		if (!test.details) return;
+		if (await trustHostKey(test.server_id, test.details.fingerprint)) {
+			await handleTest(test.server_id);
+		}
+	}
+
 	async function forgetHostKeys() {
 		if (!keysServer) return;
 		const ok = await confirmDialog({
 			title: `Forget host keys for ${keysServer.name}?`,
 			message:
-				'The next connection will trust whatever key the server presents. Only do this when the host key legitimately changed (reinstall, new SSH keys).',
+				'The next connection will show the key the server presents and ask you to confirm it again. Do this when the host key legitimately changed (reinstall, new SSH keys).',
 			confirmLabel: 'Forget keys',
 			destructive: true
 		});
@@ -326,7 +346,17 @@
 									<span class="font-sans text-text-muted"> · {server.description}</span>
 								{/if}
 							</div>
-							{#if test}
+							{#if test && !test.success && test.code === 'HOST_KEY_UNCONFIRMED' && test.details}
+								<div class="mt-1 text-xs text-warning flex flex-wrap items-center gap-x-2 gap-y-1">
+									<span>Host key not confirmed:</span>
+									<span class="font-mono text-text-primary break-all select-all"
+										>{test.details.key_type} {test.details.fingerprint}</span
+									>
+									<Button size="sm" variant="secondary" onclick={() => trustAndRetest(test)}
+										>Trust key</Button
+									>
+								</div>
+							{:else if test}
 								<div class="mt-0.5 text-xs {test.success ? 'text-success' : 'text-error'} truncate">
 									{test.success
 										? `Test OK${test.latency_ms != null ? ` · ${test.latency_ms} ms` : ''}`
@@ -484,22 +514,39 @@
 	onClose={() => (keysServer = null)}
 >
 	<p class="text-xs text-text-muted mb-3">
-		Keys trusted on first contact. A connection is refused when the server presents a key that
-		matches none of these. If the server's key legitimately changed, forget them and connect again.
+		The first connection records the server's key and waits until you confirm its fingerprint
+		(compare with <code class="font-mono">ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub</code> on the host).
+		Afterwards a connection is refused when the server presents a key that matches none of the trusted
+		ones. If the server's key legitimately changed, forget them and connect again.
 	</p>
 	{#if keysLoading}
 		<div class="text-text-muted text-sm">Loading…</div>
 	{:else if hostKeys.length === 0}
 		<div class="text-text-muted text-sm">
-			No host key stored yet — the first connection will record one.
+			No host key recorded yet — the first connection will record one to confirm.
 		</div>
 	{:else}
 		<ul class="flex flex-col gap-2">
 			{#each hostKeys as key (key.id)}
 				<li class="border border-border/50 rounded-sm px-3 py-2">
-					<div class="flex items-center gap-2">
+					<div class="flex items-center gap-2 flex-wrap">
 						<Badge variant="info">{key.key_type}</Badge>
-						<span class="font-mono text-xs text-text-primary break-all">{key.fingerprint}</span>
+						{#if key.trusted}
+							<Badge variant="success">trusted</Badge>
+						{:else}
+							<Badge variant="warning">unconfirmed</Badge>
+						{/if}
+						<span class="font-mono text-xs text-text-primary break-all select-all"
+							>{key.fingerprint}</span
+						>
+						{#if !key.trusted && keysServer}
+							<Button
+								size="sm"
+								variant="secondary"
+								onclick={() => keysServer && trustHostKey(keysServer.id, key.fingerprint)}
+								>Trust</Button
+							>
+						{/if}
 					</div>
 					<div class="text-[11px] text-text-muted mt-1">
 						first seen {new Date(key.first_seen_at).toLocaleString()} · last seen {new Date(

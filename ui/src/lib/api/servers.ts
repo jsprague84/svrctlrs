@@ -52,7 +52,16 @@ export async function listHostKeys(id: number): Promise<HostKey[]> {
 	return res.host_keys;
 }
 
-/** Forget every stored host key; the next connection trusts whatever key it sees. */
+/** Trust the key recorded on first contact, by the fingerprint the user compared. */
+export async function trustHostKey(id: number, fingerprint: string): Promise<HostKey> {
+	const res = await post<{ server_id: number; host_key: HostKey }>(
+		`/servers/${id}/host-keys/trust`,
+		{ fingerprint }
+	);
+	return res.host_key;
+}
+
+/** Forget every recorded host key; the next connection asks for confirmation again. */
 export async function forgetHostKeys(id: number): Promise<number> {
 	const res = await del<{ server_id: number; removed: number }>(`/servers/${id}/host-keys`);
 	return res.removed;

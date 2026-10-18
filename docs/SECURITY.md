@@ -55,14 +55,22 @@ stored credential undecryptable.
 
 ## SSH host keys
 
-Trust on first use. The first connection to a server stores its host key in
-`server_host_keys`; a later connection presenting a key that matches none of the keys stored
-for that server — whatever its algorithm — is refused with an error in the terminal. The same
-decision (`server/src/host_keys.rs`) runs inside the one SSH client (`server/src/ssh.rs`) that
-the shell, the connection test and "Authorize key" all use, and a database error refuses the
-connection. Stored keys are listed with
-OpenSSH-style fingerprints and can be forgotten per server (Servers → Keys,
-`/api/v1/servers/{id}/host-keys`); forgetting is logged at `warn`.
+First contact is confirmed, not trusted blindly. The first connection to a server records the
+key it presents in `server_host_keys` with `trusted_at` NULL and refuses the shell, the
+connection test and SFTP with the key's type and `SHA256:` fingerprint
+(`HOST_KEY_UNCONFIRMED`; the terminal shows a dialog). The user compares it with
+`ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub` on the host and confirms it
+(`POST /api/v1/servers/{id}/host-keys/trust` with that fingerprint, so a key that changed in
+between is not trusted by accident; audited as `server.host_key_trusted`). Only one unconfirmed
+key is kept per server; a different key on the next attempt replaces it. From then on a
+connection presenting a key that matches none of the *trusted* keys for that server — whatever
+its algorithm — is refused with a mismatch error. The same decision (`server/src/host_keys.rs`)
+runs inside the one SSH client (`server/src/ssh.rs`) that the shell, the connection test, SFTP
+and "Authorize key" all use, and a database error refuses the connection. Keys are listed with
+their fingerprints and trust state and can be forgotten per server (Servers → Keys,
+`DELETE /api/v1/servers/{id}/host-keys`, audited as `server.host_keys_forgotten`), after which
+the next connection asks for confirmation again. Keys stored before this existed (trust on
+first use) were marked trusted by the migration.
 
 ## Transport and headers
 
@@ -111,6 +119,8 @@ Ordered by impact. Each has a ROADMAP entry.
    server; an unseen key type with keys on file is a mismatch, not a first contact. Both
    connectors fail closed on a database error. A legitimately changed host key now needs an
    administrator to forget the server's keys (Servers → Keys, or `DELETE /api/v1/servers/{id}/host-keys`).
+   Since 2026-10-18 the first contact is no longer trusted silently either: the key is recorded
+   and the user confirms its fingerprint before any connection goes through ("SSH host keys").
 6. ~~**`POST /servers/{id}/test` skips host-key verification**~~ — fixed after 3.0.0: the
    connection test goes through the shared SSH client, which verifies the host key during the
    handshake and supports password credentials.

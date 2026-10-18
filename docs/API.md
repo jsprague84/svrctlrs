@@ -51,7 +51,10 @@ Successful responses return the resource directly (an object or an array). Error
 
 Codes: `BAD_REQUEST` (400), `UNAUTHORIZED` (401), `FORBIDDEN` (403), `NOT_FOUND` (404),
 `CONFLICT` (409; also a credential or server name that is already taken, on create and
-rename, and deleting a credential a server still uses), `INTERNAL_ERROR` (500). A lookup
+rename, and deleting a credential a server still uses), `HOST_KEY_MISMATCH` (409),
+`HOST_KEY_UNCONFIRMED` (428, with `error.details: {key_type, fingerprint}` to confirm through
+`POST /servers/{id}/host-keys/trust`), `INTERNAL_ERROR` (500). `error.details` is present only
+when a client can act on it. A lookup
 answers 404 only when the row is missing or belongs to another user; a database failure is a
 500 whose message carries the cause, and the server log has the same text under the request's
 `request_id`.
@@ -76,9 +79,10 @@ a failure reported with its header can be found in `docker logs` directly.
 | GET | `/servers/{id}` | — | |
 | PUT | `/servers/{id}` | any subset of the create fields | omitted fields are kept; `""` clears `username`/`description`; `credential_id: null` unassigns the credential |
 | DELETE | `/servers/{id}` | — | |
-| POST | `/servers/{id}/test` | — | verifies the host key (trust on first use), authenticates with the server's credential and runs a trivial command; returns `success`, `message`, `latency_ms` |
-| GET | `/servers/{id}/host-keys` | — | stored host keys: `id`, `key_type`, `fingerprint` (`SHA256:…`, OpenSSH style), `first_seen_at`, `last_seen_at` — never the key itself |
-| DELETE | `/servers/{id}/host-keys` | — | forget every stored key; the next connection trusts what it sees. Returns `removed` |
+| POST | `/servers/{id}/test` | — | verifies the host key, authenticates with the server's credential and runs a trivial command; 200 with `success`, `message`, `latency_ms` and, on failure, `code` (`HOST_KEY_UNCONFIRMED` with `details: {key_type, fingerprint}`, `HOST_KEY_MISMATCH`, else `BAD_REQUEST`) |
+| GET | `/servers/{id}/host-keys` | — | recorded host keys: `id`, `key_type`, `fingerprint` (`SHA256:…`, OpenSSH style), `first_seen_at`, `last_seen_at`, `trusted_at` (null until confirmed), `trusted` — never the key itself |
+| POST | `/servers/{id}/host-keys/trust` | `fingerprint` | trust the key recorded on first contact whose fingerprint this is; returns `host_key`. 404 when no unconfirmed key with that fingerprint is waiting |
+| DELETE | `/servers/{id}/host-keys` | — | forget every recorded key; the next connection records what it sees and asks for confirmation. Returns `removed` |
 | POST | `/servers/{id}/authorize-key` | `credential_id` (an `ssh_key` with key material) plus `password` (one-time, never stored) or `bootstrap_credential_id` | installs the public key in `~/.ssh/authorized_keys` over the bootstrap login, verifies the key logs in, sets it as the server's credential. 400 with the reason otherwise |
 
 Server object: `id, name, hostname, port, username, credential_id, description, enabled,
@@ -175,7 +179,8 @@ Deleting a user cascades to their sessions, profiles and quick commands.
 Entry: `id, at, user_id, username, client_ip, action, target_type, target_id, target_name,
 details` (a JSON object string). Actions: `login`, `login.failed`, `login.rate_limited`,
 `logout`, `user.created`, `user.deleted`, `user.password_changed`, `server.created`,
-`server.updated`, `server.deleted`, `server.host_keys_forgotten`, `credential.created`,
+`server.updated`, `server.deleted`, `server.host_key_trusted` (details: `key_type`,
+`fingerprint`), `server.host_keys_forgotten` (details: `removed`), `credential.created`,
 `credential.updated`, `credential.deleted`, `session.pty_opened` (details: `login`, `auth` —
 `password` or the key used), `files.download`, `files.upload`, `files.mkdir`, `files.rename`,
 `files.delete` (details: the remote path). `session.command` entries from the retired command mode remain

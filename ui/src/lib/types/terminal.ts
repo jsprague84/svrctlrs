@@ -33,8 +33,11 @@ export interface PtyResponse {
 	seq?: number;
 	/** `connected`: the id to `attach` to later */
 	session_id?: string;
-	/** `error`: `session_gone` (start a new shell), `quota` */
+	/** `error`: `session_gone` (start a new shell), `quota`, `host_key_unconfirmed` (confirm
+	 *  `details` and connect again), `host_key_mismatch` */
 	code?: string;
+	/** `error` with `host_key_unconfirmed`: the key to confirm */
+	details?: { key_type: string; fingerprint: string };
 }
 
 /** A live session as listed by `GET /api/v1/sessions` */
