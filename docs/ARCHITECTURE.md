@@ -44,8 +44,10 @@ does not pull in Tauri's GTK/WebKit dependencies.
    `/auth/login`; API requests get 401.
 3. **API handlers** (`server/src/routes/api/*.rs`) validate input, call `database` queries,
    and return JSON. Errors use the `ApiError` envelope (see `API.md`).
-4. **Terminal WebSockets** carry a small JSON protocol (`API.md`, "WebSocket protocol"). PTY
-   sessions run a russh client task per socket; CMD mode runs one command and closes.
+4. **Terminal WebSockets** carry a small JSON protocol (`API.md`, "WebSocket protocol"); PTY
+   output itself travels as binary frames (`seq` + raw bytes) so the terminal decodes the
+   stream. PTY sessions live in `sessions.rs` and outlive their sockets; CMD mode runs one
+   command and closes.
 5. **Static files**: `ServeDir(SPA_DIR)` with `index.html` fallback, so client-side routes
    work on reload.
 

@@ -5,6 +5,14 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Fixed
+- **Multibyte characters no longer garble in the terminal.** PTY output used to be converted to
+  text per SSH read, so a box-drawing character, emoji or accented letter that straddled two
+  reads came out as `�`. The server now keeps the shell's raw bytes (replay ring included) and,
+  for clients that send `binary: true` on `shell`/`attach`, delivers them as binary WebSocket
+  frames (8-byte `seq` + bytes) that xterm decodes as one stream. The web UI always asks for
+  this; the JSON `output` frames remain for older clients.
+
 ### Added
 - **Resume lost sessions.** A shell whose tab was closed, whose browser tab was lost, or that
   was opened on another device is still running on the server for the grace period; it can now

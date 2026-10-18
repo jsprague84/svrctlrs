@@ -303,6 +303,9 @@
 	let resizeTimer: ReturnType<typeof setTimeout> | null = null;
 	let pingInterval: ReturnType<typeof setInterval> | null = null;
 	let outputHistory: string[] = [];
+	/** Decodes binary output frames for the copy/download history; xterm gets the raw bytes.
+	 *  Streaming, so a character split across frames is joined; renewed per connection. */
+	let outputDecoder = new TextDecoder();
 	let commandHistory: string[] = [];
 	let historyIndex = -1;
 	let status = $state<ConnectionStatus>('disconnected');
@@ -637,6 +640,9 @@
 			setStatus('error');
 			return;
 		}
+		// PTY output comes as binary frames (seq header + raw bytes); control frames stay JSON
+		ws.binaryType = 'arraybuffer';
+		outputDecoder = new TextDecoder();
 		socket = ws;
 		const stale = () => ws !== socket;
 
@@ -651,8 +657,8 @@
 			if (mode === 'pty') {
 				// Resume the server-side session if we have one, otherwise start a shell
 				const req: PtyRequest = sessionId
-					? { type: 'attach', session_id: sessionId, last_seq: lastSeq, cols, rows }
-					: { type: 'shell', server_id: serverId!, cols, rows };
+					? { type: 'attach', session_id: sessionId, last_seq: lastSeq, cols, rows, binary: true }
+					: { type: 'shell', server_id: serverId!, cols, rows, binary: true };
 				ws.send(JSON.stringify(req));
 
 				// Forward keyboard input to PTY
@@ -681,6 +687,16 @@
 
 		ws.onmessage = (event: MessageEvent) => {
 			if (stale()) return;
+			if (event.data instanceof ArrayBuffer) {
+				// Numbered PTY output: 8-byte big-endian seq, then the shell's bytes as produced
+				if (mode !== 'pty' || event.data.byteLength < 8) return;
+				const seq = Number(new DataView(event.data).getBigUint64(0));
+				const bytes = new Uint8Array(event.data, 8);
+				terminal!.write(bytes);
+				appendOutput(outputDecoder.decode(bytes, { stream: true }));
+				lastSeq = seq;
+				return;
+			}
 			try {
 				if (mode === 'pty') {
 					const res = JSON.parse(event.data) as PtyResponse;

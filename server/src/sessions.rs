@@ -6,6 +6,9 @@
 //! sends the last sequence it saw and gets everything it missed, then live output. A session
 //! with no attached client survives for a grace period (`SESSION_DETACH_TTL_SECS`, default
 //! 15 minutes) and is closed when that runs out. Modelled on RelayTerm's session manager.
+//!
+//! Frames hold the PTY's raw bytes: a multibyte character split across two SSH reads must
+//! reach the terminal intact, which a per-chunk UTF-8 conversion cannot guarantee.
 
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -24,11 +27,11 @@ pub enum PtyCommand {
     Close,
 }
 
-/// One numbered chunk of terminal output.
+/// One numbered chunk of terminal output, as the PTY produced it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputFrame {
     pub seq: u64,
-    pub data: Arc<str>,
+    pub data: Arc<[u8]>,
 }
 
 /// What attached sockets receive.
@@ -162,16 +165,21 @@ impl LiveSession {
     }
 
     /// Record and broadcast a chunk of PTY output. Returns its sequence number.
-    pub async fn push_output(&self, text: String) -> u64 {
+    pub async fn push_output(&self, bytes: Vec<u8>) -> u64 {
         let seq = self.seq.fetch_add(1, Ordering::SeqCst) + 1;
         let frame = OutputFrame {
             seq,
-            data: Arc::from(text),
+            data: Arc::from(bytes),
         };
         self.replay.lock().await.push(frame.clone());
         // No subscribers is fine: the ring keeps it for whoever attaches next.
         let _ = self.events.send(SessionEvent::Output(frame));
         seq
+    }
+
+    /// A server-side notice (banner, exit status) written into the stream like output.
+    pub async fn push_text(&self, text: &str) -> u64 {
+        self.push_output(text.as_bytes().to_vec()).await
     }
 
     pub async fn replay_since(&self, last_seen: u64) -> Result<Vec<OutputFrame>, WindowLost> {
@@ -410,7 +418,7 @@ mod tests {
     fn frame(seq: u64, s: &str) -> OutputFrame {
         OutputFrame {
             seq,
-            data: Arc::from(s),
+            data: Arc::from(s.as_bytes()),
         }
     }
 
@@ -463,15 +471,18 @@ mod tests {
     async fn output_is_numbered_broadcast_and_replayable() {
         let (s, _rx) = session(1);
         let mut sub = s.subscribe();
-        assert_eq!(s.push_output("a".into()).await, 1);
-        assert_eq!(s.push_output("b".into()).await, 2);
+        assert_eq!(s.push_output(b"a".to_vec()).await, 1);
+        assert_eq!(s.push_text("b").await, 2);
+        // Raw bytes survive, including a UTF-8 sequence cut in half by the SSH read
+        assert_eq!(s.push_output(vec![0xE2, 0x94]).await, 3);
         match sub.recv().await.unwrap() {
-            SessionEvent::Output(f) => assert_eq!((f.seq, &*f.data), (1, "a")),
+            SessionEvent::Output(f) => assert_eq!((f.seq, &*f.data), (1, &b"a"[..])),
             other => panic!("{other:?}"),
         }
         let late = s.replay_since(1).await.unwrap();
-        assert_eq!(late.len(), 1);
-        assert_eq!(&*late[0].data, "b");
+        assert_eq!(late.len(), 2);
+        assert_eq!(&*late[0].data, b"b");
+        assert_eq!(&*late[1].data, &[0xE2, 0x94][..]);
         s.mark_closed("done");
         s.mark_closed("twice is harmless");
         assert!(s.is_closed());
@@ -518,8 +529,8 @@ mod tests {
             registry.insert(s.clone()).await.unwrap();
         }
         registry.attach_new(&attached);
-        detached.push_output("one".into()).await;
-        detached.push_output("two".into()).await;
+        detached.push_text("one").await;
+        detached.push_text("two").await;
         ended.mark_closed("exited");
 
         let mine = registry.list_for_user(1).await;

@@ -169,8 +169,8 @@ Client → server:
 
 | `type` | Fields | Meaning |
 |---|---|---|
-| `shell` | `server_id`, `cols`, `rows` | open a PTY on the server; answered with `connected` carrying a `session_id` |
-| `attach` | `session_id`, `last_seq`, `cols?`, `rows?` | resume a session this user owns; the server replays output after `last_seq` |
+| `shell` | `server_id`, `cols`, `rows`, `binary?` | open a PTY on the server; answered with `connected` carrying a `session_id` |
+| `attach` | `session_id`, `last_seq`, `cols?`, `rows?`, `binary?` | resume a session this user owns; the server replays output after `last_seq` |
 | `input` | `data` | keystrokes |
 | `resize` | `cols`, `rows` | terminal resized |
 | `ping` | — | keepalive |
@@ -182,12 +182,19 @@ Server → client:
 | `type` | Fields | Meaning |
 |---|---|---|
 | `connected` | `session_id`, `data` | the shell is up (`shell`) or reattached (`attach`) |
-| `output` | `seq`, `data` | terminal output; `seq` increases by one per frame |
+| `output` | `seq`, `data` | terminal output; `seq` increases by one per frame. Only for clients that did not send `binary: true` (see below) |
 | `replay_start` / `replay_end` | — | brackets the frames resent after an `attach` |
 | `replay_window_lost` | — | the client was further behind than the ring holds; redraw from scratch, the whole ring follows |
 | `closed` | `data` | the shell ended (exit, `close`, TTL expiry, server shutdown); the socket stays open but the session is gone |
 | `error` | `data`, `code?` | `code: "session_gone"` — the id is unknown or expired, send `shell`; `code: "quota"` — too many sessions |
 | `pong` | — | — |
+
+**Binary output.** With `binary: true` on `shell`/`attach`, output is not wrapped in JSON:
+each frame is a binary WebSocket message of 8 bytes big-endian `seq` followed by the PTY's raw
+bytes. The terminal decodes the stream itself, so a multibyte character split across two SSH
+reads arrives intact (the JSON form converts per frame, lossily). All other messages in both
+directions stay JSON text. The web UI always asks for binary; the JSON form remains for older
+clients.
 
 Sessions live in the server, not in the socket. A session with no attached client is kept for
 `SESSION_DETACH_TTL_SECS` (default 900) and then closed; a user may have at most

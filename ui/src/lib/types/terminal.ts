@@ -27,6 +27,10 @@ export interface PtyRequest {
 	session_id?: string;
 	/** `attach`: the last output `seq` this client has displayed; the server replays the rest */
 	last_seq?: number;
+	/** `shell`/`attach`: deliver output as binary frames (8-byte big-endian `seq` + raw PTY
+	 *  bytes) instead of JSON `output` text, so a multibyte character split across two SSH
+	 *  reads reaches xterm intact */
+	binary?: boolean;
 }
 
 export interface PtyResponse {
@@ -40,7 +44,8 @@ export interface PtyResponse {
 		| 'replay_window_lost'
 		| 'closed';
 	data: string;
-	/** `output` frames are numbered so a reconnect can ask for the gap */
+	/** `output` frames are numbered so a reconnect can ask for the gap (JSON form; with
+	 *  `binary: true` output arrives as binary WebSocket messages instead) */
 	seq?: number;
 	/** `connected`: the id to `attach` to later */
 	session_id?: string;

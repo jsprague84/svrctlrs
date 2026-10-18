@@ -28,7 +28,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 |---|---|---|
 | ~~Settings UI~~ | Done 2026-10-05: both settings forms load the store before reading it | — |
 | Reconnect | Done 2026-10-05: reconnects after an error with all six backoff steps and ±15 % jitter | `TerminalPane.svelte` |
-| Session persistence | Done 2026-10-10: PTYs live in a server-side `SessionRegistry`; a dropped socket detaches (TTL `SESSION_DETACH_TTL_SECS`, default 15 min) and a reconnect `attach`es with replay from a per-session ring (4096 frames / 2 MiB); terminal tabs survive a reload. Resume list done 2026-10-11: toolbar **Sessions** panel / phone sheet view / palette *Resume Session* list `GET /api/v1/sessions`, **Resume** opens a tab attached to a lost shell, **End** calls `DELETE /api/v1/sessions/{id}` (`SessionRegistry::close_session`, tested). Still open: binary frames instead of JSON-wrapped text | `server/src/sessions.rs`, `terminal_pty.rs`, `TerminalPane.svelte`, `SessionList.svelte`, `state/sessions.svelte.ts` |
+| Session persistence | Done 2026-10-10: PTYs live in a server-side `SessionRegistry`; a dropped socket detaches (TTL `SESSION_DETACH_TTL_SECS`, default 15 min) and a reconnect `attach`es with replay from a per-session ring (4096 frames / 2 MiB); terminal tabs survive a reload. Resume list done 2026-10-11: toolbar **Sessions** panel / phone sheet view / palette *Resume Session* list `GET /api/v1/sessions`, **Resume** opens a tab attached to a lost shell, **End** calls `DELETE /api/v1/sessions/{id}` (`SessionRegistry::close_session`, tested). Binary frames done 2026-10-18: raw PTY bytes in the ring, `binary: true` on `shell`/`attach` → 8-byte `seq` + bytes per WebSocket message; fixes multibyte characters split across SSH reads; e2e script covers it | `server/src/sessions.rs`, `terminal_pty.rs`, `TerminalPane.svelte`, `SessionList.svelte`, `state/sessions.svelte.ts` |
 | Terminal navigation | Done 2026-10-10: leader key (`Ctrl+Space`, configurable) with tmux-style bindings and an on-screen cheat sheet (`ui/src/lib/utils/leader.ts`); the web app is installable (manifest, icons, a service worker that caches only the hashed shell) | `TerminalView.svelte`, `ui/src/service-worker.ts` |
 | Users | Done 2026-10-05: `/api/v1/users` list/create/delete (not self, not last) and `PUT /users/me/password`; Settings → Users tab. Still open: a `role` column so not every account is an administrator | `server/src/routes/api/users.rs` |
 | Key setup | Done 2026-10-05: generate an ed25519 key in the app, show any key's public half, and **Authorize key** on a server (ssh-copy-id over a one-time password or an existing credential, verified, then switched over) | `ssh_keys.rs`, `servers.rs` |
@@ -46,6 +46,8 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 
 ## P2 — Hygiene
 
+- `POST /credentials` and `POST /servers` answer 500 when the name is already taken (SQLite
+  uniqueness error surfaces as a generic database error); map it to 409 with a clear message.
 - Collapse the two remaining SSH connection stacks (`terminal.rs`, `terminal_pty.rs`) into
   one connector with one default-key list (the TOFU decision is already shared).
 - `server/src/config.rs` and `AppState.config` are never read; either use the TOML (servers

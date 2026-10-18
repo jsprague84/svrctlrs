@@ -24,7 +24,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::routes::ui::auth::CurrentUser;
-use crate::sessions::{LiveSession, PtyCommand, SessionEvent};
+use crate::sessions::{LiveSession, OutputFrame, PtyCommand, SessionEvent};
 use crate::state::AppState;
 use svrctlrs_database::models::NewAuditEntry;
 
@@ -43,6 +43,10 @@ struct PtyRequest {
     session_id: Option<String>,
     #[serde(default)]
     last_seq: u64,
+    /// `shell`/`attach`: send output as binary frames (8-byte big-endian `seq`, then the raw
+    /// PTY bytes) instead of JSON `output` text. Clients that do not ask get JSON.
+    #[serde(default)]
+    binary: bool,
 }
 
 /// Interactive terminal response to frontend
@@ -210,8 +214,12 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
                                     continue;
                                 }
                                 state.sessions.attach_new(&live);
-                                forwarder =
-                                    Some(spawn_forwarder(live.clone(), 0, ws_sender.clone()));
+                                forwarder = Some(spawn_forwarder(
+                                    live.clone(),
+                                    0,
+                                    ws_sender.clone(),
+                                    req.binary,
+                                ));
                                 send(&ws_sender, PtyResponse {
                                     session_id: Some(live.id.clone()),
                                     ..PtyResponse::plain("connected", "\x1b[32m✓ Interactive shell session started\x1b[0m\r\n")
@@ -271,6 +279,7 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
                                     live.clone(),
                                     req.last_seq,
                                     ws_sender.clone(),
+                                    req.binary,
                                 ));
                                 session = Some(live);
                             }
@@ -362,6 +371,35 @@ async fn send(sender: &WsSender, response: PtyResponse) -> bool {
     }
 }
 
+/// Encode an output frame for the wire: `seq` as 8 big-endian bytes, then the PTY bytes.
+fn binary_frame(frame: &OutputFrame) -> Vec<u8> {
+    let mut out = Vec::with_capacity(8 + frame.data.len());
+    out.extend_from_slice(&frame.seq.to_be_bytes());
+    out.extend_from_slice(&frame.data);
+    out
+}
+
+/// Send one output frame: binary when the client asked for it, otherwise the legacy JSON
+/// `output` text (lossy for a multibyte character split across frames — old clients only).
+async fn send_output(sender: &WsSender, frame: &OutputFrame, binary: bool) -> bool {
+    if binary {
+        return sender
+            .lock()
+            .await
+            .send(Message::Binary(binary_frame(frame).into()))
+            .await
+            .is_ok();
+    }
+    send(
+        sender,
+        PtyResponse {
+            seq: Some(frame.seq),
+            ..PtyResponse::plain("output", String::from_utf8_lossy(&frame.data).into_owned())
+        },
+    )
+    .await
+}
+
 /// Stream a session's output to one socket: first everything after `last_seq` from the replay
 /// ring, then live frames. A lagging subscriber is caught up from the ring instead of silently
 /// losing frames; a client too far behind the ring is told to redraw from scratch.
@@ -369,6 +407,7 @@ fn spawn_forwarder(
     live: Arc<LiveSession>,
     last_seq: u64,
     sender: WsSender,
+    binary: bool,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut events = live.subscribe();
@@ -379,15 +418,7 @@ fn spawn_forwarder(
             match live.replay_since(last_seq).await {
                 Ok(frames) => {
                     for f in frames {
-                        if !send(
-                            &sender,
-                            PtyResponse {
-                                seq: Some(f.seq),
-                                ..PtyResponse::plain("output", f.data.to_string())
-                            },
-                        )
-                        .await
-                        {
+                        if !send_output(&sender, &f, binary).await {
                             return;
                         }
                         sent = f.seq;
@@ -398,15 +429,7 @@ fn spawn_forwarder(
                     send(&sender, PtyResponse::plain("replay_window_lost", "")).await;
                     if let Ok(frames) = live.replay_since(0).await {
                         for f in frames {
-                            if !send(
-                                &sender,
-                                PtyResponse {
-                                    seq: Some(f.seq),
-                                    ..PtyResponse::plain("output", f.data.to_string())
-                                },
-                            )
-                            .await
-                            {
+                            if !send_output(&sender, &f, binary).await {
                                 return;
                             }
                             sent = f.seq;
@@ -427,15 +450,7 @@ fn spawn_forwarder(
                     if f.seq <= sent {
                         continue; // already replayed
                     }
-                    if !send(
-                        &sender,
-                        PtyResponse {
-                            seq: Some(f.seq),
-                            ..PtyResponse::plain("output", f.data.to_string())
-                        },
-                    )
-                    .await
-                    {
+                    if !send_output(&sender, &f, binary).await {
                         return;
                     }
                     sent = f.seq;
@@ -452,15 +467,7 @@ fn spawn_forwarder(
                     match live.replay_since(sent).await {
                         Ok(frames) => {
                             for f in frames {
-                                if !send(
-                                    &sender,
-                                    PtyResponse {
-                                        seq: Some(f.seq),
-                                        ..PtyResponse::plain("output", f.data.to_string())
-                                    },
-                                )
-                                .await
-                                {
+                                if !send_output(&sender, &f, binary).await {
                                     return;
                                 }
                                 sent = f.seq;
@@ -697,14 +704,14 @@ async fn start_pty_session(
                             msg = channel.wait() => {
                                 match msg {
                                     Some(russh::ChannelMsg::Data { data }) => {
-                                        live.push_output(String::from_utf8_lossy(&data).to_string()).await;
+                                        live.push_output(data.to_vec()).await;
                                     }
                                     Some(russh::ChannelMsg::ExtendedData { data, .. }) => {
                                         // Extended data (usually stderr)
-                                        live.push_output(String::from_utf8_lossy(&data).to_string()).await;
+                                        live.push_output(data.to_vec()).await;
                                     }
                                     Some(russh::ChannelMsg::Eof) => {
-                                        live.push_output("\r\n\x1b[33m[Session ended]\x1b[0m\r\n".to_string()).await;
+                                        live.push_text("\r\n\x1b[33m[Session ended]\x1b[0m\r\n").await;
                                         break;
                                     }
                                     Some(russh::ChannelMsg::Close) => {
@@ -712,7 +719,7 @@ async fn start_pty_session(
                                     }
                                     Some(russh::ChannelMsg::ExitStatus { exit_status }) => {
                                         reason = format!("Shell exited with status {exit_status}");
-                                        live.push_output(format!("\r\n\x1b[90m[Exit status: {}]\x1b[0m\r\n", exit_status)).await;
+                                        live.push_text(&format!("\r\n\x1b[90m[Exit status: {}]\x1b[0m\r\n", exit_status)).await;
                                     }
                                     None => break,
                                     _ => {}
