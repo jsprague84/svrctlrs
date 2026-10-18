@@ -78,8 +78,17 @@
 				onclick={() => onSelectTab(tab.id)}
 				onkeydown={(e) => handleTabKey(e, tab.id)}
 			>
-				<span class="w-1.5 h-1.5 rounded-full {statusColors[tab.status] ?? 'bg-text-muted'}"></span>
-				<span class="max-w-[60px] md:max-w-[120px] truncate">{tab.label}</span>
+				<span
+					class="w-1.5 h-1.5 rounded-full {statusColors[tab.status] ?? 'bg-text-muted'} {tab.bell
+						? 'ring-2 ring-warning/70 ring-offset-1 ring-offset-surface'
+						: ''}"
+				></span>
+				<span class="max-w-[60px] md:max-w-[120px] truncate" title={tab.label}
+					>{tab.title ?? tab.label}</span
+				>
+				{#if tab.bell}
+					<span class="sr-only">bell</span>
+				{/if}
 				<button
 					class="ml-1 p-1 md:p-0.5 rounded-sm hover:bg-error/20 hover:text-error"
 					onclick={(e) => {

@@ -261,6 +261,23 @@ export function updateTabStatus(id: string, status: ConnectionStatus) {
 	if (tab) tab.status = status;
 }
 
+/** The shell's own title (OSC 0/2); empty clears it and the tab shows its label again. */
+export function updateTabTitle(id: string, title: string) {
+	const tab = tabs.find((t) => t.id === id);
+	if (tab) tab.title = title.trim() || null;
+}
+
+/** Mark a bell on a tab that is not active; the active tab shows it live instead. */
+export function markBell(id: string) {
+	const tab = tabs.find((t) => t.id === id);
+	if (tab && tab.id !== activeTabId) tab.bell = true;
+}
+
+export function clearBell(id: string | null) {
+	const tab = tabs.find((t) => t.id === id);
+	if (tab?.bell) tab.bell = false;
+}
+
 export function getPendingAutoConnect(): string | null {
 	return pendingAutoConnect;
 }

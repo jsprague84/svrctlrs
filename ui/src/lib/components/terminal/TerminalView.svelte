@@ -532,6 +532,11 @@
 		terminalState.updateTabStatus(tabId, status);
 	}
 
+	// Switching to a tab acknowledges its bell
+	$effect(() => {
+		terminalState.clearBell(terminalState.getActiveTabId());
+	});
+
 	function handleNewTab() {
 		terminalState.createTab(null, null);
 	}
@@ -835,6 +840,8 @@
 						serverId={tab.serverId}
 						active={tab.slot !== null}
 						onStatusChange={handleStatusChange}
+						onTitleChange={terminalState.updateTabTitle}
+						onBell={terminalState.markBell}
 						onModifierConsumed={() => extraKeysRow?.clearModifiers()}
 						onOpenPalette={() => (paletteOpen = true)}
 						onSwipe={() => focusTerminal(terminalState.getActiveTabId())}

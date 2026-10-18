@@ -49,14 +49,29 @@ users), and keep the login limiter's state in the database so a restart does not
    (`server/src/ssh_config.rs`, tested) with `ProxyJump` → jump host.
 5. ~~**Per-server startup command.**~~ Done 2026-10-18: `servers.startup_command`, one line
    typed as the shell's first input (`cd dir && …` covers the directory, so no second column).
-6. **Session recording.** Opt-in per server; output frames from the existing ring written as
+6. ~~**Terminal polish.**~~ Done 2026-10-18: OSC title → tab name, bell (flash, vibration,
+   tab marker), grapheme-cluster widths, `COLORTERM` env request, zlib compression offered.
+7. **Split `TerminalPane.svelte`.** Past 1,100 lines: transport, replay, rendering, gestures,
+   clipboard and the host-key dialog in one component. Pull the WebSocket session (connect,
+   attach, replay, ping, reconnect) into a plain TypeScript module with Vitest tests. No
+   behaviour change; a phone check afterwards for the gesture code. Recording markers,
+   hand-off and predictive echo all land in that module.
+8. **In-process SSH server for tests.** russh's server side on a loopback port inside the
+   server crate's tests: first-contact refusal and trust, mismatch, password and key auth,
+   the PTY driver, and a jump host (the loopback server as its own hop). Today the e2e run
+   against a real host is the only coverage and CI cannot run it.
+9. **Session recording.** Opt-in per server; output frames from the existing ring written as
    asciicast v2 under the user's id, retention setting, download, and an in-app player.
-   Output only, never input. Scoped per user from day one.
-7. **Terminal preferences per account.** Move `terminalPrefs` from `localStorage` to the
-   settings table so the phone and the laptop agree.
-8. **Quick-command variables** (`{{host}}`, `{{user}}`, a prompt for the rest) so one
-   snippet serves every server.
-9. **Release maturity.** `linux/arm64` image for Raspberry Pi hosts, `svrctl reset-password`
+   Output only, never input. Scoped per user from day one. Measure WebSocket backpressure
+   under a large `cat` first and fix only if the send buffer grows.
+10. **Predictive local echo** for lossy phone links: typed printable characters shown at once
+    in a provisional style and reconciled against the server's echo (sshx does this well).
+    Needs the pane split first.
+11. **Terminal preferences per account.** Move `terminalPrefs` from `localStorage` to the
+    settings table so the phone and the laptop agree.
+12. **Quick-command variables** (`{{host}}`, `{{user}}`, a prompt for the rest) so one
+    snippet serves every server.
+13. **Release maturity.** `linux/arm64` image for Raspberry Pi hosts, `svrctl reset-password`
    for lockout recovery, `CONTRIBUTING.md` and issue templates, screenshots in the README, a
    compose example without the dev-space edge, and a published OpenAPI document (utoipa) once
    the error refactor has settled the handler shapes.
@@ -69,7 +84,6 @@ users), and keep the login limiter's state in the database so a restart does not
 - **Roles, TOTP/passkeys, OIDC, a revocable session list** (owner, 2026-10-18): single-user
   today. Required before the app is offered to other people; design the `role` column with
   the migration squash so the baseline already has it.
-- **Predictive local echo** for lossy phone links (sshx does this well).
 - **Edit small text files in the browser** from the file browser, instead of `nano` on a
   phone keyboard.
 - **Tauri desktop**: untested since 2026-10-05; the PWA covers desktop browsers. Decide whether

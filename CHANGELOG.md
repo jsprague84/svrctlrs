@@ -18,6 +18,12 @@ the release workflow uses the matching section as the release notes.
   stay trusted; nothing to confirm for existing servers.
 
 ### Added
+- **Terminal polish.** The shell's window title renames its tab (server name on hover); a
+  bell flashes the pane, vibrates on a phone and marks an inactive tab until it is opened;
+  grapheme clusters (emoji sequences, combining marks) take their real width (the Unicode 11
+  addon was loaded but never selected, so width tables were at Unicode 6); the SSH client asks
+  for `COLORTERM=truecolor` (best effort, subject to the server's `AcceptEnv`) and offers
+  `zlib@openssh.com` compression.
 - **Per-server startup command.** One line (`startup_command`; *Startup command* in the form)
   typed into every new shell on that server right after it opens, such as
   `tmux new -A -s main`, which gives sessions that outlive the app's detach grace period.

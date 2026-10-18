@@ -512,6 +512,10 @@ async fn start_pty_session(
         .await
         .map_err(|e| format!("Failed to open channel: {}", e))?;
 
+    // Advertise 24-bit colour. sshd only passes variables its `AcceptEnv` lists, so this is
+    // best effort (no reply wanted); the startup command is the sure way.
+    let _ = channel.set_env(false, "COLORTERM", "truecolor").await;
+
     // Request PTY
     channel
         .request_pty(

@@ -35,7 +35,9 @@
 			<span
 				class="rounded-full flex-shrink-0 w-1.5 h-1.5 {statusColor(tab)} {tab.id === activeTabId
 					? 'ring-2 ring-accent/70 ring-offset-1 ring-offset-surface'
-					: 'opacity-70'}"
+					: tab.bell
+						? 'ring-2 ring-warning/70 ring-offset-1 ring-offset-surface'
+						: 'opacity-70'}"
 			></span>
 		{/each}
 		{#if overflow > 0}

@@ -123,6 +123,15 @@ the life of the browser tab, so a reload brings them back with their shells.
   **New Session**. **Disconnect** and closing a tab end the shell for good.
 - **Preferences** (gear icon): font, size, weight, line height, cursor style and blink,
   scrollback, scroll speed, tab width, contrast. Stored in the browser/app.
+- **Title and bell**: a shell that sets its window title (most prompts do: `user@host: ~`)
+  renames its tab; hovering shows the server name. A bell (`BEL`, for example from a finished
+  `make` or an alert in `top`) flashes the pane's border, vibrates on a phone, and leaves an
+  amber ring on an inactive tab's dot until you switch to it.
+- **Colour and text**: emoji sequences and combining characters take their proper width. The
+  connection asks the server for `COLORTERM=truecolor`; most `sshd` configurations only pass
+  `LANG`/`LC_*` through, so if a tool still shows 256 colours put `export COLORTERM=truecolor`
+  in the server's startup command. Connections negotiate compression (`zlib@openssh.com`) when
+  the server offers it, which helps on slow links.
 - **Download**: a pane's visible text can be saved as a file.
 
 ### Keyboard shortcuts

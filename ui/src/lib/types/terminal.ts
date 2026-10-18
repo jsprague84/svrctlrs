@@ -88,6 +88,10 @@ export interface TerminalTab {
 	serverId: number | null;
 	serverName: string | null;
 	status: ConnectionStatus;
+	/** What the shell set with an OSC title sequence (e.g. `user@host: ~`); shown over `label` */
+	title?: string | null;
+	/** The shell rang the bell while the tab was not active */
+	bell?: boolean;
 	/** Slot index when visible in split view (0-3), null if hidden */
 	slot: number | null;
 }

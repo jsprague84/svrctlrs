@@ -221,18 +221,46 @@ const MAX_JUMPS: usize = 4;
 const DEFAULT_KEEPALIVE_SECS: u64 = 15;
 
 /// The client configuration every connection uses: keepalives (three unanswered close the
-/// connection) and no Nagle delay on an interactive link.
+/// connection), no Nagle delay on an interactive link, and compression offered first
+/// (`zlib@openssh.com`, applied after authentication; falls back to none) so slow links
+/// carry less.
 pub fn client_config() -> Arc<client::Config> {
     let keepalive = std::env::var("SSH_KEEPALIVE_SECS")
         .ok()
         .and_then(|v| v.trim().parse::<u64>().ok())
         .unwrap_or(DEFAULT_KEEPALIVE_SECS);
+    let preferred = russh::Preferred {
+        compression: std::borrow::Cow::Borrowed(&[
+            russh::compression::ZLIB_LEGACY,
+            russh::compression::ZLIB,
+            russh::compression::NONE,
+        ]),
+        ..russh::Preferred::default()
+    };
     Arc::new(client::Config {
         keepalive_interval: (keepalive > 0).then(|| std::time::Duration::from_secs(keepalive)),
         keepalive_max: 3,
         nodelay: true,
+        preferred,
         ..client::Config::default()
     })
+}
+
+#[cfg(test)]
+mod config_tests {
+    use super::*;
+
+    #[test]
+    fn client_config_offers_compression_and_keepalives() {
+        let c = client_config();
+        assert_eq!(c.keepalive_max, 3);
+        assert!(c.nodelay);
+        assert_eq!(
+            c.preferred.compression.first(),
+            Some(&russh::compression::ZLIB_LEGACY)
+        );
+        assert!(c.preferred.compression.contains(&russh::compression::NONE));
+    }
 }
 
 /// Connect and authenticate, through the server's jump host if it has one.

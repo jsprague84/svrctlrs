@@ -5,7 +5,7 @@
 	import { SearchAddon } from '@xterm/addon-search';
 	import { WebLinksAddon } from '@xterm/addon-web-links';
 	import { WebglAddon } from '@xterm/addon-webgl';
-	import { Unicode11Addon } from '@xterm/addon-unicode11';
+	import { UnicodeGraphemesAddon } from '@xterm/addon-unicode-graphemes';
 	import { ClipboardAddon } from '@xterm/addon-clipboard';
 	import { ImageAddon } from '@xterm/addon-image';
 	import { SerializeAddon } from '@xterm/addon-serialize';
@@ -29,6 +29,10 @@
 		serverId: number | null;
 		active?: boolean;
 		onStatusChange?: (tabId: string, status: ConnectionStatus) => void;
+		/** The shell set its window title (OSC 0/2) */
+		onTitleChange?: (tabId: string, title: string) => void;
+		/** The shell rang the bell (BEL) */
+		onBell?: (tabId: string) => void;
 		/** The pending CTL/ALT from the extra-keys row was used up by a typed character */
 		onModifierConsumed?: () => void;
 		/** A horizontal swipe switched tabs; the view re-focuses the new one */
@@ -41,12 +45,17 @@
 		serverId,
 		active = true,
 		onStatusChange,
+		onTitleChange,
+		onBell,
 		onModifierConsumed,
 		onSwipe,
 		onOpenPalette
 	}: Props = $props();
 
 	let showReconnectOverlay = $state(false);
+	/** Brief ring around the pane when the shell rings the bell */
+	let bellFlash = $state(false);
+	let bellFlashTimer: ReturnType<typeof setTimeout> | null = null;
 	/** First contact: the server refused the shell until this key is confirmed */
 	let hostKeyChallenge = $state<{
 		server_id: number;
@@ -433,8 +442,26 @@
 		terminal.loadAddon(serializeAddon);
 
 		terminal.loadAddon(new WebLinksAddon());
-		terminal.loadAddon(new Unicode11Addon());
+		// Grapheme clusters (emoji sequences, combining marks) take their real cell width. The
+		// addon only registers the version; it has to be selected.
+		terminal.loadAddon(new UnicodeGraphemesAddon());
+		terminal.unicode.activeVersion = '15-graphemes';
 		terminal.loadAddon(new ClipboardAddon());
+
+		terminal.onTitleChange((title) => onTitleChange?.(tabId, title));
+		terminal.onBell(() => {
+			onBell?.(tabId);
+			bellFlash = true;
+			if (bellFlashTimer) clearTimeout(bellFlashTimer);
+			bellFlashTimer = setTimeout(() => (bellFlash = false), 180);
+			if (isMobile() && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+				try {
+					navigator.vibrate(40);
+				} catch {
+					// not allowed without a user gesture; the flash is enough
+				}
+			}
+		});
 
 		try {
 			terminal.loadAddon(
@@ -1113,7 +1140,9 @@
 <!-- Terminal shell: owns touch gesture recognition via capture-phase listeners.
      Mouse passes through to xterm.js. Touch is intercepted before xterm.js sees it. -->
 <div
-	class="terminal-shell h-full w-full bg-background relative"
+	class="terminal-shell h-full w-full bg-background relative {bellFlash
+		? 'ring-2 ring-inset ring-warning'
+		: ''}"
 	class:hidden={!active}
 	bind:this={shellEl}
 >
