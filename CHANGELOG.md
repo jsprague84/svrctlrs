@@ -5,6 +5,17 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [3.1.0] - 2026-10-18
+
+The "complete SSH client" release. Every peer that is a terminal manager had these and we did
+not: a first-contact host-key prompt, keepalives, jump hosts, tags, `ssh_config` import. They
+are in, along with a per-server startup command, a file browser, typed errors, a migration
+baseline for fresh installs and a long list of hardening fixes since 3.0.0. Upgrading needs
+nothing from you: an existing database finishes its old migration chain and is marked as being
+at the baseline, and host keys you already trusted stay trusted.
+
 ### Security
 - **First contact asks before trusting.** The first connection to a server used to store its
   host key silently. It now records the key unconfirmed and refuses the shell, the connection

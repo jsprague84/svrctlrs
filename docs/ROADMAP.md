@@ -7,6 +7,11 @@ names the evidence for a fix.
 
 ## Where it stands (review of 2026-10-18)
 
+**3.1.0 released 2026-10-18**: host-key confirmation, keepalives and jump hosts, tags and
+`ssh_config` import, startup command, file browser, typed errors, migration baseline (Next
+items 1–6 below, struck through). The pane split, the SSH test server, the UI pass and session
+recording are the 3.2 work.
+
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an
 audit log, encrypted credentials, host-key pinning, an SFTP browser, and nothing else. It is
@@ -56,22 +61,30 @@ users), and keep the login limiter's state in the database so a restart does not
    attach, replay, ping, reconnect) into a plain TypeScript module with Vitest tests. No
    behaviour change; a phone check afterwards for the gesture code. Recording markers,
    hand-off and predictive echo all land in that module.
-8. **In-process SSH server for tests.** russh's server side on a loopback port inside the
+8. **UI pass: polish and consistency.** One sweep over every screen before recording adds
+   more UI. Phone-width audit of Servers, Credentials, Settings and the file browser (row
+   density, tap targets of at least 44 px, no horizontal scroll); the Servers row's six-button
+   action strip collapses into a menu on narrow widths; consistent empty, loading and error
+   states; focus trapping and Escape in every modal and the palette; toasts above the
+   extra-keys row on the phone; the About page shows the running revision; a light-theme
+   contrast check; PWA shortcuts that open a given server from the home screen; and a
+   screenshots pass for README and USER-GUIDE (History: "Docs — no screenshots").
+9. **In-process SSH server for tests.** russh's server side on a loopback port inside the
    server crate's tests: first-contact refusal and trust, mismatch, password and key auth,
    the PTY driver, and a jump host (the loopback server as its own hop). Today the e2e run
    against a real host is the only coverage and CI cannot run it.
-9. **Session recording.** Opt-in per server; output frames from the existing ring written as
+10. **Session recording.** Opt-in per server; output frames from the existing ring written as
    asciicast v2 under the user's id, retention setting, download, and an in-app player.
    Output only, never input. Scoped per user from day one. Measure WebSocket backpressure
    under a large `cat` first and fix only if the send buffer grows.
-10. **Predictive local echo** for lossy phone links: typed printable characters shown at once
+11. **Predictive local echo** for lossy phone links: typed printable characters shown at once
     in a provisional style and reconciled against the server's echo (sshx does this well).
     Needs the pane split first.
-11. **Terminal preferences per account.** Move `terminalPrefs` from `localStorage` to the
+12. **Terminal preferences per account.** Move `terminalPrefs` from `localStorage` to the
     settings table so the phone and the laptop agree.
-12. **Quick-command variables** (`{{host}}`, `{{user}}`, a prompt for the rest) so one
+13. **Quick-command variables** (`{{host}}`, `{{user}}`, a prompt for the rest) so one
     snippet serves every server.
-13. **Release maturity.** `linux/arm64` image for Raspberry Pi hosts, `svrctl reset-password`
+14. **Release maturity.** `linux/arm64` image for Raspberry Pi hosts, `svrctl reset-password`
    for lockout recovery, `CONTRIBUTING.md` and issue templates, screenshots in the README, a
    compose example without the dev-space edge, and a published OpenAPI document (utoipa) once
    the error refactor has settled the handler shapes.

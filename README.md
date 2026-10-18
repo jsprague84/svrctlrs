@@ -4,7 +4,7 @@ Self-hosted terminal and SSH management for your servers: interactive shells in 
 on the desktop, and on Android, with server profiles, encrypted credentials, multi-pane layouts
 and push notifications. One Rust binary, one SQLite file.
 
-**Version 3.0.0** · Rust (Axum) · SvelteKit 5 · xterm.js 6 · Tauri 2 · SQLite
+**Version 3.1.0** · Rust (Axum) · SvelteKit 5 · xterm.js 6 · Tauri 2 · SQLite
 
 > 3.x is a different product from the 1.x/2.x releases. Those were a plugin-based monitoring
 > platform and were retired in March 2026; nothing from them survives in this repository.
