@@ -190,8 +190,7 @@ pub async fn create_credential(pool: &Pool<Sqlite>, input: &CreateCredential) ->
     .bind(stored_metadata)
     .execute(pool)
     .await
-    .context("Failed to create credential")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(super::write_error("credential", "create"))?;
 
     Ok(result.last_insert_rowid())
 }
@@ -242,8 +241,7 @@ pub async fn update_credential(
     qb.build()
         .execute(pool)
         .await
-        .context("Failed to update credential")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(super::write_error("credential", "update"))?;
 
     Ok(())
 }
@@ -323,6 +321,42 @@ mod tests {
             .fetch_one(pool)
             .await
             .unwrap()
+    }
+
+    fn password(name: &str) -> CreateCredential {
+        CreateCredential {
+            name: name.to_string(),
+            credential_type: CredentialType::Password,
+            description: None,
+            value: "secret".to_string(),
+            username: Some("root".to_string()),
+            metadata: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn duplicate_name_is_a_conflict_not_a_database_error() {
+        let pool = setup_test_db().await;
+        create_credential(&pool, &password("prod")).await.unwrap();
+        let err = create_credential(&pool, &password("prod"))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, Error::Conflict(_)), "{err}");
+        assert_eq!(
+            err.to_string(),
+            "A credential with that name already exists"
+        );
+
+        // Renaming onto a taken name is the same mistake
+        let other = create_credential(&pool, &password("staging"))
+            .await
+            .unwrap();
+        let rename = UpdateCredential {
+            name: Some("prod".to_string()),
+            ..Default::default()
+        };
+        let err = update_credential(&pool, other, &rename).await.unwrap_err();
+        assert!(matches!(err, Error::Conflict(_)), "{err}");
     }
 
     #[tokio::test]

@@ -110,8 +110,7 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
     .bind(input.metadata_string())
     .execute(pool)
     .await
-    .context("Failed to create server")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(super::write_error("server", "create"))?;
 
     Ok(result.last_insert_rowid())
 }
@@ -184,8 +183,7 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
     qb.build()
         .execute(pool)
         .await
-        .context("Failed to update server")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(super::write_error("server", "update"))?;
 
     Ok(())
 }
@@ -269,6 +267,37 @@ mod tests {
         let pool = SqlitePool::connect(":memory:").await.unwrap();
         sqlx::migrate!().run(&pool).await.unwrap();
         pool
+    }
+
+    fn host(name: &str) -> CreateServer {
+        CreateServer {
+            name: name.to_string(),
+            hostname: Some("10.0.0.9".to_string()),
+            port: 22,
+            username: Some("root".to_string()),
+            credential_id: None,
+            description: None,
+            is_local: false,
+            enabled: true,
+            metadata: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn duplicate_name_is_a_conflict_not_a_database_error() {
+        let pool = setup_test_db().await;
+        create_server(&pool, &host("web")).await.unwrap();
+        let err = create_server(&pool, &host("web")).await.unwrap_err();
+        assert!(matches!(err, Error::Conflict(_)), "{err}");
+        assert_eq!(err.to_string(), "A server with that name already exists");
+
+        let other = create_server(&pool, &host("db")).await.unwrap();
+        let rename = UpdateServer {
+            name: Some("web".to_string()),
+            ..Default::default()
+        };
+        let err = update_server(&pool, other, &rename).await.unwrap_err();
+        assert!(matches!(err, Error::Conflict(_)), "{err}");
     }
 
     #[tokio::test]

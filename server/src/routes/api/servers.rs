@@ -369,9 +369,12 @@ async fn create_server(
 
     let id = servers::create_server(&state.pool, &create)
         .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to create server");
-            ApiError::internal_error(format!("Failed to create server: {}", e))
+        .map_err(|e| match e {
+            svrctlrs_core::Error::Conflict(msg) => ApiError::conflict(msg),
+            e => {
+                error!(error = %e, "Failed to create server");
+                ApiError::internal_error(format!("Failed to create server: {}", e))
+            }
         })?;
 
     info!(id = id, "Server created successfully");
@@ -447,9 +450,12 @@ async fn update_server(
 
     servers::update_server(&state.pool, id, &update)
         .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to update server");
-            ApiError::internal_error(format!("Failed to update server: {}", e))
+        .map_err(|e| match e {
+            svrctlrs_core::Error::Conflict(msg) => ApiError::conflict(msg),
+            e => {
+                error!(error = %e, id = id, "Failed to update server");
+                ApiError::internal_error(format!("Failed to update server: {}", e))
+            }
         })?;
 
     info!(id = id, "Server updated successfully");

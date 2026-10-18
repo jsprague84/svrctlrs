@@ -255,9 +255,12 @@ async fn create_credential(
 
     let id = credentials::create_credential(&state.pool, &create)
         .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to create credential");
-            ApiError::internal_error(format!("Failed to create credential: {}", e))
+        .map_err(|e| match e {
+            svrctlrs_core::Error::Conflict(msg) => ApiError::conflict(msg),
+            e => {
+                error!(error = %e, "Failed to create credential");
+                ApiError::internal_error(format!("Failed to create credential: {}", e))
+            }
         })?;
 
     info!(id = id, "Credential created successfully");
@@ -334,9 +337,12 @@ async fn update_credential(
 
     credentials::update_credential(&state.pool, id, &update)
         .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to update credential");
-            ApiError::internal_error(format!("Failed to update credential: {}", e))
+        .map_err(|e| match e {
+            svrctlrs_core::Error::Conflict(msg) => ApiError::conflict(msg),
+            e => {
+                error!(error = %e, id = id, "Failed to update credential");
+                ApiError::internal_error(format!("Failed to update credential: {}", e))
+            }
         })?;
 
     info!(id = id, "Credential updated successfully");

@@ -15,6 +15,10 @@ pub enum Error {
     #[error("Not found: {0}")]
     NotFound(String),
 
+    /// A uniqueness rule refused the write (a name already in use); the API answers 409.
+    #[error("{0}")]
+    Conflict(String),
+
     #[error("Notification error: {0}")]
     NotificationError(String),
 

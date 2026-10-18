@@ -10,6 +10,9 @@ the release workflow uses the matching section as the release notes.
   ECH and certificate-decompression issues); the CI audit gate caught them.
 
 ### Fixed
+- Creating or renaming a credential or server to a name that is already taken answers
+  `409 CONFLICT` with "A credential/server with that name already exists" instead of a generic
+  500. Other database write failures now carry the driver's reason in the message.
 - **Multibyte characters no longer garble in the terminal.** PTY output used to be converted to
   text per SSH read, so a box-drawing character, emoji or accented letter that straddled two
   reads came out as `�`. The server now keeps the shell's raw bytes (replay ring included) and,

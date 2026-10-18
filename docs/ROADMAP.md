@@ -46,8 +46,6 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 
 ## P2 — Hygiene
 
-- `POST /credentials` and `POST /servers` answer 500 when the name is already taken (SQLite
-  uniqueness error surfaces as a generic database error); map it to 409 with a clear message.
 - Collapse the two remaining SSH connection stacks (`terminal.rs`, `terminal_pty.rs`) into
   one connector with one default-key list (the TOFU decision is already shared).
 - `server/src/config.rs` and `AppState.config` are never read; either use the TOML (servers
