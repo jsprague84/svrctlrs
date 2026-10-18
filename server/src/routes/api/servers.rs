@@ -26,6 +26,7 @@ use crate::state::AppState;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list_servers).post(create_server))
+        .route("/import", post(import_servers))
         .route(
             "/{id}",
             get(get_server).put(update_server).delete(delete_server),
@@ -355,6 +356,8 @@ struct CreateServerInput {
     #[serde(default)]
     via_server_id: Option<i64>,
     #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
     description: Option<String>,
     /// Retired with command mode; `true` is refused so old clients get a clear answer.
     #[serde(default)]
@@ -398,6 +401,7 @@ async fn create_server(
         username: input.username,
         credential_id: input.credential_id,
         via_server_id: input.via_server_id,
+        tags: input.tags,
         description: input.description,
         enabled: input.enabled,
     };
@@ -442,6 +446,9 @@ struct UpdateServerInput {
     /// Same shape: `null` makes the server direct again
     #[serde(default, deserialize_with = "super::double_option")]
     via_server_id: Option<Option<i64>>,
+    /// Replaces the whole list
+    #[serde(default)]
+    tags: Option<Vec<String>>,
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]
@@ -508,6 +515,7 @@ async fn update_server(
         username: input.username,
         credential_id: input.credential_id,
         via_server_id: input.via_server_id,
+        tags: input.tags,
         description: input.description,
         enabled: input.enabled,
         last_error: None,
@@ -558,6 +566,128 @@ async fn delete_server(
         "id": id,
         "message": "Server deleted successfully"
     })))
+}
+
+/// Import input: a pasted `ssh_config`, and what every created server gets.
+#[derive(Debug, Deserialize)]
+struct ImportInput {
+    config: String,
+    #[serde(default)]
+    credential_id: Option<i64>,
+    #[serde(default)]
+    tags: Vec<String>,
+}
+
+/// Create servers from the `Host` blocks of an `ssh_config`. Names that already exist are
+/// skipped; `ProxyJump` becomes `via_server_id` when its first hop names a created or existing
+/// server (by name, else by hostname). Nothing is connected to.
+#[instrument(skip(state, input))]
+async fn import_servers(
+    State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
+    Json(input): Json<ImportInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    if input.config.len() > 256 * 1024 {
+        return Err(ApiError::bad_request(
+            "That is more than 256 KiB of ssh_config",
+        ));
+    }
+    if let Some(cred_id) = input.credential_id {
+        svrctlrs_database::queries::credentials::get_credential(&state.pool, cred_id)
+            .await
+            .map_err(|e| match e {
+                svrctlrs_core::Error::NotFound(_) => {
+                    ApiError::bad_request(format!("Credential {cred_id} does not exist"))
+                }
+                other => ApiError::from(other),
+            })?;
+    }
+    let parsed = crate::ssh_config::parse(&input.config);
+    if parsed.hosts.is_empty() {
+        return Err(ApiError::bad_request(
+            "No Host blocks found; paste the part of ~/.ssh/config with `Host name` entries",
+        ));
+    }
+
+    let mut existing = servers::list_servers(&state.pool).await?;
+    let mut created: Vec<serde_json::Value> = Vec::new();
+    let mut skipped: Vec<serde_json::Value> = parsed
+        .skipped
+        .iter()
+        .map(|(what, why)| json!({ "name": what, "reason": why }))
+        .collect();
+    let mut notes: Vec<String> = Vec::new();
+    // (new server id, ProxyJump hop) to resolve once everything exists
+    let mut jumps: Vec<(i64, String, String)> = Vec::new();
+
+    for host in &parsed.hosts {
+        if existing.iter().any(|s| s.name == host.alias) {
+            skipped.push(json!({ "name": host.alias, "reason": "a server with that name exists" }));
+            continue;
+        }
+        let create = CreateServer {
+            name: host.alias.clone(),
+            hostname: host.hostname.clone(),
+            port: host.port,
+            username: host.user.clone(),
+            credential_id: input.credential_id,
+            via_server_id: None,
+            tags: input.tags.clone(),
+            description: Some("Imported from ssh_config".to_string()),
+            enabled: true,
+        };
+        match servers::create_server(&state.pool, &create).await {
+            Ok(id) => {
+                created.push(json!({ "id": id, "name": host.alias, "hostname": host.hostname }));
+                if let Some(hop) = &host.proxy_jump {
+                    jumps.push((id, host.alias.clone(), hop.clone()));
+                }
+                existing.push(servers::get_server(&state.pool, id).await?);
+            }
+            Err(e) => skipped.push(json!({ "name": host.alias, "reason": e.to_string() })),
+        }
+    }
+
+    for (id, name, hop) in jumps {
+        let target = existing
+            .iter()
+            .find(|s| s.name == hop)
+            .or_else(|| existing.iter().find(|s| s.hostname == hop))
+            .map(|s| (s.id, s.name.clone()));
+        match target {
+            Some((via, via_name)) if via != id => {
+                let update = UpdateServer {
+                    via_server_id: Some(Some(via)),
+                    ..Default::default()
+                };
+                servers::update_server(&state.pool, id, &update).await?;
+                notes.push(format!("{name}: connects through {via_name}"));
+            }
+            _ => notes.push(format!(
+                "{name}: ProxyJump {hop} is not a known server; set its jump host by hand"
+            )),
+        }
+    }
+
+    info!(
+        created = created.len(),
+        skipped = skipped.len(),
+        "Imported servers from ssh_config"
+    );
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("server.imported")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .details(json!({
+                "created": created.iter().filter_map(|c| c["name"].as_str()).collect::<Vec<_>>(),
+                "skipped": skipped.len(),
+            })),
+    );
+    Ok(Json(
+        json!({ "created": created, "skipped": skipped, "notes": notes }),
+    ))
 }
 
 /// Test server SSH connection

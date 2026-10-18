@@ -18,6 +18,14 @@ the release workflow uses the matching section as the release notes.
   stay trusted; nothing to confirm for existing servers.
 
 ### Added
+- **Tags.** Servers take free-form tags (comma separated in the form; `tags` in the API).
+  The Servers page, the sidebar and the phone's server picker show the tags in use as filter
+  chips, the palette and the page search match them, and a tag on a row is clickable.
+- **Import from `~/.ssh/config`.** *Import* on the Servers page (API `POST /servers/import`)
+  turns the `Host` blocks of a pasted `ssh_config` into servers: `HostName` (with `%h`), `Port`,
+  `User`, and `ProxyJump` resolved to a jump host when its first hop is a known server; a
+  credential and tags can be applied to all of them. Wildcards, `Match` blocks and existing
+  names are reported as skipped; nothing is connected to during the import.
 - **Jump hosts.** *Connect through* on a server (API `via_server_id`) reaches it through
   another server's SSH connection, like `ProxyJump`: the target's hostname is resolved from the
   jump host, so hosts on a private VLAN work. Both host keys are confirmed and checked, chains

@@ -4,6 +4,8 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { serverStatus } from '#lib/utils/serverStatus.js';
+	import { allTags, matchesTag } from '#lib/utils/tags.js';
+	import TagChips from '#lib/components/servers/TagChips.svelte';
 	import type { PathnameWithSearchOrHash as Pathname } from '$app/types';
 	import {
 		Terminal,
@@ -55,6 +57,10 @@
 		onEditProfile,
 		onDeleteProfile
 	}: Props = $props();
+
+	let tags = $derived(allTags(servers));
+	let tagFilter = $state<string | null>(null);
+	let shownServers = $derived(servers.filter((s) => matchesTag(s, tagFilter)));
 
 	const navItems = [
 		{ href: '/', icon: Terminal, label: 'Terminal' },
@@ -166,8 +172,13 @@
 				{:else if servers.length === 0}
 					<p class="text-xs text-sidebar-muted italic">No servers configured</p>
 				{:else}
+					{#if tags.length > 0}
+						<div class="mb-1.5">
+							<TagChips {tags} selected={tagFilter} onSelect={(t) => (tagFilter = t)} compact />
+						</div>
+					{/if}
 					<div class="flex flex-col gap-0.5">
-						{#each servers as server (server.id)}
+						{#each shownServers as server (server.id)}
 							<button
 								class="flex items-center gap-2 px-2 py-2.5 md:py-1.5 text-xs rounded-sm text-left w-full
 									text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"

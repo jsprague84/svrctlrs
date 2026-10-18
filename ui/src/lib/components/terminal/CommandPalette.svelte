@@ -89,7 +89,9 @@
 			result.push({
 				id: `server-${server.id}`,
 				name: `Connect: ${server.name}`,
-				detail: server.hostname,
+				detail: server.tags.length
+					? `${server.hostname} · ${server.tags.join(', ')}`
+					: server.hostname,
 				category: 'action',
 				action: () => {
 					onConnectServer?.(server.id, server.name);

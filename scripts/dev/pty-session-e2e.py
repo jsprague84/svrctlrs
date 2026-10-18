@@ -124,6 +124,51 @@ except urllib.error.HTTPError as e:
     assert e.code == 400, e.code
 print("jump loop refused ok")
 
+# Tags: normalised on write, searchable in the UI; replaced as a whole on update
+api("PUT", f"/api/v1/servers/{sid}", {"tags": [" Prod", "prod", "e2e "]})
+assert api("GET", f"/api/v1/servers/{sid}")["server"]["tags"] == ["e2e", "Prod"], api("GET", f"/api/v1/servers/{sid}")["server"]["tags"]
+print("tags ok")
+
+# ssh_config import: Host blocks become servers; ProxyJump resolves to a known server;
+# patterns, Match blocks and existing names are skipped
+cfg = f"""
+Host *
+  ServerAliveInterval 30
+Host e2e-imported-{RUN}
+  HostName 127.0.0.1
+  User {SSH_USER}
+  ProxyJump e2e target {RUN}
+Host e2e-imported-2-{RUN} e2e-imported-3-{RUN}
+  HostName=%h.lab
+  Port 2222
+Host e2e-imported-{RUN}
+  HostName dup.example
+Match host x
+  User y
+"""
+imp = api("POST", "/api/v1/servers/import", {"config": cfg, "credential_id": cid, "tags": ["imported"]})
+names = [c["name"] for c in imp["created"]]
+assert names == [f"e2e-imported-{RUN}", f"e2e-imported-2-{RUN}", f"e2e-imported-3-{RUN}"], imp
+skipped = {s_["name"]: s_["reason"] for s_ in imp["skipped"]}
+assert "*" in skipped and "Match host x" in skipped and skipped.get(f"e2e-imported-{RUN}") == "a server with that name exists", skipped
+imported = api("GET", f"/api/v1/servers/{imp['created'][0]['id']}")["server"]
+assert imported["via_server_id"] == sid and imported["tags"] == ["imported"] and imported["username"] == SSH_USER, imported
+third = api("GET", f"/api/v1/servers/{imp['created'][2]['id']}")["server"]
+assert third["hostname"] == f"e2e-imported-3-{RUN}.lab" and third["port"] == 2222, third
+assert any("connects through" in n for n in imp["notes"]), imp["notes"]
+# the imported server behind the jump host works once its key is confirmed
+imp_sid = imp["created"][0]["id"]
+t = api("POST", f"/api/v1/servers/{imp_sid}/test")
+assert t.get("code") == "HOST_KEY_UNCONFIRMED", t
+api("POST", f"/api/v1/servers/{imp_sid}/host-keys/trust", {"fingerprint": t["details"]["fingerprint"]})
+assert api("POST", f"/api/v1/servers/{imp_sid}/test").get("success") is True
+try:
+    api("POST", "/api/v1/servers/import", {"config": "Host *\n  Port 22\n"})
+    raise AssertionError("empty import accepted")
+except urllib.error.HTTPError as e:
+    assert e.code == 400, e.code
+print("ssh_config import ok:", len(names), "created,", len(skipped), "skipped")
+
 # A shell on a server whose key is not confirmed yet gets a structured refusal
 fresh_srv = api("POST", "/api/v1/servers", {"name": f"e2e unconfirmed {RUN}", "hostname": SSH_HOST, "port": 22, "username": SSH_USER, "credential_id": cid})
 fresh_sid = fresh_srv["id"] if "id" in fresh_srv else fresh_srv["data"]["id"]

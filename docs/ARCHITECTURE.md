@@ -15,6 +15,7 @@ Android app; those talk to a remote server over the same API.
  │               files (SFTP browse/transfer, outside the request timeout) │
  │ routes/terminal_pty.rs  interactive shell over WebSocket                 │
  │ ssh.rs                  the one SSH client (russh): host keys, auth, exec │
+ │ ssh_config.rs           reads Host blocks of a pasted ssh_config (import)  │
  │ sessions.rs             server-owned PTY sessions, replay ring, TTL      │
  │ health_monitor.rs       periodic checks → notifications (rstify/Gotify) │
  │ ServeDir(SPA_DIR) fallback → index.html                                  │
@@ -82,7 +83,7 @@ does not pull in Tauri's GTK/WebKit dependencies.
 |---|---|
 | `users` | username, argon2 hash |
 | `tower_sessions` | session records (managed by the store) |
-| `servers` | name, hostname, port, username (NULL = the credential's user, else root), `credential_id`, `via_server_id` (jump host; `ON DELETE SET NULL`), `enabled`, `last_seen_at`, `last_error` |
+| `servers` | name, hostname, port, username (NULL = the credential's user, else root), `credential_id`, `via_server_id` (jump host; `ON DELETE SET NULL`), `tags` (JSON array), `enabled`, `last_seen_at`, `last_error` |
 | `credentials` | name, type (`password`, `ssh_key`, …), encrypted `value`, optional `username`, JSON `metadata`, `encrypted` flag |
 | `server_host_keys` | `(server_id, key_type)` → public key, first/last seen, `trusted_at` (NULL = waiting for confirmation) |
 | `terminal_profiles` | per-user layout + pane configs (`server_id` per pane), `is_default` |

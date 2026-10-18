@@ -4,7 +4,8 @@ import type {
 	CreateServer,
 	UpdateServer,
 	TestConnectionResult,
-	HostKey
+	HostKey,
+	ImportResult
 } from '#lib/types/index.js';
 
 interface ServersListResponse {
@@ -41,6 +42,15 @@ export async function updateServer(id: number, input: UpdateServer): Promise<voi
 
 export async function deleteServer(id: number): Promise<void> {
 	await del<MutationResponse>(`/servers/${id}`);
+}
+
+/** Create servers from the Host blocks of a pasted ssh_config. */
+export async function importServers(input: {
+	config: string;
+	credential_id?: number;
+	tags?: string[];
+}): Promise<ImportResult> {
+	return post<ImportResult>('/servers/import', input);
 }
 
 export async function testConnection(id: number): Promise<TestConnectionResult> {

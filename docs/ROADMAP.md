@@ -43,9 +43,10 @@ users), and keep the login limiter's state in the database so a restart does not
    (`SSH_KEEPALIVE_SECS`, default 15 s, three unanswered close it); `servers.via_server_id`
    tunnels the target through the jump host's connection (`direct-tcpip`, up to four hops,
    loops refused, host keys confirmed on both). E2E covers shell and SFTP through a hop.
-4. **Server organisation and import.** Tags or groups with filtering in the server list,
-   the palette and the phone sheet; paste an `ssh_config` block to create servers. The
-   flat list stops working past a dozen hosts.
+4. ~~**Server organisation and import.**~~ Done 2026-10-18: `servers.tags` (JSON array,
+   normalised) with filter chips on the Servers page, the sidebar and the phone sheet, and
+   palette/search matching; `POST /servers/import` parses `ssh_config` `Host` blocks
+   (`server/src/ssh_config.rs`, tested) with `ProxyJump` → jump host.
 5. **Per-server startup command and directory.** For example `tmux new -A -s main`: the way
    a terminal user gets sessions that outlive our detach TTL, and it costs a column and one
    `input` frame.

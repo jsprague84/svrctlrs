@@ -10,6 +10,7 @@ const base: Server = {
 	username: 'root',
 	credential_id: null,
 	via_server_id: null,
+	tags: [],
 	description: null,
 	enabled: true,
 	last_seen_at: null,

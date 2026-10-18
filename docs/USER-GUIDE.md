@@ -48,6 +48,18 @@ Clearing a field in *Edit* (hostname, username, description, credential → *Non
 clears it; a credential that is still assigned to a server cannot be deleted — the row says
 which servers use it.
 
+**Tags and filtering.** Give a server tags (*prod*, *home*, *db*; comma separated in the
+form). Every list — the Servers page, the sidebar, the phone's server picker — shows the tags
+in use as chips and filters on one of them; the palette's *Connect* entries and the Servers
+page search match tags too. A tag on a row is clickable.
+
+**Import from `~/.ssh/config`.** *Import* on the Servers page takes a pasted `ssh_config`:
+each concrete `Host` becomes a server with its `HostName`, `Port` and `User`, optionally with a
+credential and tags for all of them; a `ProxyJump` whose first hop is another imported or
+existing server becomes that server's jump host. Wildcard hosts, `Match` blocks and names
+that already exist are listed as skipped. Nothing is connected to during the import; the host
+key is confirmed on each server's first connection as usual.
+
 **Jump hosts.** *Connect through* on a server picks another server to hop through, like
 `ProxyJump`: SvrCtlRS opens its SSH connection to the jump host and tunnels the target's
 connection inside it, so a private address that only the jump host can reach works as the

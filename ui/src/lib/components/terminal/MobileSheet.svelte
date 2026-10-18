@@ -7,6 +7,8 @@
 	import { X, Plus, ChevronLeft, History, FolderOpen } from '@lucide/svelte';
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import { serverStatus } from '#lib/utils/serverStatus.js';
+	import { allTags, matchesTag } from '#lib/utils/tags.js';
+	import TagChips from '#lib/components/servers/TagChips.svelte';
 	import { watchClose } from '#lib/utils/closeWatcher.js';
 	import SessionList from './SessionList.svelte';
 	import FileBrowser from './FileBrowser.svelte';
@@ -66,7 +68,10 @@
 		onEndSession
 	}: Props = $props();
 
-	let servers = $derived(serversState.getServers().filter((s) => s.enabled));
+	let allServers = $derived(serversState.getServers().filter((s) => s.enabled));
+	let tags = $derived(allTags(allServers));
+	let tagFilter = $state<string | null>(null);
+	let servers = $derived(allServers.filter((s) => matchesTag(s, tagFilter)));
 	/** Shells no tab here holds — the ones worth a badge */
 	let resumableCount = $derived(sessions.filter((s) => !held.has(s.id)).length);
 	const titles: Record<SheetView, (n: number) => string> = {
@@ -221,10 +226,17 @@
 					/>
 				</div>
 			{:else}
-				{#if servers.length === 0}
+				{#if tags.length > 0}
+					<div class="px-3 pb-2">
+						<TagChips {tags} selected={tagFilter} onSelect={(t) => (tagFilter = t)} />
+					</div>
+				{/if}
+				{#if allServers.length === 0}
 					<p class="text-sm text-text-muted px-3 py-6 text-center">
 						No servers yet — add one under Servers.
 					</p>
+				{:else if servers.length === 0}
+					<p class="text-sm text-text-muted px-3 py-6 text-center">No server has that tag.</p>
 				{:else}
 					<ul class="flex flex-col gap-1">
 						{#each servers as server (server.id)}

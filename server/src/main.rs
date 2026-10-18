@@ -8,6 +8,7 @@ mod request_id;
 mod routes;
 mod sessions;
 mod ssh;
+mod ssh_config;
 mod ssh_keys;
 mod state;
 mod ws_tickets;

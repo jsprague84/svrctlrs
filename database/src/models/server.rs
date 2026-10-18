@@ -1,6 +1,37 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use sqlx::types::Json;
 use sqlx::FromRow;
+
+/// Longest tag kept, in characters.
+pub const MAX_TAG_LEN: usize = 32;
+/// Most tags kept per server.
+pub const MAX_TAGS: usize = 20;
+
+/// Tags as stored: trimmed, non-empty, clipped to [`MAX_TAG_LEN`], unique ignoring case (the
+/// first spelling wins), sorted ignoring case, at most [`MAX_TAGS`].
+pub fn normalize_tags<I, S>(tags: I) -> Vec<String>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut out: Vec<String> = Vec::new();
+    for tag in tags {
+        let tag: String = tag.as_ref().trim().chars().take(MAX_TAG_LEN).collect();
+        if tag.is_empty() {
+            continue;
+        }
+        if out.iter().any(|t| t.eq_ignore_ascii_case(&tag)) {
+            continue;
+        }
+        out.push(tag);
+        if out.len() == MAX_TAGS {
+            break;
+        }
+    }
+    out.sort_by_key(|t| t.to_lowercase());
+    out
+}
 
 /// An SSH target.
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -17,6 +48,8 @@ pub struct Server {
     pub credential_id: Option<i64>,
     /// Reached through this server's SSH connection (a jump host), when set
     pub via_server_id: Option<i64>,
+    /// Free-form labels for filtering; see [`normalize_tags`]
+    pub tags: Json<Vec<String>>,
     pub description: Option<String>,
     pub enabled: bool,
 
@@ -51,6 +84,8 @@ pub struct CreateServer {
     pub credential_id: Option<i64>,
     #[serde(default)]
     pub via_server_id: Option<i64>,
+    #[serde(default)]
+    pub tags: Vec<String>,
     pub description: Option<String>,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
@@ -83,6 +118,8 @@ pub struct UpdateServer {
     pub credential_id: Option<Option<i64>>,
     /// Same shape: `Some(None)` makes the server direct again.
     pub via_server_id: Option<Option<i64>>,
+    /// Replaces the whole list
+    pub tags: Option<Vec<String>>,
     pub description: Option<String>,
     pub enabled: Option<bool>,
     pub last_error: Option<String>,
@@ -97,6 +134,7 @@ impl UpdateServer {
             || self.username.is_some()
             || self.credential_id.is_some()
             || self.via_server_id.is_some()
+            || self.tags.is_some()
             || self.description.is_some()
             || self.enabled.is_some()
             || self.last_error.is_some()
@@ -124,6 +162,7 @@ mod tests {
             username: username.map(String::from),
             credential_id: None,
             via_server_id: None,
+            tags: Json(vec![]),
             description: None,
             enabled: true,
             last_seen_at: None,
@@ -147,6 +186,19 @@ mod tests {
     }
 
     #[test]
+    fn tags_are_trimmed_deduplicated_and_sorted() {
+        assert_eq!(
+            normalize_tags(["  Prod ", "home", "", "prod", "db", "Home"]),
+            ["db", "home", "Prod"]
+        );
+        let long = "x".repeat(50);
+        assert_eq!(normalize_tags([long.as_str()])[0].len(), MAX_TAG_LEN);
+        let many: Vec<String> = (0..30).map(|i| format!("t{i:02}")).collect();
+        assert_eq!(normalize_tags(&many).len(), MAX_TAGS);
+        assert!(normalize_tags(Vec::<String>::new()).is_empty());
+    }
+
+    #[test]
     fn create_server_validation() {
         let valid = CreateServer {
             name: "remote".to_string(),
@@ -155,6 +207,7 @@ mod tests {
             username: Some("admin".to_string()),
             credential_id: Some(1),
             via_server_id: None,
+            tags: vec![],
             description: None,
             enabled: true,
         };

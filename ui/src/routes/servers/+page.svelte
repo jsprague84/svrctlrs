@@ -9,7 +9,8 @@
 		KeyRound,
 		ShieldCheck,
 		TerminalSquare,
-		Search
+		Search,
+		FileInput
 	} from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -27,13 +28,17 @@
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { confirmDialog } from '#lib/state/confirm.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
+	import { allTags, matchesTag, parseTagInput } from '#lib/utils/tags.js';
+	import TagChips from '#lib/components/servers/TagChips.svelte';
+	import Textarea from '#lib/components/ui/Textarea.svelte';
 	import { CREDENTIAL_TYPE_LABELS } from '#lib/types/credential.js';
 	import type {
 		Server,
 		CreateServer,
 		UpdateServer,
 		TestConnectionResult,
-		HostKey
+		HostKey,
+		ImportResult
 	} from '#lib/types/index.js';
 
 	let showModal = $state(false);
@@ -48,6 +53,16 @@
 	let hostKeys = $state<HostKey[]>([]);
 	let keysLoading = $state(false);
 	let search = $state('');
+	let tagFilter = $state<string | null>(null);
+	// Import modal
+	let showImport = $state(false);
+	let importText = $state('');
+	let importCredentialId = $state<string>('');
+	let importTags = $state('');
+	let importing = $state(false);
+	let importResult = $state<ImportResult | null>(null);
+	const IMPORT_PLACEHOLDER =
+		'Host web\n  HostName web.example.net\n  User deploy\n  Port 2222\n\nHost db\n  ProxyJump web';
 
 	// Form fields
 	let name = $state('');
@@ -56,6 +71,7 @@
 	let username = $state('');
 	let credentialId = $state<string>('');
 	let viaServerId = $state<string>('');
+	let tagsText = $state('');
 	let description = $state('');
 	let enabled = $state(true);
 
@@ -69,16 +85,18 @@
 	let serverName = $derived((id: number | null) => servers.find((s) => s.id === id)?.name ?? null);
 	/** Candidates for the jump-host select: every other server */
 	let jumpCandidates = $derived(servers.filter((s) => s.id !== editingId));
+	let tags = $derived(allTags(servers));
 	let shown = $derived.by(() => {
 		const q = search.trim().toLowerCase();
-		const list = q
-			? servers.filter((s) =>
-					[s.name, s.hostname, s.username ?? '', s.description ?? '']
+		const list = servers.filter(
+			(s) =>
+				matchesTag(s, tagFilter) &&
+				(!q ||
+					[s.name, s.hostname, s.username ?? '', s.description ?? '', ...s.tags]
 						.join(' ')
 						.toLowerCase()
-						.includes(q)
-				)
-			: servers;
+						.includes(q))
+		);
 		return [...list].sort((a, b) => a.name.localeCompare(b.name));
 	});
 	let formError = $derived(!hostname.trim() && name.trim() ? 'A server needs a hostname' : '');
@@ -95,6 +113,7 @@
 		username = '';
 		credentialId = '';
 		viaServerId = '';
+		tagsText = '';
 		description = '';
 		enabled = true;
 		editingId = null;
@@ -113,6 +132,7 @@
 		username = server.username ?? '';
 		credentialId = server.credential_id ? String(server.credential_id) : '';
 		viaServerId = server.via_server_id ? String(server.via_server_id) : '';
+		tagsText = server.tags.join(', ');
 		description = server.description ?? '';
 		enabled = server.enabled;
 		showModal = true;
@@ -131,6 +151,7 @@
 					username: username.trim(),
 					credential_id: credentialId ? Number(credentialId) : null,
 					via_server_id: viaServerId ? Number(viaServerId) : null,
+					tags: parseTagInput(tagsText),
 					description: description.trim(),
 					enabled
 				};
@@ -144,6 +165,7 @@
 					username: username.trim() || undefined,
 					credential_id: credentialId ? Number(credentialId) : undefined,
 					via_server_id: viaServerId ? Number(viaServerId) : undefined,
+					tags: parseTagInput(tagsText),
 					description: description.trim() || undefined,
 					enabled
 				};
@@ -259,6 +281,33 @@
 		}
 	}
 
+	function openImport() {
+		importText = '';
+		importCredentialId = '';
+		importTags = '';
+		importResult = null;
+		showImport = true;
+	}
+
+	async function handleImport() {
+		if (importing || !importText.trim()) return;
+		importing = true;
+		try {
+			importResult = await serversApi.importServers({
+				config: importText,
+				credential_id: importCredentialId ? Number(importCredentialId) : undefined,
+				tags: parseTagInput(importTags)
+			});
+			await serversState.loadServers();
+			const n = importResult.created.length;
+			toast.success(`Imported ${n} server${n === 1 ? '' : 's'}`);
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Import failed'));
+		} finally {
+			importing = false;
+		}
+	}
+
 	/** A key should be installed: no credential, or a password one */
 	function needsKey(server: Server): boolean {
 		if (!server.enabled) return false;
@@ -289,9 +338,17 @@
 					/>
 				</div>
 			{/if}
+			<Button variant="secondary" onclick={openImport} title="Create servers from ~/.ssh/config"
+				><FileInput class="w-4 h-4" /> <span class="hidden sm:inline">Import</span></Button
+			>
 			<Button onclick={openCreate}><Plus class="w-4 h-4" /> Add Server</Button>
 		</div>
 	</div>
+	{#if tags.length > 0}
+		<div class="px-4 md:px-6 py-2 border-b border-border/60">
+			<TagChips {tags} selected={tagFilter} onSelect={(t) => (tagFilter = t)} />
+		</div>
+	{/if}
 
 	<div class="flex-1 overflow-y-auto p-4 md:p-6">
 		{#if loading && servers.length === 0}
@@ -314,7 +371,9 @@
 				>
 			</div>
 		{:else if shown.length === 0}
-			<div class="text-center text-text-muted py-8 text-sm">Nothing matches “{search}”.</div>
+			<div class="text-center text-text-muted py-8 text-sm">
+				{search.trim() ? `Nothing matches “${search}”` : `No server is tagged ${tagFilter}`}.
+			</div>
 		{:else}
 			<ul class="flex flex-col gap-2">
 				{#each shown as server (server.id)}
@@ -335,6 +394,14 @@
 								{#if !server.enabled}
 									<Badge variant="warning">disabled</Badge>
 								{/if}
+								{#each server.tags as tag (tag)}
+									<button
+										type="button"
+										class="hidden md:inline-flex"
+										onclick={() => (tagFilter = tag)}
+										title="Show servers tagged {tag}"><Badge>{tag}</Badge></button
+									>
+								{/each}
 								{#if cred}
 									<span
 										class="hidden md:inline-flex items-center gap-1 text-[11px] text-text-muted"
@@ -522,6 +589,12 @@
 				works. Both host keys are checked and both servers need a working credential.
 			</p>
 		{/if}
+		<Input
+			label="Tags"
+			bind:value={tagsText}
+			placeholder="prod, home, db"
+			hint="Comma separated; used to filter the server lists"
+		/>
 		<Input label="Description" bind:value={description} placeholder="Optional" />
 		<label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
 			<input type="checkbox" bind:checked={enabled} class="rounded" />
@@ -595,3 +668,78 @@
 </Modal>
 
 <AuthorizeKeyModal server={authServer} onClose={() => (authServer = null)} />
+
+<Modal open={showImport} title="Import from ssh_config" onClose={() => (showImport = false)}>
+	{#if importResult}
+		<div class="flex flex-col gap-3 text-sm">
+			<p class="text-text-secondary">
+				Created {importResult.created.length}, skipped {importResult.skipped.length}.
+			</p>
+			{#if importResult.created.length > 0}
+				<ul class="flex flex-col gap-1">
+					{#each importResult.created as c (c.id)}
+						<li class="font-mono text-xs text-text-primary">{c.name} → {c.hostname}</li>
+					{/each}
+				</ul>
+			{/if}
+			{#if importResult.notes.length > 0}
+				<ul class="flex flex-col gap-1 text-xs text-text-secondary">
+					{#each importResult.notes as note (note)}
+						<li>{note}</li>
+					{/each}
+				</ul>
+			{/if}
+			{#if importResult.skipped.length > 0}
+				<details class="text-xs text-text-muted">
+					<summary class="cursor-pointer">Skipped</summary>
+					<ul class="mt-1 flex flex-col gap-0.5">
+						{#each importResult.skipped as sk (sk.name + sk.reason)}
+							<li><span class="font-mono">{sk.name}</span> — {sk.reason}</li>
+						{/each}
+					</ul>
+				</details>
+			{/if}
+			<p class="text-xs text-text-muted">
+				Nothing was connected to yet: each new server asks for its host key on first contact, and a
+				server without a credential can get one with <em>Authorize key</em>.
+			</p>
+		</div>
+	{:else}
+		<form
+			id="import-form"
+			class="flex flex-col gap-3"
+			onsubmit={(e) => {
+				e.preventDefault();
+				handleImport();
+			}}
+		>
+			<Textarea
+				label="~/.ssh/config"
+				bind:value={importText}
+				mono
+				rows={10}
+				placeholder={IMPORT_PLACEHOLDER}
+				hint="Host, HostName, Port, User and ProxyJump are read; wildcard hosts and Match blocks are skipped. Names that already exist are left alone."
+			/>
+			<Select label="Credential for the imported servers" bind:value={importCredentialId}>
+				<option value="">None (set later or use Authorize key)</option>
+				{#each credentials as cred (cred.id)}
+					<option value={String(cred.id)}
+						>{cred.name} — {CREDENTIAL_TYPE_LABELS[cred.credential_type]}</option
+					>
+				{/each}
+			</Select>
+			<Input label="Tags for all of them" bind:value={importTags} placeholder="homelab" />
+		</form>
+	{/if}
+	{#snippet footer()}
+		<Button variant="secondary" onclick={() => (showImport = false)}
+			>{importResult ? 'Close' : 'Cancel'}</Button
+		>
+		{#if !importResult}
+			<Button type="submit" form="import-form" disabled={importing || !importText.trim()}>
+				{importing ? 'Importing…' : 'Import'}
+			</Button>
+		{/if}
+	{/snippet}
+</Modal>

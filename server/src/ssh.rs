@@ -492,6 +492,7 @@ mod tests {
             username: username.map(String::from),
             credential_id: None,
             via_server_id: None,
+            tags: svrctlrs_database::sqlx::types::Json(vec![]),
             description: None,
             enabled: true,
             last_seen_at: None,

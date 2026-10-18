@@ -8,6 +8,8 @@ export interface Server {
 	credential_id: number | null;
 	/** Reached through this server's SSH connection (jump host), when set */
 	via_server_id: number | null;
+	/** Free-form labels for filtering; stored trimmed, unique and sorted */
+	tags: string[];
 	description: string | null;
 	enabled: boolean;
 	last_seen_at: string | null;
@@ -44,6 +46,7 @@ export interface CreateServer {
 	username?: string;
 	credential_id?: number;
 	via_server_id?: number;
+	tags?: string[];
 	description?: string;
 	enabled?: boolean;
 }
@@ -56,8 +59,17 @@ export interface UpdateServer {
 	username?: string;
 	credential_id?: number | null;
 	via_server_id?: number | null;
+	/** Replaces the whole list */
+	tags?: string[];
 	description?: string;
 	enabled?: boolean;
+}
+
+/** What `POST /servers/import` made of a pasted ssh_config. */
+export interface ImportResult {
+	created: { id: number; name: string; hostname: string }[];
+	skipped: { name: string; reason: string }[];
+	notes: string[];
 }
 
 export interface TestConnectionResult {

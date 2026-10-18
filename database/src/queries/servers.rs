@@ -5,15 +5,15 @@ use sqlx::{Pool, QueryBuilder, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::instrument;
 
-use crate::models::{CreateServer, Server, UpdateServer};
+use crate::models::{normalize_tags, CreateServer, Server, UpdateServer};
 
 /// List all servers
 #[instrument(skip(pool))]
 pub async fn list_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, via_server_id, description,
-               enabled, last_seen_at, last_error, created_at, updated_at
+        SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
+               description, enabled, last_seen_at, last_error, created_at, updated_at
         FROM servers
         ORDER BY name
         "#,
@@ -29,8 +29,8 @@ pub async fn list_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
 pub async fn get_server(pool: &Pool<Sqlite>, id: i64) -> Result<Server> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, via_server_id, description,
-               enabled, last_seen_at, last_error, created_at, updated_at
+        SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
+               description, enabled, last_seen_at, last_error, created_at, updated_at
         FROM servers
         WHERE id = ?
         "#,
@@ -48,8 +48,8 @@ pub async fn get_server(pool: &Pool<Sqlite>, id: i64) -> Result<Server> {
 pub async fn get_server_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<Server> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, via_server_id, description,
-               enabled, last_seen_at, last_error, created_at, updated_at
+        SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
+               description, enabled, last_seen_at, last_error, created_at, updated_at
         FROM servers
         WHERE name = ?
         "#,
@@ -71,8 +71,8 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
     let result = sqlx::query(
         r#"
         INSERT INTO servers (name, hostname, port, username, credential_id, via_server_id,
-                             description, enabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                             tags, description, enabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&input.name)
@@ -81,6 +81,7 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
     .bind(&input.username)
     .bind(input.credential_id)
     .bind(input.via_server_id)
+    .bind(sqlx::types::Json(normalize_tags(&input.tags)))
     .bind(&input.description)
     .bind(input.enabled)
     .execute(pool)
@@ -123,6 +124,10 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
     }
     if let Some(via_server_id) = input.via_server_id {
         qb.push(", via_server_id = ").push_bind(via_server_id);
+    }
+    if let Some(tags) = &input.tags {
+        qb.push(", tags = ")
+            .push_bind(sqlx::types::Json(normalize_tags(tags)));
     }
     if let Some(description) = &input.description {
         qb.push(", description = NULLIF(")
@@ -202,8 +207,8 @@ pub async fn update_server_status(
 pub async fn list_enabled_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, via_server_id, description,
-               enabled, last_seen_at, last_error, created_at, updated_at
+        SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
+               description, enabled, last_seen_at, last_error, created_at, updated_at
         FROM servers
         WHERE enabled = 1
         ORDER BY name
@@ -234,6 +239,7 @@ mod tests {
             username: Some("root".to_string()),
             credential_id: None,
             via_server_id: None,
+            tags: vec![],
             description: None,
             enabled: true,
         }
@@ -268,6 +274,7 @@ mod tests {
             username: Some("admin".to_string()),
             credential_id: None,
             via_server_id: None,
+            tags: vec!["Prod".into(), "prod".into(), " web ".into()],
             description: Some("Test server".to_string()),
             enabled: true,
         };
@@ -279,6 +286,7 @@ mod tests {
         let server = get_server(&pool, id).await.unwrap();
         assert_eq!(server.name, "test-server");
         assert_eq!(server.hostname, "192.168.1.100");
+        assert_eq!(server.tags.0, ["Prod", "web"]);
 
         // Update server
         let update = UpdateServer {
@@ -291,6 +299,18 @@ mod tests {
         let server = get_server(&pool, id).await.unwrap();
         assert_eq!(server.description, Some("Updated description".to_string()));
         assert_eq!(server.port, 2222);
+        assert_eq!(server.tags.0, ["Prod", "web"], "tags kept when absent");
+        update_server(
+            &pool,
+            id,
+            &UpdateServer {
+                tags: Some(vec![]),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert!(get_server(&pool, id).await.unwrap().tags.0.is_empty());
 
         // Delete server
         delete_server(&pool, id).await.unwrap();
