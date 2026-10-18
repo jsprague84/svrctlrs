@@ -68,7 +68,7 @@ a failure reported with its header can be found in `docker logs` directly.
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | GET | `/servers` | — | list |
-| POST | `/servers` | `name`, `hostname?`, `port` (default 22), `username?`, `credential_id?`, `description?`, `is_local` (bool), `enabled` (bool), `metadata?` (object) | `is_local: true` opens a shell *inside the SvrCtlRS container* — see SECURITY.md |
+| POST | `/servers` | `name`, `hostname?`, `port` (default 22), `username?`, `credential_id?`, `description?`, `enabled` (bool), `metadata?` (object) | `is_local: true` is refused with 400: local shells were retired, SvrCtlRS connects over SSH only |
 | GET | `/servers/{id}` | — | |
 | PUT | `/servers/{id}` | any subset of the create fields plus `os_type?`, `os_distro?` | omitted fields are kept; `""` clears `hostname`/`username`/`description`; `credential_id: null` unassigns the credential |
 | DELETE | `/servers/{id}` | — | |
@@ -152,9 +152,10 @@ Entry: `id, at, user_id, username, client_ip, action, target_type, target_id, ta
 details` (a JSON object string). Actions: `login`, `login.failed`, `login.rate_limited`,
 `logout`, `user.created`, `user.deleted`, `user.password_changed`, `server.created`,
 `server.updated`, `server.deleted`, `server.host_keys_forgotten`, `credential.created`,
-`credential.updated`, `credential.deleted`, `session.pty_opened`, `session.command` (details:
-`command` as typed, truncated to 500 characters, and `exit_code`). Entries never contain
-secrets, are kept for 180 days, and outlive deleted users.
+`credential.updated`, `credential.deleted`, `session.pty_opened` (details: `login`, `auth` —
+`password` or the key used). `session.command` entries from the retired command mode remain
+readable until they age out. Entries never contain secrets, are kept for 180 days, and outlive
+deleted users.
 
 ## Notifications
 
@@ -211,15 +212,7 @@ ended sessions are not listed) and ended by `DELETE /api/v1/sessions/{id}` (404 
 id or another user's session; every attached socket receives `closed`). The terminal UI's
 **Sessions** panel is built on these two calls.
 
-### `/ws/terminal` — command mode
-
-Client → server: `{"type": "execute", "server_id": 1, "command": "uptime", "env": {…},
-"cols": 120, "rows": 40}` or `{"type": "ping"}`.
-
-Server → client: `output` frames with `data`, then `{"type": "exit", "data": "", "exit_code": 0}`;
-`error` and `pong` as above.
-
-Host-key handling on both endpoints: the first connection to a server stores its key; a
+Host-key handling: the first connection to a server stores its key; a
 later connection presenting a key that matches none stored for that server is refused with an
 `error` frame explaining the mismatch. Profiles and quick commands are per user: another
 user's id answers 404.

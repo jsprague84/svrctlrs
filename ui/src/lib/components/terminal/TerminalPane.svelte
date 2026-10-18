@@ -20,19 +20,11 @@
 	import { post } from '#lib/api/client.js';
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { loadSessionRecord, saveSessionRecord } from '#lib/utils/sessionRecord.js';
-	import type {
-		TerminalMode,
-		ConnectionStatus,
-		CmdRequest,
-		CmdResponse,
-		PtyRequest,
-		PtyResponse
-	} from '#lib/types/index.js';
+	import type { ConnectionStatus, PtyRequest, PtyResponse } from '#lib/types/index.js';
 
 	interface Props {
 		tabId: string;
 		serverId: number | null;
-		mode: TerminalMode;
 		active?: boolean;
 		onStatusChange?: (tabId: string, status: ConnectionStatus) => void;
 		/** The pending CTL/ALT from the extra-keys row was used up by a typed character */
@@ -45,7 +37,6 @@
 	let {
 		tabId,
 		serverId,
-		mode = 'pty',
 		active = true,
 		onStatusChange,
 		onModifierConsumed,
@@ -127,7 +118,7 @@
 	 * normal buffer (a full-screen program gets nothing) and only on the cursor's own row.
 	 */
 	function moveCursorTo(clientX: number, clientY: number) {
-		if (!terminal || mode !== 'pty' || !socket || socket.readyState !== WebSocket.OPEN) return;
+		if (!terminal || !socket || socket.readyState !== WebSocket.OPEN) return;
 		const buf = terminal.buffer.active;
 		if (buf.type !== 'normal') return;
 		const cell = cellAt(clientX, clientY);
@@ -306,8 +297,6 @@
 	/** Decodes binary output frames for the copy/download history; xterm gets the raw bytes.
 	 *  Streaming, so a character split across frames is joined; renewed per connection. */
 	let outputDecoder = new TextDecoder();
-	let commandHistory: string[] = [];
-	let historyIndex = -1;
 	let status = $state<ConnectionStatus>('disconnected');
 	let ptyInputDisposable: { dispose: () => void } | null = null;
 	let ptyResizeDisposable: { dispose: () => void } | null = null;
@@ -315,8 +304,6 @@
 	let reconnectAttempt = 0;
 	let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
-	const HISTORY_KEY = 'svrctlrs-cmd-history';
-	const MAX_HISTORY = 50;
 	const PING_INTERVAL = 30_000;
 	/** A ping unanswered for this long means the socket is dead even if the browser says OPEN. */
 	const PONG_TIMEOUT = 8_000;
@@ -357,9 +344,9 @@
 		onStatusChange?.(tabId, s);
 	}
 
-	async function getWsUrl(wsMode: TerminalMode): Promise<string> {
+	async function getWsUrl(): Promise<string> {
 		const serverUrl = getServerUrl();
-		const path = wsMode === 'pty' ? '/ws/terminal/pty' : '/ws/terminal';
+		const path = '/ws/terminal/pty';
 		let url: string;
 		if (serverUrl) {
 			const wsBase = serverUrl.replace(/^http/, 'ws');
@@ -382,54 +369,6 @@
 			}
 		}
 		return url;
-	}
-
-	function loadHistory() {
-		try {
-			const key = serverId ? `${HISTORY_KEY}-${serverId}` : HISTORY_KEY;
-			const saved = localStorage.getItem(key);
-			if (saved) {
-				commandHistory = JSON.parse(saved);
-				historyIndex = commandHistory.length;
-			}
-		} catch {
-			// ignore
-		}
-	}
-
-	function saveHistory() {
-		try {
-			const key = serverId ? `${HISTORY_KEY}-${serverId}` : HISTORY_KEY;
-			localStorage.setItem(key, JSON.stringify(commandHistory));
-		} catch {
-			// ignore
-		}
-	}
-
-	function addToHistory(cmd: string) {
-		if (!cmd.trim()) return;
-		if (commandHistory.length > 0 && commandHistory[commandHistory.length - 1] === cmd) return;
-		commandHistory.push(cmd);
-		if (commandHistory.length > MAX_HISTORY) commandHistory.shift();
-		historyIndex = commandHistory.length;
-		saveHistory();
-	}
-
-	export function getPreviousCommand(): string | null {
-		if (historyIndex > 0) {
-			historyIndex--;
-			return commandHistory[historyIndex];
-		}
-		return null;
-	}
-
-	export function getNextCommand(): string {
-		if (historyIndex < commandHistory.length - 1) {
-			historyIndex++;
-			return commandHistory[historyIndex];
-		}
-		historyIndex = commandHistory.length;
-		return '';
 	}
 
 	let webglLosses = 0;
@@ -598,7 +537,7 @@
 		}, delay);
 	}
 
-	/** Connect to the WebSocket for the current mode and serverId */
+	/** Open the PTY WebSocket for the current serverId (new shell, or reattach) */
 	export async function connect() {
 		if (!terminal || serverId === null) return;
 		showReconnectOverlay = false;
@@ -627,7 +566,7 @@
 		// exactly as it did, prompt and cursor included.
 		statusNote = sessionId ? 'Resuming session…' : 'Connecting…';
 
-		const wsUrl = await getWsUrl(mode);
+		const wsUrl = await getWsUrl();
 		// The ticket request yields; the tab may have been closed or reconnected meanwhile.
 		if (!terminal || intentionalDisconnect || gen !== connectGen) return;
 
@@ -648,38 +587,34 @@
 
 		ws.onopen = () => {
 			if (stale()) return;
-			// A PTY counts as connected once the shell is up, not when the socket opens
-			if (mode !== 'pty') setStatus('connected');
+			// The tab counts as connected once the shell is up, not when the socket opens
 			reconnectAttempt = 0;
 
 			const { cols, rows } = terminal!;
 
-			if (mode === 'pty') {
-				// Resume the server-side session if we have one, otherwise start a shell
-				const req: PtyRequest = sessionId
-					? { type: 'attach', session_id: sessionId, last_seq: lastSeq, cols, rows, binary: true }
-					: { type: 'shell', server_id: serverId!, cols, rows, binary: true };
+			// Resume the server-side session if we have one, otherwise start a shell
+			const req: PtyRequest = sessionId
+				? { type: 'attach', session_id: sessionId, last_seq: lastSeq, cols, rows, binary: true }
+				: { type: 'shell', server_id: serverId!, cols, rows, binary: true };
+			ws.send(JSON.stringify(req));
+
+			// Forward keyboard input to PTY
+			cleanupPty();
+			ptyInputDisposable = terminal!.onData((data: string) => {
+				if (ws.readyState !== WebSocket.OPEN) return;
+				const req: PtyRequest = { type: 'input', data: applyPendingModifier(data) };
 				ws.send(JSON.stringify(req));
+			});
 
-				// Forward keyboard input to PTY
-				cleanupPty();
-				ptyInputDisposable = terminal!.onData((data: string) => {
-					if (ws.readyState !== WebSocket.OPEN) return;
-					const req: PtyRequest = { type: 'input', data: applyPendingModifier(data) };
+			// Forward resize events
+			ptyResizeDisposable = terminal!.onResize(({ cols, rows }) => {
+				if (ws.readyState === WebSocket.OPEN) {
+					const req: PtyRequest = { type: 'resize', cols, rows };
 					ws.send(JSON.stringify(req));
-				});
+				}
+			});
 
-				// Forward resize events
-				ptyResizeDisposable = terminal!.onResize(({ cols, rows }) => {
-					if (ws.readyState === WebSocket.OPEN) {
-						const req: PtyRequest = { type: 'resize', cols, rows };
-						ws.send(JSON.stringify(req));
-					}
-				});
-
-				terminal!.focus();
-			}
-			// CMD mode: nothing to send on open — commands sent via executeCommand()
+			terminal!.focus();
 
 			// Start keep-alive pings; each one arms a watchdog that the pong disarms
 			pingInterval = setInterval(() => sendPing(), PING_INTERVAL);
@@ -689,7 +624,7 @@
 			if (stale()) return;
 			if (event.data instanceof ArrayBuffer) {
 				// Numbered PTY output: 8-byte big-endian seq, then the shell's bytes as produced
-				if (mode !== 'pty' || event.data.byteLength < 8) return;
+				if (event.data.byteLength < 8) return;
 				const seq = Number(new DataView(event.data).getBigUint64(0));
 				const bytes = new Uint8Array(event.data, 8);
 				terminal!.write(bytes);
@@ -698,91 +633,76 @@
 				return;
 			}
 			try {
-				if (mode === 'pty') {
-					const res = JSON.parse(event.data) as PtyResponse;
-					switch (res.type) {
-						case 'output':
-							terminal!.write(res.data);
-							appendOutput(res.data);
-							if (res.seq !== undefined) lastSeq = res.seq;
-							break;
-						case 'connected':
-							setStatus('connected');
-							if (res.session_id) {
-								sessionId = res.session_id;
-								sessionServerId = serverId;
-								saveSession();
-							}
-							terminal!.write(res.data);
-							if (res.data) statusNote = null; // a new shell; a resume clears at replay_end
-							terminal!.focus();
-							break;
-						case 'replay_start':
-							// Nothing of this session on screen yet: the ring is redrawn from the top
-							if (lastSeq === 0) {
-								terminal!.reset();
-								outputHistory = [];
-							}
-							break;
-						case 'replay_window_lost':
-							// Too far behind the ring; the server now resends what it still has
+				const res = JSON.parse(event.data) as PtyResponse;
+				switch (res.type) {
+					case 'output':
+						terminal!.write(res.data);
+						appendOutput(res.data);
+						if (res.seq !== undefined) lastSeq = res.seq;
+						break;
+					case 'connected':
+						setStatus('connected');
+						if (res.session_id) {
+							sessionId = res.session_id;
+							sessionServerId = serverId;
+							saveSession();
+						}
+						terminal!.write(res.data);
+						if (res.data) statusNote = null; // a new shell; a resume clears at replay_end
+						terminal!.focus();
+						break;
+					case 'replay_start':
+						// Nothing of this session on screen yet: the ring is redrawn from the top
+						if (lastSeq === 0) {
 							terminal!.reset();
 							outputHistory = [];
-							lastSeq = 0;
-							break;
-						case 'replay_end':
-							statusNote = null;
-							terminal!.focus();
-							nudgeRedraw();
-							break;
-						case 'closed':
-							statusNote = null;
-							terminal!.writeln(`\r\n\x1b[33m[${res.data || 'Session ended'}]\x1b[0m`);
+						}
+						break;
+					case 'replay_window_lost':
+						// Too far behind the ring; the server now resends what it still has
+						terminal!.reset();
+						outputHistory = [];
+						lastSeq = 0;
+						break;
+					case 'replay_end':
+						statusNote = null;
+						terminal!.focus();
+						nudgeRedraw();
+						break;
+					case 'closed':
+						statusNote = null;
+						terminal!.writeln(`\r\n\x1b[33m[${res.data || 'Session ended'}]\x1b[0m`);
+						forgetSession();
+						stopReconnecting();
+						cleanupSocket(false);
+						setStatus('disconnected');
+						showReconnectOverlay = true;
+						break;
+					case 'error':
+						if (res.code === 'session_gone') {
+							// Kept too long or killed elsewhere; fall back to a fresh shell
 							forgetSession();
-							stopReconnecting();
-							cleanupSocket(false);
-							setStatus('disconnected');
-							showReconnectOverlay = true;
-							break;
-						case 'error':
-							if (res.code === 'session_gone') {
-								// Kept too long or killed elsewhere; fall back to a fresh shell
-								forgetSession();
-								terminal!.reset();
-								outputHistory = [];
-								statusNote = 'Previous session ended — starting a new shell';
-								terminal!.writeln(
-									'\x1b[33m[Previous session has ended — starting a new shell]\x1b[0m'
-								);
-								const { cols, rows } = terminal!;
-								const req: PtyRequest = { type: 'shell', server_id: serverId!, cols, rows };
-								ws.send(JSON.stringify(req));
-							} else {
-								terminal!.write(res.data);
-								if (!sessionId) {
-									// The shell never came up (auth, host key, unreachable)
-									statusNote = null;
-									setStatus('error');
-								}
-							}
-							break;
-						case 'pong':
-							clearPongTimeout();
-							break;
-					}
-				} else {
-					const res = JSON.parse(event.data) as CmdResponse;
-					switch (res.type) {
-						case 'output':
-						case 'exit':
-						case 'error':
+							terminal!.reset();
+							outputHistory = [];
+							statusNote = 'Previous session ended — starting a new shell';
+							terminal!.writeln(
+								'\x1b[33m[Previous session has ended — starting a new shell]\x1b[0m'
+							);
+							const { cols, rows } = terminal!;
+							const req: PtyRequest = { type: 'shell', server_id: serverId!, cols, rows };
+							ws.send(JSON.stringify(req));
+						} else {
 							terminal!.write(res.data);
-							appendOutput(res.data);
-							break;
-						case 'pong':
-							clearPongTimeout();
-							break;
-					}
+							if (!sessionId) {
+								// The shell never came up (auth, host key, unreachable)
+								statusNote = null;
+								setStatus('error');
+							}
+						}
+						break;
+					case 'pong':
+						clearPongTimeout();
+						break;
 				}
 			} catch {
 				terminal!.writeln('\r\n\x1b[31mError parsing server response\x1b[0m');
@@ -857,16 +777,6 @@
 		return code >= 0 && code <= 31 ? String.fromCharCode(code) : data;
 	}
 
-	/** Execute a single command in CMD mode */
-	export function executeCommand(command: string) {
-		if (!terminal || !socket || socket.readyState !== WebSocket.OPEN || mode !== 'cmd') return;
-
-		addToHistory(command);
-		const { cols, rows } = terminal;
-		const req: CmdRequest = { type: 'execute', server_id: serverId!, command, cols, rows };
-		socket.send(JSON.stringify(req));
-	}
-
 	function cleanupPty() {
 		ptyInputDisposable?.dispose();
 		ptyInputDisposable = null;
@@ -883,7 +793,7 @@
 		cleanupPty();
 
 		if (socket) {
-			if (mode === 'pty' && socket.readyState === WebSocket.OPEN) {
+			if (socket.readyState === WebSocket.OPEN) {
 				socket.send(JSON.stringify({ type: kill ? 'close' : 'detach' }));
 			}
 			socket.onclose = null;
@@ -956,7 +866,6 @@
 		saveSessionRecord(tabId, null);
 	}
 
-	/** Inject text into the terminal as if the user typed it (PTY mode) */
 	/** Plain arrow in the current cursor-key mode (DECCKM switches CSI to SS3). */
 	function arrowSeq(final: 'A' | 'B' | 'C' | 'D'): string {
 		return terminal?.modes.applicationCursorKeysMode ? `\x1bO${final}` : `\x1b[${final}`;
@@ -968,7 +877,7 @@
 	 * rewritten for application cursor mode.
 	 */
 	export function injectInput(data: string) {
-		if (mode !== 'pty' || !terminal) return;
+		if (!terminal) return;
 		const plainArrow = data.length === 3 && data.startsWith('\x1b[') && 'ABCD'.includes(data[2]);
 		const seq = plainArrow ? arrowSeq(data[2] as 'A' | 'B' | 'C' | 'D') : data;
 		if (ptyInputDisposable) {
@@ -1102,11 +1011,10 @@
 	});
 
 	onMount(() => {
-		loadHistory();
 		initTerminal();
 		loadSession();
 		// Coming back to the terminal page (or reloading it): pick the shell up where it was
-		if (sessionId && mode === 'pty' && serverId !== null) {
+		if (sessionId && serverId !== null) {
 			requestAnimationFrame(() => connect());
 		}
 

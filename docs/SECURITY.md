@@ -58,8 +58,9 @@ stored credential undecryptable.
 Trust on first use. The first connection to a server stores its host key in
 `server_host_keys`; a later connection presenting a key that matches none of the keys stored
 for that server — whatever its algorithm — is refused with an error in the terminal. The same
-decision (`server/src/host_keys.rs`) serves the PTY connector, the command connector and the
-connection test, and a database error refuses the connection. Stored keys are listed with
+decision (`server/src/host_keys.rs`) runs inside the one SSH client (`server/src/ssh.rs`) that
+the shell, the connection test and "Authorize key" all use, and a database error refuses the
+connection. Stored keys are listed with
 OpenSSH-style fingerprints and can be forgotten per server (Servers → Keys,
 `/api/v1/servers/{id}/host-keys`); forgetting is logged at `warn`.
 
@@ -111,11 +112,12 @@ Ordered by impact. Each has a ROADMAP entry.
    connectors fail closed on a database error. A legitimately changed host key now needs an
    administrator to delete the server's rows in `server_host_keys` (UI pending, ROADMAP).
 6. ~~**`POST /servers/{id}/test` skips host-key verification**~~ — fixed after 3.0.0: the
-   connection test uses the command-mode connector, so it verifies the host key first and
-   supports password credentials; the legacy `ssh.rs` (`NoCheck`) is deleted.
-7. **`local` servers are container RCE for any user** — `is_local: true` runs `sh -c` as the
-   server process. Acceptable for a single-operator install; needs a role or an explicit
-   server-side opt-in before multi-user use.
+   connection test goes through the shared SSH client, which verifies the host key during the
+   handshake and supports password credentials.
+7. ~~**`local` servers are container RCE for any user**~~ — fixed 2026-10-18: command mode,
+   the only path that executed anything locally, is gone. `POST /servers` refuses
+   `is_local: true` (400) and the SSH client refuses to connect to a legacy local row; the
+   column stays for existing databases.
 8. **No roles, no 2FA** — every user is equal and can manage accounts. Login attempts are
    rate limited (10 failures per 15 minutes per client address *and* per username, 429 with
    `Retry-After`; in-memory, so a restart resets it), new passwords must be at least 12

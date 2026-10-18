@@ -35,7 +35,7 @@
 				layout: state.layout,
 				pane_configs: state.panes.map((p) => ({
 					server_id: p.server_id,
-					mode: p.mode as 'pty' | 'cmd' | null
+					mode: null
 				})),
 				is_default: isDefault
 			});

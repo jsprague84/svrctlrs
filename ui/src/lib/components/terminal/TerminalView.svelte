@@ -12,7 +12,6 @@
 	import TerminalPane from './TerminalPane.svelte';
 	import TerminalTabs from './TerminalTabs.svelte';
 	import SplitView from './SplitView.svelte';
-	import CommandInput from './CommandInput.svelte';
 	import ConnectionBadge from './ConnectionBadge.svelte';
 	import TerminalPrefsPanel from './TerminalPrefsPanel.svelte';
 	import SessionsPanel from './SessionsPanel.svelte';
@@ -38,12 +37,7 @@
 		LEADER_BINDINGS,
 		LEADER_KEY_LABELS
 	} from '#lib/utils/leader.js';
-	import type {
-		TerminalMode,
-		ConnectionStatus,
-		LayoutMode,
-		LiveSession
-	} from '#lib/types/index.js';
+	import type { ConnectionStatus, LayoutMode, LiveSession } from '#lib/types/index.js';
 
 	interface Props {
 		visible: boolean;
@@ -52,7 +46,6 @@
 	let { visible }: Props = $props();
 
 	let selectedServerId = $state<number | null>(null);
-	let selectedMode = $state<TerminalMode>('pty');
 	let paneRefs = $state<Record<string, ReturnType<typeof TerminalPane>>>({});
 	let extraKeysRow = $state<ReturnType<typeof ExtraKeysRow> | null>(null);
 	let searchOpen = $state(false);
@@ -209,19 +202,6 @@
 		}
 	});
 
-	// Warn before unloading while a command-mode tab is connected. Interactive shells survive a
-	// reload: the server keeps the session and the pane reattaches.
-	$effect(() => {
-		const hasConnected = tabs.some((t) => t.status === 'connected' && t.mode === 'cmd');
-		const handler = (e: BeforeUnloadEvent) => {
-			e.preventDefault();
-		};
-		if (hasConnected) {
-			window.addEventListener('beforeunload', handler);
-			return () => window.removeEventListener('beforeunload', handler);
-		}
-	});
-
 	// Refit terminals when view becomes visible (returning from another page)
 	$effect(() => {
 		if (visible && activeTabId) {
@@ -281,7 +261,7 @@
 					serverNames
 				);
 			} else {
-				terminalState.createTab(null, null, 'pty');
+				terminalState.createTab(null, null);
 			}
 		}
 
@@ -321,7 +301,7 @@
 			if (action.type !== 'help') disarmLeader();
 			switch (action.type) {
 				case 'new-tab':
-					terminalState.createTab(null, null, selectedMode);
+					terminalState.createTab(null, null);
 					break;
 				case 'close-tab':
 					if (activeTabId) closeTabWithConfirm(activeTabId);
@@ -415,7 +395,7 @@
 			// Ctrl+Shift+T — new tab
 			if (e.ctrlKey && e.shiftKey && e.key === 'T') {
 				e.preventDefault();
-				terminalState.createTab(null, null, selectedMode);
+				terminalState.createTab(null, null);
 			}
 			// Ctrl+Shift+W — close tab
 			if (e.ctrlKey && e.shiftKey && e.key === 'W') {
@@ -509,7 +489,6 @@
 		if (!activeTabId || selectedServerId === null) return;
 		const server = servers.find((s) => s.id === selectedServerId);
 		terminalState.updateTabServer(activeTabId, selectedServerId, server?.name ?? null);
-		terminalState.updateTabMode(activeTabId, selectedMode);
 		paneRefs[activeTabId]?.connect();
 	}
 
@@ -523,7 +502,7 @@
 	}
 
 	function handleNewTab() {
-		terminalState.createTab(null, null, selectedMode);
+		terminalState.createTab(null, null);
 	}
 
 	/** Put the keyboard into a pane's terminal (after the DOM has caught up) */
@@ -554,11 +533,6 @@
 			!!el &&
 			(el.tagName === 'TEXTAREA' || el.tagName === 'INPUT' || (el as HTMLElement).isContentEditable)
 		);
-	}
-
-	function handleCmdSubmit(cmd: string) {
-		if (!activeTabId) return;
-		paneRefs[activeTabId]?.executeCommand(cmd);
 	}
 
 	function handleSearch() {
@@ -643,14 +617,6 @@
 						>
 					{/each}
 				{/if}
-			</select>
-
-			<select
-				class="min-w-0 px-2 py-2 md:py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
-				bind:value={selectedMode}
-			>
-				<option value="pty">Interactive (PTY)</option>
-				<option value="cmd">Command (CMD)</option>
 			</select>
 
 			{#if activeTab?.status !== 'connected'}
@@ -790,15 +756,6 @@
 		/>
 	{/if}
 
-	<!-- CMD input bar (desktop only) -->
-	{#if !isMobile() && activeTab?.mode === 'cmd' && activeTab?.status === 'connected'}
-		<CommandInput
-			onSubmit={handleCmdSubmit}
-			onHistoryUp={() => (activeTabId ? paneRefs[activeTabId]?.getPreviousCommand() : null)}
-			onHistoryDown={() => (activeTabId ? (paneRefs[activeTabId]?.getNextCommand() ?? '') : '')}
-		/>
-	{/if}
-
 	<!-- Terminal panes -->
 	<div class="flex-1 min-h-0 relative">
 		<SplitView {layout} slotCount={visibleTabs.length}>
@@ -829,7 +786,6 @@
 						bind:this={paneRefs[tab.id]}
 						tabId={tab.id}
 						serverId={tab.serverId}
-						mode={tab.mode}
 						active={tab.slot !== null}
 						onStatusChange={handleStatusChange}
 						onModifierConsumed={() => extraKeysRow?.clearModifiers()}

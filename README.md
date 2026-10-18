@@ -14,11 +14,8 @@ and push notifications. One Rust binary, one SQLite file.
 - **Interactive terminals** — full PTY sessions over WebSocket (russh on the server, xterm.js
   with WebGL rendering in the client). Tabs, four layouts (single, split horizontal, split
   vertical, quad), up to 10 sessions, output search, session restore across page navigation.
-- **Command mode** — run a one-off command on a server and capture its output and exit code,
-  without a shell.
 - **Servers and credentials** — server profiles (host, port, user, credential), password and
-  SSH-key credentials encrypted at rest with AES-256-GCM, and a `local` server that opens a
-  shell inside the container.
+  SSH-key credentials encrypted at rest with AES-256-GCM; both kinds work for the shell.
 - **Host-key verification** — trust on first use; a changed key blocks the connection.
 - **Terminal profiles** — save a layout plus which server opens in each pane; mark one as the
   default to auto-load at start.

@@ -6,14 +6,15 @@ Android app; those talk to a remote server over the same API.
 
 ```
  browser / Tauri desktop / Tauri Android
-        │  HTTPS: SPA assets, /api/v1/*        │  WSS: /ws/terminal, /ws/terminal/pty
+        │  HTTPS: SPA assets, /api/v1/*        │  WSS: /ws/terminal/pty
         ▼                                       ▼
  ┌─────────────────────────── server (Axum 0.8) ───────────────────────────┐
  │ require_auth middleware ── sessions (tower-sessions, SQLite store)       │
  │ routes/api/*  servers · credentials · settings · profiles ·             │
  │               quick-commands · notifications · users · audit · health   │
- │ routes/terminal.rs      CMD mode  (async-ssh2-tokio, one command)        │
- │ routes/terminal_pty.rs  PTY mode  (russh, interactive shell)             │
+ │ routes/terminal_pty.rs  interactive shell over WebSocket                 │
+ │ ssh.rs                  the one SSH client (russh): host keys, auth, exec │
+ │ sessions.rs             server-owned PTY sessions, replay ring, TTL      │
  │ health_monitor.rs       periodic checks → notifications (rstify/Gotify) │
  │ ServeDir(SPA_DIR) fallback → index.html                                  │
  └────────────┬──────────────────────────────┬─────────────────────────────┘
@@ -46,10 +47,12 @@ does not pull in Tauri's GTK/WebKit dependencies.
    `/auth/login`; API requests get 401.
 3. **API handlers** (`server/src/routes/api/*.rs`) validate input, call `database` queries,
    and return JSON. Errors use the `ApiError` envelope (see `API.md`).
-4. **Terminal WebSockets** carry a small JSON protocol (`API.md`, "WebSocket protocol"); PTY
-   output itself travels as binary frames (`seq` + raw bytes) so the terminal decodes the
-   stream. PTY sessions live in `sessions.rs` and outlive their sockets; CMD mode runs one
-   command and closes.
+4. **The terminal WebSocket** carries a small JSON protocol (`API.md`, "WebSocket protocol");
+   PTY output itself travels as binary frames (`seq` + raw bytes) so the terminal decodes the
+   stream. PTY sessions live in `sessions.rs` and outlive their sockets. Every SSH connection
+   — the shell, the connection test, "Authorize key" — goes through `ssh.rs`: russh, host key
+   verified during the handshake (trust on first use, fail closed), password or key
+   authentication with the credential's key first and the container's default keys after.
 5. **Static files**: `ServeDir(SPA_DIR)` with `index.html` fallback, so client-side routes
    work on reload.
 

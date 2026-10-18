@@ -7,6 +7,7 @@ mod login_limiter;
 mod request_id;
 mod routes;
 mod sessions;
+mod ssh;
 mod ssh_keys;
 mod state;
 mod ws_tickets;
@@ -146,8 +147,7 @@ async fn main() -> anyhow::Result<()> {
     // Build UI router with state (SPA + auth)
     let ui_router = routes::ui::ui_routes().with_state(state.clone());
 
-    // Build terminal WebSocket routers
-    let terminal_router = routes::terminal::routes().with_state(state.clone());
+    // Build the terminal WebSocket router
     let terminal_pty_router = routes::terminal_pty::routes().with_state(state.clone());
 
     // Build session layer
@@ -220,9 +220,7 @@ async fn main() -> anyhow::Result<()> {
         );
 
     // WebSocket routes WITHOUT timeout (long-lived connections)
-    let ws_routes = Router::new()
-        .merge(terminal_router)
-        .merge(terminal_pty_router);
+    let ws_routes = Router::new().merge(terminal_pty_router);
 
     // Build main router
     let app = Router::new()

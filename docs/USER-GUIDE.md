@@ -42,7 +42,7 @@ and the credential to use. Each row shows the status dot, `user@host`, the crede
 (or a *no key* badge), and when the host was last seen or why it was unreachable. *Test*
 opens an SSH session and records the result in the row and in the status; *Connect* opens a
 terminal tab. The username used for SSH is the server's, else the credential's *default
-username*, else `root`. A **local** server opens a shell inside the SvrCtlRS container itself.
+username*, else `root`. Password and SSH-key credentials both work for the shell.
 Clearing a field in *Edit* (hostname, username, description, credential → *None*) really
 clears it; a credential that is still assigned to a server cannot be deleted — the row says
 which servers use it.
@@ -59,9 +59,9 @@ trust it afresh.
 Settings → Audit (`/settings?tab=audit`) shows who did what, filtered by kind (logins,
 sessions, changes), user and free text; on a phone, tap a row for the address and details.
 It shows: logins (including failed and rate-limited attempts,
-with the client address), logouts, interactive sessions opened, commands run in command mode
-with their exit code, and every change to servers, credentials and accounts. Entries are kept
-for 180 days. Commands are recorded as typed, so keep secrets out of command lines.
+with the client address), logouts, shells opened (with the login and whether a password or
+which key was used), and every change to servers, credentials and accounts. Entries are kept
+for 180 days.
 
 ## Accounts
 
@@ -79,8 +79,6 @@ closed after 15 minutes by default (`SESSION_DETACH_TTL_SECS`); open tabs are re
 the life of the browser tab, so a reload brings them back with their shells.
 
 - **New tab**: `Ctrl+Shift+T` or the `+` in the tab bar, then pick a server. Up to 10 tabs.
-- **Modes**: *PTY* (default) is an interactive shell. *Command* runs one command and shows its
-  output and exit code — useful for scripted checks.
 - **Layouts**: `Ctrl+\` cycles single → split horizontal → split vertical → quad. Tabs fill the
   visible slots; `Alt+1`–`Alt+4` focuses a slot, `Alt+[`/`Alt+]` cycles panes, `Alt+Arrow`
   moves spatially.

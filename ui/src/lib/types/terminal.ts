@@ -1,20 +1,4 @@
-/** CMD mode — non-interactive command execution */
-export interface CmdRequest {
-	type: 'execute' | 'ping';
-	server_id?: number;
-	command?: string;
-	env?: Record<string, string>;
-	cols?: number;
-	rows?: number;
-}
-
-export interface CmdResponse {
-	type: 'output' | 'exit' | 'error' | 'pong';
-	data: string;
-	exit_code?: number;
-}
-
-/** PTY mode — interactive shell session.
+/** Interactive shell session over `/ws/terminal/pty`.
  *  `shell` starts a new session; `attach` resumes one the server kept after a disconnect.
  *  `close` ends the shell, `detach` (or just dropping the socket) keeps it for a while. */
 export interface PtyRequest {
@@ -65,8 +49,6 @@ export interface LiveSession {
 	latest_seq: number;
 }
 
-export type TerminalMode = 'cmd' | 'pty';
-
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 export type LayoutMode = 'single' | 'split-h' | 'split-v' | 'quad';
@@ -101,7 +83,6 @@ export interface TerminalTab {
 	label: string;
 	serverId: number | null;
 	serverName: string | null;
-	mode: TerminalMode;
 	status: ConnectionStatus;
 	/** Slot index when visible in split view (0-3), null if hidden */
 	slot: number | null;

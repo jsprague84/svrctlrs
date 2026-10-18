@@ -14,7 +14,7 @@ reattach, full redraw from seq 0, `closed` on exit, `session_gone`, TTL expiry. 
 are requested in binary form (E2E_BINARY=0 for the legacy JSON `output` frames) and a
 multibyte marker checks that bytes reach the client intact.
 """
-import asyncio, json, os, time, urllib.request, http.cookiejar
+import asyncio, json, os, time, urllib.request, urllib.error, http.cookiejar
 import websockets
 
 BASE = os.environ.get("E2E_URL", "http://127.0.0.1:18080")
@@ -49,6 +49,28 @@ cid = cred["id"] if "id" in cred else cred["data"]["id"]
 srv = api("POST", "/api/v1/servers", {"name": f"e2e target {RUN}", "hostname": SSH_HOST, "port": 22, "username": SSH_USER, "credential_id": cid})
 sid = srv["id"] if "id" in srv else srv["data"]["id"]
 print("server", sid, "credential", cid)
+
+# The connection test goes through the same SSH client as the shell (host key TOFU + key auth)
+test = api("POST", f"/api/v1/servers/{sid}/test")
+assert test.get("success") is True, test
+print("connection test ok:", test.get("message") or test)
+
+# A wrong password must reach the server and come back as a password failure, not a crash
+bad = api("POST", "/api/v1/credentials", {"name": f"e2e bad password {RUN}", "credential_type": "password", "value": "definitely-wrong", "username": SSH_USER})
+bad_id = bad["id"] if "id" in bad else bad["data"]["id"]
+bad_srv = api("POST", "/api/v1/servers", {"name": f"e2e bad target {RUN}", "hostname": SSH_HOST, "port": 22, "username": SSH_USER, "credential_id": bad_id})
+bad_sid = bad_srv["id"] if "id" in bad_srv else bad_srv["data"]["id"]
+bad_test = api("POST", f"/api/v1/servers/{bad_sid}/test")
+assert bad_test.get("success") is False and "assword" in json.dumps(bad_test), bad_test
+print("wrong password refused ok")
+
+# Local servers can no longer be created
+try:
+    api("POST", "/api/v1/servers", {"name": f"e2e local {RUN}", "is_local": True, "port": 22})
+    raise AssertionError("local server was accepted")
+except urllib.error.HTTPError as e:
+    assert e.code == 400, e.code
+    print("local server refused ok")
 
 hdrs = {"Cookie": cookie, "Origin": BASE}
 

@@ -80,7 +80,6 @@
 			>
 				<span class="w-1.5 h-1.5 rounded-full {statusColors[tab.status] ?? 'bg-text-muted'}"></span>
 				<span class="max-w-[60px] md:max-w-[120px] truncate">{tab.label}</span>
-				<span class="hidden md:inline text-[10px] uppercase text-text-muted">{tab.mode}</span>
 				<button
 					class="ml-1 p-1 md:p-0.5 rounded-sm hover:bg-error/20 hover:text-error"
 					onclick={(e) => {

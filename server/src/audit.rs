@@ -12,13 +12,3 @@ pub fn record(pool: &SqlxPool<SqlxSqlite>, entry: NewAuditEntry) {
         }
     });
 }
-
-/// Commands are recorded for the audit trail; keep them to a sane size.
-pub fn truncate_for_log(text: &str, max: usize) -> String {
-    if text.chars().count() <= max {
-        text.to_string()
-    } else {
-        let cut: String = text.chars().take(max).collect();
-        format!("{cut}…")
-    }
-}

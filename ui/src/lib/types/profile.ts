@@ -12,7 +12,8 @@ export interface TerminalProfile {
 
 export interface PaneConfig {
 	server_id: number | null;
-	mode: 'pty' | 'cmd' | null;
+	/** Legacy field from the retired command mode; ignored */
+	mode?: string | null;
 }
 
 export interface CreateProfile {

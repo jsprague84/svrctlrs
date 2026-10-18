@@ -452,11 +452,11 @@
 		}}
 	>
 		<Input label="Name" bind:value={name} required placeholder="production-web-01" />
-		{#if !editingId}
-			<label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
-				<input type="checkbox" bind:checked={isLocal} class="rounded" />
-				Local server (a shell inside the SvrCtlRS container)
-			</label>
+		{#if isLocal}
+			<p class="text-xs text-text-muted">
+				This is a legacy local server. Local shells were retired: SvrCtlRS connects over SSH only.
+				Give it a hostname (localhost works) and a credential, or delete it.
+			</p>
 		{/if}
 		{#if !isLocal}
 			<Input

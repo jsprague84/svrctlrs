@@ -129,38 +129,28 @@ async fn authorize_key(
         }
     };
 
-    let verified_key = crate::routes::terminal::verify_host_key(&state.pool, id, &hostname, port)
-        .await
-        .map_err(ApiError::bad_request)?;
-
     let install = authorized_keys_install_command(&public_key);
-    let (stdout, stderr, code) = crate::routes::terminal::execute_ssh_command(
-        &server,
-        Some(&bootstrap),
-        &install,
-        None,
-        verified_key.as_deref(),
-    )
-    .await
-    .map_err(|e| {
-        let login = format!(
-            "{}@{}:{}",
-            server.username.as_deref().unwrap_or("root"),
-            hostname,
-            port
-        );
-        let hint = if e.contains("Password authentication failed") {
-            " Either the password is wrong, or this server does not allow password logins at \
+    let (stdout, stderr, code) = crate::ssh::run(&state.pool, &server, Some(&bootstrap), &install)
+        .await
+        .map_err(|e| {
+            let login = format!(
+                "{}@{}:{}",
+                server.username.as_deref().unwrap_or("root"),
+                hostname,
+                port
+            );
+            let hint = if e.contains("Password authentication failed") {
+                " Either the password is wrong, or this server does not allow password logins at \
              all (sshd `PasswordAuthentication no`, the default on hardened hosts). In that case \
              bootstrap with an existing key credential instead, or copy the public key into \
              ~/.ssh/authorized_keys by hand (Credentials → Public key)."
-        } else {
-            ""
-        };
-        ApiError::bad_request(format!(
-            "Could not log in as {login} to install the key: {e}.{hint}"
-        ))
-    })?;
+            } else {
+                ""
+            };
+            ApiError::bad_request(format!(
+                "Could not log in as {login} to install the key: {e}.{hint}"
+            ))
+        })?;
     if code != 0 || !stdout.contains("svrctlrs-key-installed") {
         return Err(ApiError::bad_request(format!(
             "Installing the key failed (exit {code}): {}",
@@ -169,12 +159,11 @@ async fn authorize_key(
     }
 
     // Prove the key works before switching the server over to it.
-    let (_, stderr, code) = crate::routes::terminal::execute_ssh_command(
+    let (_, stderr, code) = crate::ssh::run(
+        &state.pool,
         &server,
         Some(&key_cred),
         "echo svrctlrs-key-ok",
-        None,
-        verified_key.as_deref(),
     )
     .await
     .map_err(|e| {
@@ -357,6 +346,12 @@ async fn create_server(
     Json(input): Json<CreateServerInput>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
     info!(name = %input.name, "Creating server");
+    if input.is_local {
+        return Err(ApiError::bad_request(
+            "Local servers are not supported: SvrCtlRS connects over SSH only. Use a hostname \
+             (localhost works) and a credential instead.",
+        ));
+    }
 
     let create = CreateServer {
         name: input.name,
@@ -519,14 +514,6 @@ async fn test_connection(
         ApiError::not_found("Server")
     })?;
 
-    let hostname = server.hostname.as_deref().unwrap_or("").to_string();
-    if hostname.is_empty() {
-        return Err(ApiError::bad_request("Server has no hostname configured"));
-    }
-
-    let port = u16::try_from(server.port)
-        .map_err(|_| ApiError::bad_request("Server port is out of range"))?;
-
     // Load credential if assigned
     let credential = match server.credential_id {
         Some(cred_id) => {
@@ -544,32 +531,25 @@ async fn test_connection(
     };
 
     let started = std::time::Instant::now();
-    // The same connector as command mode: the host key is verified (trust on first use)
-    // before any authentication, so a test never talks to an unverified server.
-    let result =
-        match crate::routes::terminal::verify_host_key(&state.pool, server.id, &hostname, port)
-            .await
-        {
-            Ok(verified_key) => crate::routes::terminal::execute_ssh_command(
-                &server,
-                credential.as_ref(),
-                "echo svrctlrs-connection-test",
-                None,
-                verified_key.as_deref(),
+    // The same client as the terminal: the host key is verified (trust on first use) during
+    // the handshake, so a test never authenticates against an unverified server.
+    let result = crate::ssh::run(
+        &state.pool,
+        &server,
+        credential.as_ref(),
+        "echo svrctlrs-connection-test",
+    )
+    .await
+    .map(|(stdout, stderr, exit_code)| {
+        if exit_code == 0 {
+            format!("Connected: {}", stdout.trim())
+        } else {
+            format!(
+                "Connected, but the test command exited {exit_code}: {}",
+                stderr.trim()
             )
-            .await
-            .map(|(stdout, stderr, exit_code)| {
-                if exit_code == 0 {
-                    format!("Connected: {}", stdout.trim())
-                } else {
-                    format!(
-                        "Connected, but the test command exited {exit_code}: {}",
-                        stderr.trim()
-                    )
-                }
-            }),
-            Err(e) => Err(e),
-        };
+        }
+    });
 
     match result {
         Ok(output) => {

@@ -21,8 +21,9 @@ schedulers, jobs, HTMX or Askama, it is describing the retired product.
 ```
 core/        encryption (AES-256-GCM), error type, notification senders
 database/    sqlx models, queries, embedded migrations (database/migrations/)
-server/      Axum app: main.rs, routes/{api/*, terminal.rs, terminal_pty.rs, ui/auth.rs},
-             health_monitor.rs, bin/svrctl.rs (CLI used by the container healthcheck)
+server/      Axum app: main.rs, ssh.rs (the one SSH client), sessions.rs (server-owned PTYs),
+             routes/{api/*, terminal_pty.rs, ui/auth.rs}, health_monitor.rs,
+             bin/svrctl.rs (CLI used by the container healthcheck)
 ui/          SvelteKit 5 SPA (adapter-static → ui/build, served by the server at SPA_DIR)
 ui/src-tauri/  Tauri 2 desktop + Android (excluded from the Cargo workspace)
 .forgejo/    CI images and workflows (ci, docker, android, desktop)
@@ -74,7 +75,6 @@ packages to a Forgejo release. GitHub is retired. Details: `docs/DEVELOPMENT.md`
 
 ## Security posture to keep in mind
 
-Any authenticated user gets a shell on every configured server (and on the container itself
-via a `local` server). Treat the login, session/token handling, WebSocket auth, CORS and
+Any authenticated user gets a shell on every configured server. Treat the login, session/token handling, WebSocket auth, CORS and
 host-key code as security-critical: read `docs/SECURITY.md` before changing them and add
 server-crate tests with the change.

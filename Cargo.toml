@@ -49,7 +49,6 @@ chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 # SSH for remote execution
-async-ssh2-tokio = "0.13"
 # SSH with PTY support for interactive sessions
 russh = "0.64"
 

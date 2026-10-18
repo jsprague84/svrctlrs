@@ -1,4 +1,4 @@
-import type { TerminalTab, TerminalMode, ConnectionStatus, LayoutMode } from '#lib/types/index.js';
+import type { TerminalTab, ConnectionStatus, LayoutMode } from '#lib/types/index.js';
 import { isMobile } from '#lib/state/mobile.svelte.js';
 import { heldSessionIds, saveSessionRecord } from '#lib/utils/sessionRecord.js';
 
@@ -89,8 +89,7 @@ export function getVisibleTabs(): TerminalTab[] {
 
 export function createTab(
 	serverId: number | null = null,
-	serverName: string | null = null,
-	mode: TerminalMode = 'pty'
+	serverName: string | null = null
 ): TerminalTab | null {
 	if (tabs.length >= MAX_TABS) return null;
 
@@ -100,7 +99,6 @@ export function createTab(
 		label: serverName ?? `Terminal ${tabCounter}`,
 		serverId,
 		serverName,
-		mode,
 		status: 'disconnected',
 		slot: null
 	};
@@ -122,11 +120,10 @@ export function connectToServer(serverId: number, serverName: string): string | 
 		tab.serverId = serverId;
 		tab.serverName = serverName;
 		tab.label = serverName;
-		tab.mode = 'pty';
 		activeTabId = tab.id;
 		assignSlots();
 	} else {
-		tab = createTab(serverId, serverName, 'pty') ?? undefined;
+		tab = createTab(serverId, serverName) ?? undefined;
 	}
 	if (!tab) return null;
 	pendingAutoConnect = tab.id;
@@ -143,7 +140,7 @@ export function resumeSession(
 	serverId: number,
 	serverName: string
 ): string | null {
-	const tab = createTab(serverId, serverName, 'pty');
+	const tab = createTab(serverId, serverName);
 	if (!tab) return null;
 	saveSessionRecord(tab.id, { sessionId, lastSeq: 0, serverId });
 	return tab.id;
@@ -264,11 +261,6 @@ export function updateTabStatus(id: string, status: ConnectionStatus) {
 	if (tab) tab.status = status;
 }
 
-export function updateTabMode(id: string, mode: TerminalMode) {
-	const tab = tabs.find((t) => t.id === id);
-	if (tab) tab.mode = mode;
-}
-
 export function getPendingAutoConnect(): string | null {
 	return pendingAutoConnect;
 }
@@ -293,21 +285,18 @@ export function updateTabServer(id: string, serverId: number | null, serverName:
 /** Capture the current layout as a profile-compatible state */
 export function captureProfileState(): {
 	layout: LayoutMode;
-	panes: Array<{ server_id: number | null; mode: string }>;
+	panes: Array<{ server_id: number | null }>;
 } {
 	return {
 		layout,
-		panes: tabs.map((t) => ({
-			server_id: t.serverId,
-			mode: t.mode
-		}))
+		panes: tabs.map((t) => ({ server_id: t.serverId }))
 	};
 }
 
 /** Apply a profile: close all tabs and create new ones matching the profile */
 export function applyProfile(
 	profileLayout: LayoutMode,
-	panes: Array<{ server_id: number | null; mode: string | null }>,
+	panes: Array<{ server_id: number | null }>,
 	serverNames: Record<number, string>
 ) {
 	// Close all existing tabs
@@ -325,8 +314,7 @@ export function applyProfile(
 		const name = pane.server_id
 			? (serverNames[pane.server_id] ?? `Server ${pane.server_id}`)
 			: null;
-		const mode = (pane.mode === 'cmd' ? 'cmd' : 'pty') as TerminalMode;
-		const tab = createTab(pane.server_id, name, mode);
+		const tab = createTab(pane.server_id, name);
 		if (tab && pane.server_id) {
 			pendingAutoConnect = tab.id;
 		}

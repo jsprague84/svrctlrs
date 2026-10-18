@@ -21,9 +21,23 @@ the release workflow uses the matching section as the release notes.
   this; the JSON `output` frames remain for older clients.
 
 ### Removed
+- **Command mode.** The one-shot "run a command, show its exit code" tab mode, its
+  `/ws/terminal` socket, the mode selector and the command bar are gone; the owner never used
+  it once interactive shells worked. With it goes local execution (`is_local` servers: creating
+  one now answers 400, legacy rows cannot be connected to) and the `async-ssh2-tokio`
+  dependency. Saved profiles that still say `mode: "cmd"` open as shells.
 - The `--config <toml>` flag and `config/example.toml`. The file was parsed and then never
   read: servers and credentials have lived in the database since 3.0. The unused monitoring-era
   `Server`/`ServerStatus`/`MetricValue` types in `svrctlrs-core` went with it.
+
+### Changed
+- **One SSH client.** `server/src/ssh.rs` (russh) now makes every connection: the shell, the
+  connection test and **Authorize key**. Host keys are verified during the handshake on all of
+  them (trust on first use, fail closed, mismatch message shown to the user), and the
+  authentication order is the same everywhere: a password credential's password, else the
+  key credential's key and then the container's default keys. **Password credentials now work
+  for interactive shells**, which they did not before. The audit entry for an opened shell
+  records the login and the key or `password` used.
 
 ### Added
 - **Request ids.** Every HTTP response carries an `x-request-id` header with a UUID the server

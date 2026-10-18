@@ -12,7 +12,6 @@
 //! ```
 
 pub mod api;
-pub mod terminal;
 pub mod terminal_pty;
 pub mod ui;
 

@@ -117,7 +117,7 @@
 				category: 'action',
 				action: () => {
 					if (onNewTab) onNewTab();
-					else terminalState.createTab(null, null, 'pty');
+					else terminalState.createTab(null, null);
 				}
 			},
 			{
