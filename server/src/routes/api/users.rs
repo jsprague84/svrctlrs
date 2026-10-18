@@ -14,7 +14,7 @@ use svrctlrs_database::{
     models::{CreateUser, NewAuditEntry},
     queries::users,
 };
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 
 use super::ApiError;
 use crate::routes::ui::auth::CurrentUser;
@@ -42,25 +42,12 @@ fn user_json(
     })
 }
 
-fn map_err(e: svrctlrs_core::Error, what: &str) -> (StatusCode, Json<ApiError>) {
-    match e {
-        svrctlrs_core::Error::NotFound(_) => ApiError::not_found("User"),
-        svrctlrs_core::Error::ConfigError(msg) => ApiError::bad_request(msg),
-        e => {
-            error!(error = %e, "Failed to {what}");
-            ApiError::internal_error(format!("Failed to {what}: {e}"))
-        }
-    }
-}
-
 #[instrument(skip(state))]
 async fn list_users(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let list = users::list_users(&state.pool)
-        .await
-        .map_err(|e| map_err(e, "list users"))?;
+) -> Result<impl IntoResponse, ApiError> {
+    let list = users::list_users(&state.pool).await?;
     // From the audit log; a missing entry just means no login since the log began
     let last: std::collections::HashMap<i64, chrono::DateTime<chrono::Utc>> =
         svrctlrs_database::queries::audit::last_logins(&state.pool)
@@ -87,14 +74,13 @@ async fn create_user(
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Json(input): Json<CreateUserInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     let username = input.username.trim().to_string();
     if username.is_empty() || username.chars().count() > 64 {
         return Err(ApiError::bad_request("username must be 1–64 characters"));
     }
     if users::get_user_by_username(&state.pool, &username)
-        .await
-        .map_err(|e| map_err(e, "check username"))?
+        .await?
         .is_some()
     {
         return Err(ApiError::conflict("username already exists"));
@@ -106,8 +92,7 @@ async fn create_user(
             password: input.password,
         },
     )
-    .await
-    .map_err(|e| map_err(e, "create user"))?;
+    .await?;
     info!(by = me, id, username = %username, "User created");
     crate::audit::record(
         &state.pool,
@@ -128,24 +113,19 @@ async fn delete_user(
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     if id == me {
         return Err(ApiError::bad_request("you cannot delete your own account"));
     }
-    let total = users::count_users(&state.pool)
-        .await
-        .map_err(|e| map_err(e, "count users"))?;
+    let total = users::count_users(&state.pool).await?;
     if total <= 1 {
         return Err(ApiError::bad_request("the last account cannot be deleted"));
     }
     let name = users::get_user(&state.pool, id)
-        .await
-        .map_err(|e| map_err(e, "load user"))?
+        .await?
         .map(|u| u.username)
         .unwrap_or_default();
-    users::delete_user(&state.pool, id)
-        .await
-        .map_err(|e| map_err(e, "delete user"))?;
+    users::delete_user(&state.pool, id).await?;
     info!(by = me, id, "User deleted");
     crate::audit::record(
         &state.pool,
@@ -171,25 +151,15 @@ async fn change_password(
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Json(input): Json<ChangePasswordInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     let user = users::get_user(&state.pool, me)
-        .await
-        .map_err(|e| map_err(e, "load user"))?
+        .await?
         .ok_or_else(|| ApiError::not_found("User"))?;
-    let valid = users::verify_password(&input.current_password, &user.password_hash)
-        .map_err(|e| map_err(e, "verify password"))?;
+    let valid = users::verify_password(&input.current_password, &user.password_hash)?;
     if !valid {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ApiError::new(
-                "UNAUTHORIZED",
-                "current password is incorrect",
-            )),
-        ));
+        return Err(ApiError::unauthorized("current password is incorrect"));
     }
-    users::update_password(&state.pool, me, &input.new_password)
-        .await
-        .map_err(|e| map_err(e, "update password"))?;
+    users::update_password(&state.pool, me, &input.new_password).await?;
     info!(user_id = me, "Password changed");
     crate::audit::record(
         &state.pool,

@@ -29,7 +29,7 @@ pub fn init_encryption_key() -> Result<()> {
     let key = load_or_generate_key()?;
     ENCRYPTION_KEY
         .set(key)
-        .map_err(|_| Error::ConfigError("Encryption key already initialized".to_string()))?;
+        .map_err(|_| Error::Config("Encryption key already initialized".to_string()))?;
     info!("Encryption key initialized successfully");
     Ok(())
 }
@@ -41,7 +41,7 @@ pub fn init_with_hex_key(hex_key: &str) -> Result<()> {
     let key = parse_hex_key(hex_key)?;
     ENCRYPTION_KEY
         .set(key)
-        .map_err(|_| Error::ConfigError("Encryption key already initialized".to_string()))?;
+        .map_err(|_| Error::Config("Encryption key already initialized".to_string()))?;
     Ok(())
 }
 
@@ -56,7 +56,7 @@ pub fn is_initialized() -> bool {
 pub fn encrypt(plaintext: &str) -> Result<String> {
     let key_bytes = ENCRYPTION_KEY
         .get()
-        .ok_or_else(|| Error::ConfigError("Encryption key not initialized".to_string()))?;
+        .ok_or_else(|| Error::Config("Encryption key not initialized".to_string()))?;
 
     let cipher = Aes256Gcm::new(key_bytes.into());
 
@@ -68,7 +68,7 @@ pub fn encrypt(plaintext: &str) -> Result<String> {
     // Encrypt
     let ciphertext = cipher
         .encrypt(nonce, plaintext.as_bytes())
-        .map_err(|e| Error::Other(format!("Encryption failed: {e}")))?;
+        .map_err(|e| Error::Encryption(format!("Encryption failed: {e}")))?;
 
     // Combine nonce + ciphertext and encode as base64
     let mut combined = Vec::with_capacity(NONCE_SIZE + ciphertext.len());
@@ -87,16 +87,16 @@ pub fn encrypt(plaintext: &str) -> Result<String> {
 pub fn decrypt(encoded: &str) -> Result<String> {
     let key_bytes = ENCRYPTION_KEY
         .get()
-        .ok_or_else(|| Error::ConfigError("Encryption key not initialized".to_string()))?;
+        .ok_or_else(|| Error::Config("Encryption key not initialized".to_string()))?;
 
     let cipher = Aes256Gcm::new(key_bytes.into());
 
     // Decode base64
     let combined = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, encoded)
-        .map_err(|e| Error::Other(format!("Base64 decode failed: {e}")))?;
+        .map_err(|e| Error::Encryption(format!("Base64 decode failed: {e}")))?;
 
     if combined.len() < NONCE_SIZE {
-        return Err(Error::Other("Ciphertext too short".to_string()));
+        return Err(Error::Encryption("Ciphertext too short".to_string()));
     }
 
     // Split nonce and ciphertext
@@ -106,9 +106,9 @@ pub fn decrypt(encoded: &str) -> Result<String> {
     // Decrypt
     let plaintext = cipher
         .decrypt(nonce, ciphertext)
-        .map_err(|e| Error::Other(format!("Decryption failed: {e}")))?;
+        .map_err(|e| Error::Encryption(format!("Decryption failed: {e}")))?;
 
-    String::from_utf8(plaintext).map_err(|e| Error::Other(format!("Invalid UTF-8: {e}")))
+    String::from_utf8(plaintext).map_err(|e| Error::Encryption(format!("Invalid UTF-8: {e}")))
 }
 
 /// Load encryption key from environment or file, or generate a new one.
@@ -124,7 +124,7 @@ fn load_or_generate_key() -> Result<[u8; 32]> {
     let key_path = Path::new("data/encryption.key");
     if key_path.exists() {
         let contents = std::fs::read_to_string(key_path)
-            .map_err(|e| Error::ConfigError(format!("Failed to read encryption key file: {e}")))?;
+            .map_err(|e| Error::Config(format!("Failed to read encryption key file: {e}")))?;
         let key = parse_hex_key(contents.trim())?;
         info!("Encryption key loaded from {}", key_path.display());
         return Ok(key);
@@ -142,20 +142,20 @@ fn load_or_generate_key() -> Result<[u8; 32]> {
     // Ensure data/ directory exists
     if let Some(parent) = key_path.parent() {
         std::fs::create_dir_all(parent)
-            .map_err(|e| Error::ConfigError(format!("Failed to create data directory: {e}")))?;
+            .map_err(|e| Error::Config(format!("Failed to create data directory: {e}")))?;
     }
 
     // Write hex-encoded key
     let hex_key = hex::encode(key);
     std::fs::write(key_path, &hex_key)
-        .map_err(|e| Error::ConfigError(format!("Failed to write encryption key file: {e}")))?;
+        .map_err(|e| Error::Config(format!("Failed to write encryption key file: {e}")))?;
 
     // Set restrictive permissions (0600) on Unix
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         std::fs::set_permissions(key_path, std::fs::Permissions::from_mode(0o600))
-            .map_err(|e| Error::ConfigError(format!("Failed to set key file permissions: {e}")))?;
+            .map_err(|e| Error::Config(format!("Failed to set key file permissions: {e}")))?;
     }
 
     warn!(
@@ -169,10 +169,10 @@ fn load_or_generate_key() -> Result<[u8; 32]> {
 /// Parse a 64-character hex string into a 32-byte key.
 fn parse_hex_key(hex_str: &str) -> Result<[u8; 32]> {
     let bytes = hex::decode(hex_str.trim())
-        .map_err(|e| Error::ConfigError(format!("Invalid hex in encryption key: {e}")))?;
+        .map_err(|e| Error::Config(format!("Invalid hex in encryption key: {e}")))?;
 
     if bytes.len() != 32 {
-        return Err(Error::ConfigError(format!(
+        return Err(Error::Config(format!(
             "Encryption key must be 32 bytes (64 hex chars), got {} bytes",
             bytes.len()
         )));

@@ -3,7 +3,6 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -39,7 +38,7 @@ async fn close_session(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     if !state.sessions.close_session(&id, me).await {
         return Err(ApiError::not_found("Session"));
     }

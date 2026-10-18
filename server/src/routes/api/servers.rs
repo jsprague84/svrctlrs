@@ -70,13 +70,11 @@ async fn authorize_key(
     headers: HeaderMap,
     Path(id): Path<i64>,
     Json(input): Json<AuthorizeKeyInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     use svrctlrs_database::models::{Credential, CredentialType};
     use svrctlrs_database::queries::credentials;
 
-    let server = servers::get_server(&state.pool, id)
-        .await
-        .map_err(|_| ApiError::not_found("Server"))?;
+    let server = servers::get_server(&state.pool, id).await?;
     if server.is_local {
         return Err(ApiError::bad_request("A local server needs no SSH key"));
     }
@@ -88,9 +86,7 @@ async fn authorize_key(
     let port = u16::try_from(server.port)
         .map_err(|_| ApiError::bad_request("Server port is out of range"))?;
 
-    let key_cred = credentials::get_credential(&state.pool, input.credential_id)
-        .await
-        .map_err(|_| ApiError::not_found("Credential"))?;
+    let key_cred = credentials::get_credential(&state.pool, input.credential_id).await?;
     if !key_cred.is_ssh_key() {
         return Err(ApiError::bad_request(
             "The credential to authorize must be an SSH key",
@@ -118,9 +114,7 @@ async fn authorize_key(
             created_at: chrono::Utc::now(),
             updated_at: chrono::Utc::now(),
         },
-        (_, Some(cid)) => credentials::get_credential(&state.pool, cid)
-            .await
-            .map_err(|_| ApiError::not_found("Bootstrap credential"))?,
+        (_, Some(cid)) => credentials::get_credential(&state.pool, cid).await?,
         _ => {
             return Err(ApiError::bad_request(
                 "Give the server password (used once, never stored) or an existing credential \
@@ -225,18 +219,11 @@ mod tests {
 async fn list_host_keys(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     use svrctlrs_database::queries::server_host_keys;
 
-    servers::get_server(&state.pool, id)
-        .await
-        .map_err(|_| ApiError::not_found("Server"))?;
-    let keys = server_host_keys::list_host_keys_for_server(&state.pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to list host keys");
-            ApiError::internal_error(format!("Failed to list host keys: {e}"))
-        })?;
+    servers::get_server(&state.pool, id).await?;
+    let keys = server_host_keys::list_host_keys_for_server(&state.pool, id).await?;
     let keys: Vec<_> = keys
         .iter()
         .map(|k| {
@@ -260,18 +247,11 @@ async fn forget_host_keys(
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     use svrctlrs_database::queries::server_host_keys;
 
-    servers::get_server(&state.pool, id)
-        .await
-        .map_err(|_| ApiError::not_found("Server"))?;
-    let removed = server_host_keys::delete_host_keys_for_server(&state.pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to forget host keys");
-            ApiError::internal_error(format!("Failed to forget host keys: {e}"))
-        })?;
+    servers::get_server(&state.pool, id).await?;
+    let removed = server_host_keys::delete_host_keys_for_server(&state.pool, id).await?;
     tracing::warn!(
         server_id = id,
         removed,
@@ -282,13 +262,8 @@ async fn forget_host_keys(
 
 /// List all servers
 #[instrument(skip(state))]
-async fn list_servers(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let servers_list = servers::list_servers(&state.pool).await.map_err(|e| {
-        error!(error = %e, "Failed to list servers");
-        ApiError::internal_error(format!("Failed to list servers: {}", e))
-    })?;
+async fn list_servers(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
+    let servers_list = servers::list_servers(&state.pool).await?;
 
     Ok(Json(json!({ "servers": servers_list })))
 }
@@ -298,11 +273,8 @@ async fn list_servers(
 async fn get_server(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let server = servers::get_server(&state.pool, id).await.map_err(|e| {
-        error!(error = %e, id = id, "Failed to get server");
-        ApiError::not_found("Server")
-    })?;
+) -> Result<impl IntoResponse, ApiError> {
+    let server = servers::get_server(&state.pool, id).await?;
 
     Ok(Json(json!({
         "server": server
@@ -344,7 +316,7 @@ async fn create_server(
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Json(input): Json<CreateServerInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     info!(name = %input.name, "Creating server");
     if input.is_local {
         return Err(ApiError::bad_request(
@@ -365,15 +337,7 @@ async fn create_server(
         metadata: None,
     };
 
-    let id = servers::create_server(&state.pool, &create)
-        .await
-        .map_err(|e| match e {
-            svrctlrs_core::Error::Conflict(msg) => ApiError::conflict(msg),
-            e => {
-                error!(error = %e, "Failed to create server");
-                ApiError::internal_error(format!("Failed to create server: {}", e))
-            }
-        })?;
+    let id = servers::create_server(&state.pool, &create).await?;
 
     info!(id = id, "Server created successfully");
     crate::audit::record(
@@ -421,13 +385,11 @@ async fn update_server(
     headers: HeaderMap,
     Path(id): Path<i64>,
     Json(input): Json<UpdateServerInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     info!(id = id, "Updating server");
 
     // Verify server exists
-    servers::get_server(&state.pool, id)
-        .await
-        .map_err(|_| ApiError::not_found("Server"))?;
+    servers::get_server(&state.pool, id).await?;
 
     let update = UpdateServer {
         name: input.name,
@@ -446,15 +408,7 @@ async fn update_server(
         last_error: None,
     };
 
-    servers::update_server(&state.pool, id, &update)
-        .await
-        .map_err(|e| match e {
-            svrctlrs_core::Error::Conflict(msg) => ApiError::conflict(msg),
-            e => {
-                error!(error = %e, id = id, "Failed to update server");
-                ApiError::internal_error(format!("Failed to update server: {}", e))
-            }
-        })?;
+    servers::update_server(&state.pool, id, &update).await?;
 
     info!(id = id, "Server updated successfully");
     crate::audit::record(
@@ -478,13 +432,10 @@ async fn delete_server(
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     info!(id = id, "Deleting server");
 
-    servers::delete_server(&state.pool, id).await.map_err(|e| {
-        error!(error = %e, id = id, "Failed to delete server");
-        ApiError::internal_error(format!("Failed to delete server: {}", e))
-    })?;
+    servers::delete_server(&state.pool, id).await?;
 
     info!(id = id, "Server deleted successfully");
     crate::audit::record(
@@ -506,13 +457,10 @@ async fn delete_server(
 async fn test_connection(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     info!(id = id, "Testing server connection");
 
-    let server = servers::get_server(&state.pool, id).await.map_err(|e| {
-        error!(error = %e, id = id, "Server not found");
-        ApiError::not_found("Server")
-    })?;
+    let server = servers::get_server(&state.pool, id).await?;
 
     // Load credential if assigned
     let credential = match server.credential_id {

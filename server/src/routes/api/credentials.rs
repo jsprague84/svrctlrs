@@ -15,7 +15,7 @@ use svrctlrs_database::{
     models::{CreateCredential, UpdateCredential},
     queries::credentials,
 };
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 
 use super::ApiError;
 use crate::routes::ui::auth::{client_ip, CurrentUser};
@@ -39,15 +39,8 @@ pub fn routes() -> Router<AppState> {
 ///
 /// Note: Credential values are redacted for security.
 #[instrument(skip(state))]
-async fn list_credentials(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let creds = credentials::list_credentials(&state.pool)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to list credentials");
-            ApiError::internal_error(format!("Failed to list credentials: {}", e))
-        })?;
+async fn list_credentials(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
+    let creds = credentials::list_credentials(&state.pool).await?;
 
     // Which servers use each credential: the list is what tells you whether deleting is safe
     let servers = svrctlrs_database::queries::servers::list_servers(&state.pool)
@@ -101,21 +94,11 @@ async fn list_credentials(
 async fn get_credential(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let cred = credentials::get_credential(&state.pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to get credential");
-            ApiError::not_found("Credential")
-        })?;
+) -> Result<impl IntoResponse, ApiError> {
+    let cred = credentials::get_credential(&state.pool, id).await?;
 
     // Check if in use
-    let in_use = credentials::credential_in_use(&state.pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to check credential usage");
-            ApiError::internal_error(format!("Failed to check credential usage: {}", e))
-        })?;
+    let in_use = credentials::credential_in_use(&state.pool, id).await?;
 
     Ok(Json(json!({
         "id": cred.id,
@@ -151,7 +134,7 @@ async fn generate_key(
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Json(input): Json<GenerateKeyInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     let name = input.name.trim().to_string();
     if name.is_empty() {
         return Err(ApiError::bad_request("name is required"));
@@ -171,12 +154,7 @@ async fn generate_key(
         username: None,
         metadata: None,
     };
-    let id = credentials::create_credential(&state.pool, &create)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to store generated key");
-            ApiError::internal_error(format!("Failed to store generated key: {e}"))
-        })?;
+    let id = credentials::create_credential(&state.pool, &create).await?;
     info!(id, "Generated SSH key credential");
     crate::audit::record(
         &state.pool,
@@ -225,7 +203,7 @@ async fn create_credential(
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Json(input): Json<CreateCredentialInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     info!(name = %input.name, "Creating credential");
 
     // Parse credential type
@@ -256,15 +234,7 @@ async fn create_credential(
         metadata: passphrase_metadata(input.passphrase),
     };
 
-    let id = credentials::create_credential(&state.pool, &create)
-        .await
-        .map_err(|e| match e {
-            svrctlrs_core::Error::Conflict(msg) => ApiError::conflict(msg),
-            e => {
-                error!(error = %e, "Failed to create credential");
-                ApiError::internal_error(format!("Failed to create credential: {}", e))
-            }
-        })?;
+    let id = credentials::create_credential(&state.pool, &create).await?;
 
     info!(id = id, "Credential created successfully");
     crate::audit::record(
@@ -310,13 +280,11 @@ async fn update_credential(
     headers: HeaderMap,
     Path(id): Path<i64>,
     Json(input): Json<UpdateCredentialInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     info!(id = id, "Updating credential");
 
     // Verify credential exists
-    let existing = credentials::get_credential(&state.pool, id)
-        .await
-        .map_err(|_| ApiError::not_found("Credential"))?;
+    let existing = credentials::get_credential(&state.pool, id).await?;
     if existing.is_ssh_key() {
         if let Some(problem) = input
             .value
@@ -338,15 +306,7 @@ async fn update_credential(
             .map(|p| passphrase_metadata(Some(p)).unwrap_or_else(|| json!({}))),
     };
 
-    credentials::update_credential(&state.pool, id, &update)
-        .await
-        .map_err(|e| match e {
-            svrctlrs_core::Error::Conflict(msg) => ApiError::conflict(msg),
-            e => {
-                error!(error = %e, id = id, "Failed to update credential");
-                ApiError::internal_error(format!("Failed to update credential: {}", e))
-            }
-        })?;
+    credentials::update_credential(&state.pool, id, &update).await?;
 
     info!(id = id, "Credential updated successfully");
     crate::audit::record(
@@ -374,16 +334,11 @@ async fn delete_credential(
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     info!(id = id, "Deleting credential");
 
     // Check if in use
-    let in_use = credentials::credential_in_use(&state.pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to check credential usage");
-            ApiError::internal_error(format!("Failed to check credential usage: {}", e))
-        })?;
+    let in_use = credentials::credential_in_use(&state.pool, id).await?;
 
     if in_use {
         return Err(ApiError::conflict(
@@ -391,12 +346,7 @@ async fn delete_credential(
         ));
     }
 
-    credentials::delete_credential(&state.pool, id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, id = id, "Failed to delete credential");
-            ApiError::internal_error(format!("Failed to delete credential: {}", e))
-        })?;
+    credentials::delete_credential(&state.pool, id).await?;
 
     info!(id = id, "Credential deleted successfully");
     crate::audit::record(

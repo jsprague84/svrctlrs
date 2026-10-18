@@ -23,7 +23,7 @@ pub(crate) fn write_error(
         sqlx::Error::Database(db) if db.is_unique_violation() => {
             Error::Conflict(format!("A {entity} with that name already exists"))
         }
-        _ => Error::DatabaseError(format!("Failed to {action} {entity}: {e}")),
+        _ => Error::Database(anyhow::Error::new(e).context(format!("Failed to {action} {entity}"))),
     }
 }
 

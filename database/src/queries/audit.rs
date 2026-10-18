@@ -15,7 +15,7 @@ pub async fn record(pool: &Pool<Sqlite>, entry: &NewAuditEntry) -> Result<i64> {
         .as_ref()
         .map(serde_json::to_string)
         .transpose()
-        .map_err(|e| Error::Other(format!("audit details: {e}")))?;
+        .map_err(|e| Error::InvalidInput(format!("audit details: {e}")))?;
     let result = sqlx::query(
         r#"
         INSERT INTO audit_log (user_id, username, client_ip, action, target_type, target_id,
@@ -34,7 +34,7 @@ pub async fn record(pool: &Pool<Sqlite>, entry: &NewAuditEntry) -> Result<i64> {
     .execute(pool)
     .await
     .context("Failed to record audit entry")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?;
     Ok(result.last_insert_rowid())
 }
 
@@ -128,7 +128,7 @@ pub async fn list_filtered(
         .fetch_all(pool)
         .await
         .context("Failed to list audit entries")
-        .map_err(|e| Error::DatabaseError(e.to_string()))
+        .map_err(Error::Database)
 }
 
 fn escape_like(s: &str) -> String {
@@ -147,7 +147,7 @@ pub async fn last_logins(pool: &Pool<Sqlite>) -> Result<Vec<(i64, chrono::DateTi
     .fetch_all(pool)
     .await
     .context("Failed to read last logins")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)
 }
 
 /// Delete entries older than `days`. Returns how many were removed.
@@ -158,7 +158,7 @@ pub async fn prune_older_than_days(pool: &Pool<Sqlite>, days: i64) -> Result<u64
         .execute(pool)
         .await
         .context("Failed to prune audit log")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
     Ok(result.rows_affected())
 }
 

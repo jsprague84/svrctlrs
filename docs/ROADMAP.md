@@ -53,7 +53,11 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 - Done 2026-10-18: the never-read TOML `Config`, `AppState.config`, the `--config` flag,
   `config/example.toml` and the `toml` dependency are gone. So are `core::types` (`Server`, `ServerStatus`,
   `MetricValue`), monitoring-era types nothing used.
-- Replace stringly `core::Error` variants with typed errors and `IntoResponse`.
+- Done 2026-10-18: `core::Error` has kind-based variants (`NotFound`, `Conflict`,
+  `InvalidInput`, `Database(anyhow)` with its cause chain, `Encryption`, `Config`,
+  `Notification`, `Other(anyhow)`); `ApiError` implements `IntoResponse` and `From` for both
+  `core::Error` and `anyhow::Error`, so handlers use `?` instead of per-call `map_err`
+  closures. Lookups return `NotFound` for a missing row instead of a database error.
 - Done 2026-10-18: the database crate root no longer glob-re-exports `models::*` and
   `queries::*` (which collided on their module names); callers import by module path.
 - Removed 2026-10-05: `Header.svelte`, `ServerSelector.svelte`, `api/index.ts`,

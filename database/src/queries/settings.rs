@@ -14,7 +14,7 @@ pub async fn list_settings(pool: &Pool<Sqlite>) -> Result<Vec<Setting>> {
     )
     .fetch_all(pool)
     .await
-    .map_err(|e| Error::DatabaseError(format!("Failed to list settings: {}", e)))
+    .map_err(|e| Error::Database(anyhow::anyhow!("Failed to list settings: {}", e)))
 }
 
 /// Get setting by key
@@ -27,9 +27,10 @@ pub async fn get_setting(pool: &Pool<Sqlite>, key: &str) -> Result<Setting> {
         "#,
     )
     .bind(key)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
-    .map_err(|e| Error::DatabaseError(format!("Failed to get setting: {}", e)))
+    .map_err(|e| Error::Database(anyhow::Error::new(e).context("Failed to get setting")))?
+    .ok_or_else(|| Error::NotFound(format!("setting {key:?}")))
 }
 
 /// Get setting value as string
@@ -59,7 +60,7 @@ pub async fn update_setting(pool: &Pool<Sqlite>, key: &str, update: &UpdateSetti
     .bind(key)
     .execute(pool)
     .await
-    .map_err(|e| Error::DatabaseError(format!("Failed to update setting: {}", e)))?;
+    .map_err(|e| Error::Database(anyhow::anyhow!("Failed to update setting: {}", e)))?;
 
     Ok(())
 }
@@ -82,7 +83,7 @@ pub async fn set_setting(pool: &Pool<Sqlite>, key: &str, value: &str) -> Result<
     .bind(value)
     .execute(pool)
     .await
-    .map_err(|e| Error::DatabaseError(format!("Failed to set setting: {}", e)))?;
+    .map_err(|e| Error::Database(anyhow::anyhow!("Failed to set setting: {}", e)))?;
 
     Ok(())
 }
@@ -107,7 +108,7 @@ pub async fn create_setting(
     .bind(description)
     .execute(pool)
     .await
-    .map_err(|e| Error::DatabaseError(format!("Failed to create setting: {}", e)))?;
+    .map_err(|e| Error::Database(anyhow::anyhow!("Failed to create setting: {}", e)))?;
 
     Ok(())
 }
@@ -118,7 +119,7 @@ pub async fn delete_setting(pool: &Pool<Sqlite>, key: &str) -> Result<()> {
         .bind(key)
         .execute(pool)
         .await
-        .map_err(|e| Error::DatabaseError(format!("Failed to delete setting: {}", e)))?;
+        .map_err(|e| Error::Database(anyhow::anyhow!("Failed to delete setting: {}", e)))?;
 
     Ok(())
 }

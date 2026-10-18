@@ -32,7 +32,7 @@ fn require_encryption() -> Result<()> {
     if encryption::is_initialized() {
         Ok(())
     } else {
-        Err(Error::ConfigError(
+        Err(Error::Config(
             "credential encryption is not initialised; refusing to handle a secret in plaintext"
                 .to_string(),
         ))
@@ -52,7 +52,7 @@ pub async fn encrypt_plaintext_credentials(pool: &Pool<Sqlite>) -> Result<usize>
         .begin()
         .await
         .context("Failed to begin transaction")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
 
     let rows: Vec<(i64, String, bool, Option<String>, bool)> = sqlx::query_as(
         "SELECT id, value, encrypted, metadata, metadata_encrypted FROM credentials \
@@ -61,7 +61,7 @@ pub async fn encrypt_plaintext_credentials(pool: &Pool<Sqlite>) -> Result<usize>
     .fetch_all(&mut *tx)
     .await
     .context("Failed to list plaintext credentials")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?;
 
     for (id, value, encrypted, metadata, metadata_encrypted) in &rows {
         let value = if *encrypted {
@@ -83,13 +83,13 @@ pub async fn encrypt_plaintext_credentials(pool: &Pool<Sqlite>) -> Result<usize>
         .execute(&mut *tx)
         .await
         .context("Failed to encrypt credential")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
     }
 
     tx.commit()
         .await
         .context("Failed to commit credential encryption")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
 
     Ok(rows.len())
 }
@@ -117,7 +117,7 @@ pub async fn list_credentials(pool: &Pool<Sqlite>) -> Result<Vec<Credential>> {
     .fetch_all(pool)
     .await
     .context("Failed to list credentials")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?;
 
     Ok(creds)
 }
@@ -137,10 +137,11 @@ pub async fn get_credential(pool: &Pool<Sqlite>, id: i64) -> Result<Credential> 
         "#,
     )
     .bind(id)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
     .context("Failed to get credential")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?
+    .ok_or_else(|| Error::NotFound(format!("credential {id}")))?;
 
     decrypt_credential(cred)
 }
@@ -157,10 +158,11 @@ pub async fn get_credential_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<C
         "#,
     )
     .bind(name)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
     .context("Failed to get credential by name")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?
+    .ok_or_else(|| Error::NotFound(format!("credential {name:?}")))?;
 
     decrypt_credential(cred)
 }
@@ -251,7 +253,7 @@ pub async fn update_credential(
 pub async fn delete_credential(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
     // Check if credential is in use by any servers
     if credential_in_use(pool, id).await? {
-        return Err(Error::DatabaseError(
+        return Err(Error::Conflict(
             "Cannot delete credential: it is in use by one or more servers".to_string(),
         ));
     }
@@ -261,7 +263,7 @@ pub async fn delete_credential(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
         .execute(pool)
         .await
         .context("Failed to delete credential")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
 
     Ok(())
 }
@@ -280,7 +282,7 @@ pub async fn credential_in_use(pool: &Pool<Sqlite>, id: i64) -> Result<bool> {
     .fetch_one(pool)
     .await
     .context("Failed to check if credential is in use")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?;
 
     Ok(count.0 > 0)
 }
@@ -536,5 +538,18 @@ mod tests {
 
         // Second run finds nothing to do.
         assert_eq!(encrypt_plaintext_credentials(&pool).await.unwrap(), 0);
+    }
+
+    #[tokio::test]
+    async fn missing_credential_is_not_found() {
+        let pool = setup_test_db().await;
+        assert!(matches!(
+            get_credential(&pool, 4242).await.unwrap_err(),
+            Error::NotFound(ref what) if what == "credential 4242"
+        ));
+        assert!(matches!(
+            get_credential_by_name(&pool, "nope").await.unwrap_err(),
+            Error::NotFound(_)
+        ));
     }
 }

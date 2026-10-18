@@ -20,7 +20,7 @@ pub const MIN_PASSWORD_LEN: usize = 12;
 #[instrument(skip(pool, input))]
 pub async fn create_user(pool: &Pool<Sqlite>, input: &CreateUser) -> Result<i64> {
     if input.password.chars().count() < MIN_PASSWORD_LEN {
-        return Err(Error::ConfigError(format!(
+        return Err(Error::InvalidInput(format!(
             "password must be at least {MIN_PASSWORD_LEN} characters"
         )));
     }
@@ -37,7 +37,7 @@ pub async fn create_user(pool: &Pool<Sqlite>, input: &CreateUser) -> Result<i64>
     .execute(pool)
     .await
     .context("Failed to create user")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?;
 
     Ok(result.last_insert_rowid())
 }
@@ -56,13 +56,13 @@ pub async fn get_user_by_username(pool: &Pool<Sqlite>, username: &str) -> Result
     .fetch_optional(pool)
     .await
     .context("Failed to get user by username")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)
 }
 
 /// Verify a plaintext password against a user's stored argon2 hash
 pub fn verify_password(password: &str, password_hash: &str) -> Result<bool> {
     let parsed_hash = PasswordHash::new(password_hash)
-        .map_err(|e| Error::Other(format!("Invalid password hash: {}", e)))?;
+        .map_err(|e| Error::Other(anyhow::anyhow!("Invalid password hash: {}", e)))?;
 
     Ok(Argon2::default()
         .verify_password(password.as_bytes(), &parsed_hash)
@@ -76,7 +76,7 @@ fn hash_password(password: &str) -> Result<String> {
 
     let password_hash = argon2
         .hash_password(password.as_bytes(), &salt)
-        .map_err(|e| Error::Other(format!("Failed to hash password: {}", e)))?;
+        .map_err(|e| Error::Other(anyhow::anyhow!("Failed to hash password: {}", e)))?;
 
     Ok(password_hash.to_string())
 }
@@ -90,7 +90,7 @@ pub async fn list_users(pool: &Pool<Sqlite>) -> Result<Vec<User>> {
     .fetch_all(pool)
     .await
     .context("Failed to list users")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)
 }
 
 /// A user by id.
@@ -103,14 +103,14 @@ pub async fn get_user(pool: &Pool<Sqlite>, id: i64) -> Result<Option<User>> {
     .fetch_optional(pool)
     .await
     .context("Failed to get user")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)
 }
 
 /// Replace a user's password (same length rule as creation).
 #[instrument(skip(pool, new_password))]
 pub async fn update_password(pool: &Pool<Sqlite>, id: i64, new_password: &str) -> Result<()> {
     if new_password.chars().count() < MIN_PASSWORD_LEN {
-        return Err(Error::ConfigError(format!(
+        return Err(Error::InvalidInput(format!(
             "password must be at least {MIN_PASSWORD_LEN} characters"
         )));
     }
@@ -123,7 +123,7 @@ pub async fn update_password(pool: &Pool<Sqlite>, id: i64, new_password: &str) -
     .execute(pool)
     .await
     .context("Failed to update password")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?;
     if result.rows_affected() == 0 {
         return Err(Error::NotFound(format!("user {id}")));
     }
@@ -139,7 +139,7 @@ pub async fn delete_user(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
         .execute(pool)
         .await
         .context("Failed to delete user")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
     if result.rows_affected() == 0 {
         return Err(Error::NotFound(format!("user {id}")));
     }
@@ -153,7 +153,7 @@ pub async fn count_users(pool: &Pool<Sqlite>) -> Result<i64> {
         .fetch_one(pool)
         .await
         .context("Failed to count users")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
 
     Ok(count.0)
 }

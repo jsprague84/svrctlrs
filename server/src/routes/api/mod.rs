@@ -40,57 +40,112 @@ where
     Deserialize::deserialize(de).map(Some)
 }
 
-/// Standard API error response
-#[derive(Debug, Serialize)]
+/// The API's error: a status code plus the `{ success: false, error: { code, message } }`
+/// envelope every client expects. Handlers return `Result<_, ApiError>` and use `?` on query
+/// results: [`svrctlrs_core::Error`] converts by kind (404 / 409 / 400, else a logged 500),
+/// and so does an `anyhow::Error` that wraps one.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApiError {
-    pub success: bool,
-    pub error: ApiErrorDetails,
-}
-
-#[derive(Debug, Serialize)]
-pub struct ApiErrorDetails {
-    pub code: String,
+    pub status: StatusCode,
+    pub code: &'static str,
     pub message: String,
 }
 
+#[derive(Debug, Serialize)]
+struct ApiErrorBody<'a> {
+    success: bool,
+    error: ApiErrorDetails<'a>,
+}
+
+#[derive(Debug, Serialize)]
+struct ApiErrorDetails<'a> {
+    code: &'a str,
+    message: &'a str,
+}
+
 impl ApiError {
-    pub fn new(code: &str, message: impl Into<String>) -> Self {
+    pub fn new(status: StatusCode, code: &'static str, message: impl Into<String>) -> Self {
         Self {
-            success: false,
-            error: ApiErrorDetails {
-                code: code.to_string(),
-                message: message.into(),
-            },
+            status,
+            code,
+            message: message.into(),
         }
     }
 
-    pub fn not_found(resource: &str) -> (StatusCode, Json<Self>) {
-        (
+    pub fn not_found(resource: &str) -> Self {
+        Self::new(
             StatusCode::NOT_FOUND,
-            Json(Self::new("NOT_FOUND", format!("{} not found", resource))),
+            "NOT_FOUND",
+            format!("{resource} not found"),
         )
     }
 
-    pub fn bad_request(message: impl Into<String>) -> (StatusCode, Json<Self>) {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(Self::new("BAD_REQUEST", message)),
-        )
+    pub fn bad_request(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::BAD_REQUEST, "BAD_REQUEST", message)
     }
 
-    pub fn internal_error(message: impl Into<String>) -> (StatusCode, Json<Self>) {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(Self::new("INTERNAL_ERROR", message)),
-        )
+    pub fn unauthorized(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::UNAUTHORIZED, "UNAUTHORIZED", message)
     }
 
-    pub fn conflict(message: impl Into<String>) -> (StatusCode, Json<Self>) {
-        (StatusCode::CONFLICT, Json(Self::new("CONFLICT", message)))
+    pub fn forbidden(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::FORBIDDEN, "FORBIDDEN", message)
     }
 
-    pub fn forbidden(message: impl Into<String>) -> (StatusCode, Json<Self>) {
-        (StatusCode::FORBIDDEN, Json(Self::new("FORBIDDEN", message)))
+    pub fn conflict(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::CONFLICT, "CONFLICT", message)
+    }
+
+    pub fn internal_error(message: impl Into<String>) -> Self {
+        Self::new(StatusCode::INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", message)
+    }
+}
+
+impl IntoResponse for ApiError {
+    fn into_response(self) -> axum::response::Response {
+        let body = ApiErrorBody {
+            success: false,
+            error: ApiErrorDetails {
+                code: self.code,
+                message: &self.message,
+            },
+        };
+        (self.status, Json(body)).into_response()
+    }
+}
+
+/// "server 3 not found" reads better as "Server 3 not found" in a toast.
+fn capitalized(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
+impl From<svrctlrs_core::Error> for ApiError {
+    fn from(e: svrctlrs_core::Error) -> Self {
+        use svrctlrs_core::Error;
+        match e {
+            Error::NotFound(_) => Self::new(
+                StatusCode::NOT_FOUND,
+                "NOT_FOUND",
+                capitalized(&e.to_string()),
+            ),
+            Error::Conflict(msg) => Self::conflict(msg),
+            Error::InvalidInput(msg) => Self::bad_request(msg),
+            other => {
+                let detail = other.detail();
+                tracing::error!(error = %detail, "Request failed");
+                Self::internal_error(detail)
+            }
+        }
+    }
+}
+
+impl From<anyhow::Error> for ApiError {
+    fn from(e: anyhow::Error) -> Self {
+        Self::from(svrctlrs_core::Error::from(e))
     }
 }
 
@@ -163,4 +218,71 @@ async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
             "servers": server_count
         }
     }))
+}
+
+#[cfg(test)]
+mod api_error_tests {
+    use super::*;
+    use axum::body::to_bytes;
+
+    async fn body_of(e: ApiError) -> (StatusCode, serde_json::Value) {
+        let response = e.into_response();
+        let status = response.status();
+        let bytes = to_bytes(response.into_body(), 1 << 16).await.unwrap();
+        (status, serde_json::from_slice(&bytes).unwrap())
+    }
+
+    #[tokio::test]
+    async fn envelope_is_unchanged() {
+        let (status, body) = body_of(ApiError::bad_request("name is required")).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            body,
+            serde_json::json!({
+                "success": false,
+                "error": { "code": "BAD_REQUEST", "message": "name is required" }
+            })
+        );
+    }
+
+    #[test]
+    fn core_errors_map_by_kind() {
+        use svrctlrs_core::Error;
+        let e = ApiError::from(Error::NotFound("server 3".into()));
+        assert_eq!((e.status, e.code), (StatusCode::NOT_FOUND, "NOT_FOUND"));
+        assert_eq!(e.message, "Server 3 not found");
+
+        let e = ApiError::from(Error::Conflict(
+            "A server with that name already exists".into(),
+        ));
+        assert_eq!(e.status, StatusCode::CONFLICT);
+
+        let e = ApiError::from(Error::InvalidInput("password must be longer".into()));
+        assert_eq!(
+            (e.status, e.message.as_str()),
+            (StatusCode::BAD_REQUEST, "password must be longer")
+        );
+
+        let e = ApiError::from(Error::Database(
+            anyhow::anyhow!("locked").context("Failed to list servers"),
+        ));
+        assert_eq!(e.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(e.message, "Database error: Failed to list servers: locked");
+
+        let e = ApiError::from(Error::Config("no key".into()));
+        assert_eq!(e.status, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn anyhow_wrapping_a_core_error_keeps_its_status() {
+        let wrapped = anyhow::Error::from(svrctlrs_core::Error::NotFound("quick command 9".into()))
+            .context("Failed to load quick command");
+        let e = ApiError::from(wrapped);
+        assert_eq!(e.status, StatusCode::NOT_FOUND);
+        assert_eq!(e.message, "Quick command 9 not found");
+
+        let e = ApiError::from(anyhow::anyhow!("boom"));
+        assert_eq!(e.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(e.message, "boom");
+    }
 }

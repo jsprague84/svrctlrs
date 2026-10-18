@@ -48,7 +48,9 @@ does not pull in Tauri's GTK/WebKit dependencies.
    WebSockets `?token=&user_id=` query parameters. Unauthenticated browser requests redirect to
    `/auth/login`; API requests get 401.
 3. **API handlers** (`server/src/routes/api/*.rs`) validate input, call `database` queries,
-   and return JSON. Errors use the `ApiError` envelope (see `API.md`).
+   and return JSON. Errors use the `ApiError` envelope (see `API.md`): `ApiError` implements
+   `IntoResponse` and converts from `svrctlrs_core::Error` by kind (`NotFound` → 404,
+   `Conflict` → 409, `InvalidInput` → 400, anything else a logged 500), so handlers use `?`.
 4. **The terminal WebSocket** carries a small JSON protocol (`API.md`, "WebSocket protocol");
    PTY output itself travels as binary frames (`seq` + raw bytes) so the terminal decodes the
    stream. PTY sessions live in `sessions.rs` and outlive their sockets. Every SSH connection

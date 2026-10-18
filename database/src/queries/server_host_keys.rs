@@ -26,7 +26,7 @@ pub async fn get_host_key_by_server(
     .fetch_optional(pool)
     .await
     .context("Failed to get host key by server")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)
 }
 
 /// Every stored host key for a server, regardless of key type.
@@ -50,7 +50,7 @@ pub async fn list_host_keys_for_server(
     .fetch_all(pool)
     .await
     .context("Failed to list host keys for server")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)
 }
 
 /// Forget every stored host key for a server, so the next connection trusts afresh. Returns
@@ -62,7 +62,7 @@ pub async fn delete_host_keys_for_server(pool: &Pool<Sqlite>, server_id: i64) ->
         .execute(pool)
         .await
         .context("Failed to delete host keys for server")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
     Ok(result.rows_affected())
 }
 
@@ -86,7 +86,7 @@ pub async fn store_host_key(
     .execute(pool)
     .await
     .context("Failed to store host key")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?;
 
     Ok(result.last_insert_rowid())
 }
@@ -110,7 +110,7 @@ pub async fn update_host_key_last_seen(
     .execute(pool)
     .await
     .context("Failed to update host key last_seen_at")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?;
 
     Ok(())
 }

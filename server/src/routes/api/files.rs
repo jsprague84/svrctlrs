@@ -12,7 +12,7 @@
 use axum::{
     body::Body,
     extract::{DefaultBodyLimit, Path, Query, State},
-    http::{header, HeaderMap, HeaderValue, StatusCode},
+    http::{header, HeaderMap, HeaderValue},
     response::{IntoResponse, Response},
     routing::{get, post},
     Json, Router,
@@ -30,7 +30,7 @@ use super::ApiError;
 use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
 
-type ApiResult<T> = Result<T, (StatusCode, Json<ApiError>)>;
+type ApiResult<T> = Result<T, ApiError>;
 
 /// Uploads may be as large as the remote disk allows; this is only a sanity cap.
 const MAX_UPLOAD_BYTES: usize = 4 * 1024 * 1024 * 1024;
@@ -171,9 +171,7 @@ impl Sftp {
 
 /// Connect to the server and start the SFTP subsystem.
 async fn open(state: &AppState, server_id: i64) -> ApiResult<Sftp> {
-    let server = queries::servers::get_server(&state.pool, server_id)
-        .await
-        .map_err(|_| ApiError::not_found("Server"))?;
+    let server = queries::servers::get_server(&state.pool, server_id).await?;
     let credential = match server.credential_id {
         Some(cid) => queries::credentials::get_credential(&state.pool, cid)
             .await
@@ -204,7 +202,7 @@ async fn open(state: &AppState, server_id: i64) -> ApiResult<Sftp> {
 
 /// SFTP status codes map onto HTTP: a missing file is 404, a permission refusal 403, the
 /// rest is a 400 that carries the server's own message.
-fn sftp_error(what: &str, e: russh_sftp::client::error::Error) -> (StatusCode, Json<ApiError>) {
+fn sftp_error(what: &str, e: russh_sftp::client::error::Error) -> ApiError {
     use russh_sftp::client::error::Error;
     match &e {
         Error::Status(status) => match status.status_code {
@@ -287,7 +285,7 @@ async fn list(
             })
             .collect();
         sort_entries(&mut entries);
-        Ok::<_, (StatusCode, Json<ApiError>)>(json!({
+        Ok::<_, ApiError>(json!({
             "server_id": id,
             "path": path,
             "parent": parent_of(&path),
@@ -421,7 +419,7 @@ async fn upload(
         file.close()
             .await
             .map_err(|e| ApiError::bad_request(format!("Closing {} failed: {e}", q.path)))?;
-        Ok::<u64, (StatusCode, Json<ApiError>)>(written)
+        Ok::<u64, ApiError>(written)
     }
     .await;
     let outcome = match result {
@@ -556,7 +554,7 @@ async fn remove(
                     sftp_error(&q.path, e)
                 }
             })?;
-            Ok::<&str, (StatusCode, Json<ApiError>)>("dir")
+            Ok::<&str, ApiError>("dir")
         } else {
             sftp.session
                 .remove_file(&q.path)

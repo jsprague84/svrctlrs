@@ -22,7 +22,7 @@ pub async fn list_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     .fetch_all(pool)
     .await
     .context("Failed to list servers")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)
 }
 
 /// Get server by ID
@@ -38,10 +38,11 @@ pub async fn get_server(pool: &Pool<Sqlite>, id: i64) -> Result<Server> {
         "#,
     )
     .bind(id)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
     .context("Failed to get server")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)?
+    .ok_or_else(|| Error::NotFound(format!("server {id}")))
 }
 
 /// Get server by name
@@ -57,10 +58,11 @@ pub async fn get_server_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<Serve
         "#,
     )
     .bind(name)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
     .context("Failed to get server by name")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)?
+    .ok_or_else(|| Error::NotFound(format!("server {name:?}")))
 }
 
 /// Get all servers with a specific tag
@@ -82,7 +84,7 @@ pub async fn get_servers_by_tag(pool: &Pool<Sqlite>, tag_id: i64) -> Result<Vec<
     .fetch_all(pool)
     .await
     .context("Failed to get servers by tag")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)
 }
 
 /// Create a new server with capability detection
@@ -91,7 +93,7 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
     // Validate input
     input
         .validate()
-        .map_err(|e| Error::DatabaseError(format!("Validation error: {}", e)))?;
+        .map_err(|e| Error::Database(anyhow::anyhow!("Validation error: {}", e)))?;
 
     let result = sqlx::query(
         r#"
@@ -196,7 +198,7 @@ pub async fn delete_server(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
         .execute(pool)
         .await
         .context("Failed to delete server")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
 
     Ok(())
 }
@@ -210,7 +212,7 @@ pub async fn update_server_last_error(pool: &Pool<Sqlite>, id: i64, error: &str)
         .execute(pool)
         .await
         .context("Failed to update server error")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
     Ok(())
 }
 
@@ -234,7 +236,7 @@ pub async fn update_server_status(
     .execute(pool)
     .await
     .context("Failed to update server status")
-    .map_err(|e| Error::DatabaseError(e.to_string()))?;
+    .map_err(Error::Database)?;
 
     Ok(())
 }
@@ -255,7 +257,7 @@ pub async fn list_enabled_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     .fetch_all(pool)
     .await
     .context("Failed to list enabled servers")
-    .map_err(|e| Error::DatabaseError(e.to_string()))
+    .map_err(Error::Database)
 }
 
 #[cfg(test)]
@@ -347,6 +349,19 @@ mod tests {
         // Verify deleted
         assert!(get_server(&pool, id).await.is_err());
     }
+
+    #[tokio::test]
+    async fn missing_server_is_not_found_not_a_database_error() {
+        let pool = setup_test_db().await;
+        assert!(matches!(
+            get_server(&pool, 4242).await.unwrap_err(),
+            Error::NotFound(ref what) if what == "server 4242"
+        ));
+        assert!(matches!(
+            get_server_by_name(&pool, "nope").await.unwrap_err(),
+            Error::NotFound(_)
+        ));
+    }
 }
 
 // ============================================================================
@@ -380,7 +395,7 @@ pub async fn list_servers_with_details(pool: &Pool<Sqlite>) -> Result<Vec<Server
             .fetch_optional(pool)
             .await
             .context("Failed to get credential name")
-            .map_err(|e| Error::DatabaseError(e.to_string()))?;
+            .map_err(Error::Database)?;
             cred.map(|(name,)| name)
         } else {
             None
@@ -413,7 +428,7 @@ pub async fn get_server_with_details(pool: &Pool<Sqlite>, id: i64) -> Result<Ser
         .fetch_optional(pool)
         .await
         .context("Failed to get credential name")
-        .map_err(|e| Error::DatabaseError(e.to_string()))?;
+        .map_err(Error::Database)?;
         cred.map(|(name,)| name)
     } else {
         None

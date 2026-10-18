@@ -49,8 +49,12 @@ Successful responses return the resource directly (an object or an array). Error
 {"success": false, "error": {"code": "NOT_FOUND", "message": "Server not found"}}
 ```
 
-Codes: `BAD_REQUEST` (400), `NOT_FOUND` (404), `CONFLICT` (409; also a credential or server
-name that is already taken, on create and rename), `INTERNAL_ERROR` (500).
+Codes: `BAD_REQUEST` (400), `UNAUTHORIZED` (401), `FORBIDDEN` (403), `NOT_FOUND` (404),
+`CONFLICT` (409; also a credential or server name that is already taken, on create and
+rename, and deleting a credential a server still uses), `INTERNAL_ERROR` (500). A lookup
+answers 404 only when the row is missing or belongs to another user; a database failure is a
+500 whose message carries the cause, and the server log has the same text under the request's
+`request_id`.
 
 Every response carries an `x-request-id` header (a UUID minted by the server; a value sent by
 the client is discarded). The same id is the `request_id` field of the request's log span, so

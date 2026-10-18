@@ -33,7 +33,10 @@ impl Database {
                 if !parent.exists() {
                     info!(dir = ?parent, "Creating database directory");
                     std::fs::create_dir_all(parent).map_err(|e| {
-                        Error::DatabaseError(format!("Failed to create database directory: {}", e))
+                        Error::Database(anyhow::anyhow!(
+                            "Failed to create database directory: {}",
+                            e
+                        ))
                     })?;
                 } else {
                     // Directory exists, check if we can write to it
@@ -48,7 +51,7 @@ impl Database {
                             info!("Database directory is writable");
                         }
                         Err(e) => {
-                            return Err(Error::DatabaseError(format!(
+                            return Err(Error::Database(anyhow::anyhow!(
                                 "Database directory {:?} is not writable: {}. Check volume permissions.",
                                 parent, e
                             )));
@@ -64,17 +67,17 @@ impl Database {
 
         let pool = if database_url.starts_with("sqlite:") {
             let options = SqliteConnectOptions::from_str(database_url)
-                .map_err(|e| Error::DatabaseError(format!("Invalid database URL: {}", e)))?
+                .map_err(|e| Error::Database(anyhow::anyhow!("Invalid database URL: {}", e)))?
                 .create_if_missing(true)
                 .journal_mode(SqliteJournalMode::Wal);
 
             SqlitePool::connect_with(options)
                 .await
-                .map_err(|e| Error::DatabaseError(format!("Failed to connect: {}", e)))?
+                .map_err(|e| Error::Database(anyhow::anyhow!("Failed to connect: {}", e)))?
         } else {
             SqlitePool::connect(database_url)
                 .await
-                .map_err(|e| Error::DatabaseError(format!("Failed to connect: {}", e)))?
+                .map_err(|e| Error::Database(anyhow::anyhow!("Failed to connect: {}", e)))?
         };
 
         Ok(Self { pool })
@@ -88,13 +91,15 @@ impl Database {
         sqlx::query("PRAGMA foreign_keys = ON")
             .execute(&self.pool)
             .await
-            .map_err(|e| Error::DatabaseError(format!("Failed to enable foreign keys: {}", e)))?;
+            .map_err(|e| {
+                Error::Database(anyhow::anyhow!("Failed to enable foreign keys: {}", e))
+            })?;
 
         // Run embedded migrations
         MIGRATOR
             .run(&self.pool)
             .await
-            .map_err(|e| Error::DatabaseError(format!("Failed to run migrations: {}", e)))?;
+            .map_err(|e| Error::Database(anyhow::anyhow!("Failed to run migrations: {}", e)))?;
 
         info!("Database migrations completed successfully");
         Ok(())

@@ -10,22 +10,11 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use svrctlrs_database::queries::terminal_profiles;
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 
 use super::ApiError;
 use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
-
-/// Map a query error: a row that is missing or belongs to someone else is 404.
-fn profile_error(e: anyhow::Error, action: &str, id: i64) -> (StatusCode, Json<ApiError>) {
-    match e.downcast_ref::<svrctlrs_core::Error>() {
-        Some(svrctlrs_core::Error::NotFound(_)) => ApiError::not_found("Profile"),
-        _ => {
-            error!(error = %e, id = id, "Failed to {action} profile");
-            ApiError::internal_error(format!("Failed to {action} profile: {e}"))
-        }
-    }
-}
 
 /// Create profiles router
 pub fn routes() -> Router<AppState> {
@@ -42,15 +31,10 @@ pub fn routes() -> Router<AppState> {
 async fn list_profiles(
     State(state): State<AppState>,
     current_user: CurrentUser,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     let user_id = current_user.0;
 
-    let profiles = terminal_profiles::list_terminal_profiles_for_user(&state.pool, user_id)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to list profiles");
-            ApiError::internal_error(format!("Failed to list profiles: {}", e))
-        })?;
+    let profiles = terminal_profiles::list_terminal_profiles_for_user(&state.pool, user_id).await?;
 
     Ok(Json(json!({ "profiles": profiles })))
 }
@@ -61,10 +45,8 @@ async fn get_profile(
     State(state): State<AppState>,
     Path(id): Path<i64>,
     current_user: CurrentUser,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let profile = terminal_profiles::get_terminal_profile(&state.pool, id, current_user.0)
-        .await
-        .map_err(|e| profile_error(e, "get", id))?;
+) -> Result<impl IntoResponse, ApiError> {
+    let profile = terminal_profiles::get_terminal_profile(&state.pool, id, current_user.0).await?;
 
     Ok(Json(json!({ "profile": profile })))
 }
@@ -93,7 +75,7 @@ async fn create_profile(
     State(state): State<AppState>,
     current_user: CurrentUser,
     Json(input): Json<CreateProfileInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     let user_id = current_user.0;
 
     info!(name = %input.name, "Creating terminal profile");
@@ -106,12 +88,8 @@ async fn create_profile(
         is_default: input.is_default,
     };
 
-    let id = terminal_profiles::create_terminal_profile(&state.pool, &create, Some(user_id))
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to create profile");
-            ApiError::internal_error(format!("Failed to create profile: {}", e))
-        })?;
+    let id =
+        terminal_profiles::create_terminal_profile(&state.pool, &create, Some(user_id)).await?;
 
     Ok((
         StatusCode::CREATED,
@@ -141,7 +119,7 @@ async fn update_profile(
     Path(id): Path<i64>,
     current_user: CurrentUser,
     Json(input): Json<UpdateProfileInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     let update = svrctlrs_database::models::UpdateTerminalProfile {
         name: input.name,
         description: input.description,
@@ -150,9 +128,7 @@ async fn update_profile(
         is_default: input.is_default,
     };
 
-    terminal_profiles::update_terminal_profile(&state.pool, id, current_user.0, &update)
-        .await
-        .map_err(|e| profile_error(e, "update", id))?;
+    terminal_profiles::update_terminal_profile(&state.pool, id, current_user.0, &update).await?;
 
     Ok(Json(json!({ "id": id, "message": "Profile updated" })))
 }
@@ -163,10 +139,8 @@ async fn delete_profile(
     State(state): State<AppState>,
     Path(id): Path<i64>,
     current_user: CurrentUser,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    terminal_profiles::delete_terminal_profile(&state.pool, id, current_user.0)
-        .await
-        .map_err(|e| profile_error(e, "delete", id))?;
+) -> Result<impl IntoResponse, ApiError> {
+    terminal_profiles::delete_terminal_profile(&state.pool, id, current_user.0).await?;
 
     Ok(Json(json!({ "id": id, "message": "Profile deleted" })))
 }

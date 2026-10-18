@@ -1,10 +1,10 @@
 //! Notification API endpoints
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::post, Json, Router};
+use axum::{extract::State, response::IntoResponse, routing::post, Json, Router};
 use serde_json::json;
 use svrctlrs_core::notifications::NotificationClient;
 use svrctlrs_database::queries::settings;
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 
 use super::ApiError;
 use crate::state::AppState;
@@ -28,15 +28,10 @@ struct TestInput {
 async fn test_notification(
     State(state): State<AppState>,
     body: Option<Json<TestInput>>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     info!("Sending test notification");
 
-    let mut config = settings::get_notification_config(&state.pool)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to load notification config");
-            ApiError::internal_error(format!("Failed to load config: {}", e))
-        })?;
+    let mut config = settings::get_notification_config(&state.pool).await?;
 
     // The form's current values, so a test does not need a save first. An empty token means
     // "the stored one" (the UI never sees the stored token).
@@ -63,10 +58,7 @@ async fn test_notification(
     }
 
     let client = NotificationClient::new(config);
-    client.send_test().await.map_err(|e| {
-        error!(error = %e, "Test notification failed");
-        ApiError::internal_error(format!("Failed to send test notification: {}", e))
-    })?;
+    client.send_test().await?;
 
     Ok(Json(json!({
         "message": "Test notification sent successfully"

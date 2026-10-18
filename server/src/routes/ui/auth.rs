@@ -26,13 +26,14 @@ const USER_ID_KEY: &str = "user_id";
 pub struct CurrentUser(pub i64);
 
 impl<S: Send + Sync> FromRequestParts<S> for CurrentUser {
-    type Rejection = (StatusCode, Json<ApiError>);
+    type Rejection = ApiError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        parts.extensions.get::<CurrentUser>().copied().ok_or((
-            StatusCode::UNAUTHORIZED,
-            Json(ApiError::new("UNAUTHORIZED", "Not authenticated")),
-        ))
+        parts
+            .extensions
+            .get::<CurrentUser>()
+            .copied()
+            .ok_or_else(|| ApiError::unauthorized("Not authenticated"))
     }
 }
 

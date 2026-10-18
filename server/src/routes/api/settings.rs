@@ -12,7 +12,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use svrctlrs_database::queries::settings;
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 
 use super::ApiError;
 use crate::state::AppState;
@@ -47,13 +47,8 @@ fn setting_json(s: &svrctlrs_database::models::Setting) -> serde_json::Value {
 
 /// List all settings
 #[instrument(skip(state))]
-async fn list_settings(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let all_settings = settings::list_settings(&state.pool).await.map_err(|e| {
-        error!(error = %e, "Failed to list settings");
-        ApiError::internal_error(format!("Failed to list settings: {}", e))
-    })?;
+async fn list_settings(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
+    let all_settings = settings::list_settings(&state.pool).await?;
 
     // Group settings by category for better organization
     let mut categories: std::collections::HashMap<String, Vec<serde_json::Value>> =
@@ -83,13 +78,8 @@ async fn list_settings(
 async fn get_setting(
     State(state): State<AppState>,
     Path(key): Path<String>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
-    let setting = settings::get_setting(&state.pool, &key)
-        .await
-        .map_err(|e| {
-            error!(error = %e, key = %key, "Failed to get setting");
-            ApiError::not_found("Setting")
-        })?;
+) -> Result<impl IntoResponse, ApiError> {
+    let setting = settings::get_setting(&state.pool, &key).await?;
 
     Ok(Json(setting_json(&setting)))
 }
@@ -106,7 +96,7 @@ struct UpdateSettingsInput {
 async fn update_settings(
     State(state): State<AppState>,
     Json(input): Json<UpdateSettingsInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     let mut written = Vec::new();
     for (key, value) in &input.values {
         if key.trim().is_empty() {
@@ -115,12 +105,7 @@ async fn update_settings(
         if is_secret(key) && value.is_empty() {
             continue;
         }
-        settings::set_setting(&state.pool, key, value)
-            .await
-            .map_err(|e| {
-                error!(error = %e, key = %key, "Failed to update setting");
-                ApiError::internal_error(format!("Failed to update {key}: {e}"))
-            })?;
+        settings::set_setting(&state.pool, key, value).await?;
         written.push(key.clone());
     }
     info!(count = written.len(), "Settings updated");
@@ -148,7 +133,7 @@ fn default_value_type() -> String {
 async fn create_setting(
     State(state): State<AppState>,
     Json(input): Json<CreateSettingInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     info!(key = %input.key, "Creating setting");
 
     // Validate key is not empty
@@ -200,11 +185,7 @@ async fn create_setting(
         &input.value_type,
         input.description.as_deref(),
     )
-    .await
-    .map_err(|e| {
-        error!(error = %e, key = %input.key, "Failed to create setting");
-        ApiError::internal_error(format!("Failed to create setting: {}", e))
-    })?;
+    .await?;
 
     info!(key = %input.key, "Setting created successfully");
 
@@ -229,16 +210,11 @@ async fn update_setting(
     State(state): State<AppState>,
     Path(key): Path<String>,
     Json(input): Json<UpdateSettingInput>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     info!(key = %key, "Updating setting");
 
     // Use set_setting (upsert) — creates if missing, updates if exists
-    settings::set_setting(&state.pool, &key, &input.value)
-        .await
-        .map_err(|e| {
-            error!(error = %e, key = %key, "Failed to update setting");
-            ApiError::internal_error(format!("Failed to update setting: {}", e))
-        })?;
+    settings::set_setting(&state.pool, &key, &input.value).await?;
 
     info!(key = %key, "Setting updated successfully");
 

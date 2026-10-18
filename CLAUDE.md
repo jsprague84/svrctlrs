@@ -47,8 +47,11 @@ CI's clippy may be older or newer than yours; green locally is not proof.
 
 ## Conventions
 
-- **Rust**: `anyhow::Context` for errors in queries; API handlers return
-  `(StatusCode, Json<ApiError>)` via the helpers in `server/src/routes/api/mod.rs`;
+- **Rust**: queries return `svrctlrs_core::Result` with the typed variants (`NotFound`,
+  `Conflict`, `InvalidInput`, `Database(anyhow)` with `.context(..)`); API handlers return
+  `Result<_, ApiError>` and use `?` on them — `ApiError` (`server/src/routes/api/mod.rs`) maps
+  the kind to 404/409/400 and logs anything else as a 500. Use its constructors
+  (`bad_request`, `not_found`, …) only for checks the handler makes itself;
   `#[instrument]` on handlers and queries (skip inputs that hold secrets). Register new API
   routes in `server/src/routes/api/mod.rs::routes()`, never in `main.rs`. Use
   `sqlx::QueryBuilder` for dynamic UPDATEs. Scope every per-user query by `user_id`.

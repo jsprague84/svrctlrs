@@ -10,6 +10,10 @@ the release workflow uses the matching section as the release notes.
   ECH and certificate-decompression issues); the CI audit gate caught them.
 
 ### Fixed
+- A database failure while loading a server, credential or setting no longer masquerades as
+  `404 NOT_FOUND`; it is a 500 with the cause, and a missing row is a plain 404 (previously the
+  lookup queries reported a missing row as a database error). Deleting a credential that a
+  server still uses is 409 at the database layer too, not only in the handler's pre-check.
 - The command palette now honours a quick command's **Available on** server: a snippet saved for
   one server is listed only while a tab on that server is active. The setting was stored but
   never applied.
@@ -37,6 +41,11 @@ the release workflow uses the matching section as the release notes.
   the schema until the migrations are squashed). Profile JSON no longer includes it.
 
 ### Changed
+- `svrctlrs_core::Error` is typed by kind (`NotFound`, `Conflict`, `InvalidInput`, `Database`
+  with its cause chain, `Encryption`, `Config`, `Notification`, `Other`) and the API's
+  `ApiError` implements `IntoResponse` with `From` conversions, so handlers propagate query
+  errors with `?`. The JSON error envelope is unchanged; 404 messages now name the row
+  ("Server 3 not found") and 500 messages carry the full cause chain.
 - **One SSH client.** `server/src/ssh.rs` (russh) now makes every connection: the shell, the
   connection test and **Authorize key**. Host keys are verified during the handshake on all of
   them (trust on first use, fail closed, mismatch message shown to the user), and the

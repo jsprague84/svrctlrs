@@ -2,7 +2,6 @@
 
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
     response::IntoResponse,
     routing::get,
     Json, Router,
@@ -10,7 +9,7 @@ use axum::{
 use serde::Deserialize;
 use serde_json::json;
 use svrctlrs_database::queries::audit;
-use tracing::{error, instrument};
+use tracing::instrument;
 
 use super::ApiError;
 use crate::state::AppState;
@@ -40,7 +39,7 @@ fn default_limit() -> i64 {
 async fn list_audit(
     State(state): State<AppState>,
     Query(q): Query<AuditQuery>,
-) -> Result<impl IntoResponse, (StatusCode, Json<ApiError>)> {
+) -> Result<impl IntoResponse, ApiError> {
     let limit = q.limit.clamp(1, 500);
     let filter = audit::AuditFilter {
         action_prefixes: q
@@ -51,12 +50,7 @@ async fn list_audit(
         user_id: q.user_id,
         text: q.q,
     };
-    let entries = audit::list_filtered(&state.pool, limit, q.before, &filter)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to list audit log");
-            ApiError::internal_error(format!("Failed to list audit log: {e}"))
-        })?;
+    let entries = audit::list_filtered(&state.pool, limit, q.before, &filter).await?;
     let next_before = if entries.len() as i64 == limit {
         entries.last().map(|e| e.id)
     } else {
