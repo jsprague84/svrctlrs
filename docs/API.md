@@ -81,6 +81,27 @@ Server object: `id, name, hostname, port, username, credential_id, description, 
 enabled, os_type, os_distro, package_manager, docker_available, systemd_available, metadata,
 last_seen_at, last_error, created_at, updated_at`.
 
+## Files (SFTP)
+
+All under `/servers/{id}/files`; `path` is an absolute remote path, and an empty or missing
+`path` means the login's home directory. Each call opens its own SSH connection with the same
+host-key and credential rules as the shell, runs the `sftp` subsystem, and disconnects. These
+routes are not subject to the 30 s request timeout, so an upload may take as long as it needs.
+
+| Method | Path | Query / body | Response |
+|---|---|---|---|
+| GET | `/files` | `path?` | `path` (canonical), `parent` (null at `/`), `entries[]`: `name`, `kind` (`dir`, `file`, `symlink`, `other`), `size`, `modified` (RFC 3339 or null), `mode` (`rwxr-xr-x`), `owner`, `group` — directories first, then by name |
+| GET | `/files/content` | `path` | the file's bytes, `Content-Disposition: attachment`, streamed; 400 for a directory |
+| PUT | `/files/content` | `path`, raw body | creates or overwrites the file with the body, streamed; `{path, bytes}` |
+| POST | `/files/mkdir` | `{path}` | creates one directory |
+| POST | `/files/rename` | `{from, to}` | 409 when `to` exists |
+| DELETE | `/files` | `path` | deletes a file or an *empty* directory (409 otherwise; recursion belongs in the shell); `{path, kind}` |
+
+Errors: 400 for a relative path or a NUL byte (`Path must be absolute`), 404 when the remote
+path does not exist, 403 when the login lacks permission, otherwise 400 carrying the SFTP
+server's message. Audit actions: `files.download`, `files.upload` (`bytes`), `files.mkdir`,
+`files.rename`, `files.delete` (`kind`); listings are not audited.
+
 ## Credentials
 
 | Method | Path | Body |
@@ -153,7 +174,8 @@ details` (a JSON object string). Actions: `login`, `login.failed`, `login.rate_l
 `logout`, `user.created`, `user.deleted`, `user.password_changed`, `server.created`,
 `server.updated`, `server.deleted`, `server.host_keys_forgotten`, `credential.created`,
 `credential.updated`, `credential.deleted`, `session.pty_opened` (details: `login`, `auth` —
-`password` or the key used). `session.command` entries from the retired command mode remain
+`password` or the key used), `files.download`, `files.upload`, `files.mkdir`, `files.rename`,
+`files.delete` (details: the remote path). `session.command` entries from the retired command mode remain
 readable until they age out. Entries never contain secrets, are kept for 180 days, and outlive
 deleted users.
 

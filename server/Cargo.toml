@@ -66,6 +66,8 @@ rand = "0.8"
 base64 = "0.22"
 # OpenSSH-style SHA256 host key fingerprints
 sha2 = "0.10"
+russh-sftp = { workspace = true, optional = true }
+tokio-util = { workspace = true, optional = true }
 
 [features]
 # Default: Server feature
@@ -89,6 +91,8 @@ server = [
     "dep:clap",
     "dep:reqwest",
     "dep:russh",
+    "dep:russh-sftp",
+    "dep:tokio-util",
     "dep:chrono",
     "dep:futures-util"
 ]

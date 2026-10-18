@@ -4,14 +4,15 @@
 	 * that a new tab starts from, and the shells still running on the server (resume or end).
 	 * The platform back gesture closes it.
 	 */
-	import { X, Plus, ChevronLeft, History } from '@lucide/svelte';
+	import { X, Plus, ChevronLeft, History, FolderOpen } from '@lucide/svelte';
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import { serverStatus } from '#lib/utils/serverStatus.js';
 	import { watchClose } from '#lib/utils/closeWatcher.js';
 	import SessionList from './SessionList.svelte';
+	import FileBrowser from './FileBrowser.svelte';
 	import type { TerminalTab, Server, LiveSession } from '#lib/types/index.js';
 
-	export type SheetView = 'tabs' | 'servers' | 'sessions';
+	export type SheetView = 'tabs' | 'servers' | 'sessions' | 'files';
 
 	interface Props {
 		open: boolean;
@@ -24,6 +25,9 @@
 		onPickServer: (server: Server) => void;
 		onShowServers: () => void;
 		onShowSessions: () => void;
+		/** Opens the file browser for the active tab's server (the view then handles the sheet) */
+		onShowFiles: () => void;
+		filesAvailable: boolean;
 		onBackToTabs: () => void;
 		/** Server-side sessions, for the `sessions` view and the count on its entry */
 		sessions: LiveSession[];
@@ -48,6 +52,8 @@
 		onPickServer,
 		onShowServers,
 		onShowSessions,
+		onShowFiles,
+		filesAvailable,
 		onBackToTabs,
 		sessions,
 		held,
@@ -66,7 +72,8 @@
 	const titles: Record<SheetView, (n: number) => string> = {
 		tabs: (n) => `Terminals (${n})`,
 		servers: () => 'Connect to…',
-		sessions: () => 'Sessions'
+		sessions: () => 'Sessions',
+		files: () => 'Files'
 	};
 
 	$effect(() => {
@@ -97,7 +104,9 @@
 			? 'Terminals'
 			: view === 'servers'
 				? 'Connect to a server'
-				: 'Sessions on the server'}
+				: view === 'files'
+					? 'Files on the server'
+					: 'Sessions on the server'}
 	>
 		<div class="flex justify-center pt-2 pb-1">
 			<div class="w-10 h-1 rounded-full bg-text-muted/30"></div>
@@ -168,6 +177,14 @@
 				>
 					<Plus class="w-4 h-4" /> New terminal
 				</button>
+				<button
+					type="button"
+					class="mt-1 w-full h-11 flex items-center justify-center gap-2 rounded-md text-sm text-text-secondary active:bg-surface-raised disabled:opacity-40"
+					onclick={onShowFiles}
+					disabled={!filesAvailable}
+				>
+					<FolderOpen class="w-4 h-4" /> Files on this server
+				</button>
 				<!-- Shells still running on the server; a lost tab is recovered from here -->
 				<button
 					type="button"
@@ -184,6 +201,10 @@
 						</span>
 					{/if}
 				</button>
+			{:else if view === 'files'}
+				<div class="h-[55dvh]">
+					<FileBrowser />
+				</div>
 			{:else if view === 'sessions'}
 				<div class="px-1 py-1">
 					<SessionList

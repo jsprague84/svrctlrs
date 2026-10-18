@@ -7,7 +7,8 @@
 		Trash2,
 		ClipboardCopy,
 		Download,
-		History
+		History,
+		FolderOpen
 	} from '@lucide/svelte';
 	import TerminalPane from './TerminalPane.svelte';
 	import TerminalTabs from './TerminalTabs.svelte';
@@ -15,6 +16,7 @@
 	import ConnectionBadge from './ConnectionBadge.svelte';
 	import TerminalPrefsPanel from './TerminalPrefsPanel.svelte';
 	import SessionsPanel from './SessionsPanel.svelte';
+	import FilesPanel from './FilesPanel.svelte';
 	import CommandPalette from './CommandPalette.svelte';
 	import ProfileManager from './ProfileManager.svelte';
 	import MobileStatusBar from './MobileStatusBar.svelte';
@@ -26,6 +28,7 @@
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import * as profilesState from '#lib/state/profiles.svelte.js';
 	import * as sessionsState from '#lib/state/sessions.svelte.js';
+	import * as filesState from '#lib/state/files.svelte.js';
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
 	import { confirmDialog } from '#lib/state/confirm.svelte.js';
@@ -53,6 +56,8 @@
 	let prefsOpen = $state(false);
 	/** Desktop side panel listing the shells still running on the server */
 	let sessionsOpen = $state(false);
+	/** Desktop side panel with the active server's files over SFTP */
+	let filesOpen = $state(false);
 	/** Phone bottom sheet: tab list, server picker or the sessions list */
 	let sheetOpen = $state(false);
 	let sheetView = $state<SheetView>('tabs');
@@ -85,9 +90,35 @@
 		if (isMobile()) openSheet('sessions');
 		else {
 			prefsOpen = false;
+			filesOpen = false;
 			sessionsOpen = true;
 		}
 	}
+
+	/** Browse the active tab's server; the panel keeps the last directory per server */
+	function openFiles() {
+		const tab = terminalState.getActiveTab();
+		if (!tab?.serverId) {
+			toast.warning('Connect a tab to a server first');
+			return;
+		}
+		filesState.browse(tab.serverId, tab.serverName);
+		if (isMobile()) openSheet('files');
+		else {
+			prefsOpen = false;
+			sessionsOpen = false;
+			filesOpen = true;
+		}
+	}
+
+	// The panel follows the active tab: switching tabs switches servers
+	$effect(() => {
+		const tab = activeTab;
+		if (!filesOpen || !tab?.serverId) return;
+		if (untrack(() => filesState.getServerId()) !== tab.serverId) {
+			filesState.browse(tab.serverId, tab.serverName);
+		}
+	});
 
 	// One fetch when the terminal page first shows, so the badge can say a shell is waiting.
 	// Once only: a failure must not turn into a retry loop.
@@ -582,6 +613,8 @@
 			onPickServer={connectTo}
 			onShowServers={() => (sheetView = 'servers')}
 			onShowSessions={() => (sheetView = 'sessions')}
+			onShowFiles={openFiles}
+			filesAvailable={!!activeTab?.serverId}
 			onBackToTabs={() => (sheetView = 'tabs')}
 			sessions={liveSessions}
 			held={heldSessions}
@@ -673,6 +706,19 @@
 					<Download class="w-4 h-4" />
 				</button>
 				<button
+					class="p-2 md:p-1 text-text-muted hover:text-text-primary disabled:opacity-40"
+					class:text-accent={filesOpen}
+					disabled={!activeTab?.serverId}
+					onclick={() => {
+						if (filesOpen) filesOpen = false;
+						else openFiles();
+					}}
+					title="Files on this server (SFTP)"
+					aria-label="Files on this server"
+				>
+					<FolderOpen class="w-4 h-4" />
+				</button>
+				<button
 					class="relative p-2 md:p-1 text-text-muted hover:text-text-primary"
 					class:text-accent={sessionsOpen}
 					onclick={() => {
@@ -699,7 +745,10 @@
 					class:text-accent={prefsOpen}
 					onclick={() => {
 						prefsOpen = !prefsOpen;
-						if (prefsOpen) sessionsOpen = false;
+						if (prefsOpen) {
+							sessionsOpen = false;
+							filesOpen = false;
+						}
 					}}
 					title="Terminal Preferences"
 					aria-label="Terminal preferences"
@@ -807,6 +856,7 @@
 
 		<TerminalPrefsPanel open={prefsOpen} onClose={() => (prefsOpen = false)} />
 		{#if !isMobile()}
+			<FilesPanel open={filesOpen} onClose={() => (filesOpen = false)} />
 			<SessionsPanel
 				open={sessionsOpen}
 				sessions={liveSessions}
@@ -863,6 +913,7 @@
 			onOpenPrefs={() => (prefsOpen = true)}
 			onOpenServers={() => goto(resolve('/servers'))}
 			onOpenSessions={openSessions}
+			onOpenFiles={openFiles}
 		/>
 	</div>
 

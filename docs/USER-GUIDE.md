@@ -126,6 +126,16 @@ Direct shortcuts still work where the browser or desktop app lets them through:
 
 The same table is in Settings → About.
 
+## Files
+
+The folder button in the toolbar (phone: *Files on this server* in the tab sheet; palette:
+*Browse Files*) opens the active tab's server over SFTP, starting in the login's home
+directory. Tap a folder to enter it, the breadcrumb or the up arrow to go back, a file to
+download it. The toolbar makes a folder or uploads files into the current one; each row can be
+renamed or deleted (a folder only when empty — use the shell for anything recursive). The
+browser follows the active tab, and remembers where you were on each server. Downloads,
+uploads, renames and deletions are recorded in the audit log.
+
 ## Command palette and quick commands
 
 `Ctrl+K` opens the palette: switch tabs, open servers, change layout, and run **quick

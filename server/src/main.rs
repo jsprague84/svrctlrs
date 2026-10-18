@@ -219,8 +219,11 @@ async fn main() -> anyhow::Result<()> {
                 .layer(TimeoutLayer::new(std::time::Duration::from_secs(30))),
         );
 
-    // WebSocket routes WITHOUT timeout (long-lived connections)
-    let ws_routes = Router::new().merge(terminal_pty_router);
+    // Routes WITHOUT the request timeout: the WebSocket (long-lived) and SFTP transfers (an
+    // upload reads its body for as long as the file takes).
+    let ws_routes = Router::new()
+        .merge(terminal_pty_router)
+        .merge(routes::api::files::routes().with_state(state.clone()));
 
     // Build main router
     let app = Router::new()

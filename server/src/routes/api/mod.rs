@@ -13,6 +13,7 @@
 
 pub mod audit;
 pub mod credentials;
+pub mod files;
 pub mod notifications;
 pub mod profiles;
 pub mod quick_commands;
@@ -86,6 +87,10 @@ impl ApiError {
 
     pub fn conflict(message: impl Into<String>) -> (StatusCode, Json<Self>) {
         (StatusCode::CONFLICT, Json(Self::new("CONFLICT", message)))
+    }
+
+    pub fn forbidden(message: impl Into<String>) -> (StatusCode, Json<Self>) {
+        (StatusCode::FORBIDDEN, Json(Self::new("FORBIDDEN", message)))
     }
 }
 

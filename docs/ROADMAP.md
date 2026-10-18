@@ -75,8 +75,9 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 
 ## P3 — Features
 
-In rough order of value for a terminal manager: SFTP/file browser (russh has the subsystem),
-port forwarding, session recording and playback (asciicast from the PTY stream), quick-command variables (`{{host}}`, prompts), PWA manifest
+In rough order of value for a terminal manager: ~~SFTP/file browser~~ (done 2026-10-18:
+`routes/api/files.rs` + `FileBrowser`; browse, download, upload, mkdir, rename, delete, all
+audited; one SSH connection per call), port forwarding, session recording and playback (asciicast from the PTY stream), quick-command variables (`{{host}}`, prompts), PWA manifest
 so the browser UI installs on phones, desktop auto-update (`tauri-plugin-updater` against the
 Forgejo release feed), 2FA/WebAuthn for the app login, SSH agent forwarding, and a help page
 that hosts the shortcut table and this guide.

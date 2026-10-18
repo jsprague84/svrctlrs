@@ -34,6 +34,7 @@
 		onOpenPrefs?: () => void;
 		onOpenServers?: () => void;
 		onOpenSessions?: () => void;
+		onOpenFiles?: () => void;
 	}
 
 	let {
@@ -52,7 +53,8 @@
 		onCloseTab,
 		onOpenPrefs,
 		onOpenServers,
-		onOpenSessions
+		onOpenSessions,
+		onOpenFiles
 	}: Props = $props();
 
 	let query = $state('');
@@ -131,6 +133,15 @@
 						const id = terminalState.getActiveTabId();
 						if (id) terminalState.closeTab(id);
 					}
+				}
+			},
+			{
+				id: 'action-files',
+				name: 'Browse Files',
+				detail: "The active tab's server over SFTP: download, upload, rename, delete",
+				category: 'action',
+				action: () => {
+					onOpenFiles?.();
 				}
 			},
 			{

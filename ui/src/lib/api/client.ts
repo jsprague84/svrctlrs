@@ -61,6 +61,35 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 	return res.json();
 }
 
+/** A raw fetch with the app's credentials and 401 handling, for bodies that are not JSON
+ *  (file downloads and uploads). Throws `ApiError` on a non-2xx status. */
+export async function authorizedFetch(path: string, options: RequestInit = {}): Promise<Response> {
+	const res = await fetch(`${getApiBase()}${path}`, {
+		credentials: 'include',
+		...options,
+		headers: { ...getAuthHeaders(), ...(options.headers as Record<string, string> | undefined) }
+	});
+	if (res.status === 401) {
+		try {
+			const { goto } = await import('$app/navigation');
+			goto('/auth/login');
+		} catch {
+			window.location.href = '/auth/login';
+		}
+		throw new ApiError(401, 'Unauthorized');
+	}
+	if (!res.ok) {
+		let body: unknown;
+		try {
+			body = await res.json();
+		} catch {
+			body = { error: res.statusText };
+		}
+		throw new ApiError(res.status, res.statusText, body);
+	}
+	return res;
+}
+
 export function get<T>(path: string): Promise<T> {
 	return request<T>(path);
 }

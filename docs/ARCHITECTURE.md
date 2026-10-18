@@ -11,7 +11,8 @@ Android app; those talk to a remote server over the same API.
  ┌─────────────────────────── server (Axum 0.8) ───────────────────────────┐
  │ require_auth middleware ── sessions (tower-sessions, SQLite store)       │
  │ routes/api/*  servers · credentials · settings · profiles ·             │
- │               quick-commands · notifications · users · audit · health   │
+ │               quick-commands · notifications · users · audit · health · │
+ │               files (SFTP browse/transfer, outside the request timeout) │
  │ routes/terminal_pty.rs  interactive shell over WebSocket                 │
  │ ssh.rs                  the one SSH client (russh): host keys, auth, exec │
  │ sessions.rs             server-owned PTY sessions, replay ring, TTL      │
@@ -39,7 +40,8 @@ does not pull in Tauri's GTK/WebKit dependencies.
    request, client values dropped, echoed as `x-request-id`) → CORS → security headers (CSP,
    Referrer-Policy, X-Frame-Options, nosniff) → gzip → tracing (span carries `request_id`,
    method and a redacted URI) → session manager → `require_auth`.
-   HTTP routes also sit behind a 30 s `TimeoutLayer`; WebSocket routes do not.
+   HTTP routes also sit behind a 30 s `TimeoutLayer`; the WebSocket and the SFTP file routes
+   (`routes/api/files.rs`, streamed transfers) do not.
 2. **`require_auth`** (`server/src/routes/ui/auth.rs`) exempts `/auth/login`, `/auth/logout`,
    `/api/v1/auth/login`, `/api/v1/health`, `/_app/*` and `OPTIONS`. Everything else needs
    either a session cookie, or a Bearer token (the session id) with `X-User-Id`, or for
@@ -103,7 +105,9 @@ embedded with `sqlx::migrate!` and checksummed, so never edit a shipped migratio
   `SplitView`, `CommandPalette`, `TerminalPrefsPanel`, `ProfileManager`, `SessionsPanel` +
   `SessionList` (resume or end the shells still running on the server; a pane's session record
   in sessionStorage — `utils/sessionRecord.ts` — is what ties a tab to a session, so resuming a
-  lost one is "write the record, open the tab, let the pane attach").
+  lost one is "write the record, open the tab, let the pane attach"), `FilesPanel` +
+  `FileBrowser` (SFTP browser for the active tab's server; `state/files.svelte.ts` keeps the
+  last directory per server).
 - **Mobile**: `MobileStatusBar`, `TabDots`, `ExtraKeysRow`, swipe between tabs, visual-viewport
   keyboard detection (`platform/keyboard.svelte.ts`).
 - **Platform**: `platform/index.ts` detects Tauri and stores the server URL; in the browser the

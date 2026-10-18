@@ -40,6 +40,14 @@ the release workflow uses the matching section as the release notes.
   records the login and the key or `password` used.
 
 ### Added
+- **File browser (SFTP).** A folder button in the terminal toolbar (phone: *Files on this
+  server* in the tab sheet; palette: *Browse Files*) opens the active tab's server over SFTP:
+  browse from the home directory with a breadcrumb, download a file, upload files into the
+  current folder, make a folder, rename, delete (an empty folder only). The browser follows the
+  active tab and remembers the last directory per server. API under
+  `/api/v1/servers/{id}/files` (list, `content` GET/PUT streamed, `mkdir`, `rename`, DELETE),
+  one SSH connection per call with the shell's host-key and credential rules, outside the 30 s
+  request timeout; every write and download is audited (`files.*`).
 - **Request ids.** Every HTTP response carries an `x-request-id` header with a UUID the server
   minted (a client-supplied value is dropped, so the log cannot be written to from outside), and
   the request's log span has the same `request_id` field. WebSocket upgrade URIs now also redact

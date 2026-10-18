@@ -16,6 +16,8 @@ and push notifications. One Rust binary, one SQLite file.
   vertical, quad), up to 10 sessions, output search, session restore across page navigation.
 - **Servers and credentials** — server profiles (host, port, user, credential), password and
   SSH-key credentials encrypted at rest with AES-256-GCM; both kinds work for the shell.
+- **Files** — browse a server over SFTP beside the terminal: download, upload, new folder,
+  rename, delete. Same connection rules as the shell, every write in the audit log.
 - **Host-key verification** — trust on first use; a changed key blocks the connection.
 - **Terminal profiles** — save a layout plus which server opens in each pane; mark one as the
   default to auto-load at start.

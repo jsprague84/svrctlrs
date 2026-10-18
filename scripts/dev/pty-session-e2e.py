@@ -64,6 +64,54 @@ bad_test = api("POST", f"/api/v1/servers/{bad_sid}/test")
 assert bad_test.get("success") is False and "assword" in json.dumps(bad_test), bad_test
 print("wrong password refused ok")
 
+# SFTP file browser: list home, make a folder, upload, download back, rename, delete, rmdir
+import urllib.parse
+def api_raw(method, path, data=None, headers=None):
+    req = urllib.request.Request(BASE + path, data=data, method=method, headers={"Origin": BASE, **(headers or {})})
+    with opener.open(req) as r:
+        return r.status, r.read(), {k.lower(): v for k, v in r.headers.items()}
+
+home = api("GET", f"/api/v1/servers/{sid}/files")
+assert home["path"].startswith("/") and isinstance(home["entries"], list), home
+print("sftp home:", home["path"], len(home["entries"]), "entries")
+folder = f"{home['path']}/svrctlrs-e2e-{RUN}"
+api("POST", f"/api/v1/servers/{sid}/files/mkdir", {"path": folder})
+payload = ("héllo ✓ 🦀\n" * 2000).encode()
+qp = lambda p: "?path=" + urllib.parse.quote(p, safe="")
+st, _, _ = api_raw("PUT", f"/api/v1/servers/{sid}/files/content{qp(folder + '/up.txt')}", payload, {"Content-Type": "application/octet-stream"})
+assert st == 200, st
+st, body, hdrs = api_raw("GET", f"/api/v1/servers/{sid}/files/content{qp(folder + '/up.txt')}")
+assert body == payload, (len(body), len(payload))
+assert "attachment" in hdrs.get("content-disposition", ""), hdrs
+listing = api("GET", f"/api/v1/servers/{sid}/files{qp(folder)}")
+names = {e["name"]: e for e in listing["entries"]}
+assert names["up.txt"]["kind"] == "file" and names["up.txt"]["size"] == len(payload), names
+assert listing["parent"] == home["path"], listing["parent"]
+api("POST", f"/api/v1/servers/{sid}/files/rename", {"from": folder + "/up.txt", "to": folder + "/renamed.txt"})
+try:
+    api("POST", f"/api/v1/servers/{sid}/files/rename", {"from": folder + "/renamed.txt", "to": folder + "/renamed.txt"})
+    raise AssertionError("rename onto itself accepted")
+except urllib.error.HTTPError as e:
+    assert e.code == 409, e.code
+try:
+    api("DELETE", f"/api/v1/servers/{sid}/files{qp(folder)}")
+    raise AssertionError("non-empty folder deleted")
+except urllib.error.HTTPError as e:
+    assert e.code == 409, e.code
+api("DELETE", f"/api/v1/servers/{sid}/files{qp(folder + '/renamed.txt')}")
+api("DELETE", f"/api/v1/servers/{sid}/files{qp(folder)}")
+try:
+    api("GET", f"/api/v1/servers/{sid}/files{qp(folder)}")
+    raise AssertionError("deleted folder still listed")
+except urllib.error.HTTPError as e:
+    assert e.code == 404, e.code
+try:
+    api("GET", f"/api/v1/servers/{sid}/files?path=relative")
+    raise AssertionError("relative path accepted")
+except urllib.error.HTTPError as e:
+    assert e.code == 400, e.code
+print("sftp mkdir/upload/download/rename/delete ok")
+
 # Local servers can no longer be created
 try:
     api("POST", "/api/v1/servers", {"name": f"e2e local {RUN}", "is_local": True, "port": 22})
