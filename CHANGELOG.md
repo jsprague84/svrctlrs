@@ -10,6 +10,9 @@ the release workflow uses the matching section as the release notes.
   ECH and certificate-decompression issues); the CI audit gate caught them.
 
 ### Fixed
+- The command palette now honours a quick command's **Available on** server: a snippet saved for
+  one server is listed only while a tab on that server is active. The setting was stored but
+  never applied.
 - Creating or renaming a credential or server to a name that is already taken answers
   `409 CONFLICT` with "A credential/server with that name already exists" instead of a generic
   500. Other database write failures now carry the driver's reason in the message.
@@ -29,6 +32,9 @@ the release workflow uses the matching section as the release notes.
 - The `--config <toml>` flag and `config/example.toml`. The file was parsed and then never
   read: servers and credentials have lived in the database since 3.0. The unused monitoring-era
   `Server`/`ServerStatus`/`MetricValue` types in `svrctlrs-core` went with it.
+- The never-populated `quick_commands` JSON column on terminal profiles is no longer read or
+  written (quick commands have had their own table since migration 019; the column stays in
+  the schema until the migrations are squashed). Profile JSON no longer includes it.
 
 ### Changed
 - **One SSH client.** `server/src/ssh.rs` (russh) now makes every connection: the shell, the

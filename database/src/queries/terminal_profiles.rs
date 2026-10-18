@@ -9,7 +9,7 @@ use crate::models::{CreateTerminalProfile, TerminalProfile, UpdateTerminalProfil
 pub async fn list_terminal_profiles(pool: &Pool<Sqlite>) -> Result<Vec<TerminalProfile>> {
     let profiles = sqlx::query_as::<_, TerminalProfile>(
         r#"
-        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, user_id,
+        SELECT id, name, description, layout, pane_configs, is_default, user_id,
                created_at, updated_at
         FROM terminal_profiles
         ORDER BY is_default DESC, name ASC
@@ -28,7 +28,7 @@ pub async fn list_terminal_profiles_for_user(
 ) -> Result<Vec<TerminalProfile>> {
     let profiles = sqlx::query_as::<_, TerminalProfile>(
         r#"
-        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, user_id,
+        SELECT id, name, description, layout, pane_configs, is_default, user_id,
                created_at, updated_at
         FROM terminal_profiles
         WHERE user_id = ? OR user_id IS NULL
@@ -54,7 +54,7 @@ pub async fn get_terminal_profile(
 ) -> Result<TerminalProfile> {
     sqlx::query_as::<_, TerminalProfile>(
         r#"
-        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, user_id,
+        SELECT id, name, description, layout, pane_configs, is_default, user_id,
                created_at, updated_at
         FROM terminal_profiles
         WHERE id = ? AND (user_id = ? OR user_id IS NULL)
@@ -75,7 +75,7 @@ pub async fn get_terminal_profile(
 pub async fn get_default_terminal_profile(pool: &Pool<Sqlite>) -> Result<Option<TerminalProfile>> {
     let profile = sqlx::query_as::<_, TerminalProfile>(
         r#"
-        SELECT id, name, description, layout, pane_configs, quick_commands, is_default, user_id,
+        SELECT id, name, description, layout, pane_configs, is_default, user_id,
                created_at, updated_at
         FROM terminal_profiles
         WHERE is_default = 1
@@ -107,24 +107,17 @@ pub async fn create_terminal_profile(
         .map(serde_json::to_string)
         .transpose()
         .context("Failed to serialize pane configs")?;
-    let quick_commands_json = profile
-        .quick_commands
-        .as_ref()
-        .map(serde_json::to_string)
-        .transpose()
-        .context("Failed to serialize quick commands")?;
 
     let result = sqlx::query(
         r#"
-        INSERT INTO terminal_profiles (name, description, layout, pane_configs, quick_commands, is_default, user_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO terminal_profiles (name, description, layout, pane_configs, is_default, user_id)
+        VALUES (?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&profile.name)
     .bind(&profile.description)
     .bind(&profile.layout)
     .bind(&pane_configs_json)
-    .bind(&quick_commands_json)
     .bind(profile.is_default)
     .bind(user_id)
     .execute(pool)
@@ -169,11 +162,6 @@ pub async fn update_terminal_profile(
         let json =
             serde_json::to_string(pane_configs).context("Failed to serialize pane configs")?;
         qb.push(", pane_configs = ").push_bind(json);
-    }
-    if let Some(quick_commands) = &update.quick_commands {
-        let json =
-            serde_json::to_string(quick_commands).context("Failed to serialize quick commands")?;
-        qb.push(", quick_commands = ").push_bind(json);
     }
     if let Some(is_default) = update.is_default {
         qb.push(", is_default = ").push_bind(is_default);
@@ -229,7 +217,6 @@ mod tests {
             description: None,
             layout: "single".to_string(),
             pane_configs: None,
-            quick_commands: None,
             is_default: false,
         }
     }

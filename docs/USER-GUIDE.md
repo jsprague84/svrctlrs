@@ -139,12 +139,13 @@ uploads, renames and deletions are recorded in the audit log.
 ## Command palette and quick commands
 
 `Ctrl+K` opens the palette: switch tabs, open servers, change layout, and run **quick
-commands** — your saved snippets (Settings → Quick Commands), grouped by category and
-optionally tied to one server. Running one types it into the focused pane.
+commands** — your saved snippets (Settings → Quick Commands), grouped by category. A command
+saved for one server only appears while a tab on that server is active. Running one types it
+into the focused pane followed by Enter, exactly as if you had typed it.
 
 ## Terminal profiles
 
-A profile saves a layout and which server (and mode) opens in each pane. Create one from the
+A profile saves a layout and which server opens in each pane. Create one from the
 current layout with the profile menu in the sidebar; mark one as **default** (Settings →
 General) to open it automatically when the app starts.
 

@@ -78,7 +78,7 @@ does not pull in Tauri's GTK/WebKit dependencies.
 | `servers` | name, hostname, port, username, `credential_id`, `is_local`, `enabled`, detected OS facts, `last_seen_at`, `last_error` |
 | `credentials` | name, type (`password`, `ssh_key`, …), encrypted `value`, optional `username`, JSON `metadata`, `encrypted` flag |
 | `server_host_keys` | `(server_id, key_type)` → public key, first/last seen |
-| `terminal_profiles` | per-user layout + pane configs (`server_id`, `mode` per pane), `is_default` |
+| `terminal_profiles` | per-user layout + pane configs (`server_id` per pane), `is_default`; the unused `quick_commands` column from 014 is no longer read |
 | `quick_commands` | per-user snippets: name, command, optional `server_id`, category, sort order |
 | `settings` | key/value with `value_type`; `notification.*` and `app.default_profile_id` are seeded |
 | `audit_log` | who did what: user, client address, action, target, JSON details; pruned after 180 days |

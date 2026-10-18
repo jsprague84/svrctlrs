@@ -139,7 +139,7 @@ Seeded keys: `notification.enabled`, `notification.provider` (`gotify` \| `ntfy`
 | Method | Path | Body |
 |---|---|---|
 | GET | `/profiles` | — |
-| POST | `/profiles` | `name`, `layout` (`single` \| `split-h` \| `split-v` \| `quad`), `description?`, `pane_configs?` (array of `{server_id?, mode?}`), `is_default` |
+| POST | `/profiles` | `name`, `layout` (`single` \| `split-h` \| `split-v` \| `quad`), `description?`, `pane_configs?` (array of `{server_id?}`; a legacy `mode` key is accepted and ignored), `is_default` |
 | GET / PUT / DELETE | `/profiles/{id}` | PUT takes any subset |
 
 ## Quick commands (per user)

@@ -68,8 +68,10 @@
 	let items = $derived.by(() => {
 		const result: PaletteItem[] = [];
 
-		// Quick commands
+		// Quick commands: those for every server, plus the ones saved for the active tab's server
+		const activeServerId = terminalState.getActiveTab()?.serverId ?? null;
 		for (const cmd of commands) {
+			if (cmd.server_id !== null && cmd.server_id !== activeServerId) continue;
 			result.push({
 				id: `cmd-${cmd.id}`,
 				name: cmd.name,

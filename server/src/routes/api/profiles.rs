@@ -103,7 +103,6 @@ async fn create_profile(
         description: input.description,
         layout: input.layout,
         pane_configs: input.pane_configs,
-        quick_commands: None,
         is_default: input.is_default,
     };
 
@@ -148,7 +147,6 @@ async fn update_profile(
         description: input.description,
         layout: input.layout,
         pane_configs: input.pane_configs,
-        quick_commands: None,
         is_default: input.is_default,
     };
 

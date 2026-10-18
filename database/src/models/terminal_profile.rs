@@ -12,37 +12,12 @@ pub struct TerminalProfile {
     pub name: String,
     pub description: Option<String>,
     pub layout: String,
-    pub pane_configs: Option<String>,   // JSON string
-    pub quick_commands: Option<String>, // JSON string (legacy, use quick_commands table instead)
+    /// JSON array of `{server_id}` objects, one per pane; opaque to the server
+    pub pane_configs: Option<String>,
     pub is_default: bool,
     pub user_id: Option<i64>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-}
-
-impl TerminalProfile {
-    /// Parse pane_configs JSON into structured data
-    pub fn get_pane_configs(&self) -> Vec<PaneConfig> {
-        self.pane_configs
-            .as_ref()
-            .and_then(|json| serde_json::from_str(json).ok())
-            .unwrap_or_default()
-    }
-
-    /// Parse quick_commands JSON into a list
-    pub fn get_quick_commands(&self) -> Vec<String> {
-        self.quick_commands
-            .as_ref()
-            .and_then(|json| serde_json::from_str(json).ok())
-            .unwrap_or_default()
-    }
-}
-
-/// Pane configuration for a terminal profile
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PaneConfig {
-    pub server_id: Option<i64>,
-    pub mode: Option<String>,
 }
 
 /// Create a new terminal profile
@@ -52,7 +27,6 @@ pub struct CreateTerminalProfile {
     pub description: Option<String>,
     pub layout: String,
     pub pane_configs: Option<JsonValue>,
-    pub quick_commands: Option<JsonValue>,
     pub is_default: bool,
 }
 
@@ -63,7 +37,6 @@ impl Default for CreateTerminalProfile {
             description: None,
             layout: "single".to_string(),
             pane_configs: None,
-            quick_commands: None,
             is_default: false,
         }
     }
@@ -76,6 +49,5 @@ pub struct UpdateTerminalProfile {
     pub description: Option<String>,
     pub layout: Option<String>,
     pub pane_configs: Option<JsonValue>,
-    pub quick_commands: Option<JsonValue>,
     pub is_default: Option<bool>,
 }
