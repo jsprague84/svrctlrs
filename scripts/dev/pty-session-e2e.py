@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """End-to-end check of persistent PTY sessions against a running server.
 
-Needs a server started with a short TTL and an SSH target the given key can log in to:
+`scripts/dev/run-e2e.sh` starts the server and runs this twice. By hand, it needs a server
+started with a short TTL and an SSH target the given key can log in to:
 
     DATABASE_URL=sqlite:/tmp/e2e.db ADMIN_USERNAME=admin ADMIN_PASSWORD=e2e-password-123456 \
     ENCRYPTION_KEY=$(openssl rand -hex 32) SESSION_SECURE=false SESSION_DETACH_TTL_SECS=3 \

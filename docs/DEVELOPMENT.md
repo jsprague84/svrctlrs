@@ -51,10 +51,20 @@ Tests today: 74 Rust tests across `core`, `database` and `server` (auth middlewa
 limiter, tickets, session registry and replay ring, svrctl backup) and 11 Vitest tests in the
 UI. Security-relevant changes come with tests.
 
-`scripts/dev/pty-session-e2e.py` drives the persistent-session protocol end to end (shell,
-dropped socket, reattach with replay, `closed`, `session_gone`, TTL) against a locally running
-server and a real SSH target; its docstring has the exact invocation. Run it after touching
-`sessions.rs`, `terminal_pty.rs` or the pane's attach logic.
+`scripts/dev/pty-session-e2e.py` drives the SSH and session paths end to end against a locally
+running server and a real SSH target: first-contact host-key confirmation, the connection
+test, a jump host (the target through itself), SFTP, tags, `ssh_config` import, the startup
+command, then the persistent-session protocol (shell, dropped socket, reattach with replay,
+`closed`, `session_gone`, TTL). `scripts/dev/run-e2e.sh` starts a throwaway debug server and
+runs both frame formats:
+
+```bash
+cargo build -p server && (cd ui && npm run build)
+E2E_SSH_HOST=10.0.0.5 E2E_SSH_USER=ubuntu E2E_SSH_KEY=~/.ssh/id_ed25519 scripts/dev/run-e2e.sh
+```
+
+Run it after touching `ssh.rs`, `sessions.rs`, `terminal_pty.rs`, the servers API or the
+pane's attach logic. CI cannot run it (no SSH target); say in the commit that it passed.
 
 ## Repository layout
 
