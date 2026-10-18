@@ -75,14 +75,7 @@ async fn authorize_key(
     use svrctlrs_database::queries::credentials;
 
     let server = servers::get_server(&state.pool, id).await?;
-    if server.is_local {
-        return Err(ApiError::bad_request("A local server needs no SSH key"));
-    }
-    let hostname = server
-        .hostname
-        .clone()
-        .filter(|h| !h.is_empty())
-        .ok_or_else(|| ApiError::bad_request("Server has no hostname configured"))?;
+    let hostname = server.hostname.clone();
     let port = u16::try_from(server.port)
         .map_err(|_| ApiError::bad_request("Server port is out of range"))?;
 
@@ -295,6 +288,7 @@ struct CreateServerInput {
     credential_id: Option<i64>,
     #[serde(default)]
     description: Option<String>,
+    /// Retired with command mode; `true` is refused so old clients get a clear answer.
     #[serde(default)]
     is_local: bool,
     #[serde(default = "default_enabled")]
@@ -327,14 +321,16 @@ async fn create_server(
 
     let create = CreateServer {
         name: input.name,
-        hostname: input.hostname,
+        hostname: input
+            .hostname
+            .map(|h| h.trim().to_string())
+            .filter(|h| !h.is_empty())
+            .ok_or_else(|| ApiError::bad_request("A server needs a hostname"))?,
         port: input.port,
         username: input.username,
         credential_id: input.credential_id,
         description: input.description,
-        is_local: input.is_local,
         enabled: input.enabled,
-        metadata: None,
     };
 
     let id = servers::create_server(&state.pool, &create).await?;
@@ -399,12 +395,6 @@ async fn update_server(
         credential_id: input.credential_id,
         description: input.description,
         enabled: input.enabled,
-        os_type: None,
-        os_distro: None,
-        package_manager: None,
-        docker_available: None,
-        systemd_available: None,
-        metadata: None,
         last_error: None,
     };
 

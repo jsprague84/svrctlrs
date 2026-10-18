@@ -89,7 +89,7 @@
 			result.push({
 				id: `server-${server.id}`,
 				name: `Connect: ${server.name}`,
-				detail: server.hostname ?? 'local',
+				detail: server.hostname,
 				category: 'action',
 				action: () => {
 					onConnectServer?.(server.id, server.name);

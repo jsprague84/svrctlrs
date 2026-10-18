@@ -126,7 +126,7 @@ mod tests {
 
         // Create a test server (non-local requires hostname + username per CHECK constraint)
         sqlx::query(
-            "INSERT INTO servers (name, hostname, port, username, is_local, enabled) VALUES ('test-server', 'test.example.com', 22, 'root', 0, 1)"
+            "INSERT INTO servers (name, hostname, port, username, enabled) VALUES ('test-server', 'test.example.com', 22, 'root', 1)"
         )
         .execute(&pool)
         .await

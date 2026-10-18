@@ -72,17 +72,16 @@ a failure reported with its header can be found in `docker logs` directly.
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | GET | `/servers` | — | list |
-| POST | `/servers` | `name`, `hostname?`, `port` (default 22), `username?`, `credential_id?`, `description?`, `enabled` (bool), `metadata?` (object) | `is_local: true` is refused with 400: local shells were retired, SvrCtlRS connects over SSH only |
+| POST | `/servers` | `name`, `hostname`, `port` (default 22), `username?` (default: the credential's user, else `root`), `credential_id?`, `description?`, `enabled` (bool) | `is_local: true` is refused with 400: local shells were retired, SvrCtlRS connects over SSH only |
 | GET | `/servers/{id}` | — | |
-| PUT | `/servers/{id}` | any subset of the create fields plus `os_type?`, `os_distro?` | omitted fields are kept; `""` clears `hostname`/`username`/`description`; `credential_id: null` unassigns the credential |
+| PUT | `/servers/{id}` | any subset of the create fields | omitted fields are kept; `""` clears `username`/`description`; `credential_id: null` unassigns the credential |
 | DELETE | `/servers/{id}` | — | |
 | POST | `/servers/{id}/test` | — | verifies the host key (trust on first use), authenticates with the server's credential and runs a trivial command; returns `success`, `message`, `latency_ms` |
 | GET | `/servers/{id}/host-keys` | — | stored host keys: `id`, `key_type`, `fingerprint` (`SHA256:…`, OpenSSH style), `first_seen_at`, `last_seen_at` — never the key itself |
 | DELETE | `/servers/{id}/host-keys` | — | forget every stored key; the next connection trusts what it sees. Returns `removed` |
 | POST | `/servers/{id}/authorize-key` | `credential_id` (an `ssh_key` with key material) plus `password` (one-time, never stored) or `bootstrap_credential_id` | installs the public key in `~/.ssh/authorized_keys` over the bootstrap login, verifies the key logs in, sets it as the server's credential. 400 with the reason otherwise |
 
-Server object: `id, name, hostname, port, username, credential_id, description, is_local,
-enabled, os_type, os_distro, package_manager, docker_available, systemd_available, metadata,
+Server object: `id, name, hostname, port, username, credential_id, description, enabled,
 last_seen_at, last_error, created_at, updated_at`.
 
 ## Files (SFTP)

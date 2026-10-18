@@ -64,10 +64,7 @@ async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyho
 
     // Load all enabled servers
     let all_servers = servers::list_servers(&state.pool).await?;
-    let enabled_servers: Vec<_> = all_servers
-        .into_iter()
-        .filter(|s| s.enabled && !s.is_local)
-        .collect();
+    let enabled_servers: Vec<_> = all_servers.into_iter().filter(|s| s.enabled).collect();
 
     if enabled_servers.is_empty() {
         debug!("No enabled remote servers to check");
@@ -87,7 +84,7 @@ async fn run_health_check(state: &AppState, health_state: &HealthState) -> anyho
     let mut state_map = health_state.write().await;
     for (server, reachable) in results {
         let previous = state_map.get(&server.id).copied();
-        let hostname = server.hostname.as_deref().unwrap_or("unknown");
+        let hostname = server.hostname.as_str();
 
         // What the Servers page shows: when the host last answered, and why it did not.
         if reachable {
@@ -159,10 +156,10 @@ async fn test_server_reachable(server: &svrctlrs_database::models::Server) -> bo
     use tokio::net::TcpStream;
     use tokio::time::timeout;
 
-    let Some(hostname) = server.hostname.as_deref().filter(|h| !h.is_empty()) else {
+    if server.hostname.trim().is_empty() {
         return false;
-    };
-    let addr = format!("{}:{}", hostname, server.port);
+    }
+    let addr = format!("{}:{}", server.hostname.trim(), server.port);
     matches!(
         timeout(Duration::from_secs(5), TcpStream::connect(&addr)).await,
         Ok(Ok(_))

@@ -53,7 +53,7 @@
 	let loading = $derived(credState.isLoading());
 	let credError = $derived(credState.getError());
 	let servers = $derived(serversState.getServers());
-	let remoteServers = $derived(servers.filter((s) => !s.is_local));
+	let remoteServers = $derived(servers);
 	let shown = $derived(
 		(filter === 'all'
 			? credentials

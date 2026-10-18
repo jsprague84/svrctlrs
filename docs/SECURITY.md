@@ -116,8 +116,8 @@ Ordered by impact. Each has a ROADMAP entry.
    handshake and supports password credentials.
 7. ~~**`local` servers are container RCE for any user**~~ — fixed 2026-10-18: command mode,
    the only path that executed anything locally, is gone. `POST /servers` refuses
-   `is_local: true` (400) and the SSH client refuses to connect to a legacy local row; the
-   column stays for existing databases.
+   `is_local: true` (400); since the migration baseline (2026-10-18) the model has no local
+   flag at all, and legacy local rows are disabled with `hostname = 'localhost'`.
 8. **No roles, no 2FA** — every user is equal and can manage accounts (single-user today;
    roles, TOTP/passkeys and OIDC are "maybe later" in `ROADMAP.md`, required before the app is
    offered to other people). Login attempts are

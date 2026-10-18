@@ -645,9 +645,7 @@
 				{:else}
 					<option value={null}>Select server...</option>
 					{#each servers as server (server.id)}
-						<option value={server.id}
-							>{server.name}{server.hostname ? ` (${server.hostname})` : ''}</option
-						>
+						<option value={server.id}>{server.name} ({server.hostname})</option>
 					{/each}
 				{/if}
 			</select>

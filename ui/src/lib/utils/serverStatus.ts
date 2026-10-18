@@ -21,7 +21,6 @@ export const ONLINE_WINDOW_MS = 15 * 60 * 1000;
  */
 export function serverStatus(server: Server, now: Date = new Date()): ServerStatus {
 	if (!server.enabled) return { kind: 'disabled', label: 'Disabled', dot: 'bg-text-muted' };
-	if (server.is_local) return { kind: 'online', label: 'Local', dot: 'bg-success' };
 	if (server.last_error) {
 		return { kind: 'unreachable', label: `Unreachable: ${server.last_error}`, dot: 'bg-error' };
 	}

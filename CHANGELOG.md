@@ -41,6 +41,14 @@ the release workflow uses the matching section as the release notes.
   the schema until the migrations are squashed). Profile JSON no longer includes it.
 
 ### Changed
+- **Migration baseline.** A fresh database now runs one `100_baseline.sql` instead of
+  replaying the 24 migrations of the plugin, job and command-mode eras. Existing databases
+  finish the old chain (now frozen in `database/migrations-legacy/`, with a final `024` that
+  disables retired local servers, gives them `hostname = 'localhost'`, and drops the columns
+  nothing reads) and are marked as being at the baseline; nothing to do on upgrade. The
+  `servers` model lost `is_local`, the detected-OS facts and `metadata`; the API's server
+  object no longer carries them, `hostname` is always present, and `POST /servers` requires
+  it.
 - `svrctlrs_core::Error` is typed by kind (`NotFound`, `Conflict`, `InvalidInput`, `Database`
   with its cause chain, `Encryption`, `Config`, `Notification`, `Other`) and the API's
   `ApiError` implements `IntoResponse` with `From` conversions, so handlers propagate query

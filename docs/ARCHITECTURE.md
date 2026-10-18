@@ -77,17 +77,23 @@ does not pull in Tauri's GTK/WebKit dependencies.
 |---|---|
 | `users` | username, argon2 hash |
 | `tower_sessions` | session records (managed by the store) |
-| `servers` | name, hostname, port, username, `credential_id`, `is_local`, `enabled`, detected OS facts, `last_seen_at`, `last_error` |
+| `servers` | name, hostname, port, username (NULL = the credential's user, else root), `credential_id`, `enabled`, `last_seen_at`, `last_error` |
 | `credentials` | name, type (`password`, `ssh_key`, …), encrypted `value`, optional `username`, JSON `metadata`, `encrypted` flag |
 | `server_host_keys` | `(server_id, key_type)` → public key, first/last seen |
-| `terminal_profiles` | per-user layout + pane configs (`server_id` per pane), `is_default`; the unused `quick_commands` column from 014 is no longer read |
+| `terminal_profiles` | per-user layout + pane configs (`server_id` per pane), `is_default` |
 | `quick_commands` | per-user snippets: name, command, optional `server_id`, category, sort order |
 | `settings` | key/value with `value_type`; `notification.*` and `app.default_profile_id` are seeded |
 | `audit_log` | who did what: user, client address, action, target, JSON details; pruned after 180 days |
 
-Migrations `000`–`015` built and then dropped two earlier schemas (the plugin and job
-systems); `016`–`023` are the current product. A fresh database replays all of them. They are
-embedded with `sqlx::migrate!` and checksummed, so never edit a shipped migration.
+Two migration chains are embedded (`database/src/lib.rs::run_migrations`). A fresh database
+runs `database/migrations/`: `100_baseline.sql`, the clean schema above, and whatever follows
+it. A database created before the baseline carries `_sqlx_migrations` rows below 100; it
+finishes the frozen legacy chain in `database/migrations-legacy/` (`000`–`015` built and
+dropped the plugin and job schemas, `016`–`023` grew the current product, `024` converges on
+the baseline shape: retired local servers disabled, dead columns dropped) and is then marked
+as having `100` applied, so later migrations apply to both kinds alike. Such a database keeps
+one vestige, `servers.is_local`, because a CHECK constraint references it; nothing reads it.
+Migrations are checksummed, so never edit one that has shipped.
 
 ## Frontend (`ui/`)
 

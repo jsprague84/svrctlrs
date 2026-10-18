@@ -12,8 +12,7 @@ use crate::models::{CreateServer, Server, UpdateServer};
 pub async fn list_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, description, is_local, enabled,
-               os_type, os_distro, package_manager, docker_available, systemd_available, metadata,
+        SELECT id, name, hostname, port, username, credential_id, description, enabled,
                last_seen_at, last_error, created_at, updated_at
         FROM servers
         ORDER BY name
@@ -30,8 +29,7 @@ pub async fn list_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
 pub async fn get_server(pool: &Pool<Sqlite>, id: i64) -> Result<Server> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, description, is_local, enabled,
-               os_type, os_distro, package_manager, docker_available, systemd_available, metadata,
+        SELECT id, name, hostname, port, username, credential_id, description, enabled,
                last_seen_at, last_error, created_at, updated_at
         FROM servers
         WHERE id = ?
@@ -50,8 +48,7 @@ pub async fn get_server(pool: &Pool<Sqlite>, id: i64) -> Result<Server> {
 pub async fn get_server_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<Server> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, description, is_local, enabled,
-               os_type, os_distro, package_manager, docker_available, systemd_available, metadata,
+        SELECT id, name, hostname, port, username, credential_id, description, enabled,
                last_seen_at, last_error, created_at, updated_at
         FROM servers
         WHERE name = ?
@@ -65,40 +62,16 @@ pub async fn get_server_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<Serve
     .ok_or_else(|| Error::NotFound(format!("server {name:?}")))
 }
 
-/// Get all servers with a specific tag
-#[instrument(skip(pool))]
-pub async fn get_servers_by_tag(pool: &Pool<Sqlite>, tag_id: i64) -> Result<Vec<Server>> {
-    sqlx::query_as::<_, Server>(
-        r#"
-        SELECT s.id, s.name, s.hostname, s.port, s.username, s.credential_id, s.description,
-               s.is_local, s.enabled, s.os_type, s.os_distro, s.package_manager,
-               s.docker_available, s.systemd_available, s.metadata, s.last_seen_at, s.last_error,
-               s.created_at, s.updated_at
-        FROM servers s
-        JOIN server_tags st ON s.id = st.server_id
-        WHERE st.tag_id = ?
-        ORDER BY s.name
-        "#,
-    )
-    .bind(tag_id)
-    .fetch_all(pool)
-    .await
-    .context("Failed to get servers by tag")
-    .map_err(Error::Database)
-}
-
-/// Create a new server with capability detection
+/// Create a new server
 #[instrument(skip(pool, input))]
 pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<i64> {
     // Validate input
-    input
-        .validate()
-        .map_err(|e| Error::Database(anyhow::anyhow!("Validation error: {}", e)))?;
+    input.validate().map_err(Error::InvalidInput)?;
 
     let result = sqlx::query(
         r#"
-        INSERT INTO servers (name, hostname, port, username, credential_id, description, is_local, enabled, metadata)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO servers (name, hostname, port, username, credential_id, description, enabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&input.name)
@@ -107,9 +80,7 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
     .bind(&input.username)
     .bind(input.credential_id)
     .bind(&input.description)
-    .bind(input.is_local)
     .bind(input.enabled)
-    .bind(input.metadata_string())
     .execute(pool)
     .await
     .map_err(super::write_error("server", "create"))?;
@@ -155,26 +126,6 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
     }
     if let Some(enabled) = input.enabled {
         qb.push(", enabled = ").push_bind(enabled);
-    }
-    if let Some(os_type) = &input.os_type {
-        qb.push(", os_type = ").push_bind(os_type.clone());
-    }
-    if let Some(os_distro) = &input.os_distro {
-        qb.push(", os_distro = ").push_bind(os_distro.clone());
-    }
-    if let Some(package_manager) = &input.package_manager {
-        qb.push(", package_manager = ")
-            .push_bind(package_manager.clone());
-    }
-    if let Some(docker_available) = input.docker_available {
-        qb.push(", docker_available = ").push_bind(docker_available);
-    }
-    if let Some(systemd_available) = input.systemd_available {
-        qb.push(", systemd_available = ")
-            .push_bind(systemd_available);
-    }
-    if let Some(metadata) = input.metadata_string() {
-        qb.push(", metadata = ").push_bind(metadata);
     }
     if let Some(last_error) = &input.last_error {
         qb.push(", last_error = ").push_bind(last_error.clone());
@@ -246,8 +197,7 @@ pub async fn update_server_status(
 pub async fn list_enabled_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
-        SELECT id, name, hostname, port, username, credential_id, description, is_local, enabled,
-               os_type, os_distro, package_manager, docker_available, systemd_available, metadata,
+        SELECT id, name, hostname, port, username, credential_id, description, enabled,
                last_seen_at, last_error, created_at, updated_at
         FROM servers
         WHERE enabled = 1
@@ -274,14 +224,12 @@ mod tests {
     fn host(name: &str) -> CreateServer {
         CreateServer {
             name: name.to_string(),
-            hostname: Some("10.0.0.9".to_string()),
+            hostname: "10.0.0.9".to_string(),
             port: 22,
             username: Some("root".to_string()),
             credential_id: None,
             description: None,
-            is_local: false,
             enabled: true,
-            metadata: None,
         }
     }
 
@@ -309,14 +257,12 @@ mod tests {
         // Create server
         let input = CreateServer {
             name: "test-server".to_string(),
-            hostname: Some("192.168.1.100".to_string()),
+            hostname: "192.168.1.100".to_string(),
             port: 22,
             username: Some("admin".to_string()),
             credential_id: None,
             description: Some("Test server".to_string()),
-            is_local: false,
             enabled: true,
-            metadata: None,
         };
 
         let id = create_server(&pool, &input).await.unwrap();
@@ -325,23 +271,19 @@ mod tests {
         // Get server
         let server = get_server(&pool, id).await.unwrap();
         assert_eq!(server.name, "test-server");
-        assert_eq!(server.hostname, Some("192.168.1.100".to_string()));
+        assert_eq!(server.hostname, "192.168.1.100");
 
         // Update server
         let update = UpdateServer {
             description: Some("Updated description".to_string()),
-            os_type: Some("linux".to_string()),
-            os_distro: Some("ubuntu".to_string()),
-            package_manager: Some("apt".to_string()),
-            docker_available: Some(true),
+            port: Some(2222),
             ..Default::default()
         };
         update_server(&pool, id, &update).await.unwrap();
 
         let server = get_server(&pool, id).await.unwrap();
         assert_eq!(server.description, Some("Updated description".to_string()));
-        assert_eq!(server.os_type, Some("linux".to_string()));
-        assert!(server.docker_available);
+        assert_eq!(server.port, 2222);
 
         // Delete server
         delete_server(&pool, id).await.unwrap();
@@ -375,7 +317,7 @@ pub struct ServerWithDetails {
     pub credential_name: Option<String>,
 }
 
-/// List all servers with credential names, tags, and capabilities (optimized for display)
+/// List all servers with their credential names (for display)
 #[instrument(skip(pool))]
 pub async fn list_servers_with_details(pool: &Pool<Sqlite>) -> Result<Vec<ServerWithDetails>> {
     let servers = list_servers(pool).await?;
@@ -410,7 +352,7 @@ pub async fn list_servers_with_details(pool: &Pool<Sqlite>) -> Result<Vec<Server
     Ok(result)
 }
 
-/// Get a single server by ID with credential name, tags, and capabilities
+/// Get a single server by ID with its credential name
 #[instrument(skip(pool))]
 pub async fn get_server_with_details(pool: &Pool<Sqlite>, id: i64) -> Result<ServerWithDetails> {
     let server = get_server(pool, id).await?;

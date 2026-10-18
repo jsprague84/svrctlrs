@@ -177,9 +177,6 @@
 								<span class="w-1.5 h-1.5 rounded-full flex-shrink-0 {serverStatus(server).dot}"
 								></span>
 								<span class="truncate">{server.name}</span>
-								{#if server.is_local}
-									<span class="text-[9px] text-sidebar-muted ml-auto">local</span>
-								{/if}
 							</button>
 						{/each}
 					</div>

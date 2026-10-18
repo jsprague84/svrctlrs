@@ -34,21 +34,12 @@ impl Target {
 }
 
 /// Resolve the address and user for a server: the server's username, else the credential's
-/// default, else `root`. Refuses servers that cannot be reached over SSH.
+/// default, else `root`.
 pub fn target(server: &Server, credential: Option<&Credential>) -> Result<Target, String> {
-    if server.is_local {
-        return Err(
-            "Local servers are not supported: SvrCtlRS connects over SSH only. Give \
-                    this server a hostname (localhost works) and a credential instead."
-                .to_string(),
-        );
+    let hostname = server.hostname.trim();
+    if hostname.is_empty() {
+        return Err("Server has no hostname configured".to_string());
     }
-    let hostname = server
-        .hostname
-        .as_deref()
-        .map(str::trim)
-        .filter(|h| !h.is_empty())
-        .ok_or_else(|| "Server has no hostname configured".to_string())?;
     let port = u16::try_from(server.port).map_err(|_| "Server port is out of range".to_string())?;
     let username = server
         .username
@@ -331,23 +322,16 @@ pub async fn run(
 mod tests {
     use super::*;
 
-    fn server(hostname: Option<&str>, username: Option<&str>, is_local: bool) -> Server {
+    fn server(hostname: &str, username: Option<&str>) -> Server {
         Server {
             id: 1,
             name: "web".into(),
-            hostname: hostname.map(String::from),
+            hostname: hostname.into(),
             port: 22,
             username: username.map(String::from),
             credential_id: None,
             description: None,
-            is_local,
             enabled: true,
-            os_type: None,
-            os_distro: None,
-            package_manager: None,
-            docker_available: false,
-            systemd_available: false,
-            metadata: None,
             last_seen_at: None,
             last_error: None,
             created_at: chrono::Utc::now(),
@@ -381,11 +365,11 @@ mod tests {
 
     #[test]
     fn target_prefers_the_servers_user_then_the_credentials_then_root() {
-        let s = server(Some(" host.example "), Some("ops"), false);
+        let s = server(" host.example ", Some("ops"));
         let t = target(&s, Some(&credential(Some("deploy")))).unwrap();
         assert_eq!(t.login(), "ops@host.example:22");
 
-        let s = server(Some("host.example"), None, false);
+        let s = server("host.example", None);
         assert_eq!(
             target(&s, Some(&credential(Some("deploy"))))
                 .unwrap()
@@ -400,12 +384,10 @@ mod tests {
     }
 
     #[test]
-    fn target_refuses_local_servers_and_missing_hostnames() {
-        let err = target(&server(Some("x"), None, true), None).unwrap_err();
-        assert!(err.contains("Local servers are not supported"), "{err}");
-        assert!(target(&server(None, None, false), None).is_err());
-        assert!(target(&server(Some("  "), None, false), None).is_err());
-        let mut s = server(Some("x"), None, false);
+    fn target_refuses_missing_hostnames_and_bad_ports() {
+        assert!(target(&server("", None), None).is_err());
+        assert!(target(&server("  ", None), None).is_err());
+        let mut s = server("x", None);
         s.port = 70000;
         assert!(target(&s, None).unwrap_err().contains("port"));
     }

@@ -239,9 +239,7 @@
 									<span class="flex-1 min-w-0">
 										<span class="block text-sm text-text-primary truncate">{server.name}</span>
 										<span class="block text-[11px] text-text-muted truncate font-mono">
-											{server.is_local
-												? 'local'
-												: `${server.username ?? 'root'}@${server.hostname ?? '—'}`}
+											{server.username ?? 'root'}@{server.hostname}
 										</span>
 									</span>
 								</button>

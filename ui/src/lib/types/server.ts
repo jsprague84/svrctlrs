@@ -1,19 +1,13 @@
 export interface Server {
 	id: number;
 	name: string;
-	hostname: string | null;
+	hostname: string;
 	port: number;
+	/** null means the credential's user, else root */
 	username: string | null;
 	credential_id: number | null;
 	description: string | null;
-	is_local: boolean;
 	enabled: boolean;
-	os_type: string | null;
-	os_distro: string | null;
-	package_manager: string | null;
-	docker_available: boolean;
-	systemd_available: boolean;
-	metadata: string | null;
 	last_seen_at: string | null;
 	last_error: string | null;
 	created_at: string;
@@ -31,14 +25,12 @@ export interface HostKey {
 
 export interface CreateServer {
 	name: string;
-	hostname?: string;
+	hostname: string;
 	port?: number;
 	username?: string;
 	credential_id?: number;
 	description?: string;
-	is_local?: boolean;
 	enabled?: boolean;
-	tag_ids?: number[];
 }
 
 /** Omitted fields are kept; empty strings clear text fields; `credential_id: null` unassigns. */
@@ -50,14 +42,13 @@ export interface UpdateServer {
 	credential_id?: number | null;
 	description?: string;
 	enabled?: boolean;
-	tag_ids?: number[];
 }
 
 export interface TestConnectionResult {
 	success: boolean;
 	message: string;
 	server_id: number;
-	hostname: string | null;
+	hostname: string;
 	port: number;
 	latency_ms?: number;
 }

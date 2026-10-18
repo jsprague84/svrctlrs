@@ -56,7 +56,6 @@
 	let username = $state('');
 	let credentialId = $state<string>('');
 	let description = $state('');
-	let isLocal = $state(false);
 	let enabled = $state(true);
 
 	let servers = $derived(serversState.getServers());
@@ -70,7 +69,7 @@
 		const q = search.trim().toLowerCase();
 		const list = q
 			? servers.filter((s) =>
-					[s.name, s.hostname ?? '', s.username ?? '', s.description ?? '']
+					[s.name, s.hostname, s.username ?? '', s.description ?? '']
 						.join(' ')
 						.toLowerCase()
 						.includes(q)
@@ -78,9 +77,7 @@
 			: servers;
 		return [...list].sort((a, b) => a.name.localeCompare(b.name));
 	});
-	let formError = $derived(
-		!isLocal && !hostname.trim() && name.trim() ? 'A remote server needs a hostname' : ''
-	);
+	let formError = $derived(!hostname.trim() && name.trim() ? 'A server needs a hostname' : '');
 
 	onMount(() => {
 		serversState.loadServers();
@@ -94,7 +91,6 @@
 		username = '';
 		credentialId = '';
 		description = '';
-		isLocal = false;
 		enabled = true;
 		editingId = null;
 	}
@@ -107,12 +103,11 @@
 	function openEdit(server: Server) {
 		editingId = server.id;
 		name = server.name;
-		hostname = server.hostname ?? '';
+		hostname = server.hostname;
 		port = server.port;
 		username = server.username ?? '';
 		credentialId = server.credential_id ? String(server.credential_id) : '';
 		description = server.description ?? '';
-		isLocal = server.is_local;
 		enabled = server.enabled;
 		showModal = true;
 	}
@@ -125,10 +120,10 @@
 				// Empty strings and null clear a field; the API keeps a field only when it is absent
 				const input: UpdateServer = {
 					name: name.trim(),
-					hostname: isLocal ? undefined : hostname.trim(),
+					hostname: hostname.trim(),
 					port,
-					username: isLocal ? undefined : username.trim(),
-					credential_id: isLocal ? undefined : credentialId ? Number(credentialId) : null,
+					username: username.trim(),
+					credential_id: credentialId ? Number(credentialId) : null,
 					description: description.trim(),
 					enabled
 				};
@@ -137,19 +132,18 @@
 			} else {
 				const input: CreateServer = {
 					name: name.trim(),
-					hostname: isLocal ? undefined : hostname.trim() || undefined,
+					hostname: hostname.trim(),
 					port,
-					username: isLocal ? undefined : username.trim() || undefined,
-					credential_id: isLocal ? undefined : credentialId ? Number(credentialId) : undefined,
+					username: username.trim() || undefined,
+					credential_id: credentialId ? Number(credentialId) : undefined,
 					description: description.trim() || undefined,
-					is_local: isLocal,
 					enabled
 				};
 				const id = await serversState.createServer(input);
 				toast.success('Server created');
 				// The natural next step for a remote server without a key: install one
 				const created = serversState.getServers().find((s) => s.id === id);
-				if (created && !created.is_local && !created.credential_id) {
+				if (created && !created.credential_id) {
 					showModal = false;
 					authServer = created;
 					return;
@@ -166,7 +160,7 @@
 	async function handleDelete(server: Server) {
 		const ok = await confirmDialog({
 			title: `Delete ${server.name}?`,
-			message: `The server entry${server.hostname ? ` (${server.hostname})` : ''} and its stored host keys are removed. Open terminals to it are closed. Credentials are kept.`,
+			message: `The server entry (${server.hostname}) and its stored host keys are removed. Open terminals to it are closed. Credentials are kept.`,
 			confirmLabel: 'Delete',
 			destructive: true
 		});
@@ -239,7 +233,7 @@
 
 	/** A key should be installed: no credential, or a password one */
 	function needsKey(server: Server): boolean {
-		if (server.is_local || !server.enabled) return false;
+		if (!server.enabled) return false;
 		const cred = credentials.find((c) => c.id === server.credential_id);
 		return !cred || cred.credential_type !== 'ssh_key';
 	}
@@ -310,9 +304,7 @@
 									aria-label={st.label}
 								></span>
 								<span class="text-text-primary font-medium truncate">{server.name}</span>
-								{#if server.is_local}
-									<Badge variant="info">local</Badge>
-								{:else if !server.enabled}
+								{#if !server.enabled}
 									<Badge variant="warning">disabled</Badge>
 								{/if}
 								{#if cred}
@@ -327,13 +319,9 @@
 								{/if}
 							</div>
 							<div class="mt-0.5 text-xs text-text-secondary font-mono truncate">
-								{#if server.is_local}
-									inside the SvrCtlRS container
-								{:else}
-									{server.username ?? 'root'}@{server.hostname ?? '—'}{server.port !== 22
-										? `:${server.port}`
-										: ''}
-								{/if}
+								{server.username ?? 'root'}@{server.hostname}{server.port !== 22
+									? `:${server.port}`
+									: ''}
 								{#if server.description}
 									<span class="font-sans text-text-muted"> · {server.description}</span>
 								{/if}
@@ -344,7 +332,7 @@
 										? `Test OK${test.latency_ms != null ? ` · ${test.latency_ms} ms` : ''}`
 										: `Test failed: ${test.message}`}
 								</div>
-							{:else if !server.is_local}
+							{:else}
 								<div
 									class="mt-0.5 text-xs truncate {st.kind === 'unreachable'
 										? 'text-error'
@@ -364,50 +352,48 @@
 							>
 								<TerminalSquare class="w-3.5 h-3.5" /> Connect
 							</Button>
-							{#if !server.is_local}
-								<Button
-									variant="ghost"
-									size="sm"
-									class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
-									onclick={() => handleTest(server.id)}
-									disabled={testing === server.id}
-									aria-label="Test connection"
-									title="Test connection"
-								>
-									{#if testing === server.id}
-										<span
-											class="w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin"
-										></span>
-									{:else}
-										<Wifi class="w-3.5 h-3.5" />
-									{/if}
+							<Button
+								variant="ghost"
+								size="sm"
+								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
+								onclick={() => handleTest(server.id)}
+								disabled={testing === server.id}
+								aria-label="Test connection"
+								title="Test connection"
+							>
+								{#if testing === server.id}
+									<span
+										class="w-3.5 h-3.5 border border-current border-t-transparent rounded-full animate-spin"
+									></span>
+								{:else}
+									<Wifi class="w-3.5 h-3.5" />
 									<span class="hidden lg:inline">Test</span>
-								</Button>
-								<Button
-									variant={needsKey(server) ? 'secondary' : 'ghost'}
-									size="sm"
-									class="min-h-9 min-w-9 md:min-h-0 md:min-w-0 {needsKey(server)
-										? 'text-warning'
-										: ''}"
-									onclick={() => (authServer = server)}
-									aria-label="Authorize an SSH key on this server"
-									title="Install an SSH key on this server"
-								>
-									<ShieldCheck class="w-3.5 h-3.5" />
-									<span class="hidden lg:inline">Authorize key</span>
-								</Button>
-								<Button
-									variant="ghost"
-									size="sm"
-									class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
-									onclick={() => openHostKeys(server)}
-									aria-label="Stored host keys"
-									title="Stored SSH host keys"
-								>
-									<KeyRound class="w-3.5 h-3.5" />
-									<span class="hidden lg:inline">Keys</span>
-								</Button>
-							{/if}
+								{/if}
+							</Button>
+							<Button
+								variant={needsKey(server) ? 'secondary' : 'ghost'}
+								size="sm"
+								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0 {needsKey(server)
+									? 'text-warning'
+									: ''}"
+								onclick={() => (authServer = server)}
+								aria-label="Authorize an SSH key on this server"
+								title="Install an SSH key on this server"
+							>
+								<ShieldCheck class="w-3.5 h-3.5" />
+								<span class="hidden lg:inline">Authorize key</span>
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
+								onclick={() => openHostKeys(server)}
+								aria-label="Stored host keys"
+								title="Stored SSH host keys"
+							>
+								<KeyRound class="w-3.5 h-3.5" />
+								<span class="hidden lg:inline">Keys</span>
+							</Button>
 							<Button
 								variant="ghost"
 								size="sm"
@@ -452,38 +438,30 @@
 		}}
 	>
 		<Input label="Name" bind:value={name} required placeholder="production-web-01" />
-		{#if isLocal}
-			<p class="text-xs text-text-muted">
-				This is a legacy local server. Local shells were retired: SvrCtlRS connects over SSH only.
-				Give it a hostname (localhost works) and a credential, or delete it.
+		<Input
+			label="Hostname"
+			bind:value={hostname}
+			placeholder="192.168.1.10 or web-01.example.net"
+			required
+			error={formError}
+		/>
+		<div class="grid grid-cols-2 gap-3">
+			<Input label="Port" type="number" bind:value={port} min={1} max={65535} />
+			<Input label="Username" bind:value={username} placeholder="root" />
+		</div>
+		<Select label="Credential" bind:value={credentialId}>
+			<option value="">None (server's default keys)</option>
+			{#each credentials as cred (cred.id)}
+				<option value={String(cred.id)}
+					>{cred.name} — {CREDENTIAL_TYPE_LABELS[cred.credential_type]}</option
+				>
+			{/each}
+		</Select>
+		{#if !credentialId}
+			<p class="text-[11px] text-text-muted">
+				Without a credential, the SvrCtlRS server's own <code>~/.ssh/id_*</code> keys are tried.
+				Leave this empty for now and use <em>Authorize key</em> after creating.
 			</p>
-		{/if}
-		{#if !isLocal}
-			<Input
-				label="Hostname"
-				bind:value={hostname}
-				placeholder="192.168.1.10 or web-01.example.net"
-				required
-				error={formError}
-			/>
-			<div class="grid grid-cols-2 gap-3">
-				<Input label="Port" type="number" bind:value={port} min={1} max={65535} />
-				<Input label="Username" bind:value={username} placeholder="root" />
-			</div>
-			<Select label="Credential" bind:value={credentialId}>
-				<option value="">None (server's default keys)</option>
-				{#each credentials as cred (cred.id)}
-					<option value={String(cred.id)}
-						>{cred.name} — {CREDENTIAL_TYPE_LABELS[cred.credential_type]}</option
-					>
-				{/each}
-			</Select>
-			{#if !credentialId}
-				<p class="text-[11px] text-text-muted">
-					Without a credential, the SvrCtlRS server's own <code>~/.ssh/id_*</code> keys are tried.
-					Leave this empty for now and use <em>Authorize key</em> after creating.
-				</p>
-			{/if}
 		{/if}
 		<Input label="Description" bind:value={description} placeholder="Optional" />
 		<label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">

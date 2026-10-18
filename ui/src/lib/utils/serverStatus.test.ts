@@ -10,14 +10,7 @@ const base: Server = {
 	username: 'root',
 	credential_id: null,
 	description: null,
-	is_local: false,
 	enabled: true,
-	os_type: null,
-	os_distro: null,
-	package_manager: null,
-	docker_available: false,
-	systemd_available: false,
-	metadata: null,
 	last_seen_at: null,
 	last_error: null,
 	created_at: '2026-10-01T00:00:00Z',
@@ -42,8 +35,7 @@ describe('serverStatus', () => {
 			'unknown'
 		);
 	});
-	it('disabled and local are stated as such', () => {
+	it('disabled wins over everything else', () => {
 		expect(serverStatus({ ...base, enabled: false, last_error: 'x' }, now).kind).toBe('disabled');
-		expect(serverStatus({ ...base, is_local: true }, now).kind).toBe('online');
 	});
 });
