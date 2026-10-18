@@ -10,6 +10,8 @@ export interface Server {
 	via_server_id: number | null;
 	/** Free-form labels for filtering; stored trimmed, unique and sorted */
 	tags: string[];
+	/** Typed into every new shell right after it starts (e.g. `tmux new -A -s main`) */
+	startup_command: string | null;
 	description: string | null;
 	enabled: boolean;
 	last_seen_at: string | null;
@@ -47,6 +49,7 @@ export interface CreateServer {
 	credential_id?: number;
 	via_server_id?: number;
 	tags?: string[];
+	startup_command?: string;
 	description?: string;
 	enabled?: boolean;
 }
@@ -61,6 +64,8 @@ export interface UpdateServer {
 	via_server_id?: number | null;
 	/** Replaces the whole list */
 	tags?: string[];
+	/** An empty string clears it */
+	startup_command?: string;
 	description?: string;
 	enabled?: boolean;
 }

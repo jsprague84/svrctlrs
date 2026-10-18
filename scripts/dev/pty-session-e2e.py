@@ -169,6 +169,16 @@ except urllib.error.HTTPError as e:
     assert e.code == 400, e.code
 print("ssh_config import ok:", len(names), "created,", len(skipped), "skipped")
 
+# Startup command: typed into every new shell on the server; must be one line
+try:
+    api("PUT", f"/api/v1/servers/{sid}", {"startup_command": "echo a\necho b"})
+    raise AssertionError("multi-line startup command accepted")
+except urllib.error.HTTPError as e:
+    assert e.code == 400, e.code
+api("PUT", f"/api/v1/servers/{sid}", {"startup_command": " echo STARTUP-$((7*6)) "})
+assert api("GET", f"/api/v1/servers/{sid}")["server"]["startup_command"] == "echo STARTUP-$((7*6))"
+print("startup command set")
+
 # A shell on a server whose key is not confirmed yet gets a structured refusal
 fresh_srv = api("POST", "/api/v1/servers", {"name": f"e2e unconfirmed {RUN}", "hostname": SSH_HOST, "port": 22, "username": SSH_USER, "credential_id": cid})
 fresh_sid = fresh_srv["id"] if "id" in fresh_srv else fresh_srv["data"]["id"]
@@ -288,6 +298,9 @@ async def main():
         assert conn, fr
         session_id = conn[0]["session_id"]
         print("session", session_id)
+        fr = await recv_until(ws, lambda m: m["type"] == "output" and "STARTUP-42" in m["data"] and "echo" not in m["data"], 15)
+        assert fr and "STARTUP-42" in fr[-1]["data"], "startup command did not run"
+        print("startup command ran ok")
         await ws.send(json.dumps({"type": "input", "data": "echo MARKER-ONE-$((40+2))\n"}))
         fr = await recv_until(ws, lambda m: m["type"] == "output" and "MARKER-ONE-42" in m["data"] and not m["data"].startswith("echo"), 15)
         seqs = [m["seq"] for m in fr if m["type"] == "output"]

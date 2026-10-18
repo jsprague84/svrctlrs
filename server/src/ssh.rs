@@ -493,6 +493,7 @@ mod tests {
             credential_id: None,
             via_server_id: None,
             tags: svrctlrs_database::sqlx::types::Json(vec![]),
+            startup_command: None,
             description: None,
             enabled: true,
             last_seen_at: None,

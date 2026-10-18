@@ -357,6 +357,9 @@ struct CreateServerInput {
     via_server_id: Option<i64>,
     #[serde(default)]
     tags: Vec<String>,
+    /// Typed into every new shell right after it starts; one line, e.g. `tmux new -A -s main`
+    #[serde(default)]
+    startup_command: Option<String>,
     #[serde(default)]
     description: Option<String>,
     /// Retired with command mode; `true` is refused so old clients get a clear answer.
@@ -402,6 +405,7 @@ async fn create_server(
         credential_id: input.credential_id,
         via_server_id: input.via_server_id,
         tags: input.tags,
+        startup_command: input.startup_command,
         description: input.description,
         enabled: input.enabled,
     };
@@ -449,6 +453,9 @@ struct UpdateServerInput {
     /// Replaces the whole list
     #[serde(default)]
     tags: Option<Vec<String>>,
+    /// An empty string clears it
+    #[serde(default)]
+    startup_command: Option<String>,
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]
@@ -516,10 +523,14 @@ async fn update_server(
         credential_id: input.credential_id,
         via_server_id: input.via_server_id,
         tags: input.tags,
+        startup_command: input.startup_command,
         description: input.description,
         enabled: input.enabled,
         last_error: None,
     };
+    if let Some(cmd) = &update.startup_command {
+        svrctlrs_database::models::validate_startup_command(cmd).map_err(ApiError::bad_request)?;
+    }
     if let Some(Some(via)) = update.via_server_id {
         check_jump_host(&state, Some(id), via).await?;
     }
@@ -634,6 +645,7 @@ async fn import_servers(
             credential_id: input.credential_id,
             via_server_id: None,
             tags: input.tags.clone(),
+            startup_command: None,
             description: Some("Imported from ssh_config".to_string()),
             enabled: true,
         };

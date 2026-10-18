@@ -72,6 +72,7 @@
 	let credentialId = $state<string>('');
 	let viaServerId = $state<string>('');
 	let tagsText = $state('');
+	let startupCommand = $state('');
 	let description = $state('');
 	let enabled = $state(true);
 
@@ -114,6 +115,7 @@
 		credentialId = '';
 		viaServerId = '';
 		tagsText = '';
+		startupCommand = '';
 		description = '';
 		enabled = true;
 		editingId = null;
@@ -133,6 +135,7 @@
 		credentialId = server.credential_id ? String(server.credential_id) : '';
 		viaServerId = server.via_server_id ? String(server.via_server_id) : '';
 		tagsText = server.tags.join(', ');
+		startupCommand = server.startup_command ?? '';
 		description = server.description ?? '';
 		enabled = server.enabled;
 		showModal = true;
@@ -152,6 +155,7 @@
 					credential_id: credentialId ? Number(credentialId) : null,
 					via_server_id: viaServerId ? Number(viaServerId) : null,
 					tags: parseTagInput(tagsText),
+					startup_command: startupCommand.trim(),
 					description: description.trim(),
 					enabled
 				};
@@ -166,6 +170,7 @@
 					credential_id: credentialId ? Number(credentialId) : undefined,
 					via_server_id: viaServerId ? Number(viaServerId) : undefined,
 					tags: parseTagInput(tagsText),
+					startup_command: startupCommand.trim() || undefined,
 					description: description.trim() || undefined,
 					enabled
 				};
@@ -594,6 +599,13 @@
 			bind:value={tagsText}
 			placeholder="prod, home, db"
 			hint="Comma separated; used to filter the server lists"
+		/>
+		<Input
+			label="Startup command"
+			bind:value={startupCommand}
+			placeholder="tmux new -A -s main"
+			class="font-mono"
+			hint="Typed into every new shell on this server right after it starts. tmux or screen here gives you sessions that outlive the app's 15-minute grace period."
 		/>
 		<Input label="Description" bind:value={description} placeholder="Optional" />
 		<label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">

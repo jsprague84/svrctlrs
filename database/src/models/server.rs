@@ -50,6 +50,8 @@ pub struct Server {
     pub via_server_id: Option<i64>,
     /// Free-form labels for filtering; see [`normalize_tags`]
     pub tags: Json<Vec<String>>,
+    /// Typed into every new shell right after it starts (one line, without the newline)
+    pub startup_command: Option<String>,
     pub description: Option<String>,
     pub enabled: bool,
 
@@ -86,9 +88,26 @@ pub struct CreateServer {
     pub via_server_id: Option<i64>,
     #[serde(default)]
     pub tags: Vec<String>,
+    #[serde(default)]
+    pub startup_command: Option<String>,
     pub description: Option<String>,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
+}
+
+/// One line of at most 500 characters, trimmed; empty means none.
+pub fn validate_startup_command(command: &str) -> Result<Option<String>, String> {
+    let command = command.trim();
+    if command.is_empty() {
+        return Ok(None);
+    }
+    if command.chars().any(|c| c == '\n' || c == '\r' || c == '\0') {
+        return Err("The startup command must be a single line".to_string());
+    }
+    if command.chars().count() > 500 {
+        return Err("The startup command is longer than 500 characters".to_string());
+    }
+    Ok(Some(command.to_string()))
 }
 
 impl CreateServer {
@@ -102,6 +121,9 @@ impl CreateServer {
         }
         if self.port < 1 || self.port > 65535 {
             return Err(format!("Invalid port number: {}", self.port));
+        }
+        if let Some(cmd) = &self.startup_command {
+            validate_startup_command(cmd)?;
         }
         Ok(())
     }
@@ -120,6 +142,8 @@ pub struct UpdateServer {
     pub via_server_id: Option<Option<i64>>,
     /// Replaces the whole list
     pub tags: Option<Vec<String>>,
+    /// An empty string clears it
+    pub startup_command: Option<String>,
     pub description: Option<String>,
     pub enabled: Option<bool>,
     pub last_error: Option<String>,
@@ -135,6 +159,7 @@ impl UpdateServer {
             || self.credential_id.is_some()
             || self.via_server_id.is_some()
             || self.tags.is_some()
+            || self.startup_command.is_some()
             || self.description.is_some()
             || self.enabled.is_some()
             || self.last_error.is_some()
@@ -163,6 +188,7 @@ mod tests {
             credential_id: None,
             via_server_id: None,
             tags: Json(vec![]),
+            startup_command: None,
             description: None,
             enabled: true,
             last_seen_at: None,
@@ -199,6 +225,17 @@ mod tests {
     }
 
     #[test]
+    fn startup_command_is_one_trimmed_line_or_nothing() {
+        assert_eq!(validate_startup_command("  ").unwrap(), None);
+        assert_eq!(
+            validate_startup_command(" tmux new -A -s main ").unwrap(),
+            Some("tmux new -A -s main".into())
+        );
+        assert!(validate_startup_command("a\nb").is_err());
+        assert!(validate_startup_command(&"x".repeat(501)).is_err());
+    }
+
+    #[test]
     fn create_server_validation() {
         let valid = CreateServer {
             name: "remote".to_string(),
@@ -208,10 +245,17 @@ mod tests {
             credential_id: Some(1),
             via_server_id: None,
             tags: vec![],
+            startup_command: None,
             description: None,
             enabled: true,
         };
         assert!(valid.validate().is_ok());
+        assert!(CreateServer {
+            startup_command: Some("tmux new -A -s main\nrm -rf /".into()),
+            ..valid.clone()
+        }
+        .validate()
+        .is_err());
         assert!(CreateServer {
             hostname: "  ".to_string(),
             ..valid.clone()

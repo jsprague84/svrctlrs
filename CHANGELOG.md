@@ -18,6 +18,9 @@ the release workflow uses the matching section as the release notes.
   stay trusted; nothing to confirm for existing servers.
 
 ### Added
+- **Per-server startup command.** One line (`startup_command`; *Startup command* in the form)
+  typed into every new shell on that server right after it opens, such as
+  `tmux new -A -s main`, which gives sessions that outlive the app's detach grace period.
 - **Tags.** Servers take free-form tags (comma separated in the form; `tags` in the API).
   The Servers page, the sidebar and the phone's server picker show the tags in use as filter
   chips, the palette and the page search match them, and a tag on a row is clickable.

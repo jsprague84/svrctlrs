@@ -532,6 +532,21 @@ async fn start_pty_session(
         .await
         .map_err(|e| format!("Failed to start shell: {}", e))?;
 
+    // The server's startup command, typed as the first line of input. It echoes in the
+    // terminal like anything typed, so the user sees what ran.
+    if let Some(cmd) = server
+        .startup_command
+        .as_deref()
+        .map(str::trim)
+        .filter(|c| !c.is_empty())
+    {
+        let line = format!("{cmd}\n");
+        channel
+            .data(line.as_bytes())
+            .await
+            .map_err(|e| format!("Failed to send the startup command: {e}"))?;
+    }
+
     // The session owns the PTY from here on; sockets attach to it.
     let (command_tx, mut command_rx) = mpsc::channel::<PtyCommand>(256);
     let live = LiveSession::new(user_id, server.id, server.name.clone(), command_tx);

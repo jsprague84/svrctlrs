@@ -12,6 +12,7 @@ function server(tags: string[]): Server {
 		credential_id: null,
 		via_server_id: null,
 		tags,
+		startup_command: null,
 		description: null,
 		enabled: true,
 		last_seen_at: null,

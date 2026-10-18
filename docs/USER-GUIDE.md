@@ -48,6 +48,11 @@ Clearing a field in *Edit* (hostname, username, description, credential → *Non
 clears it; a credential that is still assigned to a server cannot be deleted — the row says
 which servers use it.
 
+**Startup command.** One line typed into every new shell on that server right after it opens,
+for example `tmux new -A -s main` or `cd /srv/app && git status`. With tmux or screen there
+your work survives even the app's 15-minute grace period for detached shells: the next shell
+reattaches to the same tmux session. It echoes in the terminal like anything you type.
+
 **Tags and filtering.** Give a server tags (*prod*, *home*, *db*; comma separated in the
 form). Every list — the Servers page, the sidebar, the phone's server picker — shows the tags
 in use as chips and filters on one of them; the palette's *Connect* entries and the Servers

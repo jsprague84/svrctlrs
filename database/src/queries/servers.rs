@@ -13,7 +13,8 @@ pub async fn list_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               description, enabled, last_seen_at, last_error, created_at, updated_at
+               startup_command, description, enabled, last_seen_at, last_error, created_at,
+               updated_at
         FROM servers
         ORDER BY name
         "#,
@@ -30,7 +31,8 @@ pub async fn get_server(pool: &Pool<Sqlite>, id: i64) -> Result<Server> {
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               description, enabled, last_seen_at, last_error, created_at, updated_at
+               startup_command, description, enabled, last_seen_at, last_error, created_at,
+               updated_at
         FROM servers
         WHERE id = ?
         "#,
@@ -49,7 +51,8 @@ pub async fn get_server_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<Serve
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               description, enabled, last_seen_at, last_error, created_at, updated_at
+               startup_command, description, enabled, last_seen_at, last_error, created_at,
+               updated_at
         FROM servers
         WHERE name = ?
         "#,
@@ -71,8 +74,8 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
     let result = sqlx::query(
         r#"
         INSERT INTO servers (name, hostname, port, username, credential_id, via_server_id,
-                             tags, description, enabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             tags, startup_command, description, enabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&input.name)
@@ -82,6 +85,13 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
     .bind(input.credential_id)
     .bind(input.via_server_id)
     .bind(sqlx::types::Json(normalize_tags(&input.tags)))
+    .bind(
+        input
+            .startup_command
+            .as_deref()
+            .map(str::trim)
+            .filter(|c| !c.is_empty()),
+    )
     .bind(&input.description)
     .bind(input.enabled)
     .execute(pool)
@@ -128,6 +138,11 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
     if let Some(tags) = &input.tags {
         qb.push(", tags = ")
             .push_bind(sqlx::types::Json(normalize_tags(tags)));
+    }
+    if let Some(startup_command) = &input.startup_command {
+        qb.push(", startup_command = NULLIF(")
+            .push_bind(startup_command.trim().to_string())
+            .push(", '')");
     }
     if let Some(description) = &input.description {
         qb.push(", description = NULLIF(")
@@ -208,7 +223,8 @@ pub async fn list_enabled_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               description, enabled, last_seen_at, last_error, created_at, updated_at
+               startup_command, description, enabled, last_seen_at, last_error, created_at,
+               updated_at
         FROM servers
         WHERE enabled = 1
         ORDER BY name
@@ -240,6 +256,7 @@ mod tests {
             credential_id: None,
             via_server_id: None,
             tags: vec![],
+            startup_command: None,
             description: None,
             enabled: true,
         }
@@ -275,6 +292,7 @@ mod tests {
             credential_id: None,
             via_server_id: None,
             tags: vec!["Prod".into(), "prod".into(), " web ".into()],
+            startup_command: Some(" tmux new -A -s main ".into()),
             description: Some("Test server".to_string()),
             enabled: true,
         };
@@ -287,6 +305,10 @@ mod tests {
         assert_eq!(server.name, "test-server");
         assert_eq!(server.hostname, "192.168.1.100");
         assert_eq!(server.tags.0, ["Prod", "web"]);
+        assert_eq!(
+            server.startup_command.as_deref(),
+            Some("tmux new -A -s main")
+        );
 
         // Update server
         let update = UpdateServer {
@@ -311,6 +333,17 @@ mod tests {
         .await
         .unwrap();
         assert!(get_server(&pool, id).await.unwrap().tags.0.is_empty());
+        update_server(
+            &pool,
+            id,
+            &UpdateServer {
+                startup_command: Some("  ".into()),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert_eq!(get_server(&pool, id).await.unwrap().startup_command, None);
 
         // Delete server
         delete_server(&pool, id).await.unwrap();

@@ -75,7 +75,7 @@ a failure reported with its header can be found in `docker logs` directly.
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | GET | `/servers` | — | list |
-| POST | `/servers` | `name`, `hostname`, `port` (default 22), `username?` (default: the credential's user, else `root`), `credential_id?`, `via_server_id?`, `tags?` (array of strings), `description?`, `enabled` (bool) | `is_local: true` is refused with 400: local shells were retired, SvrCtlRS connects over SSH only |
+| POST | `/servers` | `name`, `hostname`, `port` (default 22), `username?` (default: the credential's user, else `root`), `credential_id?`, `via_server_id?`, `tags?` (array of strings), `startup_command?` (one line, ≤500 chars), `description?`, `enabled` (bool) | `is_local: true` is refused with 400: local shells were retired, SvrCtlRS connects over SSH only |
 | POST | `/servers/import` | `config` (the text of an `ssh_config`, up to 256 KiB), `credential_id?`, `tags?` for every created server | creates a server per concrete `Host` block (`HostName` with `%h`, `Port`, `User`; `ProxyJump`'s first hop becomes `via_server_id` when it names a created or existing server by name, else by hostname); wildcard and negated patterns, `Match` blocks and names that already exist are skipped. Returns `created[] {id, name, hostname}`, `skipped[] {name, reason}`, `notes[]`. 400 when no `Host` block was found. Nothing is connected to |
 | GET | `/servers/{id}` | — | |
 | PUT | `/servers/{id}` | any subset of the create fields | omitted fields are kept; `""` clears `username`/`description`; `credential_id: null` unassigns the credential |
@@ -86,8 +86,11 @@ a failure reported with its header can be found in `docker logs` directly.
 | DELETE | `/servers/{id}/host-keys` | — | forget every recorded key; the next connection records what it sees and asks for confirmation. Returns `removed` |
 | POST | `/servers/{id}/authorize-key` | `credential_id` (an `ssh_key` with key material) plus `password` (one-time, never stored) or `bootstrap_credential_id` | installs the public key in `~/.ssh/authorized_keys` over the bootstrap login, verifies the key logs in, sets it as the server's credential. 400 with the reason otherwise |
 
-Server object: `id, name, hostname, port, username, credential_id, via_server_id, tags, description,
-enabled, last_seen_at, last_error, created_at, updated_at`. `tags` is an array of strings,
+Server object: `id, name, hostname, port, username, credential_id, via_server_id, tags,
+startup_command, description, enabled, last_seen_at, last_error, created_at, updated_at`.
+`startup_command` is typed into every new interactive shell on the server right after it
+starts (it echoes like typed input); one line of at most 500 characters, 400 otherwise, an
+empty string on update clears it. It does not apply to `/test`, SFTP or authorize-key. `tags` is an array of strings,
 stored trimmed, unique ignoring case (first spelling wins), sorted, at most 20 of up to 32
 characters; on update it replaces the whole list. `via_server_id` names a jump host:
 the connection is made through that server's SSH session (`direct-tcpip`), so `hostname` is

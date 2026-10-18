@@ -47,9 +47,8 @@ users), and keep the login limiter's state in the database so a restart does not
    normalised) with filter chips on the Servers page, the sidebar and the phone sheet, and
    palette/search matching; `POST /servers/import` parses `ssh_config` `Host` blocks
    (`server/src/ssh_config.rs`, tested) with `ProxyJump` → jump host.
-5. **Per-server startup command and directory.** For example `tmux new -A -s main`: the way
-   a terminal user gets sessions that outlive our detach TTL, and it costs a column and one
-   `input` frame.
+5. ~~**Per-server startup command.**~~ Done 2026-10-18: `servers.startup_command`, one line
+   typed as the shell's first input (`cd dir && …` covers the directory, so no second column).
 6. **Session recording.** Opt-in per server; output frames from the existing ring written as
    asciicast v2 under the user's id, retention setting, download, and an in-app player.
    Output only, never input. Scoped per user from day one.
