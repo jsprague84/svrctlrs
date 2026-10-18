@@ -6,7 +6,7 @@ root on those hosts, and the server's SQLite file plus encryption key as equival
 SSH credentials.
 
 This document describes the model as implemented in 3.0.0 and lists the known weaknesses so
-they are not forgotten. Fixes are tracked in `ROADMAP.md` (P0 Security).
+they are not forgotten. Fixes are tracked in `ROADMAP.md` (History, P0 Security).
 
 ## Threat model
 
@@ -110,7 +110,7 @@ Ordered by impact. Each has a ROADMAP entry.
    (`server/src/host_keys.rs`) compares the presented key against *every* key stored for the
    server; an unseen key type with keys on file is a mismatch, not a first contact. Both
    connectors fail closed on a database error. A legitimately changed host key now needs an
-   administrator to delete the server's rows in `server_host_keys` (UI pending, ROADMAP).
+   administrator to forget the server's keys (Servers → Keys, or `DELETE /api/v1/servers/{id}/host-keys`).
 6. ~~**`POST /servers/{id}/test` skips host-key verification**~~ — fixed after 3.0.0: the
    connection test goes through the shared SSH client, which verifies the host key during the
    handshake and supports password credentials.
@@ -118,7 +118,9 @@ Ordered by impact. Each has a ROADMAP entry.
    the only path that executed anything locally, is gone. `POST /servers` refuses
    `is_local: true` (400) and the SSH client refuses to connect to a legacy local row; the
    column stays for existing databases.
-8. **No roles, no 2FA** — every user is equal and can manage accounts. Login attempts are
+8. **No roles, no 2FA** — every user is equal and can manage accounts (single-user today;
+   roles, TOTP/passkeys and OIDC are "maybe later" in `ROADMAP.md`, required before the app is
+   offered to other people). Login attempts are
    rate limited (10 failures per 15 minutes per client address *and* per username, 429 with
    `Retry-After`; in-memory, so a restart resets it), new passwords must be at least 12
    characters, and an **audit log** (Settings → Audit, `/api/v1/audit`) records logins,

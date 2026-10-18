@@ -1,10 +1,92 @@
-# Roadmap — gaps and improvements
+# Roadmap
 
-From the 2026-10-04 audit of the code, UI, CI and docs. Each item names the evidence so it can
-be verified or closed. Priorities: **P0** security or correctness that affects users now;
-**P1** needed for a first-class self-hosted app; **P2** polish and hygiene; **P3** features.
+**Updated 2026-10-18.** The first part is the live plan: where the app stands against similar
+projects, what comes next and in which order, what is parked, and what is deliberately out of
+scope. The second part is the history of the 2026-10 hardening passes, kept because each row
+names the evidence for a fix.
 
-## P0 — Security (details in `SECURITY.md`, "Known weaknesses")
+## Where it stands (review of 2026-10-18)
+
+**Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
+servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an
+audit log, encrypted credentials, host-key pinning, an SFTP browser, and nothing else. It is
+not a server-management panel and not a bastion.
+
+| Project | What it is | Stack · licence | Has, that we lack | We have, that it lacks or does differently |
+|---|---|---|---|---|
+| [Termix](https://github.com/Termix-SSH/Termix) | Plugin-based "self-hosted Termius": SSH, RDP/VNC, files, tunnels, Docker, metrics, fleets, automations, SSO | TypeScript, Node, Electron · Apache-2.0 | Host folders/tags, import/export, sharing with roles, passkeys/TOTP/SSO, tunnels, snippets across hosts, session recording and live sharing, 30 languages, native mobile apps | One binary and one file to run; a deliberately small surface; server-owned sessions with replay |
+| [Nexterm](https://github.com/gnmyt/Nexterm) | All-in-one panel: SSH/SFTP/RDP/VNC, snippets, organisations, Docker and Proxmox management, recordings, AI assistant | Node (server + engine), MIT | 2FA, OIDC, organisations, recordings, Proxmox/Docker apps | Same as above; no engine sidecar; audit log |
+| [Sshwifty](https://github.com/nirui/sshwifty) | Stateless web SSH/Telnet client, presets, maintenance-only | Go · AGPL-3.0 | Fingerprint confirmation page on first contact; works with zero server state | Saved servers and encrypted credentials, persistent sessions, files, audit |
+| [Warpgate](https://github.com/warp-tech/warpgate) | Clientless bastion/PAM: SSH, HTTPS, databases, RDP; recording and replay, TOTP/OIDC, tickets, per-user targets | Rust, russh, Svelte 5 · Apache-2.0 | Session recording and replay, brute-force lockout that survives restarts, per-user target scoping, OpenAPI-generated SDKs | We are a client with a terminal UI, not a proxy for native clients; phone ergonomics |
+| [XPipe](https://github.com/xpipe-io/xpipe) | Desktop connection hub over your local ssh/docker/kubectl; file browser with local editors, scripts, git-synced vault | Java · open-core | `~/.ssh/config` import, scripts in the remote PATH, tunnels with one click | Runs on a server, so the phone works; nothing installed on the client |
+| [sshx](https://github.com/ekzhang/sshx) | Collaborative shared terminal with predictive local echo | Rust, Svelte · MIT | Predictive echo for high-latency links | Private, saved servers; not a sharing tool |
+
+**What the comparison says.** Every peer that is a *terminal manager* has these and we do
+not: host grouping, `ssh_config` import, jump hosts, SSH keepalive, session recording, and a
+first-contact fingerprint prompt. None of those grow the product's purpose; they are the
+expected shape of an SSH client. Everything else the peers add (remote desktop, container and
+hypervisor management, fleets, automations, metrics, plugins, AI) is the panel business we left
+in 2.x and should not return. Two lessons from Warpgate's stack, which is ours: record sessions
+per user and scope their playback to that user (its 2026 CVE leaked live recordings between
+users), and keep the login limiter's state in the database so a restart does not reset it.
+
+## Next (in order)
+
+1. **Migration squash and schema hygiene.** One baseline migration for fresh installs, the
+   old chain kept for databases that already ran it; the baseline drops what nothing reads
+   (`servers.is_local`, `pane_configs[].mode`, `terminal_profiles.quick_commands`).
+2. **First-contact host-key confirmation.** Today trust-on-first-use is silent. Show the
+   fingerprint and have the user accept it (shell and SFTP refuse until then), as Sshwifty
+   does. Closes the last soft spot in the host-key story. `SECURITY.md` host-key section.
+3. **SSH keepalive and jump hosts.** `keepalive_interval` on every connection so NAT and
+   phone networks stop dropping idle shells; an optional *via* server per server (ProxyJump
+   through a direct-tcpip channel of the jump connection) for hosts on isolated VLANs.
+4. **Server organisation and import.** Tags or groups with filtering in the server list,
+   the palette and the phone sheet; paste an `ssh_config` block to create servers. The
+   flat list stops working past a dozen hosts.
+5. **Per-server startup command and directory.** For example `tmux new -A -s main`: the way
+   a terminal user gets sessions that outlive our detach TTL, and it costs a column and one
+   `input` frame.
+6. **Session recording.** Opt-in per server; output frames from the existing ring written as
+   asciicast v2 under the user's id, retention setting, download, and an in-app player.
+   Output only, never input. Scoped per user from day one.
+7. **Terminal preferences per account.** Move `terminalPrefs` from `localStorage` to the
+   settings table so the phone and the laptop agree.
+8. **Quick-command variables** (`{{host}}`, `{{user}}`, a prompt for the rest) so one
+   snippet serves every server.
+9. **Release maturity.** `linux/arm64` image for Raspberry Pi hosts, `svrctl reset-password`
+   for lockout recovery, `CONTRIBUTING.md` and issue templates, screenshots in the README, a
+   compose example without the dev-space edge, and a published OpenAPI document (utoipa) once
+   the error refactor has settled the handler shapes.
+
+## Maybe later
+
+- **Port forwarding** (owner, 2026-10-18): a VPN into the home LAN covers the need; a web
+  preview through the server would also need wildcard DNS/TLS at the edge. Revisit only if
+  there is a recurring case a VPN cannot serve.
+- **Roles, TOTP/passkeys, OIDC, a revocable session list** (owner, 2026-10-18): single-user
+  today. Required before the app is offered to other people; design the `role` column with
+  the migration squash so the baseline already has it.
+- **Predictive local echo** for lossy phone links (sshx does this well).
+- **Edit small text files in the browser** from the file browser, instead of `nano` on a
+  phone keyboard.
+- **Tauri desktop**: untested since 2026-10-05; the PWA covers desktop browsers. Decide whether
+  it stays a release artifact or is parked like Android.
+- Login limiter state in the database (survives restarts); 2FA on the *target* via
+  keyboard-interactive auth if a server needs it.
+
+## Out of scope (deliberately)
+
+Remote desktop (RDP/VNC/Telnet); Docker, Proxmox or Kubernetes management; host metrics
+dashboards and alerting beyond up/down notifications (the retired 1.x/2.x product); fleets or
+"run on every host"; automations and schedulers; a plugin system; an AI assistant; multiple
+database engines; collaborative session sharing; **SSH agent forwarding** (the server would
+hold the agent, so a compromised server could sign with it). If one of these is wanted,
+Termix or Nexterm already do it well.
+
+## History
+
+### P0 — Security (details in `SECURITY.md`, "Known weaknesses")
 
 | # | Change | Where |
 |---|---|---|
@@ -22,7 +104,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | ~~11~~ | Done 2026-10-11: auth middleware covered end to end (session cookie, Bearer, query token, one-time WS tickets, exempt routes and their lookalikes, OPTIONS preflight, unauthenticated 401-vs-redirect); TOFU accept/mismatch in `host_keys::evaluate`; the WS Origin guard in `websocket_origin_allowed` (both socket handlers call it and 403 a bad origin before upgrade) | `server/src/routes/ui/auth.rs`, `host_keys.rs` |
 | ~~12~~ | Done 2026-10-05: russh 0.51 → 0.64 and async-ssh2-tokio 0.8 → 0.13 (the latter removed 2026-10-18 with command mode); `russh-keys` dropped for `russh::keys`; host certificates are pinned by their embedded key. RUSTSEC-2026-0154/-0153 cleared; only `rsa` RUSTSEC-2023-0071 (Marvin, transitive via `ssh-key`, no fix) remains ignored. First live PTY/CMD connection after deploy is the behavioral check — no SSH integration test exists yet | `Cargo.toml`, `host_keys.rs`, `ci.yaml` |
 
-## P1 — First-class app
+### P1 — First-class app
 
 | Area | Gap | Proposal |
 |---|---|---|
@@ -44,7 +126,7 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 | a11y | Done 2026-10-05: svelte-check at 0 warnings, icon buttons labelled, layout buttons `aria-pressed`, toast region `role=status aria-live`, palette is a `combobox` over a `listbox` with `aria-activedescendant`. Arrow/Home/End keys move between terminal tabs with a roving tabindex (2026-10-05) | — |
 | Docs | no screenshots | add to README and USER-GUIDE once the UI settles |
 
-## P2 — Hygiene
+### P2 — Hygiene
 
 - Done 2026-10-18: command mode removed (owner: never used it; a shell is more flexible), and
   with it the second SSH stack and `async-ssh2-tokio`. `server/src/ssh.rs` is the one client
@@ -74,19 +156,10 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
   (typescript-eslint supports <6.1 today).
 - Tag hygiene: `v0.1.0` is newer than `v0.1.1`; both are superseded by `v3.0.0`. Leave them (a
   tag delete breaks nothing but history) and never reuse pre-3.0 numbers.
-- GitHub: the repository there is a stale mirror of the 2025 code. Archive it, or configure a
-  Forgejo push mirror if a backup copy is wanted.
+- GitHub (`github.com/jsprague84/svrctlrs`) is a Forgejo push mirror of `master`; Forgejo is
+  the source of truth for issues, CI and releases.
 
-## P3 — Features
-
-In rough order of value for a terminal manager: ~~SFTP/file browser~~ (done 2026-10-18:
-`routes/api/files.rs` + `FileBrowser`; browse, download, upload, mkdir, rename, delete, all
-audited; one SSH connection per call), port forwarding, session recording and playback (asciicast from the PTY stream), quick-command variables (`{{host}}`, prompts), PWA manifest
-so the browser UI installs on phones, desktop auto-update (`tauri-plugin-updater` against the
-Forgejo release feed), 2FA/WebAuthn for the app login, SSH agent forwarding, and a help page
-that hosts the shortcut table and this guide.
-
-## Done in the 2026-10-04 pass
+### Done in the 2026-10-04 pass
 
 - CI/CD moved fully to Forgejo on the standard runners; GitHub workflows removed; image
   published to the Forgejo registry with revision labels; master auto-deploys to docker-vm;
