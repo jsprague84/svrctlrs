@@ -25,7 +25,7 @@ Android app; those talk to a remote server over the same API.
 
 | Crate | Purpose | Key files |
 |---|---|---|
-| `core` | AES-256-GCM credential encryption, error types, shared types | `src/encryption.rs`, `src/error.rs` |
+| `core` | AES-256-GCM credential encryption, error type, notification senders | `src/encryption.rs`, `src/error.rs` |
 | `database` | sqlx models, query modules, embedded migrations | `src/models/*.rs`, `src/queries/*.rs`, `migrations/` |
 | `server` | Axum application and the `svrctl` CLI | `src/main.rs`, `src/routes/**`, `src/bin/svrctl.rs` |
 

@@ -48,8 +48,9 @@ be verified or closed. Priorities: **P0** security or correctness that affects u
 
 - Collapse the two remaining SSH connection stacks (`terminal.rs`, `terminal_pty.rs`) into
   one connector with one default-key list (the TOFU decision is already shared).
-- `server/src/config.rs` and `AppState.config` are never read; either use the TOML (servers
-  from config) or delete it and the `--config` flag.
+- Done 2026-10-18: the never-read TOML `Config`, `AppState.config`, the `--config` flag,
+  `config/example.toml` and the `toml` dependency are gone. So are `core::types` (`Server`, `ServerStatus`,
+  `MetricValue`), monitoring-era types nothing used.
 - Replace stringly `core::Error` variants with typed errors and `IntoResponse`.
 - `database/src/lib.rs` `#![allow(ambiguous_glob_reexports)]` hides name collisions; export
   explicitly.

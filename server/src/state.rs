@@ -5,7 +5,6 @@ use svrctlrs_core::Result;
 use svrctlrs_database::{Database, SqlxPool, SqlxSqlite};
 use tokio::sync::RwLock;
 
-use crate::config::Config;
 use crate::login_limiter::LoginLimiter;
 use crate::sessions::SessionRegistry;
 use crate::ws_tickets::WsTickets;
@@ -15,9 +14,7 @@ use crate::ws_tickets::WsTickets;
 /// This struct implements Clone to allow it to be used as Axum state
 /// All fields are wrapped in Arc for efficient cloning
 #[derive(Clone)]
-#[allow(dead_code)]
 pub struct AppState {
-    pub config: Arc<Config>,
     pub database: Arc<RwLock<Database>>,
     pub pool: SqlxPool<SqlxSqlite>,
     /// Origins of non-browser clients (`ALLOWED_ORIGINS`); used for CORS and to admit their
@@ -33,15 +30,10 @@ pub struct AppState {
 
 impl AppState {
     /// Create new application state
-    pub async fn new(
-        config: Config,
-        database: Database,
-        allowed_origins: Vec<String>,
-    ) -> Result<Self> {
+    pub async fn new(database: Database, allowed_origins: Vec<String>) -> Result<Self> {
         let pool = database.pool().clone();
 
         Ok(Self {
-            config: Arc::new(config),
             pool,
             database: Arc::new(RwLock::new(database)),
             allowed_origins: Arc::new(allowed_origins),

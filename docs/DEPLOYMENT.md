@@ -39,9 +39,8 @@ docker compose logs -f svrctlrs
 | `SSH_KEY_PATH` | compose only | `./ssh` | host directory mounted read-only at `/home/svrctlrs/.ssh` for key-path credentials. Use a dedicated directory, not your own `~/.ssh`. |
 | `SVRCTLRS_HOST` | compose only | `svrctlrs.js-node.app` | Traefik host rule |
 
-The server also accepts `--addr` (default `0.0.0.0:8080`) and `--config <toml>`; the TOML
-file (`config/example.toml`) only carries `database_url`, `servers` and `ssh_key_path` and is
-rarely useful in Docker.
+The server also accepts `--addr` (default `0.0.0.0:8080`). Servers and credentials live in
+the database and are managed from the UI or API; there is no configuration file.
 
 ## Reverse proxy and edge auth
 

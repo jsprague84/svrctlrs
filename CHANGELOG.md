@@ -20,6 +20,11 @@ the release workflow uses the matching section as the release notes.
   frames (8-byte `seq` + bytes) that xterm decodes as one stream. The web UI always asks for
   this; the JSON `output` frames remain for older clients.
 
+### Removed
+- The `--config <toml>` flag and `config/example.toml`. The file was parsed and then never
+  read: servers and credentials have lived in the database since 3.0. The unused monitoring-era
+  `Server`/`ServerStatus`/`MetricValue` types in `svrctlrs-core` went with it.
+
 ### Added
 - **Request ids.** Every HTTP response carries an `x-request-id` header with a UUID the server
   minted (a client-supplied value is dropped, so the log cannot be written to from outside), and

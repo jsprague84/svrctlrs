@@ -44,7 +44,6 @@ tracing-subscriber = { workspace = true, optional = true }
 
 # Environment (server-only)
 dotenvy = { workspace = true, optional = true }
-toml = { version = "0.8", optional = true }
 
 # CLI (server-only)
 clap = { workspace = true, optional = true }
@@ -88,7 +87,6 @@ server = [
     "dep:tracing",
     "dep:tracing-subscriber",
     "dep:dotenvy",
-    "dep:toml",
     "dep:clap",
     "dep:reqwest",
     "dep:async-ssh2-tokio",

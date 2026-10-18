@@ -19,7 +19,7 @@ schedulers, jobs, HTMX or Askama, it is describing the retired product.
 ## Layout
 
 ```
-core/        encryption (AES-256-GCM), error types, shared types
+core/        encryption (AES-256-GCM), error type, notification senders
 database/    sqlx models, queries, embedded migrations (database/migrations/)
 server/      Axum app: main.rs, routes/{api/*, terminal.rs, terminal_pty.rs, ui/auth.rs},
              health_monitor.rs, bin/svrctl.rs (CLI used by the container healthcheck)

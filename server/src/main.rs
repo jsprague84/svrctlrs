@@ -1,7 +1,6 @@
 //! SvrCtlRS Server — Terminal-focused infrastructure management
 
 mod audit;
-mod config;
 mod health_monitor;
 mod host_keys;
 mod login_limiter;
@@ -12,7 +11,6 @@ mod ssh_keys;
 mod state;
 mod ws_tickets;
 
-use config::Config;
 use state::AppState;
 
 #[tokio::main]
@@ -35,10 +33,6 @@ async fn main() -> anyhow::Result<()> {
         /// Server address to bind to
         #[arg(short, long, default_value = "0.0.0.0:8080")]
         addr: String,
-
-        /// Path to configuration file
-        #[arg(short, long)]
-        config: Option<String>,
     }
 
     // Initialize tracing
@@ -71,8 +65,6 @@ async fn main() -> anyhow::Result<()> {
     // Parse CLI args
     let args = Args::parse();
 
-    // Load configuration
-    let config = Config::load(args.config.as_deref())?;
     info!(addr = %args.addr, "Starting SvrCtlRS server");
 
     // Initialize database
@@ -149,7 +141,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_default();
 
     // Initialize application state
-    let state = AppState::new(config, database, allowed_origins.clone()).await?;
+    let state = AppState::new(database, allowed_origins.clone()).await?;
 
     // Build UI router with state (SPA + auth)
     let ui_router = routes::ui::ui_routes().with_state(state.clone());
