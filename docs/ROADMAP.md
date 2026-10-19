@@ -106,8 +106,11 @@ users), and keep the login limiter's state in the database so a restart does not
     copy. `ui/src/lib/terminal/prefsSync.ts` (Vitest) debounces saves, never lets the server
     overwrite an unsaved change and uploads a browser's own preferences to an empty account;
     the phone check changes one on the phone and finds it in a fresh desktop browser.
-13. **Quick-command variables** (`{{host}}`, `{{user}}`, a prompt for the rest) so one
-    snippet serves every server.
+13. ~~**Quick-command variables**~~ Done 2026-10-19: `{{host}}`, `{{user}}`, `{{port}}`,
+    `{{name}}` from the tab's server; any other `{{word}}` (`{{word:default}}`) asked for in a
+    dialog with a live preview (`ui/src/lib/utils/snippet.ts`, Vitest; the phone check runs
+    one). Only plain identifiers are variables and Go template keywords are reserved, so
+    `docker --format '{{.Names}}'` and `{{range}}…{{end}}` stay as written.
 14. **Release maturity.** `linux/arm64` image for Raspberry Pi hosts, `svrctl reset-password`
    for lockout recovery, `CONTRIBUTING.md` and issue templates, screenshots in the README, a
    compose example without the dev-space edge, and a published OpenAPI document (utoipa) once

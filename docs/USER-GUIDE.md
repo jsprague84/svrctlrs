@@ -228,6 +228,14 @@ commands** — your saved snippets (Settings → Quick Commands), grouped by cat
 saved for one server only appears while a tab on that server is active. Running one types it
 into the focused pane followed by Enter, exactly as if you had typed it.
 
+**Variables** let one snippet serve every server. `{{host}}`, `{{user}}`, `{{port}}` and
+`{{name}}` are filled from the active tab's server. Any other `{{word}}` is asked for when you
+run the command, in a small dialog that shows the finished command as you type; write
+`{{word:default}}` to pre-fill the answer. For example `journalctl -u {{unit}} -n {{lines:200}}`
+asks for the unit and offers 200 lines. Answers go in exactly as typed (not quoted), so a glob
+or a pipe works. Go templates are left alone: `docker ps --format '{{.Names}}'`,
+`{{json .}}`, `{{range …}}…{{end}}` and `{{else}}` are not variables.
+
 ## Terminal profiles
 
 A profile saves a layout and which server opens in each pane. Create one from the

@@ -107,6 +107,9 @@
 		if (!id) return 'all servers';
 		return servers.find((s) => s.id === id)?.name ?? `Server ${id}`;
 	}
+
+	const VARIABLES_HINT =
+		"Sent to the shell followed by Enter. {{host}}, {{user}}, {{port}} and {{name}} come from the tab's server; any other {{word}} (or {{word:default}}) is asked for when you run it.";
 </script>
 
 <SettingsSection
@@ -185,7 +188,7 @@
 			required
 			rows={3}
 			mono
-			hint="Sent to the shell followed by Enter"
+			hint={VARIABLES_HINT}
 		/>
 		<Input label="Category" bind:value={category} placeholder="general" list="qc-categories" />
 		<datalist id="qc-categories">

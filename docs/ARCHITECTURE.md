@@ -134,6 +134,10 @@ Migrations are checksummed, so never edit one that has shipped.
   preferences when the account has none, and pulls again whenever the page is shown),
   `sessions` (the user's live server-side shells, for the resume list), `servers`,
   `credentials`, `profiles`, `quickCommands`, `settings`, `theme`, `toast`, `mobile`.
+- **Quick-command variables**: `lib/utils/snippet.ts` (Vitest) finds `{{word}}` and
+  `{{word:default}}` (plain identifiers only, Go template keywords reserved), fills the
+  built-ins from the tab's server and lists the rest; `TerminalView.runQuickCommand` types the
+  result or opens `SnippetVarsDialog` to ask first.
 - **API client**: `ui/src/lib/api/client.ts` adds `Authorization: Bearer` when a token is
   stored (the native apps; the browser uses its cookie), redirects to login on 401.
 - **Terminal session**: `ui/src/lib/terminal/ptySession.ts` is the WebSocket side of one pane,

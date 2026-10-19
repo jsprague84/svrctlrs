@@ -19,6 +19,13 @@
 	import SessionsPanel from './SessionsPanel.svelte';
 	import FilesPanel from './FilesPanel.svelte';
 	import CommandPalette from './CommandPalette.svelte';
+	import SnippetVarsDialog from './SnippetVarsDialog.svelte';
+	import {
+		fillSnippet,
+		promptedVariables,
+		serverVariables,
+		type SnippetRequest
+	} from '#lib/utils/snippet.js';
 	import ProfileManager from './ProfileManager.svelte';
 	import MobileStatusBar from './MobileStatusBar.svelte';
 	import MobileSheet, { type SheetView } from './MobileSheet.svelte';
@@ -604,6 +611,27 @@
 	}
 
 	/** Put the keyboard into a pane's terminal (after the DOM has caught up) */
+	/** A quick command waiting for its variables to be filled in */
+	let snippetRequest = $state<SnippetRequest | null>(null);
+
+	/** Type a quick command into the active tab: `{{host}}` and friends from its server, the
+	 *  other variables asked for first (`#lib/utils/snippet.ts`). */
+	function runQuickCommand(command: string) {
+		const tabId = activeTabId;
+		if (!tabId || !paneRefs[tabId] || activeTab?.status !== 'connected') {
+			toast.warning('Connect to a server first');
+			return;
+		}
+		const server = serversState.getServers().find((s) => s.id === activeTab?.serverId);
+		const known = server ? serverVariables(server) : {};
+		const variables = promptedVariables(command, known);
+		if (variables.length === 0) {
+			paneRefs[tabId].injectInput(fillSnippet(command, known) + '\n');
+			return;
+		}
+		snippetRequest = { command, known, variables };
+	}
+
 	function focusTerminal(tabId: string | null) {
 		if (tabId) {
 			requestAnimationFrame(() => paneRefs[tabId]?.focus());
@@ -1011,6 +1039,23 @@
 			/>
 		{/if}
 		<ProfileManager open={profileSaveOpen} onClose={() => (profileSaveOpen = false)} />
+		<SnippetVarsDialog
+			request={snippetRequest}
+			onRun={(command) => {
+				snippetRequest = null;
+				const tabId = activeTabId;
+				if (tabId && activeTab?.status === 'connected') {
+					paneRefs[tabId]?.injectInput(command + '\n');
+				} else {
+					toast.warning('Connect to a server first');
+				}
+				focusTerminal(tabId);
+			}}
+			onClose={() => {
+				snippetRequest = null;
+				focusTerminal(activeTabId);
+			}}
+		/>
 		<CommandPalette
 			open={paletteOpen}
 			onClose={() => {
@@ -1018,13 +1063,7 @@
 				// Back to typing; on a phone this also brings the soft keyboard back
 				focusTerminal(activeTabId);
 			}}
-			onInjectCommand={(cmd) => {
-				if (activeTabId && paneRefs[activeTabId] && activeTab?.status === 'connected') {
-					paneRefs[activeTabId].injectInput(cmd + '\n');
-				} else {
-					toast.warning('Connect to a server first');
-				}
-			}}
+			onInjectCommand={runQuickCommand}
 			onSaveProfile={() => (profileSaveOpen = true)}
 			onClearTerminal={() => {
 				if (activeTabId) paneRefs[activeTabId]?.clear();

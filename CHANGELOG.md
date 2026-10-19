@@ -5,6 +5,12 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Added
+- **Quick-command variables.** `{{host}}`, `{{user}}`, `{{port}}` and `{{name}}` are filled
+  from the active tab's server; any other `{{word}}` is asked for when the command runs, with
+  `{{word:default}}` pre-filling the answer and a live preview of the finished command. Go
+  templates (`{{.Names}}`, `{{json .}}`, `{{end}}`) are left as written.
+
 ## [3.2.0] - 2026-10-19
 
 The "phone" release: typing over a slow or lossy link shows at once (predictive echo, never at

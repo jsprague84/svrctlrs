@@ -11,8 +11,9 @@ copy, a second tab and a swipe between tabs, that no hidden pane resizes its she
 the extra-keys row (Ctrl+C interrupts `sleep`), predictive echo over a slowed link (typed text
 drawn ahead of the echo and cleared after it, nothing drawn at a `read -s` prompt), reload →
 resume with the screen intact, the home-screen shortcut (manifest lists the server,
-`/?connect=<id>` shows its tab), and terminal preferences following the account (a change on
-the phone is on the server and in a fresh desktop browser).
+`/?connect=<id>` shows its tab), terminal preferences following the account (a change on
+the phone is on the server and in a fresh desktop browser), and quick-command variables
+(`{{name}}` from the server, `{{what:hello}}` asked for in a dialog with a live preview).
 Screenshots land in E2E_OUT (default: a temp dir).
 """
 import json, os, sys, tempfile, time, urllib.request, http.cookiejar
@@ -284,6 +285,27 @@ with sync_playwright() as p:
     page.wait_for_timeout(1500)
     saved = api("GET", "/api/v1/users/me/preferences/terminal")["value"] or {}
     check("and changing it back is saved too", saved.get("predictiveEcho") == "auto", str(saved)[:200])
+
+    # Quick-command variables: {{name}} comes from the tab's server, {{what}} is asked for
+    api("POST", "/api/v1/quick-commands", {"name": f"greet {RUN}",
+        "command": "echo qc-{{name}}-{{what:hello}}"})
+    page.get_by_role("button", name="Command palette").click()
+    page.get_by_placeholder("Type a command or action...").fill(f"greet {RUN}")
+    page.wait_for_timeout(300)
+    page.keyboard.press("Enter")
+    fill = page.get_by_role("dialog", name="Fill in the command")
+    fill.wait_for(timeout=5000)
+    preview = fill.get_by_test_id("snippet-preview")
+    check("the dialog previews the command with the server's name and the default",
+          preview.inner_text() == f"echo qc-{NAME}-hello", preview.inner_text())
+    fill.get_by_label("what").fill("world")
+    check("the preview follows the answer", preview.inner_text() == f"echo qc-{NAME}-world",
+          preview.inner_text())
+    page.screenshot(path=f"{OUT}/snippet-dialog.png")
+    fill.get_by_role("button", name="Run").click()
+    check("the filled-in command runs in the shell", wait_screen(f"\nqc-{NAME}-world"), screen()[-200:])
+    check("no horizontal scroll with the dialog's text", page.evaluate(
+        "document.documentElement.scrollWidth <= window.innerWidth"))
 
     errors = [l for l in logs if l.startswith(("error", "pageerror"))]
     check("no console errors", not errors, "\n".join(errors[:5]))

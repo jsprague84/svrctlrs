@@ -49,7 +49,7 @@ Unit tests are Vitest files next to the code (`*.test.ts`); keep them for pure m
 
 Tests today: about 120 Rust tests across `core`, `database` and `server` (auth middleware,
 host keys, limiter, tickets, session registry and replay ring, `ssh_config` import, svrctl
-backup) and 159 Vitest tests in the UI, most of them for the terminal session protocol
+backup) and 167 Vitest tests in the UI, most of them for the terminal session protocol
 (`ui/src/lib/terminal/ptySession.test.ts`: attach and replay, keep-alive watchdog, reconnect
 backoff, host-key challenge, persistence, predictive echo) driven with a fake socket and fake
 timers, and for the predictive echo itself (`localEcho.test.ts`, against a small fake screen
@@ -100,7 +100,9 @@ SSH target. It goes through the first-contact dialog, typing, tap-to-move-cursor
 copy, a swipe between two tabs, CTL from the extra-keys row, predictive echo over a link it
 slows itself (incoming socket messages delayed 250 ms in the page: typed text is drawn ahead
 of the echo and cleared after it, and nothing is drawn at a `read -s` prompt) and a reload that
-resumes the shell, and fails if a hidden pane resizes its shell. Run it after touching
+resumes the shell, account preferences (a change on the phone reaches the server and a fresh
+desktop browser) and a quick command with variables run through its dialog, and fails if a
+hidden pane resizes its shell. Run it after touching
 `TerminalPane.svelte`, `TerminalView.svelte` or `ui/src/lib/terminal/`:
 
 ```bash
