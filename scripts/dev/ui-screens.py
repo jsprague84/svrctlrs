@@ -49,6 +49,7 @@ if not (existing.get("servers") or existing.get("data")):
         key_cred = ident(api("POST", "/api/v1/credentials", {"name": "laptop ed25519", "credential_type": "ssh_key",
             "value": open(SSH_KEY).read(), "username": SSH_USER}))
     api("POST", "/api/v1/credentials/generate-key", {"name": "svrctlrs deploy key"})
+    api("POST", "/api/v1/credentials/generate-key", {"name": "spare key"})
     servers = [
         ("web-01", "10.0.10.21", ["prod", "web"], pw, None),
         ("web-02", "10.0.10.22", ["prod", "web"], pw, None),
@@ -167,6 +168,20 @@ with sync_playwright() as p:
                     check("Escape closes the modal", page.get_by_role("dialog").count() == 0)
                 else:
                     page.keyboard.press("Escape")
+            if vp_name == "desktop" and theme == "dark":
+                # The key picker keeps whatever is picked (it used to snap back to the first key)
+                page.get_by_role("button", name="Authorize an SSH key on this server").first.click()
+                picker = page.get_by_role("dialog").get_by_label("Key to authorize")
+                picker.wait_for(timeout=5000)
+                options = picker.evaluate("s => [...s.options].map(o => o.value).filter(Boolean)")
+                if len(options) > 1:
+                    picker.select_option(options[1])
+                    page.wait_for_timeout(400)
+                    check("authorize-key picker keeps the second key", picker.input_value() == options[1],
+                          f"{picker.input_value()} != {options[1]}")
+                else:
+                    check("authorize-key picker has two keys to pick from", False, str(options))
+                page.keyboard.press("Escape")
             if vp_name == "phone":
                 menu = page.get_by_role("button", name="Actions for db-primary")
                 if menu.count():

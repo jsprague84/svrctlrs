@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { Sparkles } from '@lucide/svelte';
 	import * as serversApi from '#lib/api/servers.js';
 	import * as credApi from '#lib/api/credentials.js';
@@ -38,25 +39,37 @@
 	let busy = $state(false);
 	let generating = $state(false);
 
-	// Reset the form each time the modal opens for a server
+	/** The bootstrap login to suggest: the server's own credential, else any other usable one,
+	 *  never the key being installed */
+	function suggestBootstrap(forKey: string, serverCredential: number | null): string {
+		if (serverCredential && String(serverCredential) !== forKey) return String(serverCredential);
+		const other = bootstrapCredentials.find((c) => String(c.id) !== forKey);
+		return other ? String(other.id) : '';
+	}
+
+	// Reset the form when the modal opens for a server (or is handed a key to preselect).
+	// Only those two are tracked: reading the form's own fields here made every pick in the
+	// key list re-run the reset and snap back to the first key.
 	$effect(() => {
-		if (server) {
-			keyId = credentialId
-				? String(credentialId)
-				: keyCredentials[0]
-					? String(keyCredentials[0].id)
-					: '';
+		const target = server;
+		const preselect = credentialId;
+		if (!target) return;
+		untrack(() => {
+			keyId = preselect ? String(preselect) : keyCredentials[0] ? String(keyCredentials[0].id) : '';
 			mode = 'password';
 			password = '';
-			// A working credential other than the key being installed makes a good bootstrap
-			const other = bootstrapCredentials.find((c) => String(c.id) !== keyId);
-			bootstrapId =
-				server.credential_id && String(server.credential_id) !== keyId
-					? String(server.credential_id)
-					: other
-						? String(other.id)
-						: '';
-		}
+			bootstrapId = suggestBootstrap(keyId, target.credential_id);
+		});
+	});
+
+	// Credentials that finish loading after the modal opened fill the empty choices only
+	$effect(() => {
+		const keys = keyCredentials;
+		if (!server) return;
+		untrack(() => {
+			if (!keyId && keys[0]) keyId = String(keys[0].id);
+			if (!bootstrapId) bootstrapId = suggestBootstrap(keyId, server?.credential_id ?? null);
+		});
 	});
 
 	let canSubmit = $derived(

@@ -45,6 +45,10 @@ the release workflow uses the matching section as the release notes.
   every other shell, so a multibyte character split across two SSH reads stays intact.
 - The desktop toolbar's server picker follows the active tab instead of keeping whatever was
   picked last ("Select server…" next to a connected tab).
+- **Authorize key only ever installed the first key.** Picking another key in the dialog
+  snapped back to the first one: the effect that resets the form when the dialog opens also
+  read the picked key, so every pick re-ran the reset. It now runs only when the dialog opens
+  for a server.
 - **The Credentials page described every SSH key as a file path**, with no fingerprint and no
   passphrase marker: the list query redacts values in SQL, and the key's kind was then read
   from the redacted text. The list now reads each key's decrypted row on the server (the
