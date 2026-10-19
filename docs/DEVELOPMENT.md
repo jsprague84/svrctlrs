@@ -100,7 +100,10 @@ screenshot of every screen at phone and desktop size in both themes. It fails if
 scrolls sideways, if a phone control is under 40 px to the finger (the extra-keys row is the
 one deliberate exception), if Escape does not close a modal or the row menu, or if Tab leaves a
 modal. With an SSH target it adds a live shell and the file browser; the pictures in
-`docs/images/` come from that run (dark theme, `pngquant`-ed). Run it after UI changes:
+`docs/images/` come from that run (dark theme, phone shots at half size, `pngquant`-ed). The
+live server is named `lab-01`, and each shot first rewrites its real address on the page to
+`192.0.2.10` (a documentation address) and fails if the address is still visible, so published
+pictures never show the target. Run it after UI changes:
 
 ```bash
 E2E_OUT=/tmp/shots CHROMIUM=$(command -v chromium) scripts/dev/run-ui-screens.sh   # SCREENS=phone-dark to narrow it

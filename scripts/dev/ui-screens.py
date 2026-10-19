@@ -3,8 +3,10 @@
 for the README/USER-GUIDE images. Seeds a throwaway server (run-ui-screens.sh starts one) with
 servers, tags, credentials, quick commands and a second user.
 
-E2E_SSH_HOST etc. are optional: with them, one server is real and the terminal shots show a
-live shell; without, the terminal shots show the empty state.
+E2E_SSH_HOST etc. are optional: with them, one server ("lab-01") is real and the terminal shots
+show a live shell; without, the terminal shots show the empty state. The real address never
+reaches a picture: each shot first rewrites it on the page to 192.0.2.10 (a documentation
+address), since the images are published.
 
     E2E_OUT=/tmp/shots python3 scripts/dev/ui-screens.py
 """
@@ -20,6 +22,8 @@ SSH_KEY = os.path.expanduser(os.environ.get("E2E_SSH_KEY", "~/.ssh/id_ed25519"))
 CHROMIUM = os.environ.get("CHROMIUM") or None
 OUT = os.environ.get("E2E_OUT") or tempfile.mkdtemp(prefix="svrctlrs-screens-")
 ONLY = set(filter(None, os.environ.get("SCREENS", "").split(",")))
+LIVE = "lab-01"           # the real server's name in the pictures
+SHOWN_HOST = "192.0.2.10"  # RFC 5737, shown instead of SSH_HOST
 os.makedirs(OUT, exist_ok=True)
 
 cj = http.cookiejar.CookieJar()
@@ -58,9 +62,9 @@ if not (existing.get("servers") or existing.get("data")):
         ("nas", "192.168.1.10", ["home", "storage"], pw, None),
     ]
     if SSH_HOST and key_cred:
-        servers.insert(0, ("hermes", SSH_HOST, ["lab"], key_cred, None))
+        servers.insert(0, (LIVE, SSH_HOST, ["lab"], key_cred, None))
     for name, host, tags, cred, startup in servers:
-        body = {"name": name, "hostname": host, "port": 22, "username": SSH_USER if name == "hermes" else "ops",
+        body = {"name": name, "hostname": host, "port": 22, "username": SSH_USER if name == LIVE else "ops",
                 "credential_id": cred, "tags": tags}
         if startup:
             body["startup_command"] = startup
@@ -104,6 +108,15 @@ SMALL_TARGETS = """
 })()
 """
 
+# Every text node and <option> that shows the real address shows SHOWN_HOST instead
+MASK_HOST = """
+(([real, shown]) => {
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n; (n = walk.nextNode()); )
+    if (n.nodeValue.includes(real)) n.nodeValue = n.nodeValue.replaceAll(real, shown);
+})
+"""
+
 
 def check(name, ok, detail=""):
     print(("PASS " if ok else "FAIL ") + name + (f" — {detail}" if detail and not ok else ""), flush=True)
@@ -135,6 +148,10 @@ with sync_playwright() as p:
                 if not want(fname):
                     return
                 page.wait_for_timeout(400)
+                if SSH_HOST:
+                    page.evaluate(MASK_HOST, [SSH_HOST, SHOWN_HOST])
+                    leaked = page.evaluate("h => document.body.innerText.includes(h)", SSH_HOST)
+                    check(f"{fname} does not show the real address", not leaked)
                 page.screenshot(path=os.path.join(OUT, fname), full_page=full)
                 # Horizontal overflow is a bug at any width
                 overflow = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
@@ -198,7 +215,7 @@ with sync_playwright() as p:
             if SSH_HOST and theme == "dark":
                 # A live shell on the real target, for the README and USER-GUIDE pictures
                 go("/")
-                page.locator("text=hermes >> visible=true").first.click()
+                page.locator(f"text={LIVE} >> visible=true").first.click()
                 trust = page.get_by_role("button", name="Trust and connect")
                 try:
                     trust.wait_for(timeout=8000)
@@ -212,7 +229,7 @@ with sync_playwright() as p:
                 shot("terminal-live")
                 if vp_name == "desktop":
                     picked = page.locator("select").first.evaluate("s => s.options[s.selectedIndex].text")
-                    check("toolbar picker shows the active tab's server", picked.startswith("hermes"), picked)
+                    check("toolbar picker shows the active tab's server", picked.startswith(LIVE), picked)
                     page.get_by_label("Files on this server").first.click()
                     page.wait_for_timeout(2500)
                     # The filesystem root, not someone's home directory, in published pictures
