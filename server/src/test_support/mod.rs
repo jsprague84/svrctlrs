@@ -50,6 +50,7 @@ pub async fn add_server(
             via_server_id,
             tags: vec![],
             startup_command: None,
+            record_sessions: false,
             description: None,
             enabled: true,
         },

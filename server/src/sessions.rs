@@ -18,7 +18,7 @@
 //! buffer however long a client stops reading).
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -123,6 +123,8 @@ pub struct LiveSession {
     pub server_id: i64,
     pub server_name: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// `created_at` on the monotonic clock; frame times are measured against it
+    pub started: Instant,
     command_tx: mpsc::Sender<PtyCommand>,
     events: broadcast::Sender<SessionEvent>,
     replay: Mutex<ReplayRing>,
@@ -131,6 +133,8 @@ pub struct LiveSession {
     detach_timer: Mutex<Option<JoinHandle<()>>>,
     /// Set once, when the shell ends: why.
     closed: OnceLock<Arc<str>>,
+    /// A recorder is writing this session's output (`recordings.rs`)
+    recorded: AtomicBool,
 }
 
 impl LiveSession {
@@ -172,6 +176,7 @@ impl LiveSession {
             server_id,
             server_name,
             created_at: chrono::Utc::now(),
+            started: Instant::now(),
             command_tx,
             events,
             replay: Mutex::new(ring),
@@ -179,6 +184,7 @@ impl LiveSession {
             attachments: AtomicUsize::new(0),
             detach_timer: Mutex::new(None),
             closed: OnceLock::new(),
+            recorded: AtomicBool::new(false),
         })
     }
 
@@ -194,6 +200,15 @@ impl LiveSession {
 
     pub fn is_closed(&self) -> bool {
         self.closed.get().is_some()
+    }
+
+    /// Whether a recorder is writing this session's output right now.
+    pub fn is_recorded(&self) -> bool {
+        self.recorded.load(Ordering::SeqCst)
+    }
+
+    pub fn set_recorded(&self, on: bool) {
+        self.recorded.store(on, Ordering::SeqCst);
     }
 
     /// Why the shell ended, once it has.
@@ -212,6 +227,8 @@ impl LiveSession {
             live: Arc::clone(self),
             sent: after_seq,
             pending: VecDeque::new(),
+            closing: None,
+            behind: false,
             done: false,
         }
     }
@@ -308,6 +325,10 @@ pub struct Follower {
     pending: VecDeque<Followed>,
     /// The shell had ended before this follower subscribed, so no `Closed` will arrive
     ended_before: bool,
+    /// The shell ended (and why); finish from the ring
+    closing: Option<Arc<str>>,
+    /// Frames were missed from the broadcast; catch up from the ring
+    behind: bool,
     done: bool,
 }
 
@@ -341,6 +362,9 @@ impl Follower {
     }
 
     /// The next item, waiting for the shell if need be; `None` after `Closed`.
+    ///
+    /// Cancel-safe, so it can sit in a `select!` beside a timer: what an event means is
+    /// recorded in `self` before the next await, and a dropped call resumes from there.
     pub async fn next(&mut self) -> Option<Followed> {
         loop {
             if let Some(item) = self.pending.pop_front() {
@@ -349,16 +373,26 @@ impl Follower {
             if self.done {
                 return None;
             }
-            if self.ended_before {
+            if self.ended_before && self.closing.is_none() {
                 // Its `Closed` went to nobody; the ring holds all of its output.
+                self.closing = Some(
+                    self.live
+                        .close_reason()
+                        .unwrap_or_else(|| Arc::from("Session ended")),
+                );
+            }
+            if let Some(reason) = self.closing.clone() {
+                // Output is in the ring before it is broadcast, and the close comes last
                 let rest = self.catch_up().await;
                 self.pending.extend(rest);
-                let reason = self
-                    .live
-                    .close_reason()
-                    .unwrap_or_else(|| Arc::from("Session ended"));
                 self.pending.push_back(Followed::Closed(reason));
                 self.done = true;
+                continue;
+            }
+            if self.behind {
+                let items = self.catch_up().await;
+                self.behind = false;
+                self.pending.extend(items);
                 continue;
             }
             match self.events.recv().await {
@@ -367,10 +401,9 @@ impl Follower {
                         continue; // already handed out from the ring
                     }
                     if frame.seq > self.sent + 1 {
-                        // Not lagged, yet a gap: frames pushed before this follower
-                        // subscribed and not caught up. Fill it from the ring.
-                        let items = self.catch_up().await;
-                        self.pending.extend(items);
+                        // A gap without a lag report: frames pushed before this follower
+                        // subscribed and not caught up yet. The ring has this one too.
+                        self.behind = true;
                         continue;
                     }
                     self.sent = frame.seq;
@@ -379,21 +412,14 @@ impl Follower {
                 Ok(SessionEvent::Resized { cols, rows, at }) => {
                     return Some(Followed::Resized { cols, rows, at });
                 }
-                Ok(SessionEvent::Closed(reason)) => {
-                    // Output is in the ring before it is broadcast, and the close comes last
-                    let rest = self.catch_up().await;
-                    self.pending.extend(rest);
-                    self.pending.push_back(Followed::Closed(reason));
-                    self.done = true;
-                }
+                Ok(SessionEvent::Closed(reason)) => self.closing = Some(reason),
                 Err(RecvError::Lagged(missed)) => {
                     debug!(
                         session_id = %self.live.id,
                         missed,
                         "Slow follower; catching up from the replay ring"
                     );
-                    let items = self.catch_up().await;
-                    self.pending.extend(items);
+                    self.behind = true;
                 }
                 Err(RecvError::Closed) => self.done = true,
             }
@@ -410,6 +436,8 @@ pub struct SessionSummary {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub attachments: usize,
     pub latest_seq: u64,
+    /// Its output is being recorded
+    pub recorded: bool,
 }
 
 /// All live sessions on this server, with the detach grace period.
@@ -567,6 +595,7 @@ impl SessionRegistry {
                 created_at: s.created_at,
                 attachments: s.attachments(),
                 latest_seq: s.latest_seq().await,
+                recorded: s.is_recorded(),
             });
         }
         out.sort_by_key(|s| s.created_at);
@@ -852,6 +881,7 @@ mod tests {
             "created_at",
             "attachments",
             "latest_seq",
+            "recorded",
         ] {
             assert!(json.get(key).is_some(), "missing {key}");
         }

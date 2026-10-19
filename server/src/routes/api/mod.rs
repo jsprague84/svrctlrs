@@ -8,6 +8,7 @@
 //! ├── status                      GET     Server status
 //! ├── servers/                    Full CRUD + test connection
 //! ├── credentials/                Full CRUD
+//! ├── recordings/                 The caller's session recordings
 //! └── settings/                   List + get + update
 //! ```
 
@@ -17,6 +18,7 @@ pub mod files;
 pub mod notifications;
 pub mod profiles;
 pub mod quick_commands;
+pub mod recordings;
 pub mod servers;
 pub mod sessions;
 pub mod settings;
@@ -209,6 +211,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/users", users::routes())
         .nest("/audit", audit::routes())
         .nest("/sessions", sessions::routes())
+        .nest("/recordings", recordings::routes())
 }
 
 /// Health check endpoint. Unauthenticated, so it reveals only version and revision; it does

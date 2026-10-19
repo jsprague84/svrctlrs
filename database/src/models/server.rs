@@ -52,6 +52,8 @@ pub struct Server {
     pub tags: Json<Vec<String>>,
     /// Typed into every new shell right after it starts (one line, without the newline)
     pub startup_command: Option<String>,
+    /// Shells opened on this server are recorded for the user who opens them
+    pub record_sessions: bool,
     pub description: Option<String>,
     pub enabled: bool,
 
@@ -90,6 +92,8 @@ pub struct CreateServer {
     pub tags: Vec<String>,
     #[serde(default)]
     pub startup_command: Option<String>,
+    #[serde(default)]
+    pub record_sessions: bool,
     pub description: Option<String>,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
@@ -144,6 +148,7 @@ pub struct UpdateServer {
     pub tags: Option<Vec<String>>,
     /// An empty string clears it
     pub startup_command: Option<String>,
+    pub record_sessions: Option<bool>,
     pub description: Option<String>,
     pub enabled: Option<bool>,
     pub last_error: Option<String>,
@@ -160,6 +165,7 @@ impl UpdateServer {
             || self.via_server_id.is_some()
             || self.tags.is_some()
             || self.startup_command.is_some()
+            || self.record_sessions.is_some()
             || self.description.is_some()
             || self.enabled.is_some()
             || self.last_error.is_some()
@@ -189,6 +195,7 @@ mod tests {
             via_server_id: None,
             tags: Json(vec![]),
             startup_command: None,
+            record_sessions: false,
             description: None,
             enabled: true,
             last_seen_at: None,
@@ -246,6 +253,7 @@ mod tests {
             via_server_id: None,
             tags: vec![],
             startup_command: None,
+            record_sessions: false,
             description: None,
             enabled: true,
         };

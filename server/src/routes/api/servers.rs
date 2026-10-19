@@ -360,6 +360,9 @@ struct CreateServerInput {
     /// Typed into every new shell right after it starts; one line, e.g. `tmux new -A -s main`
     #[serde(default)]
     startup_command: Option<String>,
+    /// Record the shells opened on this server (for the user who opens each)
+    #[serde(default)]
+    record_sessions: bool,
     #[serde(default)]
     description: Option<String>,
     /// Retired with command mode; `true` is refused so old clients get a clear answer.
@@ -406,6 +409,7 @@ async fn create_server(
         via_server_id: input.via_server_id,
         tags: input.tags,
         startup_command: input.startup_command,
+        record_sessions: input.record_sessions,
         description: input.description,
         enabled: input.enabled,
     };
@@ -421,7 +425,8 @@ async fn create_server(
         NewAuditEntry::new("server.created")
             .user(me)
             .client_ip(Some(client_ip(&headers)))
-            .target("server", id, &create.name),
+            .target("server", id, &create.name)
+            .details(json!({ "record_sessions": create.record_sessions })),
     );
 
     Ok((
@@ -456,6 +461,8 @@ struct UpdateServerInput {
     /// An empty string clears it
     #[serde(default)]
     startup_command: Option<String>,
+    #[serde(default)]
+    record_sessions: Option<bool>,
     #[serde(default)]
     description: Option<String>,
     #[serde(default)]
@@ -524,6 +531,7 @@ async fn update_server(
         via_server_id: input.via_server_id,
         tags: input.tags,
         startup_command: input.startup_command,
+        record_sessions: input.record_sessions,
         description: input.description,
         enabled: input.enabled,
         last_error: None,
@@ -538,13 +546,15 @@ async fn update_server(
     servers::update_server(&state.pool, id, &update).await?;
 
     info!(id = id, "Server updated successfully");
-    crate::audit::record(
-        &state.pool,
-        NewAuditEntry::new("server.updated")
-            .user(me)
-            .client_ip(Some(client_ip(&headers)))
-            .target("server", id, ""),
-    );
+    let mut entry = NewAuditEntry::new("server.updated")
+        .user(me)
+        .client_ip(Some(client_ip(&headers)))
+        .target("server", id, "");
+    if let Some(record) = update.record_sessions {
+        // Turning recording on or off is worth seeing in the log
+        entry = entry.details(json!({ "record_sessions": record }));
+    }
+    crate::audit::record(&state.pool, entry);
 
     Ok(Json(json!({
         "id": id,
@@ -646,6 +656,7 @@ async fn import_servers(
             via_server_id: None,
             tags: input.tags.clone(),
             startup_command: None,
+            record_sessions: false,
             description: Some("Imported from ssh_config".to_string()),
             enabled: true,
         };

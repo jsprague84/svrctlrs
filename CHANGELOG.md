@@ -6,6 +6,14 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Added
+- **Session recording.** Switch on **Record sessions** for a server and every shell opened on
+  it is recorded for the user who opened it: what the terminal shows (never the keystrokes, so
+  a password typed at a silent prompt is not in it) and its resizes, as asciicast v2. The new
+  shell says it is recorded. Recordings are encrypted at rest with the credential key, belong
+  to their user alone (another account gets 404), stop at `RECORDING_MAX_MB` (default 100) and
+  are deleted after `recording.retention_days` (default 30). API: `GET /api/v1/recordings`,
+  `GET /api/v1/recordings/{id}/cast` (play or `?download=true`), `DELETE
+  /api/v1/recordings/{id}`.
 - **Home-screen shortcuts.** Long-press the installed app's icon for **New terminal** and the
   three servers you opened shells on most recently. The server now serves
   `/manifest.webmanifest` itself and adds those shortcuts for the signed-in user (from their

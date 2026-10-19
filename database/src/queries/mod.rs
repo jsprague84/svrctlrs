@@ -3,6 +3,7 @@
 pub mod audit;
 pub mod credentials;
 pub mod quick_commands;
+pub mod recordings;
 pub mod server_host_keys;
 pub mod servers;
 pub mod settings;

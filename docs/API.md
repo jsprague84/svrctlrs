@@ -75,7 +75,7 @@ a failure reported with its header can be found in `docker logs` directly.
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | GET | `/servers` | — | list |
-| POST | `/servers` | `name`, `hostname`, `port` (default 22), `username?` (default: the credential's user, else `root`), `credential_id?`, `via_server_id?`, `tags?` (array of strings), `startup_command?` (one line, ≤500 chars), `description?`, `enabled` (bool) | `is_local: true` is refused with 400: local shells were retired, SvrCtlRS connects over SSH only |
+| POST | `/servers` | `name`, `hostname`, `port` (default 22), `username?` (default: the credential's user, else `root`), `credential_id?`, `via_server_id?`, `tags?` (array of strings), `startup_command?` (one line, ≤500 chars), `record_sessions?` (bool, default false), `description?`, `enabled` (bool) | `is_local: true` is refused with 400: local shells were retired, SvrCtlRS connects over SSH only |
 | POST | `/servers/import` | `config` (the text of an `ssh_config`, up to 256 KiB), `credential_id?`, `tags?` for every created server | creates a server per concrete `Host` block (`HostName` with `%h`, `Port`, `User`; `ProxyJump`'s first hop becomes `via_server_id` when it names a created or existing server by name, else by hostname); wildcard and negated patterns, `Match` blocks and names that already exist are skipped. Returns `created[] {id, name, hostname}`, `skipped[] {name, reason}`, `notes[]`. 400 when no `Host` block was found. Nothing is connected to |
 | GET | `/servers/{id}` | — | |
 | PUT | `/servers/{id}` | any subset of the create fields | omitted fields are kept; `""` clears `username`/`description`; `credential_id: null` unassigns the credential |
@@ -87,7 +87,9 @@ a failure reported with its header can be found in `docker logs` directly.
 | POST | `/servers/{id}/authorize-key` | `credential_id` (an `ssh_key` with key material) plus `password` (one-time, never stored) or `bootstrap_credential_id` | installs the public key in `~/.ssh/authorized_keys` over the bootstrap login, verifies the key logs in, sets it as the server's credential. 400 with the reason otherwise |
 
 Server object: `id, name, hostname, port, username, credential_id, via_server_id, tags,
-startup_command, description, enabled, last_seen_at, last_error, created_at, updated_at`.
+startup_command, record_sessions, description, enabled, last_seen_at, last_error, created_at,
+updated_at`. `record_sessions` records every interactive shell opened on the server from then
+on, for the user who opens it (see "Recordings"); shells already running are not affected.
 `startup_command` is typed into every new interactive shell on the server right after it
 starts (it echoes like typed input); one line of at most 500 characters, 400 otherwise, an
 empty string on update clears it. It does not apply to `/test`, SFTP or authorize-key. `tags` is an array of strings,
@@ -151,7 +153,31 @@ path is refused with 400 and a message saying why.
 Seeded keys: `notification.enabled`, `notification.provider` (`gotify` \| `ntfy`),
 `notification.url`, `notification.token`, `notification.topic`,
 `notification.health_check_enabled`, `notification.health_check_interval_seconds`,
-`app.default_profile_id`.
+`app.default_profile_id`, `recording.retention_days` (whole days, 0–3650, default 30; `0`
+keeps recordings until deleted; anything else is refused with 400).
+
+## Recordings (per user)
+
+Recordings of the calling user's shells on servers with `record_sessions` set. Another
+user's recording answers 404 on every route, like a missing one.
+
+| Method | Path | Query | Response |
+|---|---|---|---|
+| GET | `/recordings` | `server_id?`, `limit` (1–500, default 100), `before` (id cursor) | `recordings` newest first, `retention_days`, `max_bytes` (the size limit per recording) |
+| GET | `/recordings/{id}` | — | `recording` |
+| GET | `/recordings/{id}/cast` | `download?` (`true` adds `Content-Disposition: attachment; filename*=…<server>-<YYYYMMDD-HHMMSS>.cast` and an audit entry) | the recording as [asciicast v2](https://docs.asciinema.org/manual/asciicast/v2/), `Content-Type: application/x-asciicast`, `Cache-Control: private, no-store`, streamed. A recording still being written returns what has been written so far (flushed every second) |
+| DELETE | `/recordings/{id}` | — | deletes the row and the file; 409 while the shell is still being recorded (end its session first) |
+
+Recording object: `id, user_id, server_id` (null once the server is deleted)`, server_name,
+session_id, cols, rows` (the size at the start)`, started_at, ended_at, duration_ms,
+size_bytes` (of the asciicast, i.e. of a download)`, status, end_reason`. `status` is
+`recording`, `complete`, `truncated` (stopped at `RECORDING_MAX_MB`; the shell went on),
+`interrupted` (the server stopped while it ran) or `failed` (writing failed; `end_reason`
+says why). The asciicast has a header (`version: 2`, `width`, `height`, `timestamp`, `title`
+= the server's name, `env.TERM`) and events `[seconds, "o", text]` for output, `[seconds,
+"r", "COLSxROWS"]` for resizes and `[seconds, "m", label]` for markers (where output was lost
+or the size limit cut it off). Times count from the shell's start. Only output is recorded,
+never input.
 
 ## Terminal profiles (per user)
 
@@ -195,8 +221,9 @@ details` (a JSON object string). Actions: `login`, `login.failed`, `login.rate_l
 count), `server.host_key_trusted` (details: `key_type`,
 `fingerprint`), `server.host_keys_forgotten` (details: `removed`), `credential.created`,
 `credential.updated`, `credential.deleted`, `session.pty_opened` (details: `login`, `auth` —
-`password` or the key used), `files.download`, `files.upload`, `files.mkdir`, `files.rename`,
-`files.delete` (details: the remote path). `session.command` entries from the retired command mode remain
+`password` or the key used, `recorded`), `files.download`, `files.upload`, `files.mkdir`, `files.rename`,
+`files.delete` (details: the remote path), `recording.downloaded`, `recording.deleted`.
+`server.created` and `server.updated` carry `record_sessions` when it was set or changed. `session.command` entries from the retired command mode remain
 readable until they age out. Entries never contain secrets, are kept for 180 days, and outlive
 deleted users.
 
@@ -230,7 +257,7 @@ Server → client:
 
 | `type` | Fields | Meaning |
 |---|---|---|
-| `connected` | `session_id`, `data` | the shell is up (`shell`) or reattached (`attach`) |
+| `connected` | `session_id`, `data`, `recording` | the shell is up (`shell`) or reattached (`attach`); `recording` says whether its output is being recorded (a new shell's `data` also says so, or why recording failed) |
 | `output` | `seq`, `data` | terminal output; `seq` increases by one per frame. Only for clients that did not send `binary: true` (see below) |
 | `replay_start` / `replay_end` | — | brackets the frames resent after an `attach` |
 | `replay_window_lost` | — | the client was further behind than the ring holds, on attach or later (it stopped reading during a burst); redraw from scratch, the whole ring follows |
@@ -250,7 +277,7 @@ Sessions live in the server, not in the socket. A session with no attached clien
 `SESSION_MAX_PER_USER` (default 16). The replay ring holds the last 4096 frames or 2 MiB of
 output per session. Live sessions of the calling user are listed by `GET /api/v1/sessions`
 (`sessions[]` with `id`, `server_id`, `server_name`, `created_at`, `attachments` — sockets
-attached right now, 0 while detached — and `latest_seq`, oldest first, plus `detach_ttl_secs`;
+attached right now, 0 while detached — `latest_seq` and `recorded`, oldest first, plus `detach_ttl_secs`;
 ended sessions are not listed) and ended by `DELETE /api/v1/sessions/{id}` (404 for an unknown
 id or another user's session; every attached socket receives `closed`). The terminal UI's
 **Sessions** panel is built on these two calls.

@@ -4,6 +4,7 @@ mod audit;
 mod health_monitor;
 mod host_keys;
 mod login_limiter;
+mod recordings;
 mod request_id;
 mod routes;
 mod sessions;
@@ -279,17 +280,24 @@ async fn main() -> anyhow::Result<()> {
 
     // Start background health monitor
     health_monitor::start_health_monitor(state.clone());
+    // Recordings: mark the ones a stopped server left running, then retention every hour
+    recordings::start_housekeeping(state.pool.clone(), state.recordings.clone());
 
     // Start server with graceful shutdown
     let listener = tokio::net::TcpListener::bind(&args.addr).await?;
     info!(addr = %args.addr, "Server listening");
 
     let sessions = state.sessions.clone();
+    let recording_store = state.recordings.clone();
     axum::serve(listener, app.into_make_service())
         .with_graceful_shutdown(async move {
             shutdown_signal().await;
             // Open sockets end with the server; tell the shells behind them, too.
             sessions.close_all().await;
+            // Their recorders write the last lines and finish their rows.
+            recording_store
+                .finish_all(std::time::Duration::from_secs(5))
+                .await;
         })
         .await?;
 

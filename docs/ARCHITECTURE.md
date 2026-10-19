@@ -12,16 +12,19 @@ Android app; those talk to a remote server over the same API.
  │ require_auth middleware ── sessions (tower-sessions, SQLite store)       │
  │ routes/api/*  servers · credentials · settings · profiles ·             │
  │               quick-commands · notifications · users · audit · health · │
+ │               recordings ·                                              │
  │               files (SFTP browse/transfer, outside the request timeout) │
  │ routes/terminal_pty.rs  interactive shell over WebSocket                 │
  │ ssh.rs                  the one SSH client (russh): host keys, auth, exec │
  │ ssh_config.rs           reads Host blocks of a pasted ssh_config (import)  │
  │ sessions.rs             server-owned PTY sessions, replay ring, TTL      │
+ │ recordings.rs           opt-in asciicast recording, encrypted, per user  │
  │ health_monitor.rs       periodic checks → notifications (rstify/Gotify) │
  │ ServeDir(SPA_DIR) fallback → index.html                                  │
  └────────────┬──────────────────────────────┬─────────────────────────────┘
               │ sqlx                          │ SSH
         SQLite (data/svrctlrs.db)        your servers (TOFU host keys)
+        + data/recordings/<user>/*.cast.enc
 ```
 
 ## Workspace crates
@@ -58,7 +61,11 @@ does not pull in Tauri's GTK/WebKit dependencies.
    stream. PTY sessions live in `sessions.rs` and outlive their sockets. Each socket reads a
    session through a `Follower` (the replay ring, then live frames, the ring again when it
    falls behind, a redraw when even the ring has moved on); the PTY driver never waits for a
-   slow client. Every SSH connection
+   slow client. On a server with `record_sessions`, a recorder (`recordings.rs`) follows the
+   session the same way and writes asciicast v2, encrypted per chunk with the credential key,
+   to `RECORDINGS_DIR/<user id>/`; `routes/api/recordings.rs` serves it back, decrypted, to
+   its owner only. Hourly housekeeping applies `recording.retention_days` and removes files
+   no row knows. Every SSH connection
    — the shell, the connection test, SFTP, "Authorize key" — goes through `ssh.rs`: russh,
    host key verified during the handshake (first contact recorded and refused until the user
    confirms the fingerprint, mismatch refused, fail closed), password or key
@@ -87,13 +94,14 @@ does not pull in Tauri's GTK/WebKit dependencies.
 |---|---|
 | `users` | username, argon2 hash |
 | `tower_sessions` | session records (managed by the store) |
-| `servers` | name, hostname, port, username (NULL = the credential's user, else root), `credential_id`, `via_server_id` (jump host; `ON DELETE SET NULL`), `tags` (JSON array), `startup_command`, `enabled`, `last_seen_at`, `last_error` |
+| `servers` | name, hostname, port, username (NULL = the credential's user, else root), `credential_id`, `via_server_id` (jump host; `ON DELETE SET NULL`), `tags` (JSON array), `startup_command`, `record_sessions`, `enabled`, `last_seen_at`, `last_error` |
 | `credentials` | name, type (`password`, `ssh_key`, …), encrypted `value`, optional `username`, JSON `metadata`, `encrypted` flag |
 | `server_host_keys` | `(server_id, key_type)` → public key, first/last seen, `trusted_at` (NULL = waiting for confirmation) |
 | `terminal_profiles` | per-user layout + pane configs (`server_id` per pane), `is_default` |
 | `quick_commands` | per-user snippets: name, command, optional `server_id`, category, sort order |
 | `settings` | key/value with `value_type`; `notification.*` and `app.default_profile_id` are seeded |
 | `audit_log` | who did what: user, client address, action, target, JSON details; pruned after 180 days |
+| `session_recordings` | one recorded shell: owner `user_id` (`ON DELETE CASCADE`), `server_id` (`ON DELETE SET NULL`) and `server_name`, `session_id`, the encrypted file's name, start size, times, plaintext `size_bytes`, `status`, `end_reason` |
 
 Two migration chains are embedded (`database/src/lib.rs::run_migrations`). A fresh database
 runs `database/migrations/`: `100_baseline.sql`, the clean schema above, and whatever follows

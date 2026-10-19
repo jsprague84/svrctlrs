@@ -33,6 +33,8 @@ docker compose logs -f svrctlrs
 | `SESSION_DETACH_TTL_SECS` | no | `900` | how long an interactive shell is kept after its last client disconnects (reload, lost link, phone backgrounded) before it is closed |
 | `SESSION_MAX_PER_USER` | no | `16` | live interactive sessions per user; the 17th `shell` request fails with `quota` |
 | `SSH_KEEPALIVE_SECS` | no | `15` | seconds of silence before the SSH client sends a keepalive to the target; three unanswered close the connection. `0` disables keepalives |
+| `RECORDINGS_DIR` | no | `data/recordings` (in the data volume) | where session recordings are written, one directory per user. Keep it on the data volume: the files are encrypted with `ENCRYPTION_KEY` and need the database rows to be found |
+| `RECORDING_MAX_MB` | no | `100` | asciicast size at which a recording stops (the shell goes on, unrecorded) |
 | `SPA_DIR` | no | `/app/ui/build` | where the built SPA lives |
 | `RUST_LOG` | no | `info` | tracing filter |
 | `LOG_FORMAT` | no | text | `json` for one JSON object per line (log shippers); text otherwise |

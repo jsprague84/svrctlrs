@@ -66,6 +66,9 @@ struct PtyResponse {
     /// `key_type`, `fingerprint`)
     #[serde(skip_serializing_if = "Option::is_none")]
     details: Option<serde_json::Value>,
+    /// On `connected`: whether the session's output is being recorded
+    #[serde(skip_serializing_if = "Option::is_none")]
+    recording: Option<bool>,
 }
 
 impl PtyResponse {
@@ -77,6 +80,7 @@ impl PtyResponse {
             session_id: None,
             code: None,
             details: None,
+            recording: None,
         }
     }
 }
@@ -159,7 +163,7 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
                         match start_pty_session(&state, user_id, &client_ip, server_id, cols, rows)
                             .await
                         {
-                            Ok(live) => {
+                            Ok((live, record)) => {
                                 if let Err(e) = state.sessions.insert(live.clone()).await {
                                     live.close().await;
                                     live.mark_closed(&e);
@@ -177,6 +181,11 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
                                     continue;
                                 }
                                 state.sessions.attach_new(&live);
+                                let note = if record {
+                                    recording_note(&state, &live, cols, rows).await
+                                } else {
+                                    String::new()
+                                };
                                 forwarder = Some(spawn_forwarder(
                                     live.clone(),
                                     0,
@@ -185,7 +194,8 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
                                 ));
                                 send(&ws_sender, PtyResponse {
                                     session_id: Some(live.id.clone()),
-                                    ..PtyResponse::plain("connected", "\x1b[32m✓ Interactive shell session started\x1b[0m\r\n")
+                                    recording: Some(live.is_recorded()),
+                                    ..PtyResponse::plain("connected", format!("\x1b[32m✓ Interactive shell session started\x1b[0m\r\n{note}"))
                                 }).await;
                                 session = Some(live);
                             }
@@ -257,6 +267,7 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
                                     &ws_sender,
                                     PtyResponse {
                                         session_id: Some(live.id.clone()),
+                                        recording: Some(live.is_recorded()),
                                         ..PtyResponse::plain("connected", "")
                                     },
                                 )
@@ -435,8 +446,22 @@ async fn forward(sender: &WsSender, item: Followed, binary: bool) -> bool {
     }
 }
 
+/// Start recording a session that was just registered, and say so in the terminal: a grey
+/// line when it is recorded, a yellow one when recording was wanted and failed (the shell
+/// goes ahead either way).
+async fn recording_note(state: &AppState, live: &Arc<LiveSession>, cols: u32, rows: u32) -> String {
+    match crate::recordings::start(&state.pool, &state.recordings, live, cols, rows).await {
+        Ok(_) => "\x1b[90m● This session is recorded (what the terminal shows, not what you type)\x1b[0m\r\n".to_string(),
+        Err(e) => {
+            warn!(session_id = %live.id, error = %e, "Could not start recording the session");
+            format!("\x1b[33m⚠ This session is not recorded: {e}\x1b[0m\r\n")
+        }
+    }
+}
+
 /// Start an interactive PTY session: connect through the shared SSH client, open a shell
 /// with a PTY, and hand the channel to a driver task that owns it for the session's life.
+/// Also returns whether the server wants its sessions recorded.
 async fn start_pty_session(
     state: &AppState,
     user_id: i64,
@@ -444,7 +469,7 @@ async fn start_pty_session(
     server_id: i64,
     cols: u32,
     rows: u32,
-) -> Result<Arc<LiveSession>, ConnectError> {
+) -> Result<(Arc<LiveSession>, bool), ConnectError> {
     use svrctlrs_database::queries;
 
     let server = queries::servers::get_server(&state.pool, server_id)
@@ -467,6 +492,7 @@ async fn start_pty_session(
             .details(serde_json::json!({
                 "login": conn.target.login(),
                 "auth": conn.auth,
+                "recorded": server.record_sessions,
             })),
     );
     let channel = open_shell(&conn, server.startup_command.as_deref(), cols, rows).await?;
@@ -481,7 +507,7 @@ async fn start_pty_session(
         command_rx,
         state.sessions.clone(),
     );
-    Ok(live)
+    Ok((live, server.record_sessions))
 }
 
 /// Open an interactive shell on an authenticated connection: a session channel, a PTY of the

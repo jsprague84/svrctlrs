@@ -13,8 +13,8 @@ pub async fn list_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               startup_command, description, enabled, last_seen_at, last_error, created_at,
-               updated_at
+               startup_command, record_sessions, description, enabled, last_seen_at,
+               last_error, created_at, updated_at
         FROM servers
         ORDER BY name
         "#,
@@ -31,8 +31,8 @@ pub async fn get_server(pool: &Pool<Sqlite>, id: i64) -> Result<Server> {
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               startup_command, description, enabled, last_seen_at, last_error, created_at,
-               updated_at
+               startup_command, record_sessions, description, enabled, last_seen_at,
+               last_error, created_at, updated_at
         FROM servers
         WHERE id = ?
         "#,
@@ -51,8 +51,8 @@ pub async fn get_server_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<Serve
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               startup_command, description, enabled, last_seen_at, last_error, created_at,
-               updated_at
+               startup_command, record_sessions, description, enabled, last_seen_at,
+               last_error, created_at, updated_at
         FROM servers
         WHERE name = ?
         "#,
@@ -74,8 +74,8 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
     let result = sqlx::query(
         r#"
         INSERT INTO servers (name, hostname, port, username, credential_id, via_server_id,
-                             tags, startup_command, description, enabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             tags, startup_command, record_sessions, description, enabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&input.name)
@@ -92,6 +92,7 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
             .map(str::trim)
             .filter(|c| !c.is_empty()),
     )
+    .bind(input.record_sessions)
     .bind(&input.description)
     .bind(input.enabled)
     .execute(pool)
@@ -143,6 +144,9 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
         qb.push(", startup_command = NULLIF(")
             .push_bind(startup_command.trim().to_string())
             .push(", '')");
+    }
+    if let Some(record) = input.record_sessions {
+        qb.push(", record_sessions = ").push_bind(record);
     }
     if let Some(description) = &input.description {
         qb.push(", description = NULLIF(")
@@ -223,8 +227,8 @@ pub async fn list_enabled_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               startup_command, description, enabled, last_seen_at, last_error, created_at,
-               updated_at
+               startup_command, record_sessions, description, enabled, last_seen_at,
+               last_error, created_at, updated_at
         FROM servers
         WHERE enabled = 1
         ORDER BY name
@@ -257,6 +261,7 @@ mod tests {
             via_server_id: None,
             tags: vec![],
             startup_command: None,
+            record_sessions: false,
             description: None,
             enabled: true,
         }
@@ -293,6 +298,7 @@ mod tests {
             via_server_id: None,
             tags: vec!["Prod".into(), "prod".into(), " web ".into()],
             startup_command: Some(" tmux new -A -s main ".into()),
+            record_sessions: true,
             description: Some("Test server".to_string()),
             enabled: true,
         };
@@ -309,6 +315,7 @@ mod tests {
             server.startup_command.as_deref(),
             Some("tmux new -A -s main")
         );
+        assert!(server.record_sessions);
 
         // Update server
         let update = UpdateServer {
@@ -344,6 +351,21 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(get_server(&pool, id).await.unwrap().startup_command, None);
+        assert!(
+            get_server(&pool, id).await.unwrap().record_sessions,
+            "kept when absent"
+        );
+        update_server(
+            &pool,
+            id,
+            &UpdateServer {
+                record_sessions: Some(false),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        assert!(!get_server(&pool, id).await.unwrap().record_sessions);
 
         // Delete server
         delete_server(&pool, id).await.unwrap();

@@ -16,6 +16,7 @@ they are not forgotten. Fixes are tracked in `ROADMAP.md` (History, P0 Security)
 | Stored credentials (passwords, key material) | AES-256-GCM with `ENCRYPTION_KEY` | anyone with the DB *and* the key, or with a valid session (the server decrypts on use) |
 | Server inventory, host keys | database file permissions (uid 1000 in the container) | anyone with the volume |
 | Sessions / tokens | SQLite `tower_sessions`, 24 h inactivity expiry | anyone with the DB; the client that holds the token |
+| Session recordings (opt-in) | AES-256-GCM with `ENCRYPTION_KEY`; owner-only access | anyone with the files *and* the key; the owner's session |
 
 Assumed: TLS terminates at a reverse proxy; the SvrCtlRS container is on a private Docker
 network; the operator controls the host. Not assumed: trustworthy browser extensions or
@@ -78,6 +79,38 @@ their fingerprints and trust state and can be forgotten per server (Servers → 
 `DELETE /api/v1/servers/{id}/host-keys`, audited as `server.host_keys_forgotten`), after which
 the next connection asks for confirmation again. Keys stored before this existed (trust on
 first use) were marked trusted by the migration.
+
+## Session recordings
+
+Off unless a server's **Record sessions** is set (opt-in per server; turning it on or off is
+audited as `server.updated` with `record_sessions`). From then on every shell opened on that
+server is recorded for the user who opened it (`server/src/recordings.rs`):
+
+- **What.** What the terminal showed: the shell's output, which includes the echo of typed
+  commands, and its resizes, as asciicast v2. Keystrokes are never recorded, so a password
+  typed at a prompt that does not echo (`sudo`, `ssh`, `read -s`) is not in it; anything a
+  program prints (`cat .env`) is. The new shell says "This session is recorded", so the
+  person being recorded knows.
+- **Whose.** A recording belongs to the user whose shell it was. Listing, playing,
+  downloading and deleting are scoped by `user_id` in the query itself, and another user's
+  recording answers 404 like a missing one (Warpgate's 2026 CVE leaked live recordings
+  between users; this is the shape that prevents it). Server-crate tests and the e2e try every
+  route as a second user.
+- **At rest.** `RECORDINGS_DIR/<user id>/<random>.cast.enc`, directory 0700 and file 0600,
+  every chunk encrypted with `ENCRYPTION_KEY` (AES-256-GCM, as for credentials), so a copied
+  volume or backup without the key shows nothing. File names are random and never come from a
+  request. Downloads are served `Cache-Control: private, no-store`.
+- **Lifetime.** Deleted by an hourly sweep after `recording.retention_days` (default 30; 0
+  keeps them), or by the owner. A recording stops at `RECORDING_MAX_MB` (default 100) and the
+  shell goes on unrecorded. Deleting a user deletes their recordings (rows by foreign key,
+  files by the sweep).
+- **Audit.** `session.pty_opened` says whether the shell was recorded; downloads
+  (`recording.downloaded`) and deletions (`recording.deleted`) are logged.
+
+Every account is an administrator (weakness 8 below), so any user can switch recording on for
+a server and thereby have the shells other users open there recorded. Those recordings belong
+to the users who opened the shells, not to whoever switched recording on, and the terminal
+tells them.
 
 ## Transport and headers
 

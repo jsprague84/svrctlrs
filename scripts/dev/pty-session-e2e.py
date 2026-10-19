@@ -11,7 +11,8 @@ started with a short TTL and an SSH target the given key can log in to:
     python3 scripts/dev/pty-session-e2e.py        # needs the `websockets` package
 
 Exercises: shell, dropped socket, attach with last_seq (gap replay), live input after
-reattach, full redraw from seq 0, `closed` on exit, `session_gone`, TTL expiry. Output frames
+reattach, full redraw from seq 0, `closed` on exit, `session_gone`, TTL expiry, and session
+recording (opt-in per server, output only, invisible to another user). Output frames
 are requested in binary form (E2E_BINARY=0 for the legacy JSON `output` frames) and a
 multibyte marker checks that bytes reach the client intact.
 """
@@ -297,6 +298,7 @@ async def main():
         fr = await recv_until(ws, lambda m: m["type"] in ("connected", "error"), 30)
         conn = [m for m in fr if m["type"] == "connected"]
         assert conn, fr
+        assert conn[0].get("recording") is False, conn[0]
         session_id = conn[0]["session_id"]
         print("session", session_id)
         fr = await recv_until(ws, lambda m: m["type"] == "output" and "STARTUP-42" in m["data"] and "echo" not in m["data"], 15)
@@ -365,6 +367,86 @@ async def main():
     left = api("GET", "/api/v1/sessions")["sessions"]
     assert all(s["id"] != sid2 for s in left), left
     print("TTL expiry ok; remaining:", left)
+
+    # 7. Recording: opt-in per server, what the terminal shows (never keystrokes), the owner's only
+    rec_srv = api("POST", "/api/v1/servers", {"name": f"e2e recorded {RUN}", "hostname": SSH_HOST, "port": 22,
+        "username": SSH_USER, "credential_id": cid, "record_sessions": True})
+    rec_sid = rec_srv["id"] if "id" in rec_srv else rec_srv["data"]["id"]
+    assert api("GET", f"/api/v1/servers/{rec_sid}")["server"]["record_sessions"] is True
+    trust_first_contact(rec_sid)
+    secret = f"hunter2-e2e-{RUN}"
+    async with websockets.connect(WS, additional_headers=hdrs) as ws:
+        await ws.send(json.dumps({"type": "shell", "server_id": rec_sid, "cols": 100, "rows": 30, "binary": BINARY}))
+        fr = await recv_until(ws, lambda m: m["type"] in ("connected", "error"), 30)
+        conn = fr[-1]
+        assert conn["type"] == "connected" and conn.get("recording") is True, conn
+        assert "recorded" in conn["data"], conn["data"]
+        live = [x for x in api("GET", "/api/v1/sessions")["sessions"] if x["id"] == conn["session_id"]]
+        assert live and live[0]["recorded"] is True, live
+        await ws.send(json.dumps({"type": "input", "data": "echo REC-$((9*9))\n"}))
+        await recv_until(ws, lambda m: m["type"] == "output" and "REC-81" in m["data"] and not m["data"].startswith("echo"), 15)
+        await ws.send(json.dumps({"type": "resize", "cols": 120, "rows": 40}))
+        # A password at a prompt that does not echo never reaches the recording
+        await ws.send(json.dumps({"type": "input", "data": "stty -echo; read -r SECRET; stty echo; echo READ-DONE-$((2*2))\n"}))
+        await asyncio.sleep(0.8)
+        await ws.send(json.dumps({"type": "input", "data": secret + "\n"}))
+        fr = await recv_until(ws, lambda m: m["type"] == "output" and "READ-DONE-4" in m["data"] and "echo" not in m["data"], 15)
+        assert fr, "the read did not finish"
+        await ws.send(json.dumps({"type": "input", "data": "exit\n"}))
+        await recv_until(ws, lambda m: m["type"] == "closed", 15)
+    rec = None
+    for _ in range(50):
+        recs = api("GET", f"/api/v1/recordings?server_id={rec_sid}")["recordings"]
+        if recs and recs[0]["status"] != "recording":
+            rec = recs[0]
+            break
+        await asyncio.sleep(0.2)
+    assert rec and rec["status"] == "complete" and rec["size_bytes"] > 0 and rec["duration_ms"] > 0, recs
+    assert rec["session_id"] == conn["session_id"] and rec["server_name"] == f"e2e recorded {RUN}", rec
+    st, body, rh = api_raw("GET", f"/api/v1/recordings/{rec['id']}/cast")
+    assert st == 200 and rh.get("content-type") == "application/x-asciicast", (st, rh)
+    cast = body.decode()
+    assert len(body) == rec["size_bytes"], (len(body), rec["size_bytes"])
+    lines = cast.splitlines()
+    header = json.loads(lines[0])
+    assert header["version"] == 2 and (header["width"], header["height"]) == (100, 30), header
+    events = [json.loads(line) for line in lines[1:]]
+    shown = "".join(e[2] for e in events if e[1] == "o")
+    assert "REC-81" in shown and "READ-DONE-4" in shown, shown[-400:]
+    assert ["r", "120x40"] in [e[1:] for e in events], [e for e in events if e[1] != "o"]
+    assert secret not in cast, "a password typed at a silent prompt was recorded"
+    st, _, rh = api_raw("GET", f"/api/v1/recordings/{rec['id']}/cast?download=true")
+    assert "attachment" in rh.get("content-disposition", ""), rh
+    print("recording ok:", rec["size_bytes"], "bytes,", len(events), "events, no keystrokes")
+
+    # Another account sees nothing of it
+    other = f"e2e-other-{RUN}"
+    api("POST", "/api/v1/users", {"username": other, "password": "another-long-password"})
+    other_jar = http.cookiejar.CookieJar()
+    other_opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(other_jar))
+    def other_api(method, path, body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(BASE + path, data=data, method=method,
+            headers={"Content-Type": "application/json", "Origin": BASE})
+        with other_opener.open(req) as r:
+            return json.loads(r.read() or b"null")
+    other_api("POST", "/api/v1/auth/login", {"username": other, "password": "another-long-password"})
+    assert other_api("GET", "/api/v1/recordings")["recordings"] == []
+    for method, path in [("GET", f"/api/v1/recordings/{rec['id']}"), ("GET", f"/api/v1/recordings/{rec['id']}/cast"),
+                         ("DELETE", f"/api/v1/recordings/{rec['id']}")]:
+        try:
+            other_api(method, path)
+            raise AssertionError(f"{method} {path} worked for another user")
+        except urllib.error.HTTPError as e:
+            assert e.code == 404, (method, path, e.code)
+    print("recording invisible to another user ok")
+    api("DELETE", f"/api/v1/recordings/{rec['id']}")
+    try:
+        api("GET", f"/api/v1/recordings/{rec['id']}")
+        raise AssertionError("deleted recording still there")
+    except urllib.error.HTTPError as e:
+        assert e.code == 404, e.code
+    print("recording deleted ok")
     print("ALL E2E CHECKS PASSED")
 
 asyncio.run(main())

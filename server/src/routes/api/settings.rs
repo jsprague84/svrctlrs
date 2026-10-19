@@ -28,6 +28,22 @@ pub fn routes() -> Router<AppState> {
 }
 
 /// Settings that are write-only through the API: reads say whether they are set, never what.
+/// Values the server reads as numbers are checked on the way in, so a typo cannot quietly
+/// fall back to a default.
+fn check_value(key: &str, value: &str) -> Result<(), ApiError> {
+    if key == "recording.retention_days"
+        && !value
+            .trim()
+            .parse::<i64>()
+            .is_ok_and(|d| (0..=3650).contains(&d))
+    {
+        return Err(ApiError::bad_request(
+            "Keep recordings for 0 to 3650 days (0 keeps them until you delete them)",
+        ));
+    }
+    Ok(())
+}
+
 fn is_secret(key: &str) -> bool {
     key == "notification.token"
 }
@@ -97,11 +113,15 @@ async fn update_settings(
     State(state): State<AppState>,
     Json(input): Json<UpdateSettingsInput>,
 ) -> Result<impl IntoResponse, ApiError> {
-    let mut written = Vec::new();
+    // All or nothing: refuse before writing any
     for (key, value) in &input.values {
         if key.trim().is_empty() {
             return Err(ApiError::bad_request("Setting key cannot be empty"));
         }
+        check_value(key, value)?;
+    }
+    let mut written = Vec::new();
+    for (key, value) in &input.values {
         if is_secret(key) && value.is_empty() {
             continue;
         }
@@ -212,6 +232,7 @@ async fn update_setting(
     Json(input): Json<UpdateSettingInput>,
 ) -> Result<impl IntoResponse, ApiError> {
     info!(key = %key, "Updating setting");
+    check_value(&key, &input.value)?;
 
     // Use set_setting (upsert) — creates if missing, updates if exists
     settings::set_setting(&state.pool, &key, &input.value).await?;
@@ -222,4 +243,21 @@ async fn update_setting(
         "key": key,
         "message": "Setting updated successfully"
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retention_must_be_a_number_of_days() {
+        for ok in ["0", "30", " 365 ", "3650"] {
+            assert!(check_value("recording.retention_days", ok).is_ok(), "{ok}");
+        }
+        for bad in ["", "-1", "3651", "thirty", "1.5"] {
+            let e = check_value("recording.retention_days", bad).unwrap_err();
+            assert_eq!(e.status, axum::http::StatusCode::BAD_REQUEST, "{bad}");
+        }
+        assert!(check_value("notification.url", "anything").is_ok());
+    }
 }

@@ -6,6 +6,7 @@ use svrctlrs_database::{Database, SqlxPool, SqlxSqlite};
 use tokio::sync::RwLock;
 
 use crate::login_limiter::LoginLimiter;
+use crate::recordings::RecordingStore;
 use crate::sessions::SessionRegistry;
 use crate::ws_tickets::WsTickets;
 
@@ -26,6 +27,8 @@ pub struct AppState {
     pub ws_tickets: Arc<WsTickets>,
     /// Live interactive sessions; they outlive the sockets that use them.
     pub sessions: Arc<SessionRegistry>,
+    /// Where session recordings are written, and the recorders still writing.
+    pub recordings: Arc<RecordingStore>,
 }
 
 impl AppState {
@@ -40,6 +43,7 @@ impl AppState {
             login_limiter: Arc::new(LoginLimiter::with_defaults()),
             ws_tickets: Arc::new(WsTickets::default()),
             sessions: SessionRegistry::from_env(),
+            recordings: RecordingStore::from_env(),
         })
     }
 
