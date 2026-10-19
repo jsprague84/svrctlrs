@@ -47,9 +47,12 @@ cd ui && npm run check && npm run lint && npm run test && npm run build && npm a
 (JS + typescript-eslint + eslint-plugin-svelte, Prettier-compatible) plus a Prettier check.
 Unit tests are Vitest files next to the code (`*.test.ts`); keep them for pure modules.
 
-Tests today: 74 Rust tests across `core`, `database` and `server` (auth middleware, host keys,
-limiter, tickets, session registry and replay ring, svrctl backup) and 11 Vitest tests in the
-UI. Security-relevant changes come with tests.
+Tests today: about 110 Rust tests across `core`, `database` and `server` (auth middleware,
+host keys, limiter, tickets, session registry and replay ring, `ssh_config` import, svrctl
+backup) and 72 Vitest tests in the UI, most of them for the terminal session protocol
+(`ui/src/lib/terminal/ptySession.test.ts`: attach and replay, keep-alive watchdog, reconnect
+backoff, host-key challenge, persistence) driven with a fake socket and fake timers.
+Security-relevant changes come with tests.
 
 `scripts/dev/pty-session-e2e.py` drives the SSH and session paths end to end against a locally
 running server and a real SSH target: first-contact host-key confirmation, the connection
@@ -64,7 +67,7 @@ E2E_SSH_HOST=10.0.0.5 E2E_SSH_USER=ubuntu E2E_SSH_KEY=~/.ssh/id_ed25519 scripts/
 ```
 
 Run it after touching `ssh.rs`, `sessions.rs`, `terminal_pty.rs`, the servers API or the
-pane's attach logic. CI cannot run it (no SSH target); say in the commit that it passed.
+pane's transport (`ui/src/lib/terminal/`). CI cannot run it (no SSH target); say in the commit that it passed.
 
 ## Repository layout
 

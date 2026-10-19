@@ -5,7 +5,12 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+- The terminal pane's WebSocket session (connect, attach and replay, the ping/pong watchdog,
+  reconnect backoff, the host-key challenge, the session record and saved screen) moved out of
+  `TerminalPane.svelte` into `ui/src/lib/terminal/ptySession.ts`, with Vitest tests for the
+  protocol. No behaviour change; the pane keeps xterm, gestures and the overlays (1,232 → 800
+  lines).
 
 ## [3.1.0] - 2026-10-18
 

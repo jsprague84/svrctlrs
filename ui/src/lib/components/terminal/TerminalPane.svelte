@@ -16,13 +16,12 @@
 	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
 	import * as terminalState from '#lib/state/terminal.svelte.js';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
-	import { getServerUrl } from '#lib/platform/index.js';
-	import { post } from '#lib/api/client.js';
 	import * as serversApi from '#lib/api/servers.js';
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
-	import { loadSessionRecord, saveSessionRecord } from '#lib/utils/sessionRecord.js';
-	import type { ConnectionStatus, PtyRequest, PtyResponse } from '#lib/types/index.js';
+	import { PtySession, type SessionView } from '#lib/terminal/ptySession.js';
+	import { browserPtySocketUrl } from '#lib/terminal/socketUrl.js';
+	import type { ConnectionStatus } from '#lib/types/index.js';
 
 	interface Props {
 		tabId: string;
@@ -52,22 +51,19 @@
 		onOpenPalette
 	}: Props = $props();
 
-	let showReconnectOverlay = $state(false);
+	/** Status, banner, reconnect overlay and host-key challenge, as the session reports them */
+	let view = $state<SessionView>({
+		status: 'disconnected',
+		note: null,
+		showReconnect: false,
+		hostKey: null
+	});
+	/** The WebSocket side: connect, attach, replay, keep-alive, reconnect, persistence */
+	let session: PtySession | null = null;
 	/** Brief ring around the pane when the shell rings the bell */
 	let bellFlash = $state(false);
 	let bellFlashTimer: ReturnType<typeof setTimeout> | null = null;
-	/** First contact: the server refused the shell until this key is confirmed */
-	let hostKeyChallenge = $state<{
-		server_id: number;
-		server_name: string;
-		key_type: string;
-		fingerprint: string;
-	} | null>(null);
 	let trustingHostKey = $state(false);
-	/** Connection progress shown over the pane instead of being written into the shell's buffer. */
-	let statusNote = $state<string | null>(null);
-	/** Bumped by every connect(); handlers of an older socket ignore their events. */
-	let connectGen = 0;
 	/** Set from the mobile extra-keys row: the next typed character becomes Ctrl+/Alt+ it. */
 	let pendingModifier: 'ctl' | 'alt' | null = null;
 	let shellEl: HTMLDivElement;
@@ -137,7 +133,7 @@
 	 * normal buffer (a full-screen program gets nothing) and only on the cursor's own row.
 	 */
 	function moveCursorTo(clientX: number, clientY: number) {
-		if (!terminal || !socket || socket.readyState !== WebSocket.OPEN) return;
+		if (!terminal || !session?.isOpen) return;
 		const buf = terminal.buffer.active;
 		if (buf.type !== 'normal') return;
 		const cell = cellAt(clientX, clientY);
@@ -308,87 +304,8 @@
 	let searchAddon: SearchAddon | null = null;
 	let serializeAddon: SerializeAddon | null = null;
 	let webglAddon: WebglAddon | null = null;
-	let socket: WebSocket | null = null;
 	let resizeObserver: ResizeObserver | null = null;
 	let resizeTimer: ReturnType<typeof setTimeout> | null = null;
-	let pingInterval: ReturnType<typeof setInterval> | null = null;
-	let outputHistory: string[] = [];
-	/** Decodes binary output frames for the copy/download history; xterm gets the raw bytes.
-	 *  Streaming, so a character split across frames is joined; renewed per connection. */
-	let outputDecoder = new TextDecoder();
-	let status = $state<ConnectionStatus>('disconnected');
-	let ptyInputDisposable: { dispose: () => void } | null = null;
-	let ptyResizeDisposable: { dispose: () => void } | null = null;
-	let intentionalDisconnect = false;
-	let reconnectAttempt = 0;
-	let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-
-	const PING_INTERVAL = 30_000;
-	/** A ping unanswered for this long means the socket is dead even if the browser says OPEN. */
-	const PONG_TIMEOUT = 8_000;
-	let pongTimeout: ReturnType<typeof setTimeout> | null = null;
-	const MAX_OUTPUT_HISTORY = 10_000;
-	const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
-	const MAX_RECONNECT_ATTEMPTS = RECONNECT_DELAYS.length;
-	/** Set by onerror when an established session drops; onclose fires after and reads it. */
-	let lostWhileConnected = false;
-	/** The server-side session this pane is (or was last) attached to, and how much of its
-	 *  output has been shown. Both persist in sessionStorage so a reload resumes the shell. */
-	let sessionId: string | null = null;
-	let lastSeq = 0;
-	/** The server the session was opened on; the tab may be pointed elsewhere later */
-	let sessionServerId: number | null = null;
-
-	function saveSession() {
-		saveSessionRecord(tabId, sessionId ? { sessionId, lastSeq, serverId: sessionServerId } : null);
-	}
-
-	function loadSession() {
-		const saved = loadSessionRecord(tabId);
-		if (saved) {
-			sessionId = saved.sessionId;
-			lastSeq = saved.lastSeq;
-			sessionServerId = saved.serverId;
-		}
-	}
-
-	function forgetSession() {
-		sessionId = null;
-		lastSeq = 0;
-		saveSession();
-	}
-
-	function setStatus(s: ConnectionStatus) {
-		status = s;
-		onStatusChange?.(tabId, s);
-	}
-
-	async function getWsUrl(): Promise<string> {
-		const serverUrl = getServerUrl();
-		const path = '/ws/terminal/pty';
-		let url: string;
-		if (serverUrl) {
-			const wsBase = serverUrl.replace(/^http/, 'ws');
-			url = `${wsBase}${path}`;
-		} else {
-			const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-			url = `${protocol}//${window.location.host}${path}`;
-		}
-		// The browser relies on the session cookie. Native apps cannot set headers on a
-		// WebSocket handshake, so they exchange their token for a one-time ticket that is
-		// bound to them and expires in seconds — nothing durable ends up in the URL.
-		const token = localStorage.getItem('svrctlrs-session-token');
-		if (token) {
-			try {
-				const { ticket } = await post<{ ticket: string }>('/auth/ws-ticket');
-				url += `?ticket=${encodeURIComponent(ticket)}`;
-			} catch {
-				// Server without ticket support: fall back to the token (deprecated).
-				url += `?token=${encodeURIComponent(token)}`;
-			}
-		}
-		return url;
-	}
 
 	let webglLosses = 0;
 	function tryLoadWebgl() {
@@ -463,6 +380,37 @@
 			}
 		});
 
+		const term = terminal;
+		session = new PtySession({
+			tabId,
+			serverId: () => serverId,
+			terminal: {
+				write: (data) => term.write(data),
+				writeln: (line) => term.writeln(line),
+				clear: () => term.clear(),
+				reset: () => term.reset(),
+				focus: () => term.focus(),
+				fit: () => fit(),
+				get cols() {
+					return term.cols;
+				},
+				get rows() {
+					return term.rows;
+				},
+				serialize: () => serializeAddon?.serialize() ?? null
+			},
+			socketUrl: browserPtySocketUrl,
+			trustHostKey: serversApi.trustHostKey,
+			onStatus: (s) => onStatusChange?.(tabId, s),
+			onView: (v) => (view = v)
+		});
+		// Keyboard input and size changes go to the PTY while the socket is open. The pending
+		// CTL/ALT is only used up by a keystroke that is actually sent.
+		terminal.onData((data) => {
+			if (session?.isOpen) session.sendInput(applyPendingModifier(data));
+		});
+		terminal.onResize(({ cols, rows }) => session?.sendResize(cols, rows));
+
 		try {
 			terminal.loadAddon(
 				new ImageAddon({
@@ -514,75 +462,12 @@
 		fit();
 	}
 
-	function appendOutput(data: string) {
-		outputHistory.push(data);
-		if (outputHistory.length > MAX_OUTPUT_HISTORY) {
-			outputHistory = outputHistory.slice(-MAX_OUTPUT_HISTORY);
-		}
-	}
-
-	function clearPongTimeout() {
-		if (pongTimeout) {
-			clearTimeout(pongTimeout);
-			pongTimeout = null;
-		}
-	}
-
-	/** Ping and arm the watchdog; a missing pong tears the socket down so onclose reconnects. */
-	function sendPing() {
-		if (!socket || socket.readyState !== WebSocket.OPEN) return;
-		socket.send(JSON.stringify({ type: 'ping' }));
-		if (pongTimeout) return;
-		pongTimeout = setTimeout(() => {
-			pongTimeout = null;
-			if (!socket || intentionalDisconnect) return;
-			statusNote = 'Connection unresponsive — reconnecting';
-			lostWhileConnected = status === 'connected';
-			socket.close();
-		}, PONG_TIMEOUT);
-	}
-
-	/** Called when the tab becomes visible again. */
-	function checkAlive() {
-		if (intentionalDisconnect) return;
-		// A connect is in flight: let it finish rather than starting a second one
-		if (status === 'connecting' || reconnectTimeout) return;
-		if (!socket || socket.readyState !== WebSocket.OPEN) {
-			// Died in the background without a close event we acted on
-			lostWhileConnected = true;
-			reconnectAttempt = 0;
-			attemptReconnect();
-			return;
-		}
-		sendPing();
-	}
-
-	function attemptReconnect() {
-		if (reconnectAttempt >= MAX_RECONNECT_ATTEMPTS) {
-			statusNote = null;
-			showReconnectOverlay = true;
-			return;
-		}
-		// ±15% jitter so many panes dropped at once do not retry in lockstep
-		const base = RECONNECT_DELAYS[Math.min(reconnectAttempt, RECONNECT_DELAYS.length - 1)];
-		const delay = Math.round(base * (0.85 + Math.random() * 0.3));
-		reconnectAttempt++;
-		statusNote = `Reconnecting… (${reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`;
-		reconnectTimeout = setTimeout(() => {
-			reconnectTimeout = null;
-			connect();
-		}, delay);
-	}
-
 	/** The user compared the fingerprint and accepts it: trust the key, then connect again. */
 	async function trustHostKey() {
-		if (!hostKeyChallenge || serverId === null) return;
+		if (!session || !view.hostKey || serverId === null) return;
 		trustingHostKey = true;
 		try {
-			await serversApi.trustHostKey(hostKeyChallenge.server_id, hostKeyChallenge.fingerprint);
-			hostKeyChallenge = null;
-			terminal?.writeln('\x1b[32m✓ Host key trusted\x1b[0m');
-			await connect();
+			await session.trustHostKey();
 		} catch (e) {
 			toast.error(extractErrorMessage(e, 'Could not trust the host key'));
 		} finally {
@@ -592,231 +477,7 @@
 
 	/** Open the PTY WebSocket for the current serverId (new shell, or reattach) */
 	export async function connect() {
-		if (!terminal || serverId === null) return;
-		hostKeyChallenge = null;
-		showReconnectOverlay = false;
-
-		// Cancel any pending reconnect
-		if (reconnectTimeout) {
-			clearTimeout(reconnectTimeout);
-			reconnectTimeout = null;
-		}
-
-		intentionalDisconnect = false;
-		cleanupSocket(false);
-		// A session resumes only on the server it was opened on
-		if (sessionId && sessionServerId !== null && sessionServerId !== serverId) forgetSession();
-		setStatus('connecting');
-		const gen = ++connectGen;
-
-		if (reconnectAttempt === 0) {
-			terminal.clear();
-			outputHistory = [];
-			// The saved buffer and the saved lastSeq were written together; without the buffer the
-			// screen is empty, so ask the server for everything it still has.
-			if (!restoreBuffer()) lastSeq = 0;
-		}
-		// Progress goes in the banner, never into the shell's buffer: a resumed screen must look
-		// exactly as it did, prompt and cursor included.
-		statusNote = sessionId ? 'Resuming session…' : 'Connecting…';
-
-		const wsUrl = await getWsUrl();
-		// The ticket request yields; the tab may have been closed or reconnected meanwhile.
-		if (!terminal || intentionalDisconnect || gen !== connectGen) return;
-
-		let ws: WebSocket;
-		try {
-			ws = new WebSocket(wsUrl);
-		} catch (e) {
-			terminal.writeln(`\r\n\x1b[31mFailed to create WebSocket: ${e}\x1b[0m`);
-			statusNote = null;
-			setStatus('error');
-			return;
-		}
-		// PTY output comes as binary frames (seq header + raw bytes); control frames stay JSON
-		ws.binaryType = 'arraybuffer';
-		outputDecoder = new TextDecoder();
-		socket = ws;
-		const stale = () => ws !== socket;
-
-		ws.onopen = () => {
-			if (stale()) return;
-			// The tab counts as connected once the shell is up, not when the socket opens
-			reconnectAttempt = 0;
-
-			const { cols, rows } = terminal!;
-
-			// Resume the server-side session if we have one, otherwise start a shell
-			const req: PtyRequest = sessionId
-				? { type: 'attach', session_id: sessionId, last_seq: lastSeq, cols, rows, binary: true }
-				: { type: 'shell', server_id: serverId!, cols, rows, binary: true };
-			ws.send(JSON.stringify(req));
-
-			// Forward keyboard input to PTY
-			cleanupPty();
-			ptyInputDisposable = terminal!.onData((data: string) => {
-				if (ws.readyState !== WebSocket.OPEN) return;
-				const req: PtyRequest = { type: 'input', data: applyPendingModifier(data) };
-				ws.send(JSON.stringify(req));
-			});
-
-			// Forward resize events
-			ptyResizeDisposable = terminal!.onResize(({ cols, rows }) => {
-				if (ws.readyState === WebSocket.OPEN) {
-					const req: PtyRequest = { type: 'resize', cols, rows };
-					ws.send(JSON.stringify(req));
-				}
-			});
-
-			terminal!.focus();
-
-			// Start keep-alive pings; each one arms a watchdog that the pong disarms
-			pingInterval = setInterval(() => sendPing(), PING_INTERVAL);
-		};
-
-		ws.onmessage = (event: MessageEvent) => {
-			if (stale()) return;
-			if (event.data instanceof ArrayBuffer) {
-				// Numbered PTY output: 8-byte big-endian seq, then the shell's bytes as produced
-				if (event.data.byteLength < 8) return;
-				const seq = Number(new DataView(event.data).getBigUint64(0));
-				const bytes = new Uint8Array(event.data, 8);
-				terminal!.write(bytes);
-				appendOutput(outputDecoder.decode(bytes, { stream: true }));
-				lastSeq = seq;
-				return;
-			}
-			try {
-				const res = JSON.parse(event.data) as PtyResponse;
-				switch (res.type) {
-					case 'output':
-						terminal!.write(res.data);
-						appendOutput(res.data);
-						if (res.seq !== undefined) lastSeq = res.seq;
-						break;
-					case 'connected':
-						setStatus('connected');
-						if (res.session_id) {
-							sessionId = res.session_id;
-							sessionServerId = serverId;
-							saveSession();
-						}
-						terminal!.write(res.data);
-						if (res.data) statusNote = null; // a new shell; a resume clears at replay_end
-						terminal!.focus();
-						break;
-					case 'replay_start':
-						// Nothing of this session on screen yet: the ring is redrawn from the top
-						if (lastSeq === 0) {
-							terminal!.reset();
-							outputHistory = [];
-						}
-						break;
-					case 'replay_window_lost':
-						// Too far behind the ring; the server now resends what it still has
-						terminal!.reset();
-						outputHistory = [];
-						lastSeq = 0;
-						break;
-					case 'replay_end':
-						statusNote = null;
-						terminal!.focus();
-						nudgeRedraw();
-						break;
-					case 'closed':
-						statusNote = null;
-						terminal!.writeln(`\r\n\x1b[33m[${res.data || 'Session ended'}]\x1b[0m`);
-						forgetSession();
-						stopReconnecting();
-						cleanupSocket(false);
-						setStatus('disconnected');
-						showReconnectOverlay = true;
-						break;
-					case 'error':
-						if (res.code === 'session_gone') {
-							// Kept too long or killed elsewhere; fall back to a fresh shell
-							forgetSession();
-							terminal!.reset();
-							outputHistory = [];
-							statusNote = 'Previous session ended — starting a new shell';
-							terminal!.writeln(
-								'\x1b[33m[Previous session has ended — starting a new shell]\x1b[0m'
-							);
-							const { cols, rows } = terminal!;
-							const req: PtyRequest = { type: 'shell', server_id: serverId!, cols, rows };
-							ws.send(JSON.stringify(req));
-						} else {
-							terminal!.write(res.data);
-							if (res.code === 'host_key_unconfirmed' && res.details) {
-								hostKeyChallenge = res.details;
-							}
-							if (!sessionId) {
-								// The shell never came up (auth, host key, unreachable)
-								statusNote = null;
-								setStatus('error');
-							}
-						}
-						break;
-					case 'pong':
-						clearPongTimeout();
-						break;
-				}
-			} catch {
-				terminal!.writeln('\r\n\x1b[31mError parsing server response\x1b[0m');
-			}
-		};
-
-		ws.onerror = () => {
-			if (stale()) return;
-			// onclose follows and decides about reconnecting; remember that this was an
-			// established session, since the status is about to read 'error'.
-			if (status === 'connected') lostWhileConnected = true;
-			statusNote = 'Connection error';
-			setStatus('error');
-		};
-
-		ws.onclose = () => {
-			if (stale()) return;
-			const wasConnected = status === 'connected' || lostWhileConnected;
-			lostWhileConnected = false;
-			setStatus('disconnected');
-			cleanupPty();
-			if (pingInterval) {
-				clearInterval(pingInterval);
-				pingInterval = null;
-			}
-			clearPongTimeout();
-
-			if (wasConnected && !intentionalDisconnect) {
-				statusNote = 'Connection lost';
-				attemptReconnect();
-			} else if (!intentionalDisconnect && reconnectAttempt > 0) {
-				// Reconnect attempt failed before fully connecting
-				attemptReconnect();
-			} else if (!intentionalDisconnect) {
-				// Refused before it ever connected (auth, origin, server down)
-				statusNote = 'Could not connect';
-				setStatus('error');
-			} else {
-				statusNote = null;
-			}
-		};
-	}
-
-	/**
-	 * After a resume the screen is restored from the saved buffer plus replayed output, but the
-	 * shell does not know anyone is looking. Two window-size changes give every program a
-	 * SIGWINCH, so prompts, editors and `top` repaint themselves at the real size.
-	 */
-	function nudgeRedraw() {
-		const ws = socket;
-		if (!terminal || !ws || ws.readyState !== WebSocket.OPEN) return;
-		fit();
-		const { cols, rows } = terminal;
-		ws.send(JSON.stringify({ type: 'resize', cols, rows: Math.max(2, rows - 1) }));
-		setTimeout(() => {
-			if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'resize', cols, rows }));
-		}, 60);
+		await session?.connect();
 	}
 
 	/** Mobile extra keys: CTL/ALT apply to the next character typed on the soft keyboard. */
@@ -834,93 +495,19 @@
 		return code >= 0 && code <= 31 ? String.fromCharCode(code) : data;
 	}
 
-	function cleanupPty() {
-		ptyInputDisposable?.dispose();
-		ptyInputDisposable = null;
-		ptyResizeDisposable?.dispose();
-		ptyResizeDisposable = null;
-	}
-
-	/** Drop the socket; `kill` ends the shell too, otherwise the server keeps it for reattach. */
-	function cleanupSocket(kill: boolean) {
-		if (pingInterval) {
-			clearInterval(pingInterval);
-			pingInterval = null;
-		}
-		cleanupPty();
-
-		if (socket) {
-			if (socket.readyState === WebSocket.OPEN) {
-				socket.send(JSON.stringify({ type: kill ? 'close' : 'detach' }));
-			}
-			socket.onclose = null;
-			socket.onerror = null;
-			socket.onmessage = null;
-			socket.close();
-			socket = null;
-		}
-	}
-
-	function stopReconnecting() {
-		intentionalDisconnect = true;
-		reconnectAttempt = 0;
-		if (reconnectTimeout) {
-			clearTimeout(reconnectTimeout);
-			reconnectTimeout = null;
-		}
-	}
-
 	/** End the shell and the connection (Disconnect button, tab close). */
 	export function disconnect() {
-		serializeBuffer();
-		stopReconnecting();
-		cleanupSocket(true);
-		forgetSession();
-		statusNote = null;
-		setStatus('disconnected');
+		session?.disconnect();
 	}
 
 	/** Leave the shell running on the server and drop only this connection (pane unmount). */
 	export function detach() {
-		serializeBuffer();
-		stopReconnecting();
-		cleanupSocket(false);
-		setStatus('disconnected');
-	}
-
-	/** Serialize terminal buffer to sessionStorage for later restoration */
-	function serializeBuffer() {
-		if (!serializeAddon || !terminal) return;
-		try {
-			const data = serializeAddon.serialize();
-			if (data.length > 512 * 1024) {
-				// Too big to keep: a resume redraws from the server's replay ring instead
-				sessionStorage.removeItem(`svrctlrs-term-buffer-${tabId}`);
-			} else {
-				sessionStorage.setItem(`svrctlrs-term-buffer-${tabId}`, data);
-			}
-			saveSession();
-		} catch {
-			// sessionStorage full or unavailable
-		}
-	}
-
-	/** Restore terminal buffer from sessionStorage; true when something was written */
-	function restoreBuffer(): boolean {
-		const key = `svrctlrs-term-buffer-${tabId}`;
-		const data = sessionStorage.getItem(key);
-		if (data && terminal) {
-			terminal.write(data);
-			sessionStorage.removeItem(key);
-			return true;
-		}
-		return false;
+		session?.detach();
 	}
 
 	/** Remove saved buffer and session record (called when tab is explicitly closed) */
 	export function clearSavedBuffer() {
-		sessionStorage.removeItem(`svrctlrs-term-buffer-${tabId}`);
-		saveSessionRecord(tabId, null);
+		session?.clearSaved();
 	}
 
 	/** Plain arrow in the current cursor-key mode (DECCKM switches CSI to SS3). */
@@ -937,17 +524,13 @@
 		if (!terminal) return;
 		const plainArrow = data.length === 3 && data.startsWith('\x1b[') && 'ABCD'.includes(data[2]);
 		const seq = plainArrow ? arrowSeq(data[2] as 'A' | 'B' | 'C' | 'D') : data;
-		if (ptyInputDisposable) {
-			terminal.input(seq, true);
-		} else if (socket?.readyState === WebSocket.OPEN) {
-			const req: PtyRequest = { type: 'input', data: seq };
-			socket.send(JSON.stringify(req));
-		}
+		// Through onData while the socket is open; nothing to type into otherwise
+		if (session?.isOpen) terminal.input(seq, true);
 	}
 
 	export function clear() {
 		terminal?.clear();
-		outputHistory = [];
+		session?.clearOutput();
 	}
 
 	export function fit() {
@@ -981,9 +564,7 @@
 	}
 
 	export function getOutput(): string {
-		// eslint-disable-next-line no-control-regex -- ANSI escape sequences start with ESC
-		const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
-		return outputHistory.map(stripAnsi).join('');
+		return session?.getOutput() ?? '';
 	}
 
 	export async function copyOutput() {
@@ -1069,9 +650,9 @@
 
 	onMount(() => {
 		initTerminal();
-		loadSession();
+		session?.loadSession();
 		// Coming back to the terminal page (or reloading it): pick the shell up where it was
-		if (sessionId && serverId !== null) {
+		if (session?.heldSessionId && serverId !== null) {
 			requestAnimationFrame(() => connect());
 		}
 
@@ -1098,17 +679,9 @@
 		shellEl.addEventListener('touchmove', suppressTouch, { capture: true, passive: false });
 		shellEl.addEventListener('touchend', suppressTouch, { capture: true, passive: false });
 
-		// Serialize buffer when tab is hidden; on return, make sure the socket is really alive.
-		// Browsers throttle or drop background sockets without firing onclose promptly, which
-		// left a terminal that looked connected but swallowed every keystroke.
-		const handleVisibilityChange = () => {
-			if (document.hidden) {
-				serializeBuffer();
-			} else if (status === 'connected' || status === 'error') {
-				checkAlive();
-			}
-		};
-		const handleBeforeUnload = () => serializeBuffer();
+		// Save the screen when the tab is hidden; on return, make sure the socket is really alive
+		const handleVisibilityChange = () => session?.visibilityChanged(document.hidden);
+		const handleBeforeUnload = () => session?.persist();
 		document.addEventListener('visibilitychange', handleVisibilityChange);
 		window.addEventListener('beforeunload', handleBeforeUnload);
 
@@ -1122,7 +695,7 @@
 			shellEl.removeEventListener('touchend', suppressTouch, { capture: true });
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
 			window.removeEventListener('beforeunload', handleBeforeUnload);
-			detach();
+			session?.dispose();
 			if (resizeTimer) clearTimeout(resizeTimer);
 			resizeObserver?.disconnect();
 			if (webglAddon) {
@@ -1148,7 +721,7 @@
 >
 	<div class="terminal-viewport h-full w-full" bind:this={containerEl}></div>
 
-	{#if statusNote}
+	{#if view.note}
 		<div
 			class="absolute top-2 right-2 z-10 px-2 py-1 rounded-sm bg-surface/90 border border-border text-[11px] text-text-secondary pointer-events-none"
 			role="status"
@@ -1156,11 +729,11 @@
 		>
 			<span
 				class="inline-block w-1.5 h-1.5 rounded-full bg-warning mr-1.5 align-middle animate-pulse"
-			></span>{statusNote}
+			></span>{view.note}
 		</div>
 	{/if}
 
-	{#if hostKeyChallenge}
+	{#if view.hostKey}
 		<div
 			class="absolute inset-0 bg-background/85 flex items-center justify-center z-20 p-4"
 			role="dialog"
@@ -1173,21 +746,21 @@
 					Unknown host key
 				</h3>
 				<p class="text-xs text-text-secondary">
-					First connection to <strong>{hostKeyChallenge.server_name}</strong>. Compare the
-					fingerprint with the server's own, for example
+					First connection to <strong>{view.hostKey.server_name}</strong>. Compare the fingerprint
+					with the server's own, for example
 					<code class="font-mono">ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub</code> on the host, before
 					trusting it.
 				</p>
 				<div class="rounded-sm bg-background border border-border/60 px-3 py-2">
-					<div class="text-[11px] text-text-muted">{hostKeyChallenge.key_type}</div>
+					<div class="text-[11px] text-text-muted">{view.hostKey.key_type}</div>
 					<div class="font-mono text-xs text-text-primary break-all select-all">
-						{hostKeyChallenge.fingerprint}
+						{view.hostKey.fingerprint}
 					</div>
 				</div>
 				<div class="flex gap-2 justify-end">
 					<button
 						class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-sm hover:opacity-90"
-						onclick={() => (hostKeyChallenge = null)}
+						onclick={() => session?.dismissHostKey()}
 						disabled={trustingHostKey}
 					>
 						Cancel
@@ -1204,7 +777,7 @@
 		</div>
 	{/if}
 
-	{#if showReconnectOverlay}
+	{#if view.showReconnect}
 		<div
 			class="absolute inset-0 bg-background/80 flex flex-col items-center justify-center z-10 gap-3"
 		>
@@ -1218,11 +791,7 @@
 				</button>
 				<button
 					class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-sm hover:opacity-90"
-					onclick={() => {
-						forgetSession();
-						clear();
-						connect();
-					}}
+					onclick={() => session?.startFresh()}
 				>
 					New Session
 				</button>
