@@ -69,7 +69,11 @@ RUN case "$TARGETARCH" in \
       arm64) echo aarch64-unknown-linux-gnu ;; \
       *) echo "unsupported TARGETARCH $TARGETARCH" >&2; exit 1 ;; \
     esac > /rust-target \
-    && rustup target add "$(cat /rust-target)"
+    && rustup target add "$(cat /rust-target)" \
+    && case "$TARGETARCH" in arm64) echo 4227 ;; *) echo 4226 ;; esac > /sccache-port
+# BuildKit runs the amd64 and arm64 builds side by side on one host network. sccache's client
+# talks to its server on localhost, so each architecture gets its own port; otherwise the arm64
+# compiles run in the amd64 build's server, whose toolchain has no aarch64 standard library.
 ENV CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
     CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
     CXX_aarch64_unknown_linux_gnu=aarch64-linux-gnu-g++ \
@@ -84,6 +88,7 @@ COPY --from=planner /app/recipe.json recipe.json
 RUN --mount=type=cache,id=cargo-registry-$TARGETARCH,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=cargo-git-$TARGETARCH,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=sccache-$TARGETARCH,target=/sccache,sharing=locked \
+    SCCACHE_SERVER_PORT="$(cat /sccache-port)" \
     cargo chef cook --release --target "$(cat /rust-target)" --recipe-path recipe.json
 
 # Copy source code (invalidates cache only when source changes)
@@ -96,13 +101,14 @@ COPY database ./database
 RUN --mount=type=cache,id=cargo-registry-$TARGETARCH,target=/usr/local/cargo/registry,sharing=locked \
     --mount=type=cache,id=cargo-git-$TARGETARCH,target=/usr/local/cargo/git,sharing=locked \
     --mount=type=cache,id=sccache-$TARGETARCH,target=/sccache,sharing=locked \
+    SCCACHE_SERVER_PORT="$(cat /sccache-port)" \
     cargo build --release --target "$(cat /rust-target)" --package server --bins --features server \
     && mkdir -p /out \
     && cp "target/$(cat /rust-target)/release/server" /out/svrctlrs-server \
     && cp "target/$(cat /rust-target)/release/svrctl" /out/svrctl
 
 # Show sccache statistics for debugging
-RUN sccache --show-stats || true
+RUN SCCACHE_SERVER_PORT="$(cat /sccache-port)" sccache --show-stats || true
 
 # ============================================
 # Runtime files: the app user and its directories, prepared on the build platform so the
