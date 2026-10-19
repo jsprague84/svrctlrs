@@ -23,7 +23,8 @@ core/        encryption (AES-256-GCM), error type, notification senders
 database/    sqlx models, queries, embedded migrations (migrations/ current, migrations-legacy/ frozen)
 server/      Axum app: main.rs, ssh.rs (the one SSH client), sessions.rs (server-owned PTYs),
              routes/{api/*, terminal_pty.rs, ui/auth.rs}, health_monitor.rs,
-             bin/svrctl.rs (CLI used by the container healthcheck)
+             bin/svrctl.rs (CLI used by the container healthcheck),
+             test_support/ (tests only: loopback SSH server, in-memory database)
 ui/          SvelteKit 5 SPA (adapter-static → ui/build, served by the server at SPA_DIR)
 ui/src-tauri/  Tauri 2 desktop + Android (excluded from the Cargo workspace)
 .forgejo/    CI images and workflows (ci, docker, android, desktop)

@@ -25,6 +25,11 @@ the release workflow uses the matching section as the release notes.
   sheet and side panel closes with Escape and gives focus back where it was; modal ones keep
   Tab inside; closed side panels no longer take focus. Loading, empty and error states look
   and behave the same everywhere, with Retry where something failed.
+- The SSH client, host-key handling and the PTY driver are tested in CI against an
+  in-process SSH server (first contact, trust, a changed key, password and key logins, a jump
+  host, the shell's input, resize, exit and close); before, only a manual run against a real
+  host covered them. The PTY start is split into `open_shell` and `spawn_pty_driver`, and the
+  driver now holds the whole connection, jump hosts included, for the session's life.
 - **Contrast.** Muted text in both themes and the light theme's accent, success, warning, error
   and info colours were below WCAG AA (the light warning was 2.4:1); all text colours now
   reach 4.5:1 on every surface, and a test checks the stylesheet so they stay there.

@@ -504,10 +504,32 @@ async fn start_pty_session(
                 "auth": conn.auth,
             })),
     );
-    let session = conn.handle;
+    let channel = open_shell(&conn, server.startup_command.as_deref(), cols, rows).await?;
 
-    // Open a channel
-    let channel = session
+    // The session owns the PTY from here on; sockets attach to it.
+    let (command_tx, command_rx) = mpsc::channel::<PtyCommand>(256);
+    let live = LiveSession::new(user_id, server.id, server.name.clone(), command_tx);
+    spawn_pty_driver(
+        live.clone(),
+        conn,
+        channel,
+        command_rx,
+        state.sessions.clone(),
+    );
+    Ok(live)
+}
+
+/// Open an interactive shell on an authenticated connection: a session channel, a PTY of the
+/// given size, the shell, and the server's startup command typed as the first line (it echoes
+/// like anything typed, so the user sees what ran).
+pub(crate) async fn open_shell(
+    conn: &crate::ssh::Connection,
+    startup_command: Option<&str>,
+    cols: u32,
+    rows: u32,
+) -> Result<russh::Channel<russh::client::Msg>, ConnectError> {
+    let channel = conn
+        .handle
         .channel_open_session()
         .await
         .map_err(|e| format!("Failed to open channel: {}", e))?;
@@ -516,7 +538,6 @@ async fn start_pty_session(
     // best effort (no reply wanted); the startup command is the sure way.
     let _ = channel.set_env(false, "COLORTERM", "truecolor").await;
 
-    // Request PTY
     channel
         .request_pty(
             false, // want_reply
@@ -530,42 +551,37 @@ async fn start_pty_session(
         .await
         .map_err(|e| format!("Failed to request PTY: {}", e))?;
 
-    // Start shell
     channel
         .request_shell(false)
         .await
         .map_err(|e| format!("Failed to start shell: {}", e))?;
 
-    // The server's startup command, typed as the first line of input. It echoes in the
-    // terminal like anything typed, so the user sees what ran.
-    if let Some(cmd) = server
-        .startup_command
-        .as_deref()
-        .map(str::trim)
-        .filter(|c| !c.is_empty())
-    {
+    if let Some(cmd) = startup_command.map(str::trim).filter(|c| !c.is_empty()) {
         let line = format!("{cmd}\n");
         channel
             .data(line.as_bytes())
             .await
             .map_err(|e| format!("Failed to send the startup command: {e}"))?;
     }
+    Ok(channel)
+}
 
-    // The session owns the PTY from here on; sockets attach to it.
-    let (command_tx, mut command_rx) = mpsc::channel::<PtyCommand>(256);
-    let live = LiveSession::new(user_id, server.id, server.name.clone(), command_tx);
-    let session_for_driver = live.clone();
-    let registry = state.sessions.clone();
-
-    // Spawn task to handle channel I/O - owns the channel and the SSH session
+/// The PTY driver: one task that owns the shell's channel and its connection (jump hosts
+/// included) for the session's life. Input, resizes and close come from the session's command
+/// queue; output goes into the session's ring and out to attached sockets. When the shell
+/// ends the session is marked closed with the reason, removed from the registry, and the
+/// connection is closed.
+pub(crate) fn spawn_pty_driver(
+    live: Arc<LiveSession>,
+    conn: crate::ssh::Connection,
+    mut channel: russh::Channel<russh::client::Msg>,
+    mut command_rx: mpsc::Receiver<PtyCommand>,
+    registry: Arc<crate::sessions::SessionRegistry>,
+) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let live = session_for_driver;
-        let session = session;
-        let mut channel = channel;
         let mut reason = "Session ended".to_string();
         loop {
             tokio::select! {
-                // Handle commands from WebSocket
                 cmd = command_rx.recv() => {
                     match cmd {
                         Some(PtyCommand::Data(data)) => {
@@ -585,7 +601,6 @@ async fn start_pty_session(
                         }
                     }
                 }
-                // Handle output from SSH
                 msg = channel.wait() => {
                     match msg {
                         Some(russh::ChannelMsg::Data { data }) => {
@@ -614,10 +629,216 @@ async fn start_pty_session(
         }
         live.mark_closed(&reason);
         registry.remove(&live.id).await;
-        let _ = session
+        let _ = conn
+            .handle
             .disconnect(russh::Disconnect::ByApplication, "", "English")
             .await;
-    });
+    })
+}
 
-    Ok(live)
+/// The PTY driver against the in-process SSH server: what the shell is asked for, input and
+/// resizes going out, output and the exit status coming back, and the session's end.
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sessions::SessionRegistry;
+    use crate::test_support::ssh_server::{Event, Options, TestSshServer};
+    use crate::test_support::{add_credential, add_server, database, trust_recorded_keys};
+    use std::time::Duration;
+    use svrctlrs_database::models::CredentialType;
+    use svrctlrs_database::queries;
+    use svrctlrs_database::sqlx::{Pool, Sqlite};
+    use tokio::sync::broadcast;
+
+    /// A trusted, authenticated connection to the loopback server (through `via` if given)
+    async fn connected(
+        ssh: &TestSshServer,
+        pool: &Pool<Sqlite>,
+        via_loop: bool,
+    ) -> crate::ssh::Connection {
+        let cred = add_credential(pool, "pw", CredentialType::Password, "pw").await;
+        let mut id = add_server(pool, "loop", ssh.port, "alice", Some(cred), None).await;
+        if via_loop {
+            id = add_server(pool, "inner", ssh.port, "alice", Some(cred), Some(id)).await;
+        }
+        for _ in 0..3 {
+            let server = queries::servers::get_server(pool, id).await.unwrap();
+            let credential = queries::credentials::get_credential(pool, cred)
+                .await
+                .unwrap();
+            match crate::ssh::connect(pool, &server, Some(&credential)).await {
+                Ok(conn) => return conn,
+                Err(ConnectError::HostKeyUnconfirmed { server_id, .. }) => {
+                    trust_recorded_keys(pool, server_id).await
+                }
+                Err(e) => panic!("connect: {e}"),
+            }
+        }
+        panic!("still unconfirmed after trusting every hop");
+    }
+
+    /// Everything the session printed so far, as text
+    async fn screen(live: &LiveSession) -> String {
+        let frames = live.replay_since(0).await.unwrap();
+        frames
+            .iter()
+            .map(|f| String::from_utf8_lossy(&f.data).into_owned())
+            .collect()
+    }
+
+    async fn wait_for_screen(live: &LiveSession, needle: &str) -> bool {
+        for _ in 0..500 {
+            if screen(live).await.contains(needle) {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        false
+    }
+
+    async fn closed_reason(rx: &mut broadcast::Receiver<SessionEvent>) -> String {
+        let wait = async {
+            loop {
+                match rx.recv().await {
+                    Ok(SessionEvent::Closed(reason)) => return reason.to_string(),
+                    Ok(_) => continue,
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(e) => panic!("events ended: {e}"),
+                }
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(5), wait)
+            .await
+            .expect("session closed in time")
+    }
+
+    struct Running {
+        live: Arc<LiveSession>,
+        registry: Arc<SessionRegistry>,
+        events: broadcast::Receiver<SessionEvent>,
+    }
+
+    async fn start(conn: crate::ssh::Connection, startup: Option<&str>) -> Running {
+        let channel = open_shell(&conn, startup, 100, 30).await.expect("shell");
+        let registry = SessionRegistry::new(Duration::from_secs(60), 16);
+        let (command_tx, command_rx) = mpsc::channel(256);
+        let live = LiveSession::new(1, 1, "loop".into(), command_tx);
+        registry.insert(live.clone()).await.unwrap();
+        let events = live.subscribe();
+        spawn_pty_driver(live.clone(), conn, channel, command_rx, registry.clone());
+        Running {
+            live,
+            registry,
+            events,
+        }
+    }
+
+    #[tokio::test]
+    async fn the_shell_gets_a_pty_the_startup_command_input_and_resizes() {
+        let ssh = TestSshServer::start(Options::password("alice", "pw")).await;
+        let pool = database().await;
+        let conn = connected(&ssh, &pool, false).await;
+        let mut run = start(conn, Some("  cd /srv && ls  ")).await;
+
+        assert!(ssh.wait_for(|e| *e == Event::Shell).await);
+        let events = ssh.events().await;
+        assert!(events.contains(&Event::Pty {
+            term: "xterm-256color".into(),
+            cols: 100,
+            rows: 30
+        }));
+        assert!(events.contains(&Event::Env {
+            name: "COLORTERM".into(),
+            value: "truecolor".into()
+        }));
+        // The startup command is the first input, trimmed, with its newline
+        assert_eq!(
+            events.iter().find(|e| matches!(e, Event::Input(_))),
+            Some(&Event::Input(b"cd /srv && ls\n".to_vec()))
+        );
+
+        run.live.send_input(b"uptime\n").await.unwrap();
+        assert!(
+            wait_for_screen(&run.live, "ran: uptime").await,
+            "{}",
+            screen(&run.live).await
+        );
+        assert!(screen(&run.live).await.contains("ran: cd /srv && ls"));
+
+        run.live.resize(120, 40).await.unwrap();
+        assert!(
+            ssh.wait_for(|e| *e
+                == Event::Resize {
+                    cols: 120,
+                    rows: 40
+                })
+            .await
+        );
+
+        // Output is numbered in order, so a reconnect can ask for what it missed
+        let frames = run.live.replay_since(0).await.unwrap();
+        assert!(frames.windows(2).all(|w| w[1].seq == w[0].seq + 1));
+
+        run.live.send_input(b"exit 3\n").await.unwrap();
+        assert_eq!(
+            closed_reason(&mut run.events).await,
+            "Shell exited with status 3"
+        );
+        assert!(run.live.is_closed());
+        assert!(screen(&run.live).await.contains("[Exit status: 3]"));
+        for _ in 0..100 {
+            if run.registry.get(&run.live.id, 1).await.is_none() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(
+            run.registry.get(&run.live.id, 1).await.is_none(),
+            "an ended shell leaves the registry"
+        );
+    }
+
+    #[tokio::test]
+    async fn closing_the_session_ends_the_shell() {
+        let ssh = TestSshServer::start(Options::password("alice", "pw")).await;
+        let pool = database().await;
+        let conn = connected(&ssh, &pool, false).await;
+        let mut run = start(conn, None).await;
+        assert!(wait_for_screen(&run.live, "$ ").await);
+
+        run.live.close().await;
+        assert_eq!(closed_reason(&mut run.events).await, "Session ended");
+        assert!(
+            run.live.send_input(b"x").await.is_err(),
+            "the driver is gone"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_shell_through_a_jump_host_stays_up() {
+        let ssh = TestSshServer::start(Options::password("alice", "pw")).await;
+        let pool = database().await;
+        let conn = connected(&ssh, &pool, true).await;
+        let run = start(conn, None).await;
+
+        // The jump host's connection must outlive open_shell: the driver holds it
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        run.live.send_input(b"still here\n").await.unwrap();
+        assert!(
+            wait_for_screen(&run.live, "ran: still here").await,
+            "{}",
+            screen(&run.live).await
+        );
+
+        // A large burst arrives whole and in order
+        run.live.send_input(b"big 300000\n").await.unwrap();
+        assert!(wait_for_screen(&run.live, "big 300000").await);
+        for _ in 0..500 {
+            if screen(&run.live).await.matches('x').count() >= 300_000 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(screen(&run.live).await.matches('x').count() >= 300_000);
+    }
 }

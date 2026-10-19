@@ -625,3 +625,269 @@ mod tests {
         );
     }
 }
+
+/// The client against an in-process SSH server (`test_support::ssh_server`): host-key first
+/// contact, trust and mismatch; password and key logins; a jump host. What used to be
+/// covered only by `scripts/dev/run-e2e.sh` against a real machine, now in CI.
+#[cfg(test)]
+mod loopback_tests {
+    use super::*;
+    use crate::test_support::ssh_server::{
+        new_key, private_openssh, Event, Options, TestSshServer,
+    };
+    use crate::test_support::{add_credential, add_server, database, trust_recorded_keys};
+    use svrctlrs_database::models::UpdateServer;
+
+    /// The server row and its decrypted credential, as the routes load them
+    async fn load(pool: &Pool<Sqlite>, server_id: i64) -> (Server, Option<Credential>) {
+        let server = queries::servers::get_server(pool, server_id).await.unwrap();
+        let credential = match server.credential_id {
+            Some(id) => Some(
+                queries::credentials::get_credential(pool, id)
+                    .await
+                    .unwrap(),
+            ),
+            None => None,
+        };
+        (server, credential)
+    }
+
+    async fn try_connect(pool: &Pool<Sqlite>, server_id: i64) -> Result<Connection, ConnectError> {
+        let (server, credential) = load(pool, server_id).await;
+        connect(pool, &server, credential.as_ref()).await
+    }
+
+    #[tokio::test]
+    async fn first_contact_is_refused_until_the_key_is_trusted() {
+        let ssh = TestSshServer::start(Options::password("alice", "s3cret")).await;
+        let pool = database().await;
+        let cred = add_credential(&pool, "pw", CredentialType::Password, "s3cret").await;
+        let id = add_server(&pool, "loop", ssh.port, "alice", Some(cred), None).await;
+
+        let Err(ConnectError::HostKeyUnconfirmed {
+            server_id,
+            server_name,
+            key_type,
+            fingerprint,
+        }) = try_connect(&pool, id).await
+        else {
+            panic!("first contact must ask for confirmation");
+        };
+        assert_eq!((server_id, server_name.as_str()), (id, "loop"));
+        assert_eq!(key_type, "ssh-ed25519");
+        assert_eq!(fingerprint, ssh.fingerprint());
+        // Refused during the handshake: no credential was offered to an unconfirmed host
+        assert!(!ssh
+            .events()
+            .await
+            .iter()
+            .any(|e| matches!(e, Event::PasswordAuth { .. })));
+        let keys = queries::server_host_keys::list_host_keys_for_server(&pool, id)
+            .await
+            .unwrap();
+        assert_eq!(keys.len(), 1);
+        assert!(keys[0].trusted_at.is_none());
+
+        // Still unconfirmed on a second try, and still one row
+        assert!(matches!(
+            try_connect(&pool, id).await,
+            Err(ConnectError::HostKeyUnconfirmed { .. })
+        ));
+        assert_eq!(
+            queries::server_host_keys::list_host_keys_for_server(&pool, id)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+
+        trust_recorded_keys(&pool, id).await;
+        let conn = try_connect(&pool, id).await.expect("trusted key connects");
+        assert_eq!(conn.auth, "password");
+        assert_eq!(conn.target.login(), format!("alice@127.0.0.1:{}", ssh.port));
+        assert!(ssh.events().await.contains(&Event::PasswordAuth {
+            user: "alice".into(),
+            accepted: true
+        }));
+    }
+
+    #[tokio::test]
+    async fn a_changed_host_key_is_refused_before_authentication() {
+        let original = TestSshServer::start(Options::password("alice", "pw")).await;
+        let impostor = TestSshServer::start(Options::password("alice", "pw")).await;
+        let pool = database().await;
+        let cred = add_credential(&pool, "pw", CredentialType::Password, "pw").await;
+        let id = add_server(&pool, "web", original.port, "alice", Some(cred), None).await;
+        let _ = try_connect(&pool, id).await;
+        trust_recorded_keys(&pool, id).await;
+        assert!(try_connect(&pool, id).await.is_ok());
+
+        // Same name and address book entry, different machine behind it
+        queries::servers::update_server(
+            &pool,
+            id,
+            &UpdateServer {
+                port: Some(i32::from(impostor.port)),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        match try_connect(&pool, id).await {
+            Err(ConnectError::HostKeyMismatch(msg)) => {
+                assert!(
+                    msg.contains("MISMATCH") && msg.contains("ssh-ed25519"),
+                    "{msg}"
+                )
+            }
+            Err(e) => panic!("expected a mismatch, got {e}"),
+            Ok(_) => panic!("expected a mismatch, got a connection"),
+        }
+        assert!(
+            impostor.events().await.is_empty(),
+            "the password never reached the impostor"
+        );
+        // The impostor's key was not recorded as a second key for the server
+        assert_eq!(
+            queries::server_host_keys::list_host_keys_for_server(&pool, id)
+                .await
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn a_wrong_password_is_reported_as_such() {
+        let ssh = TestSshServer::start(Options::password("alice", "right")).await;
+        let pool = database().await;
+        let cred = add_credential(&pool, "pw", CredentialType::Password, "wrong").await;
+        let id = add_server(&pool, "loop", ssh.port, "alice", Some(cred), None).await;
+        let _ = try_connect(&pool, id).await;
+        trust_recorded_keys(&pool, id).await;
+        match try_connect(&pool, id).await {
+            Err(ConnectError::Failed(msg)) => assert!(
+                msg.contains(&format!(
+                    "Password authentication failed for alice@127.0.0.1:{}",
+                    ssh.port
+                )),
+                "{msg}"
+            ),
+            Err(e) => panic!("unexpected error: {e}"),
+            Ok(_) => panic!("a wrong password logged in"),
+        }
+    }
+
+    #[tokio::test]
+    async fn key_credentials_log_in_and_unknown_keys_are_rejected() {
+        let authorized = new_key();
+        let ssh = TestSshServer::start(Options::key("bob", authorized.public_key().clone())).await;
+        let pool = database().await;
+        let good = add_credential(
+            &pool,
+            "deploy",
+            CredentialType::SshKey,
+            &private_openssh(&authorized),
+        )
+        .await;
+        let id = add_server(&pool, "loop", ssh.port, "bob", Some(good), None).await;
+        let _ = try_connect(&pool, id).await;
+        trust_recorded_keys(&pool, id).await;
+        let conn = try_connect(&pool, id)
+            .await
+            .expect("authorized key logs in");
+        assert_eq!(conn.auth, "credential 'deploy'");
+
+        let stranger = add_credential(
+            &pool,
+            "stranger",
+            CredentialType::SshKey,
+            &private_openssh(&new_key()),
+        )
+        .await;
+        queries::servers::update_server(
+            &pool,
+            id,
+            &UpdateServer {
+                credential_id: Some(Some(stranger)),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        match try_connect(&pool, id).await {
+            Err(ConnectError::Failed(msg)) => {
+                assert!(msg.contains("SSH authentication failed for bob@"), "{msg}");
+                assert!(msg.contains("credential 'stranger'"), "{msg}");
+            }
+            Err(e) => panic!("unexpected error: {e}"),
+            Ok(_) => panic!("an unknown key logged in"),
+        }
+        assert!(ssh.events().await.contains(&Event::KeyAuth {
+            user: "bob".into(),
+            accepted: false
+        }));
+    }
+
+    #[tokio::test]
+    async fn a_jump_host_carries_the_connection_and_each_hop_is_confirmed() {
+        // One loopback server plays both parts: the jump host, and the target it forwards to
+        let ssh = TestSshServer::start(Options::password("alice", "pw")).await;
+        let pool = database().await;
+        let cred = add_credential(&pool, "pw", CredentialType::Password, "pw").await;
+        let jump = add_server(&pool, "bastion", ssh.port, "alice", Some(cred), None).await;
+        let target = add_server(&pool, "inner", ssh.port, "alice", Some(cred), Some(jump)).await;
+
+        // The jump host's key is asked about first, under its own name
+        match try_connect(&pool, target).await {
+            Err(ConnectError::HostKeyUnconfirmed { server_id, .. }) => assert_eq!(server_id, jump),
+            other => panic!("expected the jump host's key, got {:?}", other.err()),
+        }
+        trust_recorded_keys(&pool, jump).await;
+        // Then the target's, seen through the tunnel and recorded for the target's row
+        match try_connect(&pool, target).await {
+            Err(ConnectError::HostKeyUnconfirmed { server_id, .. }) => {
+                assert_eq!(server_id, target)
+            }
+            other => panic!("expected the target's key, got {:?}", other.err()),
+        }
+        trust_recorded_keys(&pool, target).await;
+
+        let conn = try_connect(&pool, target)
+            .await
+            .expect("through the jump host");
+        assert_eq!(conn.auth, "password");
+        assert!(
+            ssh.wait_for(|e| *e
+                == Event::DirectTcpip {
+                    host: "127.0.0.1".into(),
+                    port: u32::from(ssh.port)
+                })
+            .await
+        );
+        let logins = ssh
+            .events()
+            .await
+            .iter()
+            .filter(|e| matches!(e, Event::PasswordAuth { accepted: true, .. }))
+            .count();
+        assert!(logins >= 2, "one login per hop, got {logins}");
+
+        // A loop in the data is refused, not followed
+        queries::servers::update_server(
+            &pool,
+            jump,
+            &UpdateServer {
+                via_server_id: Some(Some(target)),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        match try_connect(&pool, target).await {
+            Err(ConnectError::Failed(msg)) => assert!(msg.contains("loop"), "{msg}"),
+            Err(e) => panic!("unexpected error: {e}"),
+            Ok(_) => panic!("a jump loop connected"),
+        }
+    }
+}

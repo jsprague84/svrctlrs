@@ -11,6 +11,8 @@ mod ssh;
 mod ssh_config;
 mod ssh_keys;
 mod state;
+#[cfg(test)]
+mod test_support;
 mod ws_tickets;
 
 use state::AppState;

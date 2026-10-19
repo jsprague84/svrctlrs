@@ -74,10 +74,13 @@ users), and keep the login limiter's state in the database so a restart does not
    terminal that lists servers, and screenshots in the README and USER-GUIDE. Found on the way:
    the credentials list called every SSH key a file path, and the toolbar picker ignored the
    active tab (both fixed).
-9. **In-process SSH server for tests.** russh's server side on a loopback port inside the
-   server crate's tests: first-contact refusal and trust, mismatch, password and key auth,
-   the PTY driver, and a jump host (the loopback server as its own hop). Today the e2e run
-   against a real host is the only coverage and CI cannot run it.
+9. ~~**In-process SSH server for tests.**~~ Done 2026-10-19: `server/src/test_support/` runs
+   russh's server side on a loopback port; `ssh.rs` tests first-contact refusal and trust, a
+   changed key (refused before the password is sent), password and key logins, and a jump
+   host through `direct-tcpip` with a loop; `terminal_pty.rs` tests the PTY driver (split into
+   `open_shell` + `spawn_pty_driver`) for PTY/env/startup command, input, resize, exit
+   status, close and a shell through a jump host. CI runs them; disabling the host-key check
+   makes three fail. The e2e against hermes stays for OpenSSH, SFTP and the WebSocket.
 10. **Session recording.** Opt-in per server; output frames from the existing ring written as
    asciicast v2 under the user's id, retention setting, download, and an in-app player.
    Output only, never input. Scoped per user from day one. Measure WebSocket backpressure
@@ -136,7 +139,7 @@ Termix or Nexterm already do it well.
 | ~~9a~~ | Done 2026-10-05: start-up encrypts every `encrypted = 0` row in one transaction and logs the count | `encrypt_plaintext_credentials` |
 | ~~10~~ | Done 2026-10-05: sliding-window limiter (10 failures / 15 min) per client address and per username on both login routes, 429 + `Retry-After`; 12-character minimum for new passwords; session id cycled on login | `server/src/login_limiter.rs`, `auth.rs`, `users.rs` |
 | ~~11~~ | Done 2026-10-11: auth middleware covered end to end (session cookie, Bearer, query token, one-time WS tickets, exempt routes and their lookalikes, OPTIONS preflight, unauthenticated 401-vs-redirect); TOFU accept/mismatch in `host_keys::evaluate`; the WS Origin guard in `websocket_origin_allowed` (both socket handlers call it and 403 a bad origin before upgrade) | `server/src/routes/ui/auth.rs`, `host_keys.rs` |
-| ~~12~~ | Done 2026-10-05: russh 0.51 → 0.64 and async-ssh2-tokio 0.8 → 0.13 (the latter removed 2026-10-18 with command mode); `russh-keys` dropped for `russh::keys`; host certificates are pinned by their embedded key. RUSTSEC-2026-0154/-0153 cleared; only `rsa` RUSTSEC-2023-0071 (Marvin, transitive via `ssh-key`, no fix) remains ignored. First live PTY/CMD connection after deploy is the behavioral check — no SSH integration test exists yet | `Cargo.toml`, `host_keys.rs`, `ci.yaml` |
+| ~~12~~ | Done 2026-10-05: russh 0.51 → 0.64 and async-ssh2-tokio 0.8 → 0.13 (the latter removed 2026-10-18 with command mode); `russh-keys` dropped for `russh::keys`; host certificates are pinned by their embedded key. RUSTSEC-2026-0154/-0153 cleared; only `rsa` RUSTSEC-2023-0071 (Marvin, transitive via `ssh-key`, no fix) remains ignored. First live PTY/CMD connection after deploy was the behavioral check; since 2026-10-19 the loopback SSH tests cover it in CI | `Cargo.toml`, `host_keys.rs`, `ci.yaml` |
 
 ### P1 — First-class app
 

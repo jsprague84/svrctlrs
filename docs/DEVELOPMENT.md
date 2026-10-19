@@ -47,12 +47,24 @@ cd ui && npm run check && npm run lint && npm run test && npm run build && npm a
 (JS + typescript-eslint + eslint-plugin-svelte, Prettier-compatible) plus a Prettier check.
 Unit tests are Vitest files next to the code (`*.test.ts`); keep them for pure modules.
 
-Tests today: about 110 Rust tests across `core`, `database` and `server` (auth middleware,
+Tests today: about 120 Rust tests across `core`, `database` and `server` (auth middleware,
 host keys, limiter, tickets, session registry and replay ring, `ssh_config` import, svrctl
-backup) and 72 Vitest tests in the UI, most of them for the terminal session protocol
+backup) and 102 Vitest tests in the UI, most of them for the terminal session protocol
 (`ui/src/lib/terminal/ptySession.test.ts`: attach and replay, keep-alive watchdog, reconnect
 backoff, host-key challenge, persistence) driven with a fake socket and fake timers.
 Security-relevant changes come with tests.
+
+The SSH client is tested in CI against an **in-process SSH server**
+(`server/src/test_support/ssh_server.rs`): russh's server side on a loopback port with its own
+host key, a password and/or key login, a pretend shell (echoes input, answers `exit N` and
+`big N`, records PTY, environment, resize and input requests) and `direct-tcpip`, so it can be
+its own jump host. `test_support/mod.rs` adds a migrated in-memory database, the encryption
+key and helpers to add servers and credentials and to trust recorded host keys. The tests in
+`ssh.rs` (`loopback_tests`) cover first contact, trust, a changed key, password and key logins
+and a jump host with a loop; `routes/terminal_pty.rs` drives the PTY driver (`open_shell`,
+`spawn_pty_driver`) through a session: startup command, input, resize, exit status, close, a
+shell through a jump host and a 300 kB burst. They take under a second and need no network
+beyond 127.0.0.1.
 
 `scripts/dev/pty-session-e2e.py` drives the SSH and session paths end to end against a locally
 running server and a real SSH target: first-contact host-key confirmation, the connection
@@ -67,8 +79,9 @@ E2E_SSH_HOST=10.0.0.5 E2E_SSH_USER=ubuntu E2E_SSH_KEY=~/.ssh/id_ed25519 scripts/
 ```
 
 Run it after touching `ssh.rs`, `sessions.rs`, `terminal_pty.rs`, the servers API or the
-pane's transport (`ui/src/lib/terminal/`). CI cannot run it (no SSH target); say in the
-commit that it passed.
+pane's transport (`ui/src/lib/terminal/`). It is what the loopback tests cannot be: a real
+OpenSSH `sshd`, SFTP, the WebSocket protocol in both frame formats, and the session API. CI
+cannot run it (no SSH target); say in the commit that it passed.
 
 `scripts/dev/pane-phone-check.py` is the same idea for the terminal pane on a phone: a Pixel 7
 emulation in Chromium with real touch events (CDP), against a throwaway server and the same

@@ -30,7 +30,7 @@ Android app; those talk to a remote server over the same API.
 |---|---|---|
 | `core` | AES-256-GCM credential encryption, error type, notification senders | `src/encryption.rs`, `src/error.rs` |
 | `database` | sqlx models, query modules, embedded migrations | `src/models/*.rs`, `src/queries/*.rs`, `migrations/` |
-| `server` | Axum application and the `svrctl` CLI | `src/main.rs`, `src/routes/**`, `src/bin/svrctl.rs` |
+| `server` | Axum application and the `svrctl` CLI; `src/test_support/` (tests only) holds a loopback SSH server and database fixtures | `src/main.rs`, `src/routes/**`, `src/bin/svrctl.rs` |
 
 `ui/src-tauri` is a separate Cargo project (excluded from the workspace) so the server build
 does not pull in Tauri's GTK/WebKit dependencies.
