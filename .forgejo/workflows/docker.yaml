@@ -108,7 +108,8 @@ jobs:
       image: catthehacker/ubuntu:act-latest
     steps:
       # CI runs beside the image build. Do not put an unlinted, untested commit live: wait for
-      # this commit's CI jobs and refuse unless every one of them is green.
+      # this commit's CI jobs and refuse unless every one of them is green. Only the push
+      # runs count: a release PR's own run reports on the same commit as "(pull_request)".
       - name: Wait for the CI gates on this commit
         env:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -117,7 +118,7 @@ jobs:
           url="${GITHUB_SERVER_URL}/api/v1/repos/${GITHUB_REPOSITORY}/commits/${GITHUB_SHA}/status"
           for _ in $(seq 1 120); do
             states=$(curl -fsS -H "Authorization: token ${TOKEN}" "${url}" \
-              | jq -r '[.statuses[] | select(.context | startswith("CI / ")) | .status] | join(" ")' || true)
+              | jq -r '[.statuses[] | select(.context | startswith("CI / ") and endswith("(push)")) | .status] | join(" ")' || true)
             case " ${states} " in
               *" failure "*|*" error "*) echo "CI failed for ${GITHUB_SHA}: ${states}" >&2; exit 1 ;;
             esac

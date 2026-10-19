@@ -34,12 +34,18 @@ jobs:
       - name: Checkout
         # The CI image has no JS checkout action runtime path we trust, so clone by hand.
         # pull_request runs: GITHUB_REF_NAME is "<n>/merge" and GITHUB_SHA is a merge
-        # commit that is not on the cloned branch, so clone the PR head and stay on it.
+        # commit that is not on any branch, so test the PR head instead. An AGit PR has no
+        # head branch, only GITHUB_HEAD_REF=refs/pull/<n>/head, which `clone --branch`
+        # cannot take; fetching the ref works for both kinds.
         run: |
-          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          git clone --depth=50 --branch "${REF}" \
-            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git" .
-          [ "${GITHUB_EVENT_NAME}" = pull_request ] || git checkout --detach "${GITHUB_SHA}"
+          URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git"
+          if [ "${GITHUB_EVENT_NAME}" = pull_request ]; then
+            git init -q . && git remote add origin "${URL}"
+            git fetch -q --depth=50 origin "${GITHUB_HEAD_REF}" && git checkout -q --detach FETCH_HEAD
+          else
+            git clone --depth=50 --branch "${GITHUB_REF_NAME}" "${URL}" .
+            git checkout --detach "${GITHUB_SHA}"
+          fi
 
       - name: Format check
         run: cargo fmt --all --check
@@ -60,10 +66,14 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          git clone --depth=50 --branch "${REF}" \
-            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git" .
-          [ "${GITHUB_EVENT_NAME}" = pull_request ] || git checkout --detach "${GITHUB_SHA}"
+          URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git"
+          if [ "${GITHUB_EVENT_NAME}" = pull_request ]; then
+            git init -q . && git remote add origin "${URL}"
+            git fetch -q --depth=50 origin "${GITHUB_HEAD_REF}" && git checkout -q --detach FETCH_HEAD
+          else
+            git clone --depth=50 --branch "${GITHUB_REF_NAME}" "${URL}" .
+            git checkout --detach "${GITHUB_SHA}"
+          fi
 
       - name: Install cargo-audit
         run: cargo audit --version || cargo install cargo-audit --locked
@@ -84,10 +94,14 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          git clone --depth=50 --branch "${REF}" \
-            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git" .
-          [ "${GITHUB_EVENT_NAME}" = pull_request ] || git checkout --detach "${GITHUB_SHA}"
+          URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git"
+          if [ "${GITHUB_EVENT_NAME}" = pull_request ]; then
+            git init -q . && git remote add origin "${URL}"
+            git fetch -q --depth=50 origin "${GITHUB_HEAD_REF}" && git checkout -q --detach FETCH_HEAD
+          else
+            git clone --depth=50 --branch "${GITHUB_REF_NAME}" "${URL}" .
+            git checkout --detach "${GITHUB_SHA}"
+          fi
 
       - name: Run tests
         run: cargo test --workspace
@@ -105,10 +119,14 @@ jobs:
     steps:
       - name: Checkout
         run: |
-          REF="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME}}"
-          git clone --depth=50 --branch "${REF}" \
-            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git" .
-          [ "${GITHUB_EVENT_NAME}" = pull_request ] || git checkout --detach "${GITHUB_SHA}"
+          URL="https://x-access-token:${{ secrets.GITHUB_TOKEN }}@git.js-node.cc/${GITHUB_REPOSITORY}.git"
+          if [ "${GITHUB_EVENT_NAME}" = pull_request ]; then
+            git init -q . && git remote add origin "${URL}"
+            git fetch -q --depth=50 origin "${GITHUB_HEAD_REF}" && git checkout -q --detach FETCH_HEAD
+          else
+            git clone --depth=50 --branch "${GITHUB_REF_NAME}" "${URL}" .
+            git checkout --detach "${GITHUB_SHA}"
+          fi
 
       - name: Install dependencies
         run: cd ui && npm ci --no-audit --no-fund
