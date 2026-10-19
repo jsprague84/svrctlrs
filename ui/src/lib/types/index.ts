@@ -3,3 +3,4 @@ export * from './credential.js';
 export * from './setting.js';
 export * from './terminal.js';
 export * from './profile.js';
+export * from './recording.js';

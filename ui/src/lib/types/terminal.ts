@@ -39,6 +39,8 @@ export interface PtyResponse {
 	/** `error` with `host_key_unconfirmed`: the key to confirm, and whose it is (the jump host's
 	 *  when one is in the way) */
 	details?: { server_id: number; server_name: string; key_type: string; fingerprint: string };
+	/** `connected`: the session's output is being recorded */
+	recording?: boolean;
 }
 
 /** A live session as listed by `GET /api/v1/sessions` */
@@ -51,6 +53,8 @@ export interface LiveSession {
 	attachments: number;
 	/** Sequence of the newest output frame the server holds */
 	latest_seq: number;
+	/** Its output is being recorded */
+	recorded?: boolean;
 }
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';

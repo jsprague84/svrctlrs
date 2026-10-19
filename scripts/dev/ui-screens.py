@@ -65,7 +65,7 @@ if not (existing.get("servers") or existing.get("data")):
         servers.insert(0, (LIVE, SSH_HOST, ["lab"], key_cred, None))
     for name, host, tags, cred, startup in servers:
         body = {"name": name, "hostname": host, "port": 22, "username": SSH_USER if name == LIVE else "ops",
-                "credential_id": cred, "tags": tags}
+                "credential_id": cred, "tags": tags, "record_sessions": name == LIVE}
         if startup:
             body["startup_command"] = startup
         api("POST", "/api/v1/servers", body)
@@ -236,6 +236,21 @@ with sync_playwright() as p:
                     page.get_by_role("dialog", name="Files").locator("nav button").first.click()
                     page.wait_for_timeout(2000)
                     shot("terminal-files")
+            # The live shells above are recorded (lab-01 records sessions)
+            go("/recordings")
+            shot("recordings", full=True)
+            play = page.get_by_role("button", name="Play the recording").first
+            if play.count():
+                play.click()
+                page.wait_for_timeout(3000)
+                shot("recording-player")
+                if vp_name == "desktop" and theme == "dark":
+                    shown = page.locator(".recording-frame .xterm-rows").inner_text()
+                    check("the player shows the recorded shell", "$" in shown, shown[:80])
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(300)
+                check(f"Escape closes the player ({vp_name}-{theme})",
+                      page.get_by_role("dialog", name="Recording of").count() == 0)
             if vp_name == "phone":
                 go("/")
                 menu = page.get_by_label("Open menu")

@@ -42,6 +42,8 @@ export interface SessionView {
 	showReconnect: boolean;
 	/** First contact: the server refused the shell until this key is confirmed */
 	hostKey: HostKeyChallenge | null;
+	/** The server is recording this session's output */
+	recording: boolean;
 }
 
 /** The part of the terminal the session writes into. */
@@ -128,7 +130,8 @@ export class PtySession {
 		status: 'disconnected',
 		note: null,
 		showReconnect: false,
-		hostKey: null
+		hostKey: null,
+		recording: false
 	};
 
 	private socket: SocketLike | null = null;
@@ -552,6 +555,7 @@ export class PtySession {
 				break;
 			case 'connected':
 				this.setStatus('connected');
+				this.update({ recording: res.recording === true });
 				if (res.session_id) {
 					this.sessionId = res.session_id;
 					this.sessionServerId = serverId;
@@ -581,6 +585,7 @@ export class PtySession {
 				break;
 			case 'closed':
 				this.setNote(null);
+				this.update({ recording: false });
 				this.term.writeln(`\r\n\x1b[33m[${res.data || 'Session ended'}]\x1b[0m`);
 				this.forgetSession();
 				this.stopReconnecting();

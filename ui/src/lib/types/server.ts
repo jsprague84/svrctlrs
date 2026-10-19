@@ -12,6 +12,8 @@ export interface Server {
 	tags: string[];
 	/** Typed into every new shell right after it starts (e.g. `tmux new -A -s main`) */
 	startup_command: string | null;
+	/** Shells opened on this server are recorded for whoever opens them */
+	record_sessions: boolean;
 	description: string | null;
 	enabled: boolean;
 	last_seen_at: string | null;
@@ -50,6 +52,7 @@ export interface CreateServer {
 	via_server_id?: number;
 	tags?: string[];
 	startup_command?: string;
+	record_sessions?: boolean;
 	description?: string;
 	enabled?: boolean;
 }
@@ -66,6 +69,7 @@ export interface UpdateServer {
 	tags?: string[];
 	/** An empty string clears it */
 	startup_command?: string;
+	record_sessions?: boolean;
 	description?: string;
 	enabled?: boolean;
 }

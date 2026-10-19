@@ -10,7 +10,8 @@
 		ShieldCheck,
 		TerminalSquare,
 		Search,
-		FileInput
+		FileInput,
+		MonitorPlay
 	} from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -33,6 +34,7 @@
 	import { allTags, matchesTag, parseTagInput } from '#lib/utils/tags.js';
 	import TagChips from '#lib/components/servers/TagChips.svelte';
 	import Textarea from '#lib/components/ui/Textarea.svelte';
+	import Toggle from '#lib/components/ui/Toggle.svelte';
 	import { CREDENTIAL_TYPE_LABELS } from '#lib/types/credential.js';
 	import type {
 		Server,
@@ -75,6 +77,7 @@
 	let viaServerId = $state<string>('');
 	let tagsText = $state('');
 	let startupCommand = $state('');
+	let recordSessions = $state(false);
 	let description = $state('');
 	let enabled = $state(true);
 
@@ -118,6 +121,7 @@
 		viaServerId = '';
 		tagsText = '';
 		startupCommand = '';
+		recordSessions = false;
 		description = '';
 		enabled = true;
 		editingId = null;
@@ -138,6 +142,7 @@
 		viaServerId = server.via_server_id ? String(server.via_server_id) : '';
 		tagsText = server.tags.join(', ');
 		startupCommand = server.startup_command ?? '';
+		recordSessions = server.record_sessions;
 		description = server.description ?? '';
 		enabled = server.enabled;
 		showModal = true;
@@ -158,6 +163,7 @@
 					via_server_id: viaServerId ? Number(viaServerId) : null,
 					tags: parseTagInput(tagsText),
 					startup_command: startupCommand.trim(),
+					record_sessions: recordSessions,
 					description: description.trim(),
 					enabled
 				};
@@ -173,6 +179,7 @@
 					via_server_id: viaServerId ? Number(viaServerId) : undefined,
 					tags: parseTagInput(tagsText),
 					startup_command: startupCommand.trim() || undefined,
+					record_sessions: recordSessions,
 					description: description.trim() || undefined,
 					enabled
 				};
@@ -331,9 +338,16 @@
 				attention: needsKey(server)
 			},
 			{ label: 'Host keys', icon: KeyRound, onSelect: () => openHostKeys(server) },
+			...(server.record_sessions
+				? [{ label: 'Recordings', icon: MonitorPlay, onSelect: () => openRecordings(server) }]
+				: []),
 			{ label: 'Edit', icon: Pencil, onSelect: () => openEdit(server) },
 			{ label: 'Delete', icon: Trash2, onSelect: () => handleDelete(server), destructive: true }
 		];
+	}
+
+	function openRecordings(server: Server) {
+		goto(`${resolve('/recordings')}?server=${server.id}`);
 	}
 
 	/** A key should be installed: no credential, or a password one */
@@ -428,6 +442,19 @@
 								<span class="text-text-primary font-medium truncate">{server.name}</span>
 								{#if !server.enabled}
 									<Badge variant="warning">disabled</Badge>
+								{/if}
+								{#if server.record_sessions}
+									<span class="md:hidden" title="Shells opened here are recorded"
+										><Badge variant="error">rec</Badge></span
+									>
+									<button
+										type="button"
+										class="hidden md:inline-flex"
+										onclick={() => openRecordings(server)}
+										title="Shells opened here are recorded; show the recordings"
+										aria-label="Recorded server; show its recordings"
+										><Badge variant="error">rec</Badge></button
+									>
 								{/if}
 								{#each server.tags as tag (tag)}
 									<button
@@ -644,6 +671,11 @@
 			placeholder="tmux new -A -s main"
 			class="font-mono"
 			hint="Typed into every new shell on this server right after it starts. tmux or screen here gives you sessions that outlive the app's 15-minute grace period."
+		/>
+		<Toggle
+			bind:checked={recordSessions}
+			label="Record sessions"
+			description="Every shell opened on this server from now on is recorded for the person who opens it: what the terminal shows, never what is typed. Each person sees only their own recordings, under Recordings."
 		/>
 		<Input label="Description" bind:value={description} placeholder="Optional" />
 		<label class="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">

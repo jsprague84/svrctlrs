@@ -3,6 +3,7 @@ import * as api from '#lib/api/files.js';
 import { extractErrorMessage } from '#lib/utils/error.js';
 import { baseName, joinPath } from '#lib/utils/files.js';
 import { SvelteMap } from 'svelte/reactivity';
+import { saveBlob } from '#lib/utils/download.js';
 
 /**
  * The remote file panel: one server at a time, the directory it is showing, and the last path
@@ -109,17 +110,5 @@ export async function download(entry: RemoteEntry): Promise<void> {
 	const { id, dir } = current();
 	const path = joinPath(dir, entry.name);
 	const blob = await withBusy(`Downloading ${entry.name}`, () => api.downloadFile(id, path));
-	const url = URL.createObjectURL(blob);
-	try {
-		const a = document.createElement('a');
-		a.href = url;
-		a.download = baseName(path);
-		a.rel = 'noopener';
-		document.body.appendChild(a);
-		a.click();
-		a.remove();
-	} finally {
-		// Give the click a moment to start before the URL goes away
-		setTimeout(() => URL.revokeObjectURL(url), 10_000);
-	}
+	saveBlob(blob, baseName(path));
 }

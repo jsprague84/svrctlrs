@@ -13,13 +13,52 @@
 
 	let profiles = $derived(profilesState.getProfiles());
 	let defaultProfileId = $state('');
+	let retentionDays = $state(30);
+	let savedRetention = 30;
 	let loaded = $state(false);
 
 	onMount(async () => {
 		await Promise.all([profilesState.loadProfiles(), settingsState.loadSettings()]);
 		defaultProfileId = settingsState.getSetting('app.default_profile_id')?.value ?? '';
+		const days = Number(settingsState.getSetting('recording.retention_days')?.value ?? '30');
+		retentionDays = savedRetention = Number.isInteger(days) && days >= 0 ? days : 30;
 		loaded = true;
 	});
+
+	async function saveRetention() {
+		const days = Number(retentionDays);
+		if (!Number.isInteger(days) || days < 0 || days > 3650) {
+			toast.error('Keep recordings for 0 to 3650 days');
+			retentionDays = savedRetention;
+			return;
+		}
+		if (days === savedRetention) return;
+		// A shorter period deletes recordings at the next sweep
+		if (days > 0 && (savedRetention === 0 || days < savedRetention)) {
+			const ok = await confirmDialog({
+				title: `Keep recordings for ${days} day${days === 1 ? '' : 's'}?`,
+				message: `Recordings older than that, yours and everyone else's, are deleted within the hour.`,
+				confirmLabel: 'Shorten',
+				destructive: true
+			});
+			if (!ok) {
+				retentionDays = savedRetention;
+				return;
+			}
+		}
+		try {
+			await settingsState.updateSetting('recording.retention_days', String(days));
+			savedRetention = days;
+			toast.success(
+				days === 0
+					? 'Recordings are kept until deleted'
+					: `Recordings are kept for ${days} day${days === 1 ? '' : 's'}`
+			);
+		} catch (e) {
+			retentionDays = savedRetention;
+			toast.error(extractErrorMessage(e, 'Failed to save'));
+		}
+	}
 
 	async function saveDefaultProfile() {
 		try {
@@ -101,6 +140,35 @@
 						<option value={String(profile.id)}>{profile.name}</option>
 					{/each}
 				</Select>
+			</div>
+		</div>
+	</SettingsSection>
+
+	<SettingsSection
+		title="Recordings"
+		description="Switched on per server (Servers → Edit → Record sessions). Everyone sees only their own recordings."
+	>
+		<div class="flex items-center justify-between gap-4 py-2">
+			<div>
+				<label for="retention-days" class="text-sm text-text-primary">Keep recordings for</label>
+				<p class="text-xs text-text-muted">
+					Older ones are deleted within the hour. 0 keeps them until deleted.
+				</p>
+			</div>
+			<div class="flex items-center gap-2 flex-shrink-0">
+				<input
+					id="retention-days"
+					type="number"
+					inputmode="numeric"
+					min="0"
+					max="3650"
+					step="1"
+					bind:value={retentionDays}
+					onchange={saveRetention}
+					disabled={!loaded}
+					class="w-20 px-3 py-1.5 min-h-11 md:min-h-0 text-base md:text-sm bg-input border border-border rounded-sm text-text-primary"
+				/>
+				<span class="text-sm text-text-secondary">days</span>
 			</div>
 		</div>
 	</SettingsSection>

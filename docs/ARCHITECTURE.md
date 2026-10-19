@@ -118,7 +118,13 @@ Migrations are checksummed, so never edit one that has shipped.
 - **SvelteKit 5** with `ssr = false`, `adapter-static`, fallback `index.html`. Build output
   `ui/build` is what the server serves and what Tauri bundles.
 - **Routes**: `/` (terminal, rendered by the layout so it survives navigation), `/servers`,
-  `/credentials`, `/settings` (General, Notifications, Quick Commands, About), `/auth/login`.
+  `/credentials`, `/recordings` (the user's recordings; `?server=` filters, `?play=` opens
+  one), `/settings` (General, Notifications, Quick Commands, Users, Audit, About), `/auth/login`.
+- **Recordings**: `lib/recordings/cast.ts` reads asciicast v2 and does the player's arithmetic
+  (shortened pauses, where a moment falls, output coalesced into writes with resizes in
+  place; Vitest-tested); `components/recordings/RecordingPlayer.svelte` plays it in a
+  read-only xterm at the recorded size, scaled down to fit, seeking back by redrawing from the
+  start.
 - **State**: `ui/src/lib/state/*.svelte.ts` — `terminal` (tabs, slots, layouts, profile
   apply, `resumeSession`), `terminalPrefs` (xterm options, localStorage), `sessions` (the
   user's live server-side shells, for the resume list), `servers`, `credentials`, `profiles`,

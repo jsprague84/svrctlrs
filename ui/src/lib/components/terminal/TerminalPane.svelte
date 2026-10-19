@@ -57,7 +57,8 @@
 		status: 'disconnected',
 		note: null,
 		showReconnect: false,
-		hostKey: null
+		hostKey: null,
+		recording: false
 	});
 	/** The WebSocket side: connect, attach, replay, keep-alive, reconnect, persistence */
 	let session: PtySession | null = null;
@@ -736,6 +737,17 @@
 			<span
 				class="inline-block w-1.5 h-1.5 rounded-full bg-warning mr-1.5 align-middle animate-pulse"
 			></span>{view.note}
+		</div>
+	{/if}
+
+	{#if view.recording && view.status === 'connected' && !view.note}
+		<div
+			class="absolute top-1.5 right-2 z-10 px-1.5 py-0.5 rounded-sm bg-surface/80 border border-error/40 text-[10px] font-semibold tracking-wide text-error pointer-events-none select-none"
+			role="status"
+			aria-label="This session is being recorded"
+			title="This session is being recorded"
+		>
+			<span class="inline-block w-1.5 h-1.5 rounded-full bg-error mr-1 align-middle"></span>REC
 		</div>
 	{/if}
 

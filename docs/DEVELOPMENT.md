@@ -70,7 +70,8 @@ beyond 127.0.0.1.
 running server and a real SSH target: first-contact host-key confirmation, the connection
 test, a jump host (the target through itself), SFTP, tags, `ssh_config` import, the startup
 command, then the persistent-session protocol (shell, dropped socket, reattach with replay,
-`closed`, `session_gone`, TTL). `scripts/dev/run-e2e.sh` starts a throwaway debug server and
+`closed`, `session_gone`, TTL), and session recording (a resize in the cast, a password typed
+at a `stty -echo` prompt absent from it, 404 for a second account on every route). `scripts/dev/run-e2e.sh` starts a throwaway debug server and
 runs both frame formats:
 
 ```bash
@@ -107,7 +108,9 @@ with sample servers, tags, credentials, quick commands and a second account, the
 screenshot of every screen at phone and desktop size in both themes. It fails if a page
 scrolls sideways, if a phone control is under 40 px to the finger (the extra-keys row is the
 one deliberate exception), if Escape does not close a modal or the row menu, or if Tab leaves a
-modal. With an SSH target it adds a live shell and the file browser; the pictures in
+modal. With an SSH target it adds a live shell and the file browser, and (the live server
+records sessions) the recordings list and the player, checking that the player shows the
+recorded shell and closes on Escape; the pictures in
 `docs/images/` come from that run (dark theme, phone shots at half size, `pngquant`-ed). The
 live server is named `lab-01`, and each shot first rewrites its real address on the page to
 `192.0.2.10` (a documentation address) and fails if the address is still visible, so published

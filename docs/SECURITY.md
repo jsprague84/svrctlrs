@@ -89,8 +89,8 @@ server is recorded for the user who opened it (`server/src/recordings.rs`):
 - **What.** What the terminal showed: the shell's output, which includes the echo of typed
   commands, and its resizes, as asciicast v2. Keystrokes are never recorded, so a password
   typed at a prompt that does not echo (`sudo`, `ssh`, `read -s`) is not in it; anything a
-  program prints (`cat .env`) is. The new shell says "This session is recorded", so the
-  person being recorded knows.
+  program prints (`cat .env`) is. The new shell says "This session is recorded" and its pane
+  shows a REC mark, so the person being recorded knows.
 - **Whose.** A recording belongs to the user whose shell it was. Listing, playing,
   downloading and deleting are scoped by `user_id` in the query itself, and another user's
   recording answers 404 like a missing one (Warpgate's 2026 CVE leaked live recordings

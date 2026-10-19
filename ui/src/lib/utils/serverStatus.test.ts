@@ -12,6 +12,7 @@ const base: Server = {
 	via_server_id: null,
 	tags: [],
 	startup_command: null,
+	record_sessions: false,
 	description: null,
 	enabled: true,
 	last_seen_at: null,

@@ -222,6 +222,20 @@ describe('a new shell', () => {
 		});
 	});
 
+	it('shows whether the server records the session, until it ends', async () => {
+		const h = harness();
+		await connected(h);
+		expect(h.session.currentView.recording).toBe(false);
+
+		const r = harness();
+		await r.session.connect();
+		r.ws().open();
+		r.ws().reply({ type: 'connected', session_id: 'sess-2', data: '', recording: true });
+		expect(r.session.currentView.recording).toBe(true);
+		r.ws().reply({ type: 'closed', data: 'Shell exited with status 0' });
+		expect(r.session.currentView.recording).toBe(false);
+	});
+
 	it('does nothing without a server', async () => {
 		const h = harness({ serverId: null });
 		await h.session.connect();

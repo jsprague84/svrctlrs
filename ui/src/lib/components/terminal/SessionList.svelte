@@ -82,7 +82,12 @@
 						class="flex items-center gap-2 rounded-md border border-border bg-surface-raised/40 px-2 py-1.5"
 					>
 						<span class="flex-1 min-w-0">
-							<span class="block truncate text-text-primary">{row.session.server_name}</span>
+							<span class="block truncate text-text-primary"
+								>{row.session.server_name}{#if row.session.recorded}<span
+										class="ml-1.5 text-[10px] font-semibold text-error"
+										title="Its output is being recorded">● REC</span
+									>{/if}</span
+							>
 							<span class="block truncate text-[11px] text-text-muted">
 								{describeSession(row, now)}
 							</span>
@@ -119,7 +124,12 @@
 				{#each groups.open as row (row.session.id)}
 					<li class="flex items-center gap-2 rounded-md px-2 py-1.5">
 						<span class="flex-1 min-w-0">
-							<span class="block truncate text-text-secondary">{row.session.server_name}</span>
+							<span class="block truncate text-text-secondary"
+								>{row.session.server_name}{#if row.session.recorded}<span
+										class="ml-1.5 text-[10px] font-semibold text-error"
+										title="Its output is being recorded">● REC</span
+									>{/if}</span
+							>
 							<span class="block truncate text-[11px] text-text-muted">
 								{describeSession(row, now)}
 							</span>

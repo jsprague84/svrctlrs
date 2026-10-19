@@ -81,9 +81,12 @@ users), and keep the login limiter's state in the database so a restart does not
    `open_shell` + `spawn_pty_driver`) for PTY/env/startup command, input, resize, exit
    status, close and a shell through a jump host. CI runs them; disabling the host-key check
    makes three fail. The e2e against hermes stays for OpenSSH, SFTP and the WebSocket.
-10. **Session recording.** Opt-in per server; output frames from the existing ring written as
-   asciicast v2 under the user's id, retention setting, download, and an in-app player.
-   Output only, never input. Scoped per user from day one. Backpressure measured 2026-10-19
+10. ~~**Session recording.**~~ Done 2026-10-19: `servers.record_sessions` (opt-in); a recorder
+   follows the session like a socket (`sessions.rs` `Follower`) and writes asciicast v2
+   (output and resizes, never input) to `RECORDINGS_DIR/<user>/`, encrypted per chunk with
+   the credential key; owner-only API (404 for anyone else, tested per route and in the e2e),
+   `recording.retention_days` with an hourly sweep, a 100 MB cap, download as `.cast`, and an
+   in-app player (`/recordings`); REC mark on recorded panes. Backpressure measured first
    (`scripts/dev/run-e2e.sh backpressure`): the send side does not grow (a client that stops
    reading during a 200 MiB burst costs the server about 15 MB; the PTY driver never waits),
    so no flow control; a client that fell behind the ring was left blank and is now redrawn.

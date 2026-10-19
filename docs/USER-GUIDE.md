@@ -93,8 +93,9 @@ their fingerprints and, once you have confirmed out of band that the key really 
 Settings → Audit (`/settings?tab=audit`) shows who did what, filtered by kind (logins,
 sessions, changes), user and free text; on a phone, tap a row for the address and details.
 It shows: logins (including failed and rate-limited attempts,
-with the client address), logouts, shells opened (with the login and whether a password or
-which key was used), and every change to servers, credentials and accounts. Entries are kept
+with the client address), logouts, shells opened (with the login, whether a password or
+which key was used, and whether the shell was recorded), recording downloads and deletions,
+file transfers, and every change to servers, credentials and accounts. Entries are kept
 for 180 days.
 
 ## Accounts
@@ -181,6 +182,34 @@ download it. The toolbar makes a folder or uploads files into the current one; e
 renamed or deleted (a folder only when empty — use the shell for anything recursive). The
 browser follows the active tab, and remembers where you were on each server. Downloads,
 uploads, renames and deletions are recorded in the audit log.
+
+## Session recordings
+
+Recording is off until you switch on **Record sessions** for a server (Servers → Edit; the
+server's row then shows a red *rec* badge). From then on every shell opened on that server is
+recorded for the person who opens it. A recorded shell says so when it starts, its pane shows
+a red **REC** mark, and the Sessions list marks it too. Shells already open are not affected.
+
+What is recorded is what the terminal shows: output, including the echo of the commands you
+type, and the terminal's resizes. Keystrokes themselves are not, so a password typed at a
+prompt that does not echo it (`sudo`, `ssh`, `read -s`) is not in the recording; anything a
+command prints (`cat .env`) is.
+
+![The recording player](images/desktop-recording-player.png)
+
+**Recordings** in the sidebar lists your own recordings, newest first, with a server filter
+(a server row's ⋯ menu or *rec* badge opens it filtered). Nobody else can see them, whatever
+their account can otherwise do. **Play** opens the player: Space plays and pauses, ←/→ jump
+five seconds, the slider seeks, **Skip pauses** shortens any pause over two seconds (on by
+default), and the speed menu goes from half to eight times. A recording still in progress
+plays as far as it has got. **Download** saves it as an asciicast `.cast` file, which
+`asciinema play` and other asciicast players open; **Delete** removes it (a recording still
+in progress cannot be deleted until its shell ends).
+
+Recordings are kept for 30 days by default (Settings → General → *Keep recordings for*; 0
+keeps them until deleted) and stop at 100 MB each (`RECORDING_MAX_MB`; the shell carries on
+unrecorded). They are stored encrypted with the server's encryption key. Downloads and
+deletions appear in the audit log, and the log's *Sessions* filter includes them.
 
 ## Command palette and quick commands
 

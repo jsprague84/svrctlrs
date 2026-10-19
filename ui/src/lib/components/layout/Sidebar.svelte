@@ -22,7 +22,8 @@
 		Layout,
 		Trash2,
 		Pencil,
-		Plus
+		Plus,
+		MonitorPlay
 	} from '@lucide/svelte';
 	import type { Server as ServerType, TerminalProfile } from '#lib/types/index.js';
 	import { logout } from '#lib/api/client.js';
@@ -68,6 +69,7 @@
 		{ href: '/', icon: Terminal, label: 'Terminal' },
 		{ href: '/servers', icon: Server, label: 'Servers' },
 		{ href: '/credentials', icon: KeyRound, label: 'Credentials' },
+		{ href: '/recordings', icon: MonitorPlay, label: 'Recordings' },
 		{ href: '/settings', icon: Settings, label: 'Settings' }
 	];
 
