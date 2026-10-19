@@ -100,6 +100,7 @@ does not pull in Tauri's GTK/WebKit dependencies.
 | `terminal_profiles` | per-user layout + pane configs (`server_id` per pane), `is_default` |
 | `quick_commands` | per-user snippets: name, command, optional `server_id`, category, sort order |
 | `settings` | key/value with `value_type`; `notification.*` and `app.default_profile_id` are seeded |
+| `user_settings` | a user's own preference documents: (`user_id`, `key`) → JSON `value`; only `terminal` today (`ON DELETE CASCADE`) |
 | `audit_log` | who did what: user, client address, action, target, JSON details; pruned after 180 days |
 | `session_recordings` | one recorded shell: owner `user_id` (`ON DELETE CASCADE`), `server_id` (`ON DELETE SET NULL`) and `server_name`, `session_id`, the encrypted file's name, start size, times, plaintext `size_bytes`, `status`, `end_reason` |
 
@@ -126,9 +127,13 @@ Migrations are checksummed, so never edit one that has shipped.
   read-only xterm at the recorded size, scaled down to fit, seeking back by redrawing from the
   start.
 - **State**: `ui/src/lib/state/*.svelte.ts` — `terminal` (tabs, slots, layouts, profile
-  apply, `resumeSession`), `terminalPrefs` (xterm options, localStorage), `sessions` (the
-  user's live server-side shells, for the resume list), `servers`, `credentials`, `profiles`,
-  `quickCommands`, `settings`, `theme`, `toast`, `mobile`.
+  apply, `resumeSession`), `terminalPrefs` (xterm options and the predictive-echo mode, kept
+  on the account through `GET/PUT /users/me/preferences/terminal` and copied to localStorage
+  so the terminal starts with them; `lib/terminal/prefsSync.ts` saves a change after 800 ms of
+  quiet, never lets the server overwrite an unsaved change, uploads a browser's own
+  preferences when the account has none, and pulls again whenever the page is shown),
+  `sessions` (the user's live server-side shells, for the resume list), `servers`,
+  `credentials`, `profiles`, `quickCommands`, `settings`, `theme`, `toast`, `mobile`.
 - **API client**: `ui/src/lib/api/client.ts` adds `Authorization: Bearer` when a token is
   stored (the native apps; the browser uses its cookie), redirects to login on 401.
 - **Terminal session**: `ui/src/lib/terminal/ptySession.ts` is the WebSocket side of one pane,

@@ -126,7 +126,10 @@ the life of the browser tab, so a reload brings them back with their shells.
   grace period, server restart) the pane says so and offers **Reconnect** (new shell) or
   **New Session**. **Disconnect** and closing a tab end the shell for good.
 - **Preferences** (gear icon): font, size, weight, line height, cursor style and blink,
-  scrollback, scroll speed, tab width, contrast, predictive echo. Stored in the browser/app.
+  scrollback, scroll speed, tab width, contrast, predictive echo. They belong to your account,
+  so the phone and the laptop agree: a change is saved within a second and another device
+  picks it up the next time you switch to it. The first time you sign in after this arrived,
+  the preferences this browser already had become your account's.
 - **Predictive echo**: on a slow or lossy link (a phone on mobile data) what you type appears
   at once, dimmed and with a dotted underline, and turns into normal text when the server's
   echo arrives. A line's first character waits for its echo; the rest show immediately. If the

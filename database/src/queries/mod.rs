@@ -8,6 +8,7 @@ pub mod server_host_keys;
 pub mod servers;
 pub mod settings;
 pub mod terminal_profiles;
+pub mod user_settings;
 pub mod users;
 
 use svrctlrs_core::Error;

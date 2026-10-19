@@ -1,4 +1,5 @@
 import { get, post, put, del } from './client.js';
+import type { TerminalPreferences } from '#lib/types/index.js';
 
 export interface UserAccount {
 	id: number;
@@ -26,4 +27,23 @@ export async function deleteUser(id: number): Promise<void> {
 
 export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
 	await put('/users/me/password', { current_password: currentPassword, new_password: newPassword });
+}
+
+/** Preference documents an account keeps on the server */
+export interface PreferenceDocuments {
+	terminal: TerminalPreferences;
+}
+
+/** The caller's own preference document, or null when they never saved one. Untrusted in
+ *  shape (another client version wrote it): merge before use. */
+export async function getPreference(key: keyof PreferenceDocuments): Promise<unknown> {
+	const res = await get<{ value: unknown }>(`/users/me/preferences/${key}`);
+	return res.value ?? null;
+}
+
+export async function putPreference<K extends keyof PreferenceDocuments>(
+	key: K,
+	value: PreferenceDocuments[K]
+): Promise<void> {
+	await put(`/users/me/preferences/${key}`, { value });
 }

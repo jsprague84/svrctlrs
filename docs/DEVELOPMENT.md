@@ -49,7 +49,7 @@ Unit tests are Vitest files next to the code (`*.test.ts`); keep them for pure m
 
 Tests today: about 120 Rust tests across `core`, `database` and `server` (auth middleware,
 host keys, limiter, tickets, session registry and replay ring, `ssh_config` import, svrctl
-backup) and 149 Vitest tests in the UI, most of them for the terminal session protocol
+backup) and 159 Vitest tests in the UI, most of them for the terminal session protocol
 (`ui/src/lib/terminal/ptySession.test.ts`: attach and replay, keep-alive watchdog, reconnect
 backoff, host-key challenge, persistence, predictive echo) driven with a fake socket and fake
 timers, and for the predictive echo itself (`localEcho.test.ts`, against a small fake screen

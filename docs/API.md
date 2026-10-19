@@ -205,8 +205,16 @@ Every account is an administrator until roles exist, so any user may manage acco
 | POST | `/users` | `username` (1–64 chars), `password` (≥ 12 chars) | 409 if the name exists |
 | DELETE | `/users/{id}` | — | refused for your own account and for the last account |
 | PUT | `/users/me/password` | `current_password`, `new_password` (≥ 12 chars) | 401 when the current password is wrong |
+| GET | `/users/me/preferences/{key}` | — | your own document: `{key, value, updated_at}`; `value` is null until you save one |
+| PUT | `/users/me/preferences/{key}` | `value` (a JSON object, ≤ 16 KiB) | replaces it; 400 for anything but an object or when too big |
 
-Deleting a user cascades to their sessions, profiles and quick commands.
+The only preference key is `terminal` (the terminal's font, cursor, scrollback, scrolling,
+leader key and predictive echo; `ui/src/lib/terminal/prefsSync.ts` has the fields and their
+defaults); any other key answers 404. The server stores the document as given and the UI
+merges it over its defaults, so fields a client does not know are ignored rather than fatal.
+
+Deleting a user cascades to their sessions, profiles, quick commands, preferences and
+recordings.
 
 ## Audit log
 

@@ -1,4 +1,10 @@
+/**
+ * Terminal preferences: the account's (synced through `#lib/terminal/prefsSync.ts`), with a
+ * copy in localStorage so the terminal starts with them before the server answers.
+ */
 import type { TerminalPreferences } from '#lib/types/index.js';
+import { DEFAULT_PREFS, PrefsSync, mergePrefs } from '#lib/terminal/prefsSync.js';
+import * as usersApi from '#lib/api/users.js';
 
 const STORAGE_KEY = 'svrctlrs-terminal-prefs';
 
@@ -12,39 +18,22 @@ export const FONT_FAMILIES: Record<string, string> = {
 	'System Monospace': 'monospace'
 };
 
-const DEFAULTS: TerminalPreferences = {
-	fontSize: 14,
-	fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
-	fontWeight: 400,
-	fontWeightBold: 700,
-	lineHeight: 1.4,
-	letterSpacing: 0,
-	cursorStyle: 'block',
-	cursorBlink: true,
-	scrollback: 5000,
-	scrollSensitivity: 1,
-	fastScrollSensitivity: 5,
-	smoothScrollDuration: 0,
-	scrollOnUserInput: true,
-	tabStopWidth: 4,
-	drawBoldTextInBrightColors: true,
-	minimumContrastRatio: 1,
-	leaderKey: 'ctrl-space',
-	predictiveEcho: 'auto'
-};
-
-function loadFromStorage(): TerminalPreferences {
-	if (typeof window === 'undefined') return { ...DEFAULTS };
+function readStorage(): string | null {
+	if (typeof window === 'undefined') return null;
 	try {
-		const saved = localStorage.getItem(STORAGE_KEY);
-		if (saved) {
-			const parsed = JSON.parse(saved);
-			return { ...DEFAULTS, ...parsed };
-		}
+		return localStorage.getItem(STORAGE_KEY);
 	} catch {
-		// ignore
+		return null; // storage blocked
 	}
-	return { ...DEFAULTS };
+}
+
+function loadFromStorage(saved: string | null): TerminalPreferences {
+	if (!saved) return { ...DEFAULT_PREFS };
+	try {
+		return mergePrefs(JSON.parse(saved));
+	} catch {
+		return { ...DEFAULT_PREFS };
+	}
 }
 
 function saveToStorage(p: TerminalPreferences) {
@@ -55,7 +44,21 @@ function saveToStorage(p: TerminalPreferences) {
 	}
 }
 
-let prefs = $state<TerminalPreferences>(loadFromStorage());
+const stored = readStorage();
+let prefs = $state<TerminalPreferences>(loadFromStorage(stored));
+
+const sync = new PrefsSync({
+	remote: {
+		load: () => usersApi.getPreference('terminal'),
+		save: (p) => usersApi.putPreference('terminal', p)
+	},
+	current: () => prefs,
+	apply: (p) => {
+		prefs = p;
+		saveToStorage(p);
+	},
+	hadLocal: stored !== null
+});
 
 export function getPrefs(): TerminalPreferences {
 	return prefs;
@@ -67,9 +70,21 @@ export function updatePref<K extends keyof TerminalPreferences>(
 ) {
 	prefs = { ...prefs, [key]: value };
 	saveToStorage(prefs);
+	sync.changed();
 }
 
 export function resetPrefs() {
-	prefs = { ...DEFAULTS };
+	prefs = { ...DEFAULT_PREFS };
 	saveToStorage(prefs);
+	sync.changed();
+}
+
+/** Load the account's preferences (app start, the page shown again). Never throws. */
+export function syncPrefs(): Promise<void> {
+	return sync.pull();
+}
+
+/** Save a change still waiting (the page is being hidden). Never throws. */
+export function flushPrefs(): Promise<void> {
+	return sync.flush();
 }

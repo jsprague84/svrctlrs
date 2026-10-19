@@ -6,6 +6,12 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Added
+- **Terminal preferences follow your account.** Font, cursor, scrollback, scrolling, the
+  leader key and predictive echo are saved on the server, so the phone and the laptop agree;
+  another device picks a change up when you switch back to it. The browser keeps a copy, so
+  the terminal starts with them at once and works offline. The first sign-in after the update
+  uploads the preferences that browser already had. API: `GET/PUT
+  /api/v1/users/me/preferences/terminal` (your own only; a JSON object up to 16 KiB).
 - **Predictive echo.** On a slow or lossy link, typed characters appear at once, dimmed and
   underlined, and become normal text when the server's echo arrives; a wrong guess disappears.
   Predictions are checked against what the terminal shows, so coloured prompts and zsh redraws

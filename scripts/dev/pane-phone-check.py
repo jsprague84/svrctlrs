@@ -10,8 +10,9 @@ Covers: first-contact host-key dialog → trust → shell, typing, tap-to-move-c
 copy, a second tab and a swipe between tabs, that no hidden pane resizes its shell, CTL from
 the extra-keys row (Ctrl+C interrupts `sleep`), predictive echo over a slowed link (typed text
 drawn ahead of the echo and cleared after it, nothing drawn at a `read -s` prompt), reload →
-resume with the screen intact, and the home-screen shortcut (manifest lists the server,
-`/?connect=<id>` shows its tab).
+resume with the screen intact, the home-screen shortcut (manifest lists the server,
+`/?connect=<id>` shows its tab), and terminal preferences following the account (a change on
+the phone is on the server and in a fresh desktop browser).
 Screenshots land in E2E_OUT (default: a temp dir).
 """
 import json, os, sys, tempfile, time, urllib.request, http.cookiejar
@@ -258,6 +259,31 @@ with sync_playwright() as p:
         check("shortcut opens that server's tab", active["serverName"] == NAME and len(after["tabs"]) == before,
               f"{active['serverName']} tabs {before}->{len(after['tabs'])}")
         check("shortcut parameter dropped from the URL", "connect=" not in page.url, page.url)
+
+    # Terminal preferences follow the account: change one on the phone, find it on the server
+    # and in a desktop browser that never had it
+    page.get_by_role("button", name="Terminal settings").click()
+    panel = page.get_by_role("dialog", name="Terminal preferences")
+    panel.get_by_label("Predictive Echo").select_option("off")
+    page.wait_for_timeout(1500)  # past the save delay
+    saved = api("GET", "/api/v1/users/me/preferences/terminal")["value"] or {}
+    check("a preference changed on the phone is saved to the account",
+          saved.get("predictiveEcho") == "off", str(saved)[:200])
+    desk = browser.new_context(base_url=BASE, viewport={"width": 1280, "height": 800})
+    r = desk.request.post(BASE + "/api/v1/auth/login", data={"username": USER, "password": PASSWORD},
+        headers={"Origin": BASE})
+    dpage = desk.new_page()
+    dpage.goto("/")
+    dpage.wait_for_timeout(2500)
+    local = dpage.evaluate("JSON.parse(localStorage.getItem('svrctlrs-terminal-prefs') || '{}')")
+    check("a fresh desktop browser picks up the account's preferences",
+          local.get("predictiveEcho") == "off", str(local)[:200])
+    desk.close()
+    panel.get_by_label("Predictive Echo").select_option("auto")
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(1500)
+    saved = api("GET", "/api/v1/users/me/preferences/terminal")["value"] or {}
+    check("and changing it back is saved too", saved.get("predictiveEcho") == "auto", str(saved)[:200])
 
     errors = [l for l in logs if l.startswith(("error", "pageerror"))]
     check("no console errors", not errors, "\n".join(errors[:5]))

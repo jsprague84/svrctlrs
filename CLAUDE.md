@@ -60,7 +60,7 @@ CI's clippy may be older or newer than yours; green locally is not proof.
   No `unwrap()` on request paths.
 - **Migrations**: two embedded chains (`database/src/lib.rs::run_migrations`).
   `database/migrations/` is current: `100_baseline.sql` plus everything after it; add the next
-  change with the next free number (`106_…` after `105_session_recordings.sql`). `database/migrations-legacy/` (`000`–`024`) is frozen and only runs for a
+  change with the next free number (`107_…` after `106_user_settings.sql`). `database/migrations-legacy/` (`000`–`024`) is frozen and only runs for a
   database that predates the baseline, which is then marked as having `100` applied. Never
   edit a shipped migration (sqlx checksums them).
 - **Svelte 5**: runes only (`$state`, `$derived`, `$effect`, `$props`); callback props, not

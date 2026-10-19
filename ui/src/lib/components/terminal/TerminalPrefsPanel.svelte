@@ -30,7 +30,8 @@
 	async function handleReset() {
 		const ok = await confirmDialog({
 			title: 'Reset terminal preferences?',
-			message: 'Font, cursor, scrollback and the leader key go back to their defaults.',
+			message:
+				'Font, cursor, scrollback, the leader key and predictive echo go back to their defaults, on every device you sign in on.',
 			confirmLabel: 'Reset',
 			destructive: true
 		});

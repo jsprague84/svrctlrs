@@ -12,6 +12,7 @@
 	import ServerUrlSetup from '#lib/components/ui/ServerUrlSetup.svelte';
 	import ProfileEditModal from '#lib/components/terminal/ProfileEditModal.svelte';
 	import * as terminalState from '#lib/state/terminal.svelte.js';
+	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
 	import * as toast from '#lib/state/toast.svelte.js';
 	import type { Server, TerminalProfile, LayoutMode } from '#lib/types/index.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
@@ -62,6 +63,7 @@
 			} else {
 				serversState.loadServers();
 				profilesState.loadProfiles();
+				terminalPrefs.syncPrefs();
 			}
 		}
 
@@ -76,8 +78,18 @@
 			if (!isAuthPage && !document.hidden) serversState.loadServers();
 		}, 60_000);
 
+		// Terminal preferences follow the account: save a pending change when the page is
+		// hidden, pick up changes made on another device when it is shown again
+		const handleVisibility = () => {
+			if (isAuthPage || needsServerSetup) return;
+			if (document.hidden) terminalPrefs.flushPrefs();
+			else terminalPrefs.syncPrefs();
+		};
+		document.addEventListener('visibilitychange', handleVisibility);
+
 		return () => {
 			window.removeEventListener('toggle-sidebar', handleToggleSidebar);
+			document.removeEventListener('visibilitychange', handleVisibility);
 			clearInterval(refresh);
 		};
 	});
@@ -142,6 +154,7 @@
 			needsServerSetup = false;
 			serversState.loadServers();
 			profilesState.loadProfiles();
+			terminalPrefs.syncPrefs();
 		}}
 	/>
 {:else if isAuthPage}

@@ -99,8 +99,12 @@ users), and keep the login limiter's state in the database so a restart does not
     Predictive Echo (on slow links / always / off). 33 Vitest tests; the phone check slows the
     link and types at a `read -s` prompt. The one gap (echo turned off silently after
     type-ahead) is in `SECURITY.md`.
-12. **Terminal preferences per account.** Move `terminalPrefs` from `localStorage` to the
-    settings table so the phone and the laptop agree.
+12. ~~**Terminal preferences per account.**~~ Done 2026-10-19: a per-user table
+    (`106_user_settings.sql`; the `settings` table is global) behind
+    `GET/PUT /users/me/preferences/terminal`; localStorage stays as the start-up and offline
+    copy. `ui/src/lib/terminal/prefsSync.ts` (Vitest) debounces saves, never lets the server
+    overwrite an unsaved change and uploads a browser's own preferences to an empty account;
+    the phone check changes one on the phone and finds it in a fresh desktop browser.
 13. **Quick-command variables** (`{{host}}`, `{{user}}`, a prompt for the rest) so one
     snippet serves every server.
 14. **Release maturity.** `linux/arm64` image for Raspberry Pi hosts, `svrctl reset-password`
