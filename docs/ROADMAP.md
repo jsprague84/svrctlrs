@@ -118,8 +118,54 @@ users), and keep the login limiter's state in the database so a restart does not
    sessions; audited), ~~`CONTRIBUTING.md` and issue templates~~, ~~screenshots in the README~~
    (item 8), ~~a compose example without the dev-space edge~~ (`docker-compose.standalone.yml`).
    Found on the way: `ADMIN_PASSWORD` without `ADMIN_USERNAME` seeded nobody (fixed).
-   **Still open:** a published OpenAPI document (utoipa) — annotate every handler; the error
-   refactor has settled their shapes.
+   **Still open:** the published OpenAPI document, now item 17.
+
+### Agent access (decided 2026-10-19, owner)
+
+Agents such as Hermes (the owner's always-on agent) and Claude Code administer svrctlrs from
+outside: add and fix servers, keys and host keys, and diagnose why a server cannot be reached.
+There is still no assistant inside the app. Research behind the shape (October 2026): for an
+agent that has a shell, a CLI plus an Agent Skill (`SKILL.md`, the open standard Hermes, Claude
+Code and Codex read) is cheaper and more reliable than a wide MCP tool list, and Hermes's own
+docs call its skill+CLI GitHub integration more capable than the GitHub MCP server. MCP is
+moving toward a few task-level tools or code against a typed API, and its 2026-07-28 revision
+reworked the transport, so it waits until a client without a shell needs it. Agents already
+reach servers over their own SSH; svrctlrs is not meant to be a second door to servers, but a
+token may open terminals and files when that helps a diagnosis. Phone and desktop both get
+compact screens for everything below.
+
+15. **Agent tokens.** Named tokens the owner creates under Settings: access preset (*full
+    admin* — everything the owner can do, terminals and files included — or narrower presets
+    such as *read-only* and *servers & keys*) and lifetime (30/90/365 days or **never**).
+    Stored hashed, shown once, last-used time, revoke in one tap; every audit row names the
+    token. Replaces "log in with the password and carry the session id" for scripts and
+    `svrctl`. Security-critical: server tests and `SECURITY.md` in the same change.
+16. **Approvals, rare and per token.** Only deleting a server profile, deleting a credential
+    or key, and forgetting a server's host keys can require approval, and a token can be set
+    to need none. A gated call answers `202` with a pending action and an approval link;
+    svrctlrs sends the link through a configured channel (Matrix room directly or through the
+    n8n webhook, ntfy/Gotify, or whatever the agent posts); the owner approves or denies
+    signed in, on phone or desktop; the caller waits (`--wait`). Approving by replying to the
+    agent would be the token approving itself, which is the "no approval" setting.
+17. **Typed responses and the OpenAPI document (utoipa).** Every handler's response becomes a
+    `Serialize + ToSchema` struct that produces exactly today's JSON (the UI depends on it),
+    one module per commit; `GET /api/v1/openapi.json` behind auth; `docs/openapi.json`
+    committed with a drift test. `svrctl` reuses the same types.
+18. **Task-level operations.** `diagnose` (DNS → TCP → SSH handshake → host key → login, and
+    the jump host, run from svrctlrs itself — the same container, address, DNS and
+    credentials that fail — with a verdict and a fix per step), `exec` (one command on one
+    server through the stored credentials, output and exit status back, audited; not a
+    fleet runner), `onboard` (create, test, show the fingerprint, install a generated key) and
+    `rotate-key` (generate, install with the working credential, test, switch, remove the old
+    public key). Private keys and passwords never pass through the agent. Mutations take
+    `--dry-run`.
+19. **`svrctl` as the agent CLI, a `SKILL.md`, and an eval.** JSON output when not on a
+    terminal, never prompts, stable exit codes, errors as JSON with a hint, examples in
+    `--help`; a ~1k-token `SKILL.md` in the repo that Hermes adds as a skill source and Claude
+    Code can load. Done when Hermes (default and local-qwen) passes five realistic tasks —
+    "why can't I reach X?" and fix it, onboard a host, rotate a key, import an `ssh_config`,
+    tag servers — with transcripts read. MCP (a few task tools over Streamable HTTP, bearer
+    token) only if a client without a shell needs it; it goes under "Maybe later" until then.
 
 ## Maybe later
 
@@ -135,12 +181,17 @@ users), and keep the login limiter's state in the database so a restart does not
   it stays a release artifact or is parked like Android.
 - Login limiter state in the database (survives restarts); 2FA on the *target* via
   keyboard-interactive auth if a server needs it.
+- **MCP server for agent access** (owner, 2026-10-19): only when a client without a shell
+  (Claude Desktop, a phone app, Open WebUI) needs it. Then a few task-level tools mirroring
+  items 18–19 over Streamable HTTP on the current spec, bearer token, each tool marked
+  read-only or destructive — not one tool per endpoint.
 
 ## Out of scope (deliberately)
 
 Remote desktop (RDP/VNC/Telnet); Docker, Proxmox or Kubernetes management; host metrics
 dashboards and alerting beyond up/down notifications (the retired 1.x/2.x product); fleets or
-"run on every host"; automations and schedulers; a plugin system; an AI assistant; multiple
+"run on every host"; automations and schedulers; a plugin system; an AI assistant inside the
+app (outside agents administer it through tokens and `svrctl`, items 15–19); multiple
 database engines; collaborative session sharing; **SSH agent forwarding** (the server would
 hold the agent, so a compromised server could sign with it). If one of these is wanted,
 Termix or Nexterm already do it well.
