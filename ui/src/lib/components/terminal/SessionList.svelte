@@ -5,6 +5,7 @@
 	 * Shared by the desktop side panel and the phone bottom sheet.
 	 */
 	import { RotateCw, Play, Square, ArrowRight } from '@lucide/svelte';
+	import StateBlock from '#lib/components/ui/StateBlock.svelte';
 	import type { LiveSession } from '#lib/types/index.js';
 	import { classifySessions, describeSession, formatTtl } from '#lib/utils/sessions.js';
 
@@ -45,7 +46,7 @@
 	});
 
 	const iconBtn =
-		'w-9 h-9 md:w-7 md:h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised active:bg-surface-raised disabled:opacity-50';
+		'w-11 h-11 md:w-7 md:h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised active:bg-surface-raised disabled:opacity-50';
 </script>
 
 <div class="flex flex-col gap-3 text-sm" aria-live="polite">
@@ -59,10 +60,15 @@
 		</div>
 	{/if}
 
-	{#if loaded && sessions.length === 0 && !error}
-		<p class="px-1 py-6 text-center text-text-muted">
-			No shells are running on the server for your account.
-		</p>
+	{#if !loaded && loading && !error}
+		<StateBlock kind="loading" title="Loading sessions…" compact />
+	{:else if loaded && sessions.length === 0 && !error}
+		<StateBlock
+			kind="empty"
+			title="No shells running"
+			hint="Shells you leave stay here for a while, ready to resume."
+			compact
+		/>
 	{/if}
 
 	{#if groups.resumable.length > 0}

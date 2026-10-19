@@ -10,6 +10,9 @@
 	import { allTags, matchesTag } from '#lib/utils/tags.js';
 	import TagChips from '#lib/components/servers/TagChips.svelte';
 	import { watchClose } from '#lib/utils/closeWatcher.js';
+	import { resolve } from '$app/paths';
+	import StateBlock from '#lib/components/ui/StateBlock.svelte';
+	import { overlay } from '#lib/utils/overlay.js';
 	import SessionList from './SessionList.svelte';
 	import FileBrowser from './FileBrowser.svelte';
 	import type { TerminalTab, Server, LiveSession } from '#lib/types/index.js';
@@ -105,6 +108,7 @@
 		class="fixed bottom-0 inset-x-0 z-50 bg-surface border-t border-border rounded-t-xl pb-[env(safe-area-inset-bottom,0px)] max-h-[70dvh] flex flex-col"
 		role="dialog"
 		aria-modal="true"
+		{@attach overlay({ onEscape: () => onClose() })}
 		aria-label={view === 'tabs'
 			? 'Terminals'
 			: view === 'servers'
@@ -121,7 +125,7 @@
 				{#if view !== 'tabs' && tabs.length > 0}
 					<button
 						type="button"
-						class="w-9 h-9 flex items-center justify-center rounded-md text-text-muted active:bg-surface-raised"
+						class="w-11 h-11 flex items-center justify-center rounded-md text-text-muted active:bg-surface-raised"
 						onclick={onBackToTabs}
 						aria-label="Back to terminals"
 					>
@@ -134,7 +138,7 @@
 			</div>
 			<button
 				type="button"
-				class="w-9 h-9 flex items-center justify-center rounded-md text-text-muted active:bg-surface-raised"
+				class="w-11 h-11 flex items-center justify-center rounded-md text-text-muted active:bg-surface-raised"
 				onclick={onClose}
 				aria-label="Close"
 			>
@@ -232,11 +236,15 @@
 					</div>
 				{/if}
 				{#if allServers.length === 0}
-					<p class="text-sm text-text-muted px-3 py-6 text-center">
-						No servers yet — add one under Servers.
-					</p>
+					<StateBlock kind="empty" title="No servers yet" compact>
+						<a
+							href={resolve('/servers')}
+							class="text-sm text-accent underline min-h-11 inline-flex items-center"
+							>Add one on the Servers page</a
+						>
+					</StateBlock>
 				{:else if servers.length === 0}
-					<p class="text-sm text-text-muted px-3 py-6 text-center">No server has that tag.</p>
+					<StateBlock kind="empty" title="No server has that tag" compact />
 				{:else}
 					<ul class="flex flex-col gap-1">
 						{#each servers as server (server.id)}

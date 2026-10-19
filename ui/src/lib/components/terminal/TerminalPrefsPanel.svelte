@@ -2,6 +2,8 @@
 	import { X, Minus, Plus } from '@lucide/svelte';
 	import { confirmDialog } from '#lib/state/confirm.svelte.js';
 	import { watchClose } from '#lib/utils/closeWatcher.js';
+	import { overlay } from '#lib/utils/overlay.js';
+	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
 	import type { CursorStyle, FontWeightOption, LeaderKeyOption } from '#lib/types/index.js';
 	import { LEADER_KEY_LABELS } from '#lib/utils/leader.js';
@@ -59,6 +61,11 @@
 		bg-surface border-t border-border md:border-t-0 md:border-l
 		flex flex-col transition-transform duration-200 ease-in-out overflow-hidden
 		{open ? '' : 'translate-y-full md:translate-y-0 md:translate-x-full'}"
+	role="dialog"
+	aria-label="Terminal preferences"
+	aria-modal={open && isMobile() ? 'true' : undefined}
+	inert={!open}
+	{@attach open ? overlay({ onEscape: () => onClose(), trap: isMobile() }) : null}
 >
 	<!-- Drag handle (mobile only) -->
 	<div class="flex justify-center pt-2 pb-1 md:hidden">
@@ -104,7 +111,7 @@
 					<div class="flex items-center gap-1">
 						<button
 							type="button"
-							class="w-9 h-9 flex items-center justify-center rounded-sm border border-border text-text-secondary active:bg-surface-raised disabled:opacity-40"
+							class="w-11 h-11 md:w-9 md:h-9 flex items-center justify-center rounded-sm border border-border text-text-secondary active:bg-surface-raised disabled:opacity-40"
 							onclick={() => stepFontSize(-1)}
 							disabled={prefs.fontSize <= 8}
 							aria-label="Smaller text"
@@ -116,7 +123,7 @@
 						>
 						<button
 							type="button"
-							class="w-9 h-9 flex items-center justify-center rounded-sm border border-border text-text-secondary active:bg-surface-raised disabled:opacity-40"
+							class="w-11 h-11 md:w-9 md:h-9 flex items-center justify-center rounded-sm border border-border text-text-secondary active:bg-surface-raised disabled:opacity-40"
 							onclick={() => stepFontSize(1)}
 							disabled={prefs.fontSize >= 24}
 							aria-label="Larger text"

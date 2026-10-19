@@ -64,7 +64,7 @@ CI's clippy may be older or newer than yours; green locally is not proof.
 - **Svelte 5**: runes only (`$state`, `$derived`, `$effect`, `$props`); callback props, not
   `createEventDispatcher`. State modules in `ui/src/lib/state/*.svelte.ts` export getters.
   Use `extractErrorMessage()` from `#lib/utils/error` in every catch. Mobile breakpoint is
-  `md:` (768 px) plus `isMobile()` for JS. Tailwind v4 tokens live in `ui/app.css`.
+  `md:` (768 px) plus `isMobile()` for JS. Tailwind v4 tokens live in `ui/src/app.css`.
 - **Versions**: one number in `Cargo.toml` (workspace), `ui/package.json`,
   `ui/src-tauri/tauri.conf.json` and `ui/src-tauri/Cargo.toml`. The release job fails if the
   tag disagrees with `Cargo.toml`. Bump all four together; add a `CHANGELOG.md` section.

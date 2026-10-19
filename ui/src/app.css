@@ -11,7 +11,7 @@
 	/* Text */
 	--color-text-primary: #c0caf5;
 	--color-text-secondary: #a9b1d6;
-	--color-text-muted: #737aa2;
+	--color-text-muted: #8a90b1; /* 4.6:1 on surface-raised (WCAG AA) */
 
 	/* Accent */
 	--color-accent: #7aa2f7;
@@ -41,7 +41,7 @@
 	--color-sidebar-foreground: #c0caf5;
 	--color-sidebar-accent: #24283b;
 	--color-sidebar-border: #292e42;
-	--color-sidebar-muted: #565f89;
+	--color-sidebar-muted: #8a90b1;
 
 	/* Border radius — technical/compact */
 	--radius: 0.375rem;
@@ -67,6 +67,7 @@
 
 /* Light theme overrides */
 [data-theme='light'] {
+	/* Text colours clear WCAG AA (4.5:1) on every surface, badge tints included */
 	--color-background: #f5f5f0;
 	--color-foreground: #2e3440;
 	--color-surface: #eae8e4;
@@ -75,32 +76,32 @@
 
 	--color-text-primary: #2e3440;
 	--color-text-secondary: #4c566a;
-	--color-text-muted: #646d7f;
+	--color-text-muted: #575e6e;
 
-	--color-accent: #2e6fcf;
+	--color-accent: #265cac;
 	--color-accent-foreground: #f5f5f0;
 
-	--color-success: #2e8b57;
-	--color-warning: #b8860b;
-	--color-error: #c43e3e;
-	--color-info: #3366a5;
+	--color-success: #236a43;
+	--color-warning: #795807;
+	--color-error: #a83333;
+	--color-info: #2f5f99;
 
-	--color-primary: #2e6fcf;
+	--color-primary: #265cac;
 	--color-primary-foreground: #f5f5f0;
 	--color-secondary: #dfddd8;
 	--color-secondary-foreground: #2e3440;
-	--color-destructive: #c43e3e;
+	--color-destructive: #a83333;
 	--color-destructive-foreground: #f5f5f0;
 
 	--color-border: #c8c5be;
 	--color-input: #eae8e4;
-	--color-ring: #2e6fcf;
+	--color-ring: #265cac;
 
 	--color-sidebar: #eae8e4;
 	--color-sidebar-foreground: #2e3440;
 	--color-sidebar-accent: #dfddd8;
 	--color-sidebar-border: #c8c5be;
-	--color-sidebar-muted: #7b8394;
+	--color-sidebar-muted: #575e6e;
 }
 
 /* Bundled terminal font: the "JetBrains Mono" choice must not fall back to Android's monospace */

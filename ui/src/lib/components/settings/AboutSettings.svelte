@@ -6,12 +6,12 @@
 	import { get } from '#lib/api/client.js';
 	import Badge from '#lib/components/ui/Badge.svelte';
 
-	let serverHealth = $state<{ status: string; version?: string } | null>(null);
+	let serverHealth = $state<{ status: string; version?: string; revision?: string } | null>(null);
 	let healthError = $state<string | null>(null);
 
 	onMount(async () => {
 		try {
-			const res = await get<{ status: string; version: string }>('/health');
+			const res = await get<{ status: string; version: string; revision?: string }>('/health');
 			serverHealth = res;
 		} catch {
 			healthError = 'Unable to reach server';
@@ -89,6 +89,19 @@
 				<span class="text-sm text-text-primary font-mono">{serverHealth.version}</span>
 			</div>
 		{/if}
+		{#if serverHealth?.revision}
+			<!-- The commit the running image was built from; "unknown" outside a release build -->
+			<div class="flex items-center justify-between py-1 gap-3">
+				<span class="text-sm text-text-secondary">Revision</span>
+				{#if serverHealth.revision === 'unknown'}
+					<span class="text-sm text-text-muted">development build</span>
+				{:else}
+					<span class="text-sm text-text-primary font-mono select-all" title={serverHealth.revision}
+						>{serverHealth.revision.slice(0, 12)}</span
+					>
+				{/if}
+			</div>
+		{/if}
 	</div>
 
 	<!-- Keyboard Shortcuts -->
@@ -99,8 +112,9 @@
 		{#each categories as cat (cat)}
 			<div class="mb-3">
 				<p class="text-xs font-medium text-text-secondary mb-1">
-					{cat}{#if cat === 'Leader'}
-						<span class="text-text-muted"> — Leader is {leaderLabel}</span>{/if}
+					{cat}{#if cat === 'Leader'}<span class="text-text-muted"
+							>{` — Leader is ${leaderLabel}`}</span
+						>{/if}
 				</p>
 				<div class="flex flex-col gap-1">
 					{#each shortcuts.filter((s) => s.category === cat) as shortcut (shortcut.keys)}

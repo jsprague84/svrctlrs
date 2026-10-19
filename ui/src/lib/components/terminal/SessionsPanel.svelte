@@ -2,6 +2,7 @@
 	/** Desktop side panel listing the server-side sessions (see `SessionList`). */
 	import { X } from '@lucide/svelte';
 	import { watchClose } from '#lib/utils/closeWatcher.js';
+	import { overlay } from '#lib/utils/overlay.js';
 	import SessionList from './SessionList.svelte';
 	import type { LiveSession } from '#lib/types/index.js';
 
@@ -47,6 +48,8 @@
 	role="dialog"
 	aria-label="Sessions"
 	aria-hidden={!open}
+	inert={!open}
+	{@attach open ? overlay({ onEscape: () => onClose(), trap: false }) : null}
 >
 	<div class="flex items-center justify-between px-3 py-2 border-b border-border">
 		<span class="text-sm font-semibold text-text-primary">Sessions</span>

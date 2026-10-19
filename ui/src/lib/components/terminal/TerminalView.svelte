@@ -8,7 +8,8 @@
 		ClipboardCopy,
 		Download,
 		History,
-		FolderOpen
+		FolderOpen,
+		Server as ServerIcon
 	} from '@lucide/svelte';
 	import TerminalPane from './TerminalPane.svelte';
 	import TerminalTabs from './TerminalTabs.svelte';
@@ -22,8 +23,12 @@
 	import MobileStatusBar from './MobileStatusBar.svelte';
 	import MobileSheet, { type SheetView } from './MobileSheet.svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import ExtraKeysRow from './ExtraKeysRow.svelte';
+	import StateBlock from '#lib/components/ui/StateBlock.svelte';
+	import Button from '#lib/components/ui/Button.svelte';
+	import { serverStatus } from '#lib/utils/serverStatus.js';
 	import * as terminalState from '#lib/state/terminal.svelte.js';
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import * as profilesState from '#lib/state/profiles.svelte.js';
@@ -48,7 +53,9 @@
 
 	let { visible }: Props = $props();
 
-	let selectedServerId = $state<number | null>(null);
+	/** The toolbar's picker: the active tab's server. Picking another one and pressing Connect
+	 *  points the tab there; switching tabs shows that tab's server again. */
+	let selectedServerId = $derived<number | null>(terminalState.getActiveTab()?.serverId ?? null);
 	let paneRefs = $state<Record<string, ReturnType<typeof TerminalPane>>>({});
 	let extraKeysRow = $state<ReturnType<typeof ExtraKeysRow> | null>(null);
 	let searchOpen = $state(false);
@@ -191,6 +198,46 @@
 		sheetOpen = false;
 		focusTerminal(id);
 	}
+	/** Show the tab already on this server, or open one */
+	function openShellOn(server: { id: number; name: string }) {
+		const existing = tabs.find((t) => t.serverId === server.id);
+		if (existing) {
+			terminalState.setActiveTab(existing.id);
+			sheetOpen = false;
+			focusTerminal(existing.id);
+		} else {
+			connectTo(server);
+		}
+	}
+
+	// Home-screen shortcuts and links (see routes/ui/manifest.rs on the server):
+	// /?connect=<server id> shows a shell on that server, /?open=servers the server picker.
+	// The parameter is dropped once handled, so a reload does not repeat it.
+	$effect(() => {
+		if (!visible) return;
+		const params = page.url.searchParams;
+		const connect = params.get('connect');
+		const open = params.get('open');
+		if (connect === null && open === null) return;
+		if (connect !== null) {
+			// Wait for the first server list; an empty one before that means "not yet"
+			if (!serversState.hasLoaded()) return;
+			const server = servers.find((s) => s.id === Number(connect) && s.enabled);
+			if (server) untrack(() => openShellOn(server));
+			else toast.error('That server is gone or disabled');
+		} else if (open === 'servers') {
+			untrack(() => {
+				if (isMobile()) openSheet('servers');
+				else paletteOpen = true;
+			});
+		}
+		const query = [...params.entries()]
+			.filter(([k]) => k !== 'connect' && k !== 'open')
+			.map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+			.join('&');
+		goto(`${resolve('/')}${query ? `?${query}` : ''}`, { replace: true, shallow: true });
+	});
+
 	let paletteOpen = $state(false);
 	let profileSaveOpen = $state(false);
 	let showGestureHint = $state(false);
@@ -213,6 +260,12 @@
 	let activeTab = $derived(terminalState.getActiveTab());
 	let layout = $derived(terminalState.getLayout());
 	let visibleTabs = $derived(terminalState.getVisibleTabs());
+	/** Nothing to show in the pane area: no tab, or one tab that has no server yet */
+	let showEmptyState = $derived(
+		!activeTab || (activeTab.serverId === null && visibleTabs.length <= 1)
+	);
+	const EMPTY_STATE_SERVERS = 8;
+	let enabledServers = $derived(servers.filter((s) => s.enabled));
 	let pendingAutoConnect = $derived(terminalState.getPendingAutoConnect());
 
 	// Remember the previously active tab for the leader's "last tab" (`)
@@ -231,6 +284,15 @@
 			terminalState.clearPendingAutoConnect();
 			requestAnimationFrame(() => paneRefs[tabId]?.connect());
 		}
+	});
+
+	// Toasts sit just above the extra-keys row on the phone (Toast.svelte reads the variable)
+	let extraKeysHeight = $state(0);
+	$effect(() => {
+		if (!visible || !isMobile() || extraKeysHeight <= 0) return;
+		const root = document.documentElement;
+		root.style.setProperty('--toast-offset', `${extraKeysHeight}px`);
+		return () => root.style.removeProperty('--toast-offset');
 	});
 
 	// Refit terminals when view becomes visible (returning from another page)
@@ -849,6 +911,77 @@
 				</div>
 			{/each}
 		</SplitView>
+		{#if showEmptyState}
+			<!-- No server in front: offer the servers instead of a blank pane -->
+			<div class="absolute inset-0 z-10 overflow-y-auto bg-background">
+				{#if serversLoading && enabledServers.length === 0}
+					<StateBlock kind="loading" title="Loading servers…" />
+				{:else if serversError && enabledServers.length === 0}
+					<StateBlock
+						kind="error"
+						title={serversError}
+						onRetry={() => serversState.loadServers()}
+					/>
+				{:else if enabledServers.length === 0}
+					<StateBlock
+						kind="empty"
+						icon={ServerIcon}
+						title="No servers yet"
+						hint="Add a server, then open a shell on it here."
+					>
+						<Button onclick={() => goto(resolve('/servers'))}>Add a server</Button>
+					</StateBlock>
+				{:else}
+					<div class="max-w-md mx-auto px-4 py-8 md:py-12 flex flex-col gap-3">
+						<div class="text-center">
+							<h2 class="text-sm font-medium text-text-primary">Open a shell</h2>
+							<p class="text-xs text-text-muted mt-1">
+								{isMobile()
+									? 'Pick a server, or + for the full list.'
+									: 'Pick a server, or use the list above (Ctrl+K searches).'}
+							</p>
+						</div>
+						<ul class="flex flex-col gap-1">
+							{#each enabledServers.slice(0, EMPTY_STATE_SERVERS) as server (server.id)}
+								{@const st = serverStatus(server)}
+								<li>
+									<button
+										type="button"
+										class="w-full flex items-center gap-3 px-3 min-h-12 rounded-md border border-border/60 bg-surface hover:bg-surface-raised active:bg-surface-raised text-left"
+										onclick={() => connectTo(server)}
+									>
+										<span class="w-2 h-2 rounded-full flex-shrink-0 {st.dot}" title={st.label}
+										></span>
+										<span class="min-w-0 flex-1">
+											<span class="block text-sm text-text-primary truncate">{server.name}</span>
+											<span class="block text-[11px] font-mono text-text-muted truncate"
+												>{server.username ?? 'root'}@{server.hostname}</span
+											>
+										</span>
+									</button>
+								</li>
+							{/each}
+						</ul>
+						<div class="flex flex-wrap justify-center gap-2">
+							{#if enabledServers.length > EMPTY_STATE_SERVERS}
+								<Button
+									variant="secondary"
+									class="min-h-11 md:min-h-0"
+									onclick={() => (isMobile() ? openSheet('servers') : (paletteOpen = true))}
+									>All {enabledServers.length} servers</Button
+								>
+							{/if}
+							{#if resumableCount > 0}
+								<Button variant="secondary" class="min-h-11 md:min-h-0" onclick={openSessions}
+									><History class="w-4 h-4" /> Resume a session ({resumableCount})</Button
+								>
+							{/if}
+						</div>
+					</div>
+				{/if}
+			</div>
+		{/if}
+
 		<!-- Gesture hint (mobile, first visit only) -->
 		{#if showGestureHint}
 			<div
@@ -947,6 +1080,7 @@
 		<div
 			class="flex-shrink-0"
 			style:padding-bottom={!mobileKeyboardOpen ? 'env(safe-area-inset-bottom, 0px)' : undefined}
+			bind:offsetHeight={extraKeysHeight}
 		>
 			<ExtraKeysRow
 				bind:this={extraKeysRow}

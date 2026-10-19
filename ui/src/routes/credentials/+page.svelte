@@ -22,6 +22,7 @@
 		Server
 	} from '#lib/types/index.js';
 	import { CREDENTIAL_TYPE_LABELS } from '#lib/types/credential.js';
+	import StateBlock from '#lib/components/ui/StateBlock.svelte';
 
 	let showModal = $state(false);
 	let editingId = $state<number | null>(null);
@@ -259,27 +260,21 @@
 
 	<div class="flex-1 overflow-y-auto p-4 md:p-6">
 		{#if loading && credentials.length === 0}
-			<div class="text-text-muted text-sm py-8 text-center">Loading credentials…</div>
+			<StateBlock kind="loading" title="Loading credentials…" />
 		{:else if credError}
-			<div class="text-center py-8">
-				<p class="text-error">{credError}</p>
-				<Button variant="secondary" class="mt-3" onclick={() => credState.loadCredentials()}
-					>Retry</Button
-				>
-			</div>
+			<StateBlock kind="error" title={credError} onRetry={() => credState.loadCredentials()} />
 		{:else if credentials.length === 0}
-			<div class="text-center text-text-muted py-8">
-				<p>No credentials yet.</p>
-				<p class="text-xs mt-1">
-					The easy path: generate a key here, then <em>Authorize key</em> on each server.
-				</p>
-				<div class="flex items-center justify-center gap-2 mt-3">
-					<Button onclick={() => (showGenerate = true)}>
-						<Sparkles class="w-4 h-4" /> Generate SSH key
-					</Button>
-					<Button variant="secondary" onclick={openCreate}>Add an existing one</Button>
-				</div>
-			</div>
+			<StateBlock
+				kind="empty"
+				icon={KeyRound}
+				title="No credentials yet"
+				hint="The easy path: generate a key here, then Authorize key on each server."
+			>
+				<Button onclick={() => (showGenerate = true)}>
+					<Sparkles class="w-4 h-4" /> Generate SSH key
+				</Button>
+				<Button variant="secondary" onclick={openCreate}>Add an existing one</Button>
+			</StateBlock>
 		{:else}
 			<ul class="flex flex-col gap-2">
 				{#each shown as cred (cred.id)}
@@ -324,7 +319,7 @@
 								<Button
 									variant="ghost"
 									size="sm"
-									class="min-h-9 md:min-h-0"
+									class="min-h-11 md:min-h-0"
 									onclick={() => showPublicKey(cred)}
 									title="Show the public key / authorize it on a server"
 								>
@@ -335,7 +330,7 @@
 							<Button
 								variant="ghost"
 								size="sm"
-								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
+								class="min-h-11 min-w-11 md:min-h-0 md:min-w-0"
 								onclick={() => openEdit(cred)}
 								aria-label="Edit credential"
 								title="Edit"
@@ -346,7 +341,7 @@
 							<Button
 								variant="ghost"
 								size="sm"
-								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
+								class="min-h-11 min-w-11 md:min-h-0 md:min-w-0"
 								onclick={() => handleDelete(cred)}
 								disabled={cred.in_use}
 								aria-label="Delete credential"

@@ -64,7 +64,7 @@
 				<button
 					type="button"
 					aria-pressed={themeState.isDark()}
-					class="px-3 py-1 text-xs rounded-sm transition-colors {themeState.isDark()
+					class="px-4 md:px-3 py-1 min-h-11 md:min-h-0 text-sm md:text-xs rounded-sm transition-colors {themeState.isDark()
 						? 'bg-accent text-accent-foreground font-medium'
 						: 'bg-surface-raised text-text-secondary'}"
 					onclick={() => {
@@ -74,7 +74,7 @@
 				<button
 					type="button"
 					aria-pressed={!themeState.isDark()}
-					class="px-3 py-1 text-xs rounded-sm transition-colors {!themeState.isDark()
+					class="px-4 md:px-3 py-1 min-h-11 md:min-h-0 text-sm md:text-xs rounded-sm transition-colors {!themeState.isDark()
 						? 'bg-accent text-accent-foreground font-medium'
 						: 'bg-surface-raised text-text-secondary'}"
 					onclick={() => {

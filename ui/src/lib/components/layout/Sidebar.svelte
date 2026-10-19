@@ -6,6 +6,7 @@
 	import { serverStatus } from '#lib/utils/serverStatus.js';
 	import { allTags, matchesTag } from '#lib/utils/tags.js';
 	import TagChips from '#lib/components/servers/TagChips.svelte';
+	import StateBlock from '#lib/components/ui/StateBlock.svelte';
 	import type { PathnameWithSearchOrHash as Pathname } from '$app/types';
 	import {
 		Terminal,
@@ -27,6 +28,7 @@
 	import { logout } from '#lib/api/client.js';
 	import * as themeState from '#lib/state/theme.svelte.js';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
+	import { overlay } from '#lib/utils/overlay.js';
 
 	interface Props {
 		servers: ServerType[];
@@ -101,6 +103,9 @@
 			? 'hidden'
 			: 'hidden md:flex'} {!mobileOpen && collapsed ? 'w-12' : !mobileOpen ? 'w-56' : ''}"
 	aria-label="Sidebar"
+	role={mobileOpen ? 'dialog' : undefined}
+	aria-modal={mobileOpen ? 'true' : undefined}
+	{@attach mobileOpen ? overlay({ onEscape: () => onMobileClose?.() }) : null}
 >
 	<!-- Logo / Toggle -->
 	<div
@@ -113,7 +118,7 @@
 		{/if}
 		{#if mobileOpen}
 			<button
-				class="p-1 text-sidebar-muted hover:text-sidebar-foreground rounded-sm"
+				class="w-11 h-11 -mr-2 flex items-center justify-center text-sidebar-muted hover:text-sidebar-foreground rounded-sm"
 				onclick={onMobileClose}
 				title="Close sidebar"
 				aria-label="Close sidebar"
@@ -142,7 +147,7 @@
 		{#each navItems as item (item.href)}
 			<a
 				href={resolve(item.href as Pathname)}
-				class="flex items-center gap-2.5 px-2 py-2.5 md:py-1.5 rounded-sm text-sm transition-colors
+				class="flex items-center gap-2.5 px-2 min-h-11 md:min-h-0 py-2.5 md:py-1.5 rounded-sm text-sm transition-colors
 					{isActive(item.href)
 					? 'bg-sidebar-accent text-sidebar-foreground'
 					: 'text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50'}"
@@ -165,12 +170,14 @@
 				<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold mb-1.5">
 					Servers
 				</h3>
-				{#if loading}
-					<p class="text-xs text-sidebar-muted italic">Loading...</p>
+				{#if loading && servers.length === 0}
+					<StateBlock kind="loading" title="Loading…" compact />
 				{:else if error}
-					<p class="text-xs text-error italic">{error}</p>
+					<StateBlock kind="error" title={error} compact />
 				{:else if servers.length === 0}
-					<p class="text-xs text-sidebar-muted italic">No servers configured</p>
+					<StateBlock kind="empty" title="No servers yet" compact>
+						<a href={resolve('/servers')} class="text-xs text-accent underline">Add one</a>
+					</StateBlock>
 				{:else}
 					{#if tags.length > 0}
 						<div class="mb-1.5">
@@ -180,7 +187,7 @@
 					<div class="flex flex-col gap-0.5">
 						{#each shownServers as server (server.id)}
 							<button
-								class="flex items-center gap-2 px-2 py-2.5 md:py-1.5 text-xs rounded-sm text-left w-full
+								class="flex items-center gap-2 px-2 min-h-11 md:min-h-0 py-2.5 md:py-1.5 text-sm md:text-xs rounded-sm text-left w-full
 									text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
 								onclick={() => handleServerConnect(server)}
 								title="{serverStatus(server).label} — connect to {server.name}"
@@ -266,7 +273,7 @@
 	<!-- Theme toggle + Logout -->
 	<div class="mt-auto border-t border-sidebar-border px-2 py-2 flex flex-col gap-0.5">
 		<button
-			class="flex items-center gap-2.5 px-2 py-2.5 md:py-1.5 rounded-sm text-sm transition-colors w-full
+			class="flex items-center gap-2.5 px-2 min-h-11 md:min-h-0 py-2.5 md:py-1.5 rounded-sm text-sm transition-colors w-full
 				text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
 			onclick={themeState.toggleTheme}
 			title={themeState.isDark() ? 'Switch to light mode' : 'Switch to dark mode'}
@@ -282,7 +289,7 @@
 			{/if}
 		</button>
 		<button
-			class="flex items-center gap-2.5 px-2 py-2.5 md:py-1.5 rounded-sm text-sm transition-colors w-full
+			class="flex items-center gap-2.5 px-2 min-h-11 md:min-h-0 py-2.5 md:py-1.5 rounded-sm text-sm transition-colors w-full
 				text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/50"
 			onclick={logout}
 			title="Logout"

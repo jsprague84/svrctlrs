@@ -21,24 +21,25 @@
 
 {#if toasts.length > 0}
 	<div
-		class="fixed z-[100] flex flex-col gap-2 left-3 right-3 top-[calc(env(safe-area-inset-top,0px)+2.75rem)] md:left-auto md:top-auto md:right-4 md:bottom-4 md:max-w-sm"
+		class="fixed z-[100] flex flex-col gap-2 left-3 right-3 bottom-[calc(var(--toast-offset,env(safe-area-inset-bottom,0px))+0.5rem)] md:left-auto md:right-4 md:bottom-4 md:max-w-sm pointer-events-none"
 		role="status"
 		aria-live="polite"
 	>
 		{#each toasts as toast (toast.id)}
 			{@const Icon = icons[toast.type]}
-			<div
-				class="flex items-start gap-2 px-3 py-2 rounded-md border shadow-lg {colors[toast.type]}"
-			>
-				<Icon class="w-4 h-4 flex-shrink-0 mt-0.5" />
-				<p class="flex-1 text-sm">{toast.message}</p>
-				<button
-					class="p-0.5 hover:opacity-70"
-					onclick={() => removeToast(toast.id)}
-					aria-label="Dismiss notification"
-				>
-					<X class="w-3 h-3" />
-				</button>
+			<!-- Opaque under the tint, so a toast over the terminal stays readable -->
+			<div class="pointer-events-auto rounded-md bg-surface shadow-lg">
+				<div class="flex items-start gap-2 px-3 py-2 rounded-md border {colors[toast.type]}">
+					<Icon class="w-4 h-4 flex-shrink-0 mt-0.5" />
+					<p class="flex-1 text-sm">{toast.message}</p>
+					<button
+						class="-m-2 p-2 md:m-0 md:p-0.5 hover:opacity-70"
+						onclick={() => removeToast(toast.id)}
+						aria-label="Dismiss notification"
+					>
+						<X class="w-4 h-4 md:w-3 md:h-3" />
+					</button>
+				</div>
 			</div>
 		{/each}
 	</div>

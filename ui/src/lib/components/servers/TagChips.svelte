@@ -10,10 +10,13 @@
 
 	let { tags, selected, onSelect, compact = false }: Props = $props();
 
+	// Phones: chips are 32–36 px tall with an invisible 4–6 px margin that also takes the tap,
+	// so the target is 44 px without chunky chips (the gap keeps neighbours from overlapping)
+	const hit = "relative before:absolute before:content-[''] md:before:hidden";
 	const base = $derived(
 		compact
-			? 'px-1.5 py-0.5 text-[10px] rounded-sm border transition-colors'
-			: 'px-2 py-0.5 text-xs rounded-full border transition-colors min-h-7 md:min-h-0'
+			? `${hit} before:-inset-1.5 min-h-8 md:min-h-0 px-2 md:px-1.5 py-1 md:py-0.5 text-[11px] md:text-[10px] rounded-sm border transition-colors`
+			: `${hit} before:-inset-1 min-h-9 md:min-h-0 px-3 md:px-2 py-1 md:py-0.5 text-xs rounded-full border transition-colors`
 	);
 	const on = 'bg-accent/20 border-accent/40 text-accent';
 	const off = $derived(
@@ -24,7 +27,11 @@
 </script>
 
 {#if tags.length > 0}
-	<div class="flex flex-wrap gap-1" role="group" aria-label="Filter by tag">
+	<div
+		class="flex flex-wrap {compact ? 'gap-3' : 'gap-2'} md:gap-1"
+		role="group"
+		aria-label="Filter by tag"
+	>
 		<button
 			type="button"
 			class="{base} {selected === null ? on : off}"

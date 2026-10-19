@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { Search, ChevronDown, ChevronRight } from '@lucide/svelte';
+	import { Search, ChevronDown, ChevronRight, ScrollText } from '@lucide/svelte';
 	import Button from '#lib/components/ui/Button.svelte';
+	import StateBlock from '#lib/components/ui/StateBlock.svelte';
 	import Badge from '#lib/components/ui/Badge.svelte';
 	import * as auditApi from '#lib/api/audit.js';
 	import type { AuditEntry, AuditFilter } from '#lib/api/audit.js';
@@ -111,12 +112,13 @@
 	</p>
 
 	<div class="flex flex-wrap items-center gap-2">
-		<div class="flex items-center gap-1" role="group" aria-label="Kind of event">
+		<div class="flex flex-wrap items-center gap-2 md:gap-1" role="group" aria-label="Kind of event">
 			{#each KINDS as k (k.id)}
 				<button
 					type="button"
 					aria-pressed={kind === k.id}
-					class="px-2.5 py-1 text-xs rounded-full border transition-colors {kind === k.id
+					class="relative before:absolute before:content-[''] md:before:hidden before:-inset-1 min-h-9 md:min-h-0 px-3 md:px-2.5 py-1 text-xs rounded-full border transition-colors {kind ===
+					k.id
 						? 'bg-accent text-accent-foreground border-accent'
 						: 'border-border text-text-secondary hover:text-text-primary'}"
 					onclick={() => setKind(k.id)}>{k.label}</button
@@ -128,7 +130,7 @@
 				bind:value={userId}
 				onchange={() => load(true)}
 				aria-label="User"
-				class="px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+				class="px-2 py-1 min-h-11 md:min-h-0 text-sm md:text-xs bg-input border border-border rounded-sm text-text-primary"
 			>
 				<option value="">Any user</option>
 				{#each users as u (u.id)}
@@ -144,7 +146,7 @@
 				oninput={onQueryInput}
 				placeholder="Search target, command, address…"
 				aria-label="Search the audit log"
-				class="w-full pl-7 pr-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+				class="w-full pl-7 pr-2 py-1 min-h-11 md:min-h-0 text-base md:text-xs bg-input border border-border rounded-sm text-text-primary"
 			/>
 		</div>
 		<Button variant="secondary" size="sm" onclick={() => load(true)} disabled={loading}
@@ -153,16 +155,15 @@
 	</div>
 
 	{#if loadError}
-		<div
-			class="flex items-center justify-between gap-3 rounded-sm border border-error/40 bg-error/10 px-3 py-2"
-		>
-			<span class="text-sm text-error">{loadError}</span>
-			<Button size="sm" variant="secondary" onclick={() => load(true)}>Retry</Button>
-		</div>
-	{:else if entries.length === 0 && !loading}
-		<div class="text-text-muted text-sm py-6 text-center">
-			{query || kind !== 'all' || userId ? 'Nothing matches these filters.' : 'No entries yet.'}
-		</div>
+		<StateBlock kind="error" title={loadError} onRetry={() => load(true)} />
+	{:else if entries.length === 0 && loading}
+		<StateBlock kind="loading" title="Loading the audit log…" />
+	{:else if entries.length === 0}
+		<StateBlock
+			kind="empty"
+			icon={ScrollText}
+			title={query || kind !== 'all' || userId ? 'Nothing matches these filters' : 'No entries yet'}
+		/>
 	{:else}
 		<div class="overflow-x-auto">
 			<table class="w-full text-xs">

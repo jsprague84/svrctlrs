@@ -21,6 +21,7 @@
 	import { extractErrorMessage } from '#lib/utils/error.js';
 	import { PtySession, type SessionView } from '#lib/terminal/ptySession.js';
 	import { browserPtySocketUrl } from '#lib/terminal/socketUrl.js';
+	import { overlay } from '#lib/utils/overlay.js';
 	import type { ConnectionStatus } from '#lib/types/index.js';
 
 	interface Props {
@@ -742,7 +743,9 @@
 		<div
 			class="absolute inset-0 bg-background/85 flex items-center justify-center z-20 p-4"
 			role="dialog"
+			aria-modal="true"
 			aria-labelledby="hostkey-title-{tabId}"
+			{@attach overlay({ onEscape: () => session?.dismissHostKey() })}
 		>
 			<div
 				class="w-full max-w-md bg-surface border border-border rounded-lg p-4 flex flex-col gap-3"

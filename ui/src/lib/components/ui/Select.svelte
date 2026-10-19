@@ -30,7 +30,7 @@
 	<select
 		id={selectId}
 		bind:value
-		class="px-3 py-1.5 text-sm bg-input border rounded-sm text-text-primary
+		class="px-3 py-1.5 min-h-11 md:min-h-0 text-base md:text-sm bg-input border rounded-sm text-text-primary
 			{error ? 'border-error' : 'border-border'} {className}"
 		{...rest}
 	>

@@ -64,14 +64,16 @@ users), and keep the login limiter's state in the database so a restart does not
    tabs, tap-to-move-cursor and CTL from the extra keys, and found that hidden panes resized
    their shell to 10×3 (fixed). Recording markers, hand-off and predictive echo land in that
    module.
-8. **UI pass: polish and consistency.** One sweep over every screen before recording adds
-   more UI. Phone-width audit of Servers, Credentials, Settings and the file browser (row
-   density, tap targets of at least 44 px, no horizontal scroll); the Servers row's six-button
-   action strip collapses into a menu on narrow widths; consistent empty, loading and error
-   states; focus trapping and Escape in every modal and the palette; toasts above the
-   extra-keys row on the phone; the About page shows the running revision; a light-theme
-   contrast check; PWA shortcuts that open a given server from the home screen; and a
-   screenshots pass for README and USER-GUIDE (History: "Docs — no screenshots").
+8. ~~**UI pass: polish and consistency.**~~ Done 2026-10-19: phone tap targets of 44 px
+   everywhere (checked by `scripts/dev/ui-screens.py`, which also fails on horizontal scroll),
+   the Servers row as Connect + a ⋯ menu on narrow screens, Settings tabs as a phone grid, one
+   `StateBlock` for loading/empty/error, an `overlay` attachment giving every dialog, sheet and
+   panel Escape, focus return and (when modal) a focus trap, toasts above the extra-keys row,
+   the running revision on About, light/dark text colours at WCAG AA (tested from `app.css`),
+   home-screen shortcuts to recent servers (server-built manifest, `/?connect=<id>`), an empty
+   terminal that lists servers, and screenshots in the README and USER-GUIDE. Found on the way:
+   the credentials list called every SSH key a file path, and the toolbar picker ignored the
+   active tab (both fixed).
 9. **In-process SSH server for tests.** russh's server side on a loopback port inside the
    server crate's tests: first-contact refusal and trust, mismatch, password and key auth,
    the PTY driver, and a jump host (the loopback server as its own hop). Today the e2e run

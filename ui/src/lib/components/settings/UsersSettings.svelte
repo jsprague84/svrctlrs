@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { Trash2, UserPlus } from '@lucide/svelte';
 	import Button from '#lib/components/ui/Button.svelte';
+	import StateBlock from '#lib/components/ui/StateBlock.svelte';
 	import Input from '#lib/components/ui/Input.svelte';
 	import Badge from '#lib/components/ui/Badge.svelte';
 	import SettingsSection from '#lib/components/ui/SettingsSection.svelte';
@@ -164,12 +165,9 @@
 		card
 	>
 		{#if loading}
-			<div class="text-text-muted text-sm">Loading…</div>
+			<StateBlock kind="loading" title="Loading accounts…" compact />
 		{:else if loadError}
-			<div class="flex items-center justify-between gap-3">
-				<span class="text-sm text-error">{loadError}</span>
-				<Button size="sm" variant="secondary" onclick={load}>Retry</Button>
-			</div>
+			<StateBlock kind="error" title={loadError} onRetry={load} compact />
 		{:else}
 			<ul class="flex flex-col gap-2 mb-4">
 				{#each users as user (user.id)}
@@ -189,7 +187,7 @@
 						<Button
 							variant="ghost"
 							size="sm"
-							class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
+							class="min-h-11 min-w-11 md:min-h-0 md:min-w-0"
 							onclick={() => remove(user)}
 							disabled={user.is_me || users.length <= 1}
 							aria-label={`Delete user ${user.username}`}

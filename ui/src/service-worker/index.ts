@@ -1,7 +1,8 @@
 // Makes the web app installable on a phone (standalone window, no browser chrome) and serves
-// the app shell's hashed assets from a cache. Nothing dynamic is cached: `/api/`, `/ws/` and
-// page navigations always go to the network, so a stale worker can never show stale data or
-// bypass the edge login. Each build gets its own cache; older ones are deleted on activate.
+// the app shell's hashed assets from a cache. Nothing dynamic is cached: `/api/`, `/ws/`, the
+// web manifest and page navigations always go to the network, so a stale worker can never
+// show stale data or bypass the edge login. Each build gets its own cache; older ones are
+// deleted on activate.
 
 import { version } from '$app/env';
 import { assets, immutable } from '$app/manifest';
@@ -10,8 +11,12 @@ import { self as sw } from '$app/service-worker';
 const CACHE = `svrctlrs-${version}`;
 // Manifest entries are paths relative to the app's base; resolve them against the worker's own
 // URL so the set matches request pathnames whatever the base is.
+// The web manifest is not a static asset: the server adds the user's recent servers to it as
+// home-screen shortcuts, so it always goes to the network.
 const ASSETS = new Set<string>(
-	[...immutable, ...assets].map((a) => new URL(a.path, sw.location.href).pathname)
+	[...immutable, ...assets]
+		.map((a) => new URL(a.path, sw.location.href).pathname)
+		.filter((p) => !p.endsWith('/manifest.webmanifest'))
 );
 
 sw.addEventListener('install', (event) => {

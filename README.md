@@ -1,8 +1,9 @@
 # SvrCtlRS
 
-Self-hosted terminal and SSH management for your servers: interactive shells in the browser,
-on the desktop, and on Android, with server profiles, encrypted credentials, multi-pane layouts
-and push notifications. One Rust binary, one SQLite file.
+Self-hosted terminal and SSH management for your servers: interactive shells in the browser
+and on your phone (an installable web app), shells that keep running when the phone sleeps,
+encrypted credentials, multi-pane layouts and an SFTP file browser. One Rust binary, one SQLite
+file.
 
 **Version 3.1.0** · Rust (Axum) · SvelteKit 5 · xterm.js 6 · Tauri 2 · SQLite
 
@@ -18,7 +19,10 @@ and push notifications. One Rust binary, one SQLite file.
   SSH-key credentials encrypted at rest with AES-256-GCM; both kinds work for the shell.
 - **Files** — browse a server over SFTP beside the terminal: download, upload, new folder,
   rename, delete. Same connection rules as the shell, every write in the audit log.
-- **Host-key verification** — trust on first use; a changed key blocks the connection.
+- **Host-key verification** — the first connection shows the server's fingerprint for you to
+  confirm; a changed key blocks the connection.
+- **Jump hosts, tags, `ssh_config` import** — reach a server through another one, filter the
+  lists by tag, and create servers from `~/.ssh/config` (`ProxyJump` becomes the jump host).
 - **Terminal profiles** — save a layout plus which server opens in each pane; mark one as the
   default to auto-load at start.
 - **Quick commands** — a per-user library of snippets, grouped by category, launched from the
@@ -28,6 +32,13 @@ and push notifications. One Rust binary, one SQLite file.
 - **Clients** — the web UI served by the server, with a mobile layout (touch gestures, an
   extra-keys row, swipe between tabs) that works in a phone browser; and a Tauri desktop app
   for Linux (`.deb`, `.rpm`, AppImage).
+
+## Screenshots
+
+| | |
+|---|---|
+| ![A shell and the file browser on the desktop](docs/images/desktop-terminal-files.png) | ![A shell on a phone with the extra-keys row](docs/images/phone-terminal.png) |
+| ![The server list on the desktop](docs/images/desktop-servers.png) | ![The server list on a phone, with a row's action menu open](docs/images/phone-servers.png) |
 
 ## Quick start (Docker)
 

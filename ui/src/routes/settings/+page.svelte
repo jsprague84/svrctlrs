@@ -12,10 +12,10 @@
 
 	type TabId = 'general' | 'notifications' | 'commands' | 'users' | 'audit' | 'about';
 
-	const tabs: Array<{ id: TabId; label: string; icon: typeof Settings }> = [
+	const tabs: Array<{ id: TabId; label: string; short?: string; icon: typeof Settings }> = [
 		{ id: 'general', label: 'General', icon: Settings },
 		{ id: 'notifications', label: 'Notifications', icon: Bell },
-		{ id: 'commands', label: 'Quick Commands', icon: TerminalSquare },
+		{ id: 'commands', label: 'Quick Commands', short: 'Commands', icon: TerminalSquare },
 		{ id: 'users', label: 'Users', icon: Users },
 		{ id: 'audit', label: 'Audit', icon: ScrollText },
 		{ id: 'about', label: 'About', icon: Info }
@@ -30,7 +30,7 @@
 	let tabButtons: HTMLButtonElement[] = $state([]);
 
 	function select(id: TabId) {
-		goto(`${resolve('/settings')}?tab=${id}`, { replaceState: true });
+		goto(`${resolve('/settings')}?tab=${id}`, { replace: true });
 	}
 
 	/** Roving focus: arrows move between tabs, Home/End jump, the focused tab is activated */
@@ -53,8 +53,9 @@
 		<h1 class="text-lg font-semibold text-text-primary">Settings</h1>
 	</div>
 
+	<!-- Phones: a 3×2 grid so every section is visible; wider screens: one row -->
 	<div
-		class="flex border-b border-border px-2 md:px-4 overflow-x-auto"
+		class="grid grid-cols-3 md:flex border-b border-border px-2 md:px-4"
 		role="tablist"
 		aria-label="Settings sections"
 	>
@@ -66,15 +67,20 @@
 				aria-selected={activeTab === tab.id}
 				aria-controls="settings-panel-{tab.id}"
 				tabindex={activeTab === tab.id ? 0 : -1}
-				class="flex items-center gap-1.5 px-3 md:px-4 py-2.5 text-sm font-medium whitespace-nowrap transition-colors
+				class="flex items-center justify-center md:justify-start gap-1.5 px-2 md:px-4 min-h-11 md:min-h-0 py-2.5 text-sm font-medium whitespace-nowrap transition-colors border-b-2 -mb-px
 					{activeTab === tab.id
-					? 'text-accent border-b-2 border-accent -mb-px'
-					: 'text-text-muted hover:text-text-secondary'}"
+					? 'text-accent border-accent'
+					: 'text-text-muted hover:text-text-secondary border-transparent'}"
 				onclick={() => select(tab.id)}
 				onkeydown={(e) => onKeydown(e, i)}
 			>
-				<tab.icon class="w-4 h-4" />
-				<span>{tab.label}</span>
+				<tab.icon class="w-4 h-4 flex-shrink-0" />
+				{#if tab.short}
+					<span class="md:hidden">{tab.short}</span>
+					<span class="hidden md:inline">{tab.label}</span>
+				{:else}
+					<span>{tab.label}</span>
+				{/if}
 			</button>
 		{/each}
 	</div>

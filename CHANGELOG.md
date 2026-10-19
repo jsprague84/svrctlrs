@@ -5,7 +5,29 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Added
+- **Home-screen shortcuts.** Long-press the installed app's icon for **New terminal** and the
+  three servers you opened shells on most recently. The server now serves
+  `/manifest.webmanifest` itself and adds those shortcuts for the signed-in user (from their
+  own audit rows; signed out, only the generic one). `/?connect=<server id>` opens a shell on a
+  server, or shows the tab already on it; `/?open=servers` opens the server picker.
+- An empty terminal (no tab, or a tab without a server) lists your servers and any shells
+  waiting to be resumed, instead of a blank pane.
+- Settings → About shows the running revision (the commit the image was built from).
+
 ### Changed
+- **UI pass for phones and keyboards.** Every control is at least 44 px to the finger on a
+  phone (buttons, inputs, chips through an invisible margin, close icons, sidebar rows, file
+  breadcrumbs); form inputs use 16 px text, so iOS no longer zooms into them. On the Servers page a
+  phone row is **Connect** plus a **⋯** menu instead of six icons, and shows its tags. The
+  Settings tabs are a 3×2 grid on a phone, so Users, Audit and About are no longer off screen.
+  Toasts sit at the bottom, above the extra-keys row, on an opaque background. Every dialog,
+  sheet and side panel closes with Escape and gives focus back where it was; modal ones keep
+  Tab inside; closed side panels no longer take focus. Loading, empty and error states look
+  and behave the same everywhere, with Retry where something failed.
+- **Contrast.** Muted text in both themes and the light theme's accent, success, warning, error
+  and info colours were below WCAG AA (the light warning was 2.4:1); all text colours now
+  reach 4.5:1 on every surface, and a test checks the stylesheet so they stay there.
 - The terminal pane's WebSocket session (connect, attach and replay, the ping/pong watchdog,
   reconnect backoff, the host-key challenge, the session record and saved screen) moved out of
   `TerminalPane.svelte` into `ui/src/lib/terminal/ptySession.ts`, with Vitest tests for the
@@ -21,6 +43,8 @@ the release workflow uses the matching section as the release notes.
   when shown.
 - The new shell started after "previous session has ended" asks for binary output frames like
   every other shell, so a multibyte character split across two SSH reads stays intact.
+- The desktop toolbar's server picker follows the active tab instead of keeping whatever was
+  picked last ("Select server…" next to a connected tab).
 - **The Credentials page described every SSH key as a file path**, with no fingerprint and no
   passphrase marker: the list query redacts values in SQL, and the key's kind was then read
   from the redacted text. The list now reads each key's decrypted row on the server (the

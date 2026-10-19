@@ -5,6 +5,8 @@ import { extractErrorMessage } from '#lib/utils/error.js';
 let servers = $state<Server[]>([]);
 let loading = $state(false);
 let error = $state<string | null>(null);
+/** At least one load has finished (an empty list then means "no servers", not "not yet") */
+let loaded = $state(false);
 
 export function getServers() {
 	return servers;
@@ -18,6 +20,10 @@ export function getError() {
 	return error;
 }
 
+export function hasLoaded() {
+	return loaded;
+}
+
 export async function loadServers() {
 	loading = true;
 	error = null;
@@ -27,6 +33,7 @@ export async function loadServers() {
 		error = extractErrorMessage(e, 'Failed to load servers');
 	} finally {
 		loading = false;
+		loaded = true;
 	}
 }
 

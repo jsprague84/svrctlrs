@@ -45,7 +45,7 @@
 		aria-describedby={descId}
 		{disabled}
 		onclick={toggle}
-		class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 {checked
+		class="relative inline-flex h-5 w-9 flex-shrink-0 items-center rounded-full transition-colors before:absolute before:-inset-3 before:content-[''] md:before:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 {checked
 			? 'bg-success'
 			: 'bg-surface-raised border border-border'}"
 	>

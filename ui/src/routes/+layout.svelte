@@ -193,7 +193,7 @@
 						class="flex items-center px-2 pt-[env(safe-area-inset-top,0px)] bg-surface z-50 relative"
 					>
 						<button
-							class="p-2 rounded-md bg-surface border border-border text-foreground"
+							class="w-11 h-11 flex items-center justify-center rounded-md bg-surface border border-border text-foreground"
 							onclick={() => (mobileOpen = !mobileOpen)}
 							aria-label={mobileOpen ? 'Close sidebar' : 'Open sidebar'}
 						>

@@ -31,7 +31,7 @@
 	<textarea
 		id={areaId}
 		bind:value
-		class="px-3 py-2 text-sm bg-input border rounded-sm text-text-primary placeholder:text-text-muted resize-y focus:ring-1 focus:ring-ring focus:outline-none
+		class="px-3 py-2 text-base md:text-sm bg-input border rounded-sm text-text-primary placeholder:text-text-muted resize-y focus:ring-1 focus:ring-ring focus:outline-none
 			{mono ? 'font-mono' : ''} {error ? 'border-error' : 'border-border'} {className}"
 		aria-invalid={error ? 'true' : undefined}
 		{...rest}></textarea>

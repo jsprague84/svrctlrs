@@ -19,6 +19,7 @@
 		X
 	} from '@lucide/svelte';
 	import * as files from '#lib/state/files.svelte.js';
+	import StateBlock from '#lib/components/ui/StateBlock.svelte';
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { confirmDialog } from '#lib/state/confirm.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
@@ -136,7 +137,7 @@
 	}
 
 	const iconBtn =
-		'w-9 h-9 md:w-7 md:h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised active:bg-surface-raised disabled:opacity-40';
+		'w-11 h-11 md:w-7 md:h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised active:bg-surface-raised disabled:opacity-40';
 </script>
 
 <div class="flex flex-col h-full min-h-0 text-sm">
@@ -199,7 +200,8 @@
 				{#if i > 1}<span class="text-text-muted">/</span>{/if}
 				<button
 					type="button"
-					class="px-1 py-0.5 rounded-sm font-mono {crumb.path === listing.path
+					class="px-2 md:px-1 min-h-11 md:min-h-0 py-0.5 rounded-sm font-mono {crumb.path ===
+					listing.path
 						? 'text-text-primary'
 						: 'text-text-secondary hover:text-text-primary hover:bg-surface-raised'}"
 					onclick={() => go(crumb.path)}
@@ -250,7 +252,7 @@
 		{/if}
 
 		{#if listing && listing.entries.length === 0 && !loading}
-			<p class="px-3 py-6 text-center text-text-muted">This folder is empty.</p>
+			<StateBlock kind="empty" title="This folder is empty" compact />
 		{:else if !listing && loading}
 			<p class="px-3 py-6 text-center text-text-muted">Connecting…</p>
 		{:else if listing}

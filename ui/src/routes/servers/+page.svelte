@@ -21,6 +21,8 @@
 	import Select from '#lib/components/ui/Select.svelte';
 	import Modal from '#lib/components/ui/Modal.svelte';
 	import Badge from '#lib/components/ui/Badge.svelte';
+	import StateBlock from '#lib/components/ui/StateBlock.svelte';
+	import ActionMenu, { type MenuItem } from '#lib/components/ui/ActionMenu.svelte';
 	import AuthorizeKeyModal from '#lib/components/servers/AuthorizeKeyModal.svelte';
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import * as credState from '#lib/state/credentials.svelte.js';
@@ -313,6 +315,27 @@
 		}
 	}
 
+	/** The row's actions behind the phone's "⋯" menu, in the order of the desktop strip */
+	function rowActions(server: Server): MenuItem[] {
+		return [
+			{
+				label: 'Test connection',
+				icon: Wifi,
+				onSelect: () => handleTest(server.id),
+				disabled: testing === server.id
+			},
+			{
+				label: 'Authorize key',
+				icon: ShieldCheck,
+				onSelect: () => (authServer = server),
+				attention: needsKey(server)
+			},
+			{ label: 'Host keys', icon: KeyRound, onSelect: () => openHostKeys(server) },
+			{ label: 'Edit', icon: Pencil, onSelect: () => openEdit(server) },
+			{ label: 'Delete', icon: Trash2, onSelect: () => handleDelete(server), destructive: true }
+		];
+	}
+
 	/** A key should be installed: no credential, or a password one */
 	function needsKey(server: Server): boolean {
 		if (!server.enabled) return false;
@@ -357,28 +380,35 @@
 
 	<div class="flex-1 overflow-y-auto p-4 md:p-6">
 		{#if loading && servers.length === 0}
-			<div class="text-text-muted text-sm py-8 text-center">Loading servers…</div>
+			<StateBlock kind="loading" title="Loading servers…" />
 		{:else if serversError}
-			<div class="text-center py-8">
-				<p class="text-error">{serversError}</p>
-				<Button variant="secondary" class="mt-3" onclick={() => serversState.loadServers()}
-					>Retry</Button
-				>
-			</div>
+			<StateBlock kind="error" title={serversError} onRetry={() => serversState.loadServers()} />
 		{:else if servers.length === 0}
-			<div class="text-center text-text-muted py-8">
-				<p>No servers yet.</p>
-				<p class="text-xs mt-1">
-					Add a server, then install an SSH key on it with <em>Authorize key</em>.
-				</p>
-				<Button class="mt-3" onclick={openCreate}
-					><Plus class="w-4 h-4" /> Add your first server</Button
+			<StateBlock
+				kind="empty"
+				icon={ServerIcon}
+				title="No servers yet"
+				hint="Add a server (or import your ~/.ssh/config), then install an SSH key on it with Authorize key."
+			>
+				<Button onclick={openCreate}><Plus class="w-4 h-4" /> Add your first server</Button>
+				<Button variant="secondary" onclick={openImport}
+					><FileInput class="w-4 h-4" /> Import</Button
 				>
-			</div>
+			</StateBlock>
 		{:else if shown.length === 0}
-			<div class="text-center text-text-muted py-8 text-sm">
-				{search.trim() ? `Nothing matches “${search}”` : `No server is tagged ${tagFilter}`}.
-			</div>
+			<StateBlock
+				kind="empty"
+				icon={Search}
+				title={search.trim() ? `Nothing matches “${search}”` : `No server is tagged ${tagFilter}`}
+			>
+				<Button
+					variant="secondary"
+					onclick={() => {
+						search = '';
+						tagFilter = null;
+					}}>Show all servers</Button
+				>
+			</StateBlock>
 		{:else}
 			<ul class="flex flex-col gap-2">
 				{#each shown as server (server.id)}
@@ -386,7 +416,7 @@
 					{@const test = testResults[server.id]}
 					{@const cred = credentialName(server.credential_id)}
 					<li
-						class="border border-border/50 rounded-lg px-3 md:px-4 py-3 hover:bg-surface-raised/30 flex flex-col md:flex-row md:items-center gap-2 md:gap-4"
+						class="border border-border/50 rounded-lg pl-3 pr-1.5 md:px-4 py-2.5 md:py-3 hover:bg-surface-raised/30 flex items-center gap-2 md:gap-4"
 					>
 						<div class="min-w-0 flex-1">
 							<div class="flex items-center gap-2 min-w-0">
@@ -431,6 +461,11 @@
 									<span class="font-sans text-text-muted"> · {server.description}</span>
 								{/if}
 							</div>
+							{#if server.tags.length > 0}
+								<div class="md:hidden mt-1 flex flex-wrap gap-1">
+									{#each server.tags as tag (tag)}<Badge>{tag}</Badge>{/each}
+								</div>
+							{/if}
 							{#if test && !test.success && test.code === 'HOST_KEY_UNCONFIRMED' && test.details}
 								<div class="mt-1 text-xs text-warning flex flex-wrap items-center gap-x-2 gap-y-1">
 									<span
@@ -445,6 +480,8 @@
 										>Trust key</Button
 									>
 								</div>
+							{:else if testing === server.id}
+								<div class="mt-0.5 text-xs text-text-muted">Testing…</div>
 							{:else if test}
 								<div class="mt-0.5 text-xs {test.success ? 'text-success' : 'text-error'} truncate">
 									{test.success
@@ -462,19 +499,25 @@
 							{/if}
 						</div>
 
-						<div class="flex items-center gap-1 flex-wrap md:flex-nowrap md:flex-shrink-0">
+						<!-- Phone: Connect plus a menu; the strip below needs a wider screen -->
+						<div class="flex md:hidden items-center gap-0.5 flex-shrink-0">
 							<Button
 								size="sm"
-								class="min-h-9 md:min-h-0"
+								class="min-h-11 px-3"
 								onclick={() => connect(server)}
 								disabled={!server.enabled}
 							>
+								<TerminalSquare class="w-4 h-4" /> Connect
+							</Button>
+							<ActionMenu label="Actions for {server.name}" items={rowActions(server)} />
+						</div>
+						<div class="hidden md:flex items-center gap-1 flex-nowrap flex-shrink-0">
+							<Button size="sm" onclick={() => connect(server)} disabled={!server.enabled}>
 								<TerminalSquare class="w-3.5 h-3.5" /> Connect
 							</Button>
 							<Button
 								variant="ghost"
 								size="sm"
-								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
 								onclick={() => handleTest(server.id)}
 								disabled={testing === server.id}
 								aria-label="Test connection"
@@ -492,9 +535,7 @@
 							<Button
 								variant={needsKey(server) ? 'secondary' : 'ghost'}
 								size="sm"
-								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0 {needsKey(server)
-									? 'text-warning'
-									: ''}"
+								class={needsKey(server) ? 'text-warning' : ''}
 								onclick={() => (authServer = server)}
 								aria-label="Authorize an SSH key on this server"
 								title="Install an SSH key on this server"
@@ -505,7 +546,6 @@
 							<Button
 								variant="ghost"
 								size="sm"
-								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
 								onclick={() => openHostKeys(server)}
 								aria-label="Stored host keys"
 								title="Stored SSH host keys"
@@ -516,7 +556,6 @@
 							<Button
 								variant="ghost"
 								size="sm"
-								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
 								onclick={() => openEdit(server)}
 								aria-label="Edit server"
 								title="Edit"
@@ -527,7 +566,6 @@
 							<Button
 								variant="ghost"
 								size="sm"
-								class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
 								onclick={() => handleDelete(server)}
 								aria-label="Delete server"
 								title="Delete"

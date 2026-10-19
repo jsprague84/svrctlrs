@@ -8,7 +8,8 @@ uses its DOM renderer and the screen's text can be read back.
 
 Covers: first-contact host-key dialog → trust → shell, typing, tap-to-move-cursor, long-press
 copy, a second tab and a swipe between tabs, that no hidden pane resizes its shell, CTL from
-the extra-keys row (Ctrl+C interrupts `sleep`), and reload → resume with the screen intact.
+the extra-keys row (Ctrl+C interrupts `sleep`), reload → resume with the screen intact, and
+the home-screen shortcut (manifest lists the server, `/?connect=<id>` shows its tab).
 Screenshots land in E2E_OUT (default: a temp dir).
 """
 import json, os, sys, tempfile, time, urllib.request, http.cookiejar
@@ -188,6 +189,22 @@ with sync_playwright() as p:
     page.keyboard.press("Enter")
     check("input after resume", wait_screen("\nresumed-ok"), screen()[-200:])
     page.screenshot(path=f"{OUT}/resumed.png")
+
+    # The installed app's shortcuts name this server now that a shell was opened on it
+    manifest = page.evaluate("fetch('/manifest.webmanifest', {credentials: 'include'}).then(r => r.json())")
+    names = [sc.get("name") for sc in manifest.get("shortcuts", [])]
+    check("manifest shortcuts list the server", NAME in names, str(names))
+    shortcut = next((sc["url"] for sc in manifest.get("shortcuts", []) if sc.get("name") == NAME), None)
+    if shortcut:
+        # Launching the shortcut shows the tab already on that server instead of a new one
+        before = len(page.evaluate("JSON.parse(sessionStorage.getItem('svrctlrs-terminal-tabs')).tabs"))
+        page.goto(shortcut)
+        page.wait_for_timeout(3000)
+        after = page.evaluate("JSON.parse(sessionStorage.getItem('svrctlrs-terminal-tabs'))")
+        active = next(t for t in after["tabs"] if t["id"] == after["activeTabId"])
+        check("shortcut opens that server's tab", active["serverName"] == NAME and len(after["tabs"]) == before,
+              f"{active['serverName']} tabs {before}->{len(after['tabs'])}")
+        check("shortcut parameter dropped from the URL", "connect=" not in page.url, page.url)
 
     errors = [l for l in logs if l.startswith(("error", "pageerror"))]
     check("no console errors", not errors, "\n".join(errors[:5]))

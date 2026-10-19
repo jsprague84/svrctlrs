@@ -10,13 +10,36 @@
 	"background_color": "#1a1b26",
 	"theme_color": "#16161e",
 	"icons": [
-		{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
-		{ "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+		{
+			"src": "/icons/icon-192.png",
+			"sizes": "192x192",
+			"type": "image/png"
+		},
+		{
+			"src": "/icons/icon-512.png",
+			"sizes": "512x512",
+			"type": "image/png"
+		},
 		{
 			"src": "/icons/icon-maskable-512.png",
 			"sizes": "512x512",
 			"type": "image/png",
 			"purpose": "maskable"
+		}
+	],
+	"shortcuts": [
+		{
+			"name": "New terminal",
+			"short_name": "New",
+			"description": "Pick a server and open a shell",
+			"url": "/?open=servers",
+			"icons": [
+				{
+					"src": "/icons/icon-192.png",
+					"sizes": "192x192",
+					"type": "image/png"
+				}
+			]
 		}
 	]
 }

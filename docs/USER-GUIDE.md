@@ -106,13 +106,16 @@ configured server and manage accounts; there are no roles yet.
 
 ## The terminal
 
+![A shell with the file browser open beside it](images/desktop-terminal-files.png)
+
 Shells run in the server, not in your browser tab. Switching to Servers or Settings and back,
 reloading the page, losing Wi-Fi for a minute or putting the phone to sleep does not end them:
 the pane reattaches and the server resends what you missed. A shell with nobody attached is
 closed after 15 minutes by default (`SESSION_DETACH_TTL_SECS`); open tabs are remembered for
 the life of the browser tab, so a reload brings them back with their shells.
 
-- **New tab**: `Ctrl+Shift+T` or the `+` in the tab bar, then pick a server. Up to 10 tabs.
+- **New tab**: `Ctrl+Shift+T` or the `+` in the tab bar, then pick a server. Up to 10 tabs. A
+  tab without a server lists your servers (and any shells waiting to be resumed) in the pane.
 - **Layouts**: `Ctrl+\` cycles single → split horizontal → split vertical → quad. Tabs fill the
   visible slots; `Alt+1`–`Alt+4` focuses a slot, `Alt+[`/`Alt+]` cycles panes, `Alt+Arrow`
   moves spatially.
@@ -223,9 +226,16 @@ Tokyo Night dark is the default; switch to light in the sidebar. The terminal co
   share sheet) gives a standalone window without browser chrome, its own icon and the full
   screen for the terminal. Shells keep running while the app is in the background and resume
   when you come back (see "The terminal").
-- The **extra keys row** above the keyboard provides `Esc`, `Tab`, `Ctrl`, `Alt`, arrows and
-  `|`. Hold `Ctrl`/`Alt` then tap a letter.
+- **Home-screen shortcuts**: long-press the installed app's icon (Android, or the app's menu on
+  desktop Chrome/Edge) for **New terminal** and the three servers you opened shells on most
+  recently; one tap opens a shell there, or shows the tab you already have on it. The list
+  follows your use; Android refreshes it when the app's manifest is next checked (about once a
+  day). A link to `/?connect=<server id>` does the same from anywhere.
+- On the **Servers** page each row has **Connect** and a **⋯** menu with Test connection,
+  Authorize key (marked with a dot when the server has no key yet), Host keys, Edit and Delete.
 - Preferences open as a bottom sheet. Only one pane is shown at a time.
+
+![A shell on a phone, with the status bar and the extra-keys row](images/phone-terminal.png)
 
 ## Desktop app
 

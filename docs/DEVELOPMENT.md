@@ -81,6 +81,18 @@ shell, and fails if a hidden pane resizes its shell. Run it after touching
 E2E_SSH_HOST=10.0.0.5 E2E_SSH_USER=ubuntu CHROMIUM=$(command -v chromium) scripts/dev/run-phone-check.sh
 ```
 
+`scripts/dev/ui-screens.py` (run by `scripts/dev/run-ui-screens.sh`) seeds a throwaway server
+with sample servers, tags, credentials, quick commands and a second account, then takes a
+screenshot of every screen at phone and desktop size in both themes. It fails if a page
+scrolls sideways, if a phone control is under 40 px to the finger (the extra-keys row is the
+one deliberate exception), if Escape does not close a modal or the row menu, or if Tab leaves a
+modal. With an SSH target it adds a live shell and the file browser; the pictures in
+`docs/images/` come from that run (dark theme, `pngquant`-ed). Run it after UI changes:
+
+```bash
+E2E_OUT=/tmp/shots CHROMIUM=$(command -v chromium) scripts/dev/run-ui-screens.sh   # SCREENS=phone-dark to narrow it
+```
+
 ## Repository layout
 
 See `ARCHITECTURE.md`. Conventions for code live in `CLAUDE.md`; they apply to humans too.

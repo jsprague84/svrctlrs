@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Plus, Pencil, Trash2 } from '@lucide/svelte';
+	import { Plus, Pencil, Trash2, TerminalSquare } from '@lucide/svelte';
 	import Button from '#lib/components/ui/Button.svelte';
+	import StateBlock from '#lib/components/ui/StateBlock.svelte';
 	import Input from '#lib/components/ui/Input.svelte';
 	import Select from '#lib/components/ui/Select.svelte';
 	import Textarea from '#lib/components/ui/Textarea.svelte';
@@ -117,10 +118,14 @@
 	{/snippet}
 
 	{#if commands.length === 0}
-		<div class="text-center py-8">
-			<p class="text-text-muted text-sm">No quick commands yet.</p>
-			<Button variant="secondary" class="mt-3" onclick={openCreate}>Add your first command</Button>
-		</div>
+		<StateBlock
+			kind="empty"
+			icon={TerminalSquare}
+			title="No quick commands yet"
+			hint="A quick command types a snippet and Enter into the active shell, for every server or just one."
+		>
+			<Button variant="secondary" onclick={openCreate}>Add your first command</Button>
+		</StateBlock>
 	{:else}
 		<ul class="flex flex-col gap-2">
 			{#each commands as cmd (cmd.id)}
@@ -139,7 +144,7 @@
 						<Button
 							variant="ghost"
 							size="sm"
-							class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
+							class="min-h-11 min-w-11 md:min-h-0 md:min-w-0"
 							onclick={() => openEdit(cmd)}
 							aria-label="Edit command"
 							title="Edit"
@@ -149,7 +154,7 @@
 						<Button
 							variant="ghost"
 							size="sm"
-							class="min-h-9 min-w-9 md:min-h-0 md:min-w-0"
+							class="min-h-11 min-w-11 md:min-h-0 md:min-w-0"
 							onclick={() => handleDelete(cmd)}
 							aria-label="Delete command"
 							title="Delete"
