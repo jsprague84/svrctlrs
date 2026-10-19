@@ -415,7 +415,9 @@ mod tests {
         assert_eq!(cred.passphrase().as_deref(), Some("pw"));
         let (stored, flagged) = raw_metadata(&pool, cred.id).await;
         assert!(flagged);
-        assert!(!stored.unwrap().contains("pw"));
+        // Ciphertext is base64, which has no quotes; the plaintext JSON always does. (Checking
+        // for "pw" failed whenever the random ciphertext happened to contain those two letters.)
+        assert!(!stored.unwrap().contains('"'));
         assert_eq!(encrypt_plaintext_credentials(&pool).await.unwrap(), 0);
     }
 

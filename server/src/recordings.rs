@@ -675,10 +675,12 @@ mod tests {
         );
         assert!(row.ended_at.is_some());
 
-        // Encrypted at rest: the file holds none of the text
+        // Encrypted at rest: the file holds none of the text (base64 has no spaces, so a match
+        // on "hello " cannot be chance)
         let path = f.store.path_of(1, &row.file_name).unwrap();
         let raw = std::fs::read(&path).unwrap();
-        assert!(!raw.windows(5).any(|w| w == b"hello"));
+        assert!(!raw.windows(6).any(|w| w == b"hello "));
+        assert!(!raw.contains(&b'"'), "no plaintext JSON");
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
