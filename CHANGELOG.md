@@ -12,6 +12,16 @@ the release workflow uses the matching section as the release notes.
   protocol. No behaviour change; the pane keeps xterm, gestures and the overlays (1,232 → 800
   lines).
 
+### Fixed
+- **Hidden terminals no longer shrink their shell to 10×3.** A pane behind another tab, or
+  every pane while the Servers or Settings page was open, fitted itself to its computed `100%`
+  size read as 100 px and resized the remote PTY to about 10 columns by 3 rows. Programs in
+  background tabs redrew for that size, and the shell you came back to echoed each keystroke
+  with a full prompt redraw until the next command. Hidden panes now keep their size and refit
+  when shown.
+- The new shell started after "previous session has ended" asks for binary output frames like
+  every other shell, so a multibyte character split across two SSH reads stays intact.
+
 ## [3.1.0] - 2026-10-18
 
 The "complete SSH client" release. Every peer that is a terminal manager had these and we did

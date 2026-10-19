@@ -56,11 +56,14 @@ users), and keep the login limiter's state in the database so a restart does not
    typed as the shell's first input (`cd dir && …` covers the directory, so no second column).
 6. ~~**Terminal polish.**~~ Done 2026-10-18: OSC title → tab name, bell (flash, vibration,
    tab marker), grapheme-cluster widths, `COLORTERM` env request, zlib compression offered.
-7. **Split `TerminalPane.svelte`.** Past 1,100 lines: transport, replay, rendering, gestures,
-   clipboard and the host-key dialog in one component. Pull the WebSocket session (connect,
-   attach, replay, ping, reconnect) into a plain TypeScript module with Vitest tests. No
-   behaviour change; a phone check afterwards for the gesture code. Recording markers,
-   hand-off and predictive echo all land in that module.
+7. ~~**Split `TerminalPane.svelte`.**~~ Done 2026-10-18: the WebSocket session (connect,
+   attach, replay, ping/pong watchdog, reconnect, host-key challenge, persistence) is
+   `ui/src/lib/terminal/ptySession.ts` with 35 Vitest tests; the pane keeps xterm, gestures
+   and overlays (1,232 → 800 lines). The phone check (`scripts/dev/pane-phone-check.py`,
+   Pixel 7 emulation with CDP touch against hermes) passed long-press copy, swipe between
+   tabs, tap-to-move-cursor and CTL from the extra keys, and found that hidden panes resized
+   their shell to 10×3 (fixed). Recording markers, hand-off and predictive echo land in that
+   module.
 8. **UI pass: polish and consistency.** One sweep over every screen before recording adds
    more UI. Phone-width audit of Servers, Credentials, Settings and the file browser (row
    density, tap targets of at least 44 px, no horizontal scroll); the Servers row's six-button

@@ -597,7 +597,7 @@ export class PtySession {
 					this.setNote('Previous session ended — starting a new shell');
 					this.term.writeln('\x1b[33m[Previous session has ended — starting a new shell]\x1b[0m');
 					const { cols, rows } = this.term;
-					const req: PtyRequest = { type: 'shell', server_id: serverId, cols, rows };
+					const req: PtyRequest = { type: 'shell', server_id: serverId, cols, rows, binary: true };
 					ws.send(JSON.stringify(req));
 				} else {
 					this.term.write(res.data);

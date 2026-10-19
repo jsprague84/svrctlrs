@@ -534,6 +534,11 @@
 	}
 
 	export function fit() {
+		// A hidden pane (another tab in front) has no layout box. The fit addon would read its
+		// computed `100%` width and height as 100 px and shrink the remote shell to 10×3, which
+		// garbles both that tab and the prompt redraws of the one in front. Keep the last size;
+		// the pane refits when it is shown again.
+		if (!containerEl?.clientWidth || !containerEl.clientHeight) return;
 		if (fitAddon && terminal) {
 			try {
 				fitAddon.fit();

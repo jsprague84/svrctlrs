@@ -67,7 +67,19 @@ E2E_SSH_HOST=10.0.0.5 E2E_SSH_USER=ubuntu E2E_SSH_KEY=~/.ssh/id_ed25519 scripts/
 ```
 
 Run it after touching `ssh.rs`, `sessions.rs`, `terminal_pty.rs`, the servers API or the
-pane's transport (`ui/src/lib/terminal/`). CI cannot run it (no SSH target); say in the commit that it passed.
+pane's transport (`ui/src/lib/terminal/`). CI cannot run it (no SSH target); say in the
+commit that it passed.
+
+`scripts/dev/pane-phone-check.py` is the same idea for the terminal pane on a phone: a Pixel 7
+emulation in Chromium with real touch events (CDP), against a throwaway server and the same
+SSH target. It goes through the first-contact dialog, typing, tap-to-move-cursor, long-press
+copy, a swipe between two tabs, CTL from the extra-keys row and a reload that resumes the
+shell, and fails if a hidden pane resizes its shell. Run it after touching
+`TerminalPane.svelte`, `TerminalView.svelte` or `ui/src/lib/terminal/`:
+
+```bash
+E2E_SSH_HOST=10.0.0.5 E2E_SSH_USER=ubuntu CHROMIUM=$(command -v chromium) scripts/dev/run-phone-check.sh
+```
 
 ## Repository layout
 

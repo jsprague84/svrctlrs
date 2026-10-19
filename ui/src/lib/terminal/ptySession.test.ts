@@ -390,7 +390,14 @@ describe('resume', () => {
 		expect(h.session.heldSessionId).toBeNull();
 		expect(h.term.resets).toBe(1);
 		expect(h.session.currentView.note).toBe('Previous session ended — starting a new shell');
-		expect(h.ws().sent[1]).toEqual({ type: 'shell', server_id: 7, cols: 80, rows: 24 });
+		// Binary frames like every other shell, so split multibyte characters stay intact
+		expect(h.ws().sent[1]).toEqual({
+			type: 'shell',
+			server_id: 7,
+			cols: 80,
+			rows: 24,
+			binary: true
+		});
 	});
 });
 
