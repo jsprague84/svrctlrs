@@ -29,7 +29,8 @@ const DEFAULTS: TerminalPreferences = {
 	tabStopWidth: 4,
 	drawBoldTextInBrightColors: true,
 	minimumContrastRatio: 1,
-	leaderKey: 'ctrl-space'
+	leaderKey: 'ctrl-space',
+	predictiveEcho: 'auto'
 };
 
 function loadFromStorage(): TerminalPreferences {

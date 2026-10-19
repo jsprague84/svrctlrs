@@ -6,12 +6,15 @@
  * record and the serialized screen in sessionStorage so a reload picks the shell up again.
  *
  * It knows nothing about xterm: the pane hands it a `TerminalSurface` to write into and reads
- * the view state (`SessionView`) back through `onView`. Everything that touches the outside
+ * the view state (`SessionView`) back through `onView`. With an `EchoScreen` it also runs the
+ * predictive local echo (`localEcho.ts`): keystrokes are predicted as they are sent and the
+ * predictions checked each time the terminal has drawn the server's output. Everything that touches the outside
  * world (socket, URL, timers, storage, the trust call) can be replaced, so the protocol is
  * tested without a browser.
  */
 
 import type { ConnectionStatus, PtyRequest, PtyResponse } from '#lib/types/index.js';
+import { LocalEcho, type EchoMode, type EchoScreen } from './localEcho.js';
 import {
 	loadSessionRecord,
 	saveSessionRecord,
@@ -48,7 +51,8 @@ export interface SessionView {
 
 /** The part of the terminal the session writes into. */
 export interface TerminalSurface {
-	write(data: string | Uint8Array): void;
+	/** `done` runs once the terminal has parsed (and so drawn) this data */
+	write(data: string | Uint8Array, done?: () => void): void;
 	writeln(line: string): void;
 	clear(): void;
 	reset(): void;
@@ -92,6 +96,8 @@ export interface PtySessionOptions {
 	onStatus?: (status: ConnectionStatus) => void;
 	/** The view changed; called with a fresh object */
 	onView?: (view: SessionView) => void;
+	/** Predictive local echo over this screen; none without it */
+	echo?: { screen: EchoScreen; mode: () => EchoMode };
 	// Seams for tests; the browser's own by default
 	createSocket?: (url: string) => SocketLike;
 	storage?: KeyValueStore;
@@ -160,12 +166,25 @@ export class PtySession {
 	 *  Streaming, so a character split across frames is joined; renewed per connection. */
 	private outputDecoder = new TextDecoder();
 
+	/** Predictive local echo, when the pane gave us a screen to check predictions against */
+	private readonly echo: LocalEcho | null;
+	/** Server output handed to the terminal and not yet parsed by it */
+	private writesInFlight = 0;
+
 	constructor(opts: PtySessionOptions) {
 		this.opts = opts;
 		this.term = opts.terminal;
 		this.timers = opts.timers ?? browserTimers;
 		this.random = opts.random ?? Math.random;
 		this.createSocket = opts.createSocket ?? ((url) => new WebSocket(url) as SocketLike);
+		this.echo = opts.echo
+			? new LocalEcho({
+					screen: opts.echo.screen,
+					mode: opts.echo.mode,
+					busy: () => this.writesInFlight > 0,
+					timers: this.timers
+				})
+			: null;
 	}
 
 	// ── State ────────────────────────────────────────────────────────────
@@ -181,6 +200,11 @@ export class PtySession {
 	/** The session id this tab resumes, if any */
 	get heldSessionId(): string | null {
 		return this.sessionId;
+	}
+
+	/** Keystrokes predicted and not yet confirmed by the shell's echo (drawn or not) */
+	get predictedCount(): number {
+		return this.echo?.pendingCount ?? 0;
 	}
 
 	/** True between the socket opening and closing: keystrokes go through */
@@ -298,16 +322,33 @@ export class PtySession {
 		this.socket?.send(JSON.stringify(req));
 	}
 
-	/** Keystrokes from the terminal; dropped unless the socket is open. */
+	/** Keystrokes from the terminal; dropped unless the socket is open. Printable ones are
+	 *  predicted (drawn ahead of the echo) once the shell is up. */
 	sendInput(data: string): void {
 		if (!this.isOpen) return;
+		if (this.view.status === 'connected') this.echo?.input(data);
 		this.send({ type: 'input', data });
 	}
 
 	/** The terminal's new size; dropped unless the socket is open. */
 	sendResize(cols: number, rows: number): void {
+		// Lines reflow at a new width: whatever was predicted is no longer where it was
+		this.echo?.reset();
 		if (!this.isOpen) return;
 		this.send({ type: 'resize', cols, rows });
+	}
+
+	/** The shell's output into the terminal; predictions are checked once it is drawn. */
+	private writeOutput(data: string | Uint8Array) {
+		if (!this.echo) {
+			this.term.write(data);
+			return;
+		}
+		this.writesInFlight++;
+		this.term.write(data, () => {
+			this.writesInFlight = Math.max(0, this.writesInFlight - 1);
+			if (this.writesInFlight === 0) this.echo?.settled();
+		});
 	}
 
 	// ── Keep-alive ───────────────────────────────────────────────────────
@@ -517,6 +558,7 @@ export class PtySession {
 			this.lostWhileConnected = false;
 			this.setStatus('disconnected');
 			this.wired = false;
+			this.echo?.reset();
 			this.stopPinging();
 			this.clearPongTimeout();
 
@@ -541,7 +583,7 @@ export class PtySession {
 		if (buf.byteLength < 8) return;
 		const seq = Number(new DataView(buf).getBigUint64(0));
 		const bytes = new Uint8Array(buf, 8);
-		this.term.write(bytes);
+		this.writeOutput(bytes);
 		this.appendOutput(this.outputDecoder.decode(bytes, { stream: true }));
 		this.lastSeq = seq;
 	}
@@ -549,7 +591,7 @@ export class PtySession {
 	private handleMessage(ws: SocketLike, serverId: number, res: PtyResponse) {
 		switch (res.type) {
 			case 'output':
-				this.term.write(res.data);
+				this.writeOutput(res.data);
 				this.appendOutput(res.data);
 				if (res.seq !== undefined) this.lastSeq = res.seq;
 				break;
@@ -561,11 +603,12 @@ export class PtySession {
 					this.sessionServerId = serverId;
 					this.saveSession();
 				}
-				this.term.write(res.data);
+				this.writeOutput(res.data);
 				if (res.data) this.setNote(null); // a new shell; a resume clears at replay_end
 				this.term.focus();
 				break;
 			case 'replay_start':
+				this.echo?.reset();
 				// Nothing of this session on screen yet: the ring is redrawn from the top
 				if (this.lastSeq === 0) {
 					this.term.reset();
@@ -574,6 +617,7 @@ export class PtySession {
 				break;
 			case 'replay_window_lost':
 				// Too far behind the ring; the server now resends what it still has
+				this.echo?.reset();
 				this.term.reset();
 				this.outputHistory = [];
 				this.lastSeq = 0;
@@ -596,6 +640,7 @@ export class PtySession {
 			case 'error':
 				if (res.code === 'session_gone') {
 					// Kept too long or killed elsewhere; fall back to a fresh shell
+					this.echo?.reset();
 					this.forgetSession();
 					this.term.reset();
 					this.outputHistory = [];
@@ -642,6 +687,7 @@ export class PtySession {
 	private cleanupSocket(kill: boolean) {
 		this.stopPinging();
 		this.wired = false;
+		this.echo?.reset();
 		const socket = this.socket;
 		if (socket) {
 			if (socket.readyState === OPEN) {
@@ -676,6 +722,7 @@ export class PtySession {
 	/** The pane is going away: detach and refuse any later connect (a queued frame, a timer). */
 	dispose(): void {
 		this.detach();
+		this.echo?.dispose();
 		this.disposed = true;
 	}
 

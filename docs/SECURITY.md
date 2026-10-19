@@ -112,6 +112,24 @@ a server and thereby have the shells other users open there recorded. Those reco
 to the users who opened the shells, not to whoever switched recording on, and the terminal
 tells them.
 
+## Predictive echo
+
+The pane draws typed characters before the shell echoes them (`ui/src/lib/terminal/localEcho.ts`,
+default "on slow links"). Done carelessly this puts a password on screen, so nothing is drawn
+until the shell has echoed a keystroke in the current *epoch*, and every non-text key (Enter,
+Ctrl-C, arrows, Tab), unexplained output (a prompt being printed), mismatch and timeout starts a
+new one. A prompt that does not echo never confirms its epoch, so nothing typed there is drawn;
+on top of that, nothing is predicted on a line ending in a password/passphrase/PIN prompt or in
+the alternate screen. A prediction is confirmed only when its cell holds the character **and**
+the cursor has moved past it, so a typed space over a blank cell confirms nothing. Unit tests
+cover these cases and the phone check types at a `read -s` prompt and fails if anything is drawn.
+Predictions are only drawn over the page; they are never sent anywhere or recorded.
+
+What it cannot see: a program that turns echo off **silently** (no prompt, no output) right
+after the shell echoed type-ahead, without a key in between (`sleep 2; read -s` while typing
+ahead). There the first characters can show, underlined, for up to two seconds before they are
+withdrawn. Set Preferences → Behavior → Predictive Echo to **Off** to rule it out.
+
 ## Transport and headers
 
 The server sets `Content-Security-Policy` (`default-src 'self'`, with `'unsafe-inline'`

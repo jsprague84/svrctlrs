@@ -6,6 +6,7 @@
 	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
 	import type { CursorStyle, FontWeightOption, LeaderKeyOption } from '#lib/types/index.js';
+	import type { EchoMode } from '#lib/terminal/localEcho.js';
 	import { LEADER_KEY_LABELS } from '#lib/utils/leader.js';
 
 	interface Props {
@@ -399,6 +400,27 @@
 						class="accent-accent"
 					/>
 					<span class="text-xs text-text-secondary">Scroll on User Input</span>
+				</label>
+
+				<label class="block">
+					<span class="text-xs text-text-secondary">Predictive Echo</span>
+					<select
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						value={prefs.predictiveEcho}
+						onchange={(e) =>
+							terminalPrefs.updatePref(
+								'predictiveEcho',
+								(e.target as HTMLSelectElement).value as EchoMode
+							)}
+					>
+						<option value="auto">On slow links</option>
+						<option value="always">Always</option>
+						<option value="off">Off</option>
+					</select>
+					<span class="block mt-0.5 text-[10px] text-text-muted">
+						Typed text shows at once, underlined, until the server echoes it. Never at a password
+						prompt or in full-screen programs.
+					</span>
 				</label>
 
 				<label class="block">

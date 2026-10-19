@@ -49,10 +49,12 @@ Unit tests are Vitest files next to the code (`*.test.ts`); keep them for pure m
 
 Tests today: about 120 Rust tests across `core`, `database` and `server` (auth middleware,
 host keys, limiter, tickets, session registry and replay ring, `ssh_config` import, svrctl
-backup) and 102 Vitest tests in the UI, most of them for the terminal session protocol
+backup) and 149 Vitest tests in the UI, most of them for the terminal session protocol
 (`ui/src/lib/terminal/ptySession.test.ts`: attach and replay, keep-alive watchdog, reconnect
-backoff, host-key challenge, persistence) driven with a fake socket and fake timers.
-Security-relevant changes come with tests.
+backoff, host-key challenge, persistence, predictive echo) driven with a fake socket and fake
+timers, and for the predictive echo itself (`localEcho.test.ts`, against a small fake screen
+in `fakeEchoScreen.ts`: epochs, password prompts, the alternate screen, mismatches,
+backspace, timeouts, the latency gate). Security-relevant changes come with tests.
 
 The SSH client is tested in CI against an **in-process SSH server**
 (`server/src/test_support/ssh_server.rs`): russh's server side on a loopback port with its own
@@ -95,8 +97,10 @@ it.
 `scripts/dev/pane-phone-check.py` is the same idea for the terminal pane on a phone: a Pixel 7
 emulation in Chromium with real touch events (CDP), against a throwaway server and the same
 SSH target. It goes through the first-contact dialog, typing, tap-to-move-cursor, long-press
-copy, a swipe between two tabs, CTL from the extra-keys row and a reload that resumes the
-shell, and fails if a hidden pane resizes its shell. Run it after touching
+copy, a swipe between two tabs, CTL from the extra-keys row, predictive echo over a link it
+slows itself (incoming socket messages delayed 250 ms in the page: typed text is drawn ahead
+of the echo and cleared after it, and nothing is drawn at a `read -s` prompt) and a reload that
+resumes the shell, and fails if a hidden pane resizes its shell. Run it after touching
 `TerminalPane.svelte`, `TerminalView.svelte` or `ui/src/lib/terminal/`:
 
 ```bash

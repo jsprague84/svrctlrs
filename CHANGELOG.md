@@ -6,6 +6,12 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Added
+- **Predictive echo.** On a slow or lossy link, typed characters appear at once, dimmed and
+  underlined, and become normal text when the server's echo arrives; a wrong guess disappears.
+  Predictions are checked against what the terminal shows, so coloured prompts and zsh redraws
+  work. Nothing is drawn until the shell has echoed in the current context, so a password
+  prompt (or any prompt that does not echo) shows nothing; never in full-screen programs.
+  Preferences → Behavior → Predictive Echo: on slow links (default), always, or off.
 - **Session recording.** Switch on **Record sessions** for a server and every shell opened on
   it is recorded for the user who opened it: what the terminal shows (never the keystrokes, so
   a password typed at a silent prompt is not in it) and its resizes, as asciicast v2. The new

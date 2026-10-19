@@ -84,6 +84,8 @@ export interface TerminalPreferences {
 	minimumContrastRatio: number;
 	/** Chord that arms tmux-style navigation (`#lib/utils/leader.ts`) */
 	leaderKey: import('#lib/utils/leader.js').LeaderKeyOption;
+	/** Draw typed characters before the shell echoes them (`#lib/terminal/localEcho.ts`) */
+	predictiveEcho: import('#lib/terminal/localEcho.js').EchoMode;
 }
 
 export interface TerminalTab {

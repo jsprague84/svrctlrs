@@ -139,6 +139,18 @@ Migrations are checksummed, so never edit one that has shipped.
   reconnect overlay, host key) back. Socket, timers, storage and the trust call are injectable,
   so `ptySession.test.ts` drives the whole protocol with fakes. `socketUrl.ts` builds the URL
   (cookie in the browser, one-time ticket for the native apps).
+- **Predictive echo**: `ui/src/lib/terminal/localEcho.ts`. The session hands it each keystroke
+  before sending it and calls `settled()` whenever the terminal has parsed all the output
+  written so far (xterm's write callback). Printable keystrokes become predictions at the
+  cursor; a prediction is confirmed when the **screen** shows it (its cell holds the character
+  and the cursor has passed it), so colour, zsh redraws and syntax highlighting confirm as well
+  as a bare echo. Predictions are drawn only in an epoch the shell has already echoed in (mosh's
+  rule; non-text keys, unexplained output, mismatches and a 2 s timeout start a new one), never
+  in the alternate screen or at a password prompt, and in `auto` only while the measured echo
+  latency is above 30 ms. The pane implements its `EchoScreen` over xterm's buffer and draws the
+  predictions as xterm decorations (one per line, the terminal's font, a dotted underline, a
+  caret after them), so nothing is ever written into the terminal and a wrong guess cannot
+  corrupt the shell's screen. `SECURITY.md` has the guarantees and the one gap.
 - **Terminal**: `components/terminal/TerminalPane.svelte` (xterm.js 6 and its addons, WebGL
   with DOM fallback, the touch gesture machine, the overlays; keystrokes go to the session
   while its socket is open), `TerminalView.svelte` (layouts, keyboard shortcuts, command palette), `TerminalTabs`,

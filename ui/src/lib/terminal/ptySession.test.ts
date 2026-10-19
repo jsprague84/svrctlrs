@@ -18,6 +18,8 @@ import {
 	type SocketLike,
 	type TerminalSurface
 } from './ptySession.js';
+import { FakeEchoScreen } from './fakeEchoScreen.js';
+import type { EchoMode } from './localEcho.js';
 
 // ── Fakes ────────────────────────────────────────────────────────────────
 
@@ -80,8 +82,27 @@ class FakeTerminal implements TerminalSurface {
 	cols = 80;
 	rows = 24;
 	screen: string | null = 'SCREEN';
-	write(data: string | Uint8Array) {
+	/** When set, output is drawn into this model and `done` reports it */
+	echoScreen: FakeEchoScreen | null = null;
+	/** Hold parsed-callbacks back until `drain()`, as xterm does between frames */
+	deferParse = false;
+	private parsing: (() => void)[] = [];
+	private decoder = new TextDecoder();
+	write(data: string | Uint8Array, done?: () => void) {
 		this.written.push(data);
+		const draw = () => {
+			this.echoScreen?.print(
+				typeof data === 'string' ? data : this.decoder.decode(data, { stream: true })
+			);
+			done?.();
+		};
+		if (this.deferParse) this.parsing.push(draw);
+		else draw();
+	}
+	drain() {
+		const queued = this.parsing;
+		this.parsing = [];
+		for (const draw of queued) draw();
 	}
 	writeln(line: string) {
 		this.lines.push(line);
@@ -122,12 +143,20 @@ interface Harness {
 	views: SessionView[];
 	trust: Mock<(serverId: number, fingerprint: string) => Promise<unknown>>;
 	server: { id: number | null };
+	/** The predictive echo's screen, with `echo: true` */
+	screen: FakeEchoScreen;
+	echoMode: { value: EchoMode };
 	/** The newest socket */
 	ws(): FakeSocket;
 }
 
-function harness(opts: { serverId?: number | null; trustFails?: boolean } = {}): Harness {
+function harness(
+	opts: { serverId?: number | null; trustFails?: boolean; echo?: boolean } = {}
+): Harness {
 	const term = new FakeTerminal();
+	const screen = new FakeEchoScreen();
+	const echoMode = { value: 'always' as EchoMode };
+	if (opts.echo) term.echoScreen = screen;
 	const store = fakeStore();
 	const sockets: FakeSocket[] = [];
 	const statuses: ConnectionStatus[] = [];
@@ -151,6 +180,7 @@ function harness(opts: { serverId?: number | null; trustFails?: boolean } = {}):
 			return s;
 		},
 		storage: store,
+		echo: opts.echo ? { screen, mode: () => echoMode.value } : undefined,
 		timers: {
 			setTimeout: (fn, ms) => setTimeout(fn, ms),
 			clearTimeout: (h) => clearTimeout(h as ReturnType<typeof setTimeout>),
@@ -169,6 +199,8 @@ function harness(opts: { serverId?: number | null; trustFails?: boolean } = {}):
 		views,
 		trust,
 		server,
+		screen,
+		echoMode,
 		ws: () => sockets[sockets.length - 1]
 	};
 }
@@ -651,5 +683,106 @@ describe('ending', () => {
 		h.session.persist();
 		h.session.clearSaved();
 		expect(h.store.map.size).toBe(0);
+	});
+});
+
+describe('predictive echo', () => {
+	const enc = (text: string) => new TextEncoder().encode(text);
+
+	/** A shell that is up and has echoed once, so its epoch is confirmed */
+	async function echoing(h: Harness) {
+		await connected(h);
+		h.ws().output(1, enc('$ '));
+		h.session.sendInput('l');
+		h.ws().output(2, enc('l'));
+	}
+
+	it('draws typed characters ahead of the echo and withdraws them once it is drawn', async () => {
+		const h = harness({ echo: true });
+		await echoing(h);
+		h.session.sendInput('s');
+		expect(h.screen.drawn).toBe('s');
+		expect(h.ws().sent.at(-1)).toEqual({ type: 'input', data: 's' });
+
+		h.ws().output(3, enc('s'));
+		expect(h.screen.drawn).toBe('');
+		expect(h.session.predictedCount).toBe(0);
+	});
+
+	it('checks predictions against output sent as JSON frames too', async () => {
+		const h = harness({ echo: true });
+		await echoing(h);
+		h.session.sendInput('s');
+		h.ws().reply({ type: 'output', data: 's', seq: 3 });
+		expect(h.session.predictedCount).toBe(0);
+	});
+
+	it('predicts nothing before the shell is up', async () => {
+		const h = harness({ echo: true });
+		await h.session.connect();
+		h.ws().open();
+		h.session.sendInput('x');
+		expect(h.ws().sent.at(-1)).toEqual({ type: 'input', data: 'x' });
+		expect(h.session.predictedCount).toBe(0);
+	});
+
+	it('does not start predicting from a cursor the terminal has not drawn yet', async () => {
+		const h = harness({ echo: true });
+		await echoing(h);
+		h.term.deferParse = true;
+		h.ws().output(3, enc('\r\nmail\r\n$ '));
+		h.session.sendInput('s'); // the cursor still reads as before the output
+		expect(h.session.predictedCount).toBe(0);
+		h.term.drain();
+		h.term.deferParse = false;
+		h.session.sendInput('w');
+		expect(h.session.predictedCount).toBe(1);
+	});
+
+	it('withdraws predictions when the connection drops, and starts over after it', async () => {
+		const h = harness({ echo: true });
+		await echoing(h);
+		h.session.sendInput('s');
+		expect(h.screen.drawn).toBe('s');
+		h.ws().drop();
+		expect(h.screen.drawn).toBe('');
+		expect(h.session.predictedCount).toBe(0);
+
+		await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS[0]);
+		h.ws().open();
+		h.ws().reply({ type: 'connected', session_id: 'sess-1', data: '' });
+		h.ws().reply({ type: 'replay_start' });
+		h.ws().output(3, enc('s'));
+		h.ws().reply({ type: 'replay_end' });
+		h.session.sendInput(' ');
+		expect(h.screen.drawn).toBe(''); // a new epoch: waits for its own echo
+	});
+
+	it('withdraws predictions when the terminal is resized', async () => {
+		const h = harness({ echo: true });
+		await echoing(h);
+		h.session.sendInput('s');
+		h.session.sendResize(100, 30);
+		expect(h.screen.drawn).toBe('');
+		expect(h.session.predictedCount).toBe(0);
+	});
+
+	it('follows the preference: nothing when it is off', async () => {
+		const h = harness({ echo: true });
+		h.echoMode.value = 'off';
+		await echoing(h);
+		h.session.sendInput('s');
+		expect(h.session.predictedCount).toBe(0);
+		expect(h.screen.shown.every((cells) => cells.length === 0)).toBe(true);
+	});
+
+	it('writes output without a parse callback when there is no echo', async () => {
+		const h = harness();
+		const write = vi.spyOn(h.term, 'write');
+		await connected(h);
+		h.ws().output(1, enc('$ '));
+		expect(write.mock.calls.at(-1)).toHaveLength(1);
+		h.session.sendInput('x');
+		expect(h.session.predictedCount).toBe(0);
 	});
 });

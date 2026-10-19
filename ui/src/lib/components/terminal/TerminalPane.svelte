@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Terminal } from '@xterm/xterm';
+	import { Terminal, type IDecoration, type IMarker } from '@xterm/xterm';
 	import { FitAddon } from '@xterm/addon-fit';
 	import { SearchAddon } from '@xterm/addon-search';
 	import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -21,6 +21,7 @@
 	import { extractErrorMessage } from '#lib/utils/error.js';
 	import { PtySession, type SessionView } from '#lib/terminal/ptySession.js';
 	import { browserPtySocketUrl } from '#lib/terminal/socketUrl.js';
+	import type { EchoCell, EchoScreen } from '#lib/terminal/localEcho.js';
 	import { overlay } from '#lib/utils/overlay.js';
 	import type { ConnectionStatus } from '#lib/types/index.js';
 
@@ -300,6 +301,91 @@
 		gestureMode = 'idle';
 	}
 
+	// ── Predictive echo ──────────────────────────────────────────────────
+	// The session decides what to predict (`localEcho.ts`); the pane reads the screen for it
+	// and draws the predictions as decorations over the cells, never into the terminal.
+
+	/** One decoration (and its marker) per line of predicted characters */
+	let echoMarks: (IDecoration | IMarker)[] = [];
+
+	function echoScreenFor(term: Terminal): EchoScreen {
+		return {
+			get cols() {
+				return term.cols;
+			},
+			cursor() {
+				const buf = term.buffer.active;
+				if (buf.type !== 'normal') return null;
+				return { line: buf.baseY + buf.cursorY, col: buf.cursorX };
+			},
+			cell(line, col) {
+				const cell = term.buffer.active.getLine(line)?.getCell(col);
+				if (!cell) return null;
+				return cell.getChars() || ' ';
+			},
+			textBeforeCursor() {
+				const buf = term.buffer.active;
+				return buf.getLine(buf.baseY + buf.cursorY)?.translateToString(false, 0, buf.cursorX) ?? '';
+			},
+			show: drawPredictions
+		};
+	}
+
+	function drawPredictions(cells: EchoCell[]) {
+		for (const mark of echoMarks) mark.dispose();
+		echoMarks = [];
+		if (!terminal || cells.length === 0) return;
+		const term = terminal;
+		const buf = term.buffer.active;
+		const cursorLine = buf.baseY + buf.cursorY;
+		const runs: { line: number; col: number; text: string }[] = [];
+		for (const c of cells) {
+			const run = runs[runs.length - 1];
+			if (run && run.line === c.line && run.col + run.text.length === c.col) run.text += c.char;
+			else runs.push({ line: c.line, col: c.col, text: c.char });
+		}
+		runs.forEach((run, i) => {
+			const marker = term.registerMarker(run.line - cursorLine);
+			if (!marker) return;
+			const decoration = term.registerDecoration({
+				marker,
+				x: run.col,
+				width: run.text.length,
+				layer: 'top'
+			});
+			if (!decoration) {
+				marker.dispose();
+				return;
+			}
+			const caret = i === runs.length - 1;
+			decoration.onRender((el) => paintPrediction(el, run.text, caret));
+			echoMarks.push(decoration, marker);
+		});
+	}
+
+	/** Fill a decoration with the predicted text: one span per cell, in the terminal's font,
+	 *  over an opaque cell background so whatever is underneath does not show through. */
+	function paintPrediction(el: HTMLElement, text: string, caret: boolean) {
+		if (el.dataset.echo === text || !terminal) return;
+		el.dataset.echo = text;
+		const { theme, fontFamily, fontSize, fontWeight } = terminal.options;
+		el.classList.add('local-echo');
+		el.classList.toggle('local-echo-caret', caret);
+		el.style.setProperty('--echo-bg', theme?.background ?? '#000000');
+		el.style.setProperty('--echo-fg', theme?.foreground ?? '#ffffff');
+		el.style.setProperty('--echo-caret', theme?.cursor ?? theme?.foreground ?? '#ffffff');
+		el.style.fontFamily = fontFamily ?? 'monospace';
+		el.style.fontSize = `${fontSize ?? 14}px`;
+		el.style.fontWeight = String(fontWeight ?? 400);
+		el.replaceChildren(
+			...Array.from(text, (ch) => {
+				const span = document.createElement('span');
+				span.textContent = ch;
+				return span;
+			})
+		);
+	}
+
 	let containerEl: HTMLDivElement;
 	let terminal: Terminal | null = null;
 	let fitAddon: FitAddon | null = null;
@@ -387,7 +473,7 @@
 			tabId,
 			serverId: () => serverId,
 			terminal: {
-				write: (data) => term.write(data),
+				write: (data, done) => term.write(data, done),
 				writeln: (line) => term.writeln(line),
 				clear: () => term.clear(),
 				reset: () => term.reset(),
@@ -403,6 +489,10 @@
 			},
 			socketUrl: browserPtySocketUrl,
 			trustHostKey: serversApi.trustHostKey,
+			echo: {
+				screen: echoScreenFor(term),
+				mode: () => terminalPrefs.getPrefs().predictiveEcho
+			},
 			onStatus: (s) => onStatusChange?.(tabId, s),
 			onView: (v) => (view = v)
 		});
@@ -703,6 +793,7 @@
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
 			window.removeEventListener('beforeunload', handleBeforeUnload);
 			session?.dispose();
+			drawPredictions([]);
 			if (resizeTimer) clearTimeout(resizeTimer);
 			resizeObserver?.disconnect();
 			if (webglAddon) {
@@ -819,3 +910,31 @@
 		</div>
 	{/if}
 </div>
+
+<style>
+	/* Predicted characters (predictive echo): dimmer than real text, dotted underline, a caret
+	   after the last one because the terminal's own cursor is underneath the first. */
+	:global(.local-echo) {
+		display: flex;
+		align-items: center;
+		pointer-events: none;
+		background: var(--echo-bg);
+		color: color-mix(in srgb, var(--echo-fg) 70%, var(--echo-bg));
+	}
+	:global(.local-echo > span) {
+		flex: 1 1 0;
+		text-align: center;
+		white-space: pre;
+		text-decoration: underline dotted;
+		text-underline-offset: 3px;
+	}
+	:global(.local-echo-caret::after) {
+		content: '';
+		position: absolute;
+		left: 100%;
+		top: 10%;
+		bottom: 10%;
+		width: 2px;
+		background: var(--echo-caret);
+	}
+</style>

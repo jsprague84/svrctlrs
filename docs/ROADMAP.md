@@ -90,9 +90,15 @@ users), and keep the login limiter's state in the database so a restart does not
    (`scripts/dev/run-e2e.sh backpressure`): the send side does not grow (a client that stops
    reading during a 200 MiB burst costs the server about 15 MB; the PTY driver never waits),
    so no flow control; a client that fell behind the ring was left blank and is now redrawn.
-11. **Predictive local echo** for lossy phone links: typed printable characters shown at once
-    in a provisional style and reconciled against the server's echo (sshx does this well).
-    Needs the pane split first.
+11. ~~**Predictive local echo**~~ Done 2026-10-19: `ui/src/lib/terminal/localEcho.ts`,
+    driven by `ptySession.ts`; predictions are confirmed against the screen (cell holds the
+    character and the cursor has passed it), drawn only in an epoch the shell has echoed in
+    (non-text keys, unexplained output, mismatches and a 2 s timeout start a new one), never in
+    the alternate screen or at a password prompt, and in `auto` only above 30 ms of measured
+    echo latency. Drawn as xterm decorations, never written into the terminal. Preference
+    Predictive Echo (on slow links / always / off). 33 Vitest tests; the phone check slows the
+    link and types at a `read -s` prompt. The one gap (echo turned off silently after
+    type-ahead) is in `SECURITY.md`.
 12. **Terminal preferences per account.** Move `terminalPrefs` from `localStorage` to the
     settings table so the phone and the laptop agree.
 13. **Quick-command variables** (`{{host}}`, `{{user}}`, a prompt for the rest) so one

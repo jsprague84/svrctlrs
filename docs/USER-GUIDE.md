@@ -126,7 +126,14 @@ the life of the browser tab, so a reload brings them back with their shells.
   grace period, server restart) the pane says so and offers **Reconnect** (new shell) or
   **New Session**. **Disconnect** and closing a tab end the shell for good.
 - **Preferences** (gear icon): font, size, weight, line height, cursor style and blink,
-  scrollback, scroll speed, tab width, contrast. Stored in the browser/app.
+  scrollback, scroll speed, tab width, contrast, predictive echo. Stored in the browser/app.
+- **Predictive echo**: on a slow or lossy link (a phone on mobile data) what you type appears
+  at once, dimmed and with a dotted underline, and turns into normal text when the server's
+  echo arrives. A line's first character waits for its echo; the rest show immediately. If the
+  shell draws something else, the guess disappears. It never shows anything at a password
+  prompt (or any prompt that does not echo) or in full-screen programs like `vim`, `less` and
+  `htop`. Preferences → Behavior → Predictive Echo: **On slow links** (default: only once the
+  echo takes longer than about 30 ms), **Always**, or **Off**.
 - **Title and bell**: a shell that sets its window title (most prompts do: `user@host: ~`)
   renames its tab; hovering shows the server name. A bell (`BEL`, for example from a finished
   `make` or an alert in `top`) flashes the pane's border, vibrates on a phone, and leaves an

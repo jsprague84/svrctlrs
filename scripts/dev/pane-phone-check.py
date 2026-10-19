@@ -8,8 +8,10 @@ uses its DOM renderer and the screen's text can be read back.
 
 Covers: first-contact host-key dialog → trust → shell, typing, tap-to-move-cursor, long-press
 copy, a second tab and a swipe between tabs, that no hidden pane resizes its shell, CTL from
-the extra-keys row (Ctrl+C interrupts `sleep`), reload → resume with the screen intact, and
-the home-screen shortcut (manifest lists the server, `/?connect=<id>` shows its tab).
+the extra-keys row (Ctrl+C interrupts `sleep`), predictive echo over a slowed link (typed text
+drawn ahead of the echo and cleared after it, nothing drawn at a `read -s` prompt), reload →
+resume with the screen intact, and the home-screen shortcut (manifest lists the server,
+`/?connect=<id>` shows its tab).
 Screenshots land in E2E_OUT (default: a temp dir).
 """
 import json, os, sys, tempfile, time, urllib.request, http.cookiejar
@@ -63,6 +65,29 @@ with sync_playwright() as p:
     logs = []
     page.on("console", lambda m: logs.append(f"{m.type}: {m.text}"))
     page.on("pageerror", lambda e: logs.append(f"pageerror: {e}"))
+    # A slow link on demand: `window.__lag` ms added to every message the page's sockets
+    # receive (order kept). `window.__echoSeen` collects the text of every predicted-echo
+    # decoration that was ever on screen.
+    ctx.add_init_script("""(() => {
+      window.__lag = 0;
+      const d = Object.getOwnPropertyDescriptor(WebSocket.prototype, 'onmessage');
+      Object.defineProperty(WebSocket.prototype, 'onmessage', {
+        configurable: true,
+        get() { return d.get.call(this); },
+        set(fn) {
+          d.set.call(this, fn && function (ev) {
+            const lag = window.__lag;
+            if (!lag) return fn.call(this, ev);
+            setTimeout(() => fn.call(this, ev), lag);
+          });
+        }
+      });
+      window.__echoSeen = [];
+      const watch = () => new MutationObserver(() => {
+        for (const el of document.querySelectorAll('.local-echo')) window.__echoSeen.push(el.textContent);
+      }).observe(document.body, { subtree: true, childList: true, characterData: true });
+      if (document.body) watch(); else document.addEventListener('DOMContentLoaded', watch);
+    })();""")
     cdp = ctx.new_cdp_session(page)
     sent = []
     page.on("websocket", lambda ws: ws.on("framesent", lambda f: sent.append(f) if isinstance(f, str) else None))
@@ -180,6 +205,34 @@ with sync_playwright() as p:
     page.keyboard.type("echo after-ctl-c")
     page.keyboard.press("Enter")
     check("CTL then c interrupts sleep", wait_screen("\nafter-ctl-c"), screen()[-300:])
+
+    # Predictive echo on a slow link (250 ms on every message back): the default "auto" mode
+    # measures the echo, then draws typed characters at once and clears them when they echo
+    page.evaluate("window.__lag = 250")
+    page.keyboard.type("echo predicted-echo", delay=150)
+    page.screenshot(path=f"{OUT}/predictive-echo.png")
+    seen = page.evaluate("window.__echoSeen.filter(Boolean)")
+    check("predictive echo draws typed text ahead of the echo", len(seen) > 0)
+    page.wait_for_timeout(1500)
+    check("predictions cleared once echoed", page.locator(".local-echo").count() == 0)
+    check("the echoed line is intact", "echo predicted-echo" in screen(), screen()[-200:])
+    page.keyboard.press("Enter")
+    wait_screen("\npredicted-echo")
+    # A prompt that turns echo off and that the password pattern does not know: the epoch rule
+    # alone must keep every typed character off the screen
+    page.keyboard.type("read -s -p 'Key: ' v; echo \"[$v]\"", delay=40)
+    page.keyboard.press("Enter")
+    wait_screen("Key:")
+    page.wait_for_timeout(1500)
+    page.evaluate("window.__echoSeen = []")
+    page.keyboard.type("hunter2 x", delay=150)
+    page.wait_for_timeout(1500)
+    leaked = page.evaluate("window.__echoSeen.filter(Boolean)")
+    check("nothing predicted at a prompt with echo off", not leaked, str(leaked[:5]))
+    page.keyboard.press("Enter")
+    check("the hidden input reached the shell", wait_screen("[hunter2 x]"), screen()[-200:])
+    page.evaluate("window.__lag = 0")
+    page.wait_for_timeout(500)
 
     # Reload: the tab attaches to its server-side session with the screen intact
     page.reload()
