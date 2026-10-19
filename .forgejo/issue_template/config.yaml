@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security problem
+    url: https://git.js-node.cc/jsprague/svrctlrs/src/branch/master/docs/SECURITY.md#reporting
+    about: Please do not report security problems in a public issue.
+  - name: Documentation
+    url: https://git.js-node.cc/jsprague/svrctlrs/src/branch/master/docs/USER-GUIDE.md
+    about: How the terminal, servers, files and recordings work.

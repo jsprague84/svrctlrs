@@ -6,10 +6,28 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Added
+- **`linux/arm64` images** (Raspberry Pi 4/5 on a 64-bit OS, other ARM servers) next to
+  `linux/amd64`, under the same tags; Docker pulls the right one. Both are cross-compiled on
+  the amd64 runner, without emulation.
+- **`svrctl reset-password <user>`** for lockout recovery: run it next to the database
+  (`docker exec -it svrctlrs /app/svrctl reset-password admin`). It asks twice without echo,
+  or takes `--password-stdin`, or makes one up with `--generate`; signs that account out
+  everywhere (`--keep-sessions` to skip) and is audited as `user.password_reset`.
+- `CONTRIBUTING.md` and issue templates (bug, idea; security reports pointed away from public
+  issues).
+- **`docker-compose.standalone.yml`** for a host without the Traefik edge: the port published
+  on `127.0.0.1:8080` (`SVRCTLRS_BIND` to change it), no labels, no external network.
 - **Quick-command variables.** `{{host}}`, `{{user}}`, `{{port}}` and `{{name}}` are filled
   from the active tab's server; any other `{{word}}` is asked for when the command runs, with
   `{{word:default}}` pre-filling the answer and a live preview of the finished command. Go
   templates (`{{.Names}}`, `{{json .}}`, `{{end}}`) are left as written.
+
+### Fixed
+- **`ADMIN_PASSWORD` alone created no account.** The first start seeded the admin only when
+  `ADMIN_USERNAME` was set too, although the documentation gives it a default of `admin`; the
+  compose files hid this by passing the default, but `docker run -e ADMIN_PASSWORD=…` or the
+  server started by hand left a database nobody could sign in to. The username now defaults to
+  `admin`, and a start with no users and no password says so in the log.
 
 ## [3.2.0] - 2026-10-19
 

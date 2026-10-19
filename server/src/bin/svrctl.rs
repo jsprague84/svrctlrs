@@ -3,14 +3,18 @@
 //! `health` and `status` talk to a running server over HTTP (the container healthcheck runs
 //! `svrctl health`). `backup` opens the SQLite database directly and writes a consistent copy,
 //! so it is meant to run next to the server, e.g.
-//! `docker exec svrctlrs /app/svrctl backup --out /app/data/backups`.
+//! `docker exec svrctlrs /app/svrctl backup --out /app/data/backups`. `reset-password` does the
+//! same for lockout recovery: `docker exec -it svrctlrs /app/svrctl reset-password admin`.
 
 use clap::{Parser, Subcommand};
 use reqwest::Client;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::process;
-use svrctlrs_database::sqlx::sqlite::SqlitePoolOptions;
+use svrctlrs_database::sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
+use svrctlrs_database::{models::NewAuditEntry, queries};
+use tower_sessions::{session::Id, SessionStore};
+use tower_sessions_sqlx_store::SqliteStore;
 use tracing::error;
 
 /// SvrCtlRS CLI - Server administration tool
@@ -61,6 +65,30 @@ enum Commands {
         #[arg(long, env = "DATABASE_URL", default_value = "sqlite:data/svrctlrs.db")]
         database_url: String,
     },
+
+    /// Set a new password for an account when nobody can sign in (lockout recovery). Opens the
+    /// database directly, so run it next to the server. Asks for the password twice unless
+    /// --password-stdin or --generate is given, and signs the account out everywhere.
+    ResetPassword {
+        /// The account to recover
+        username: String,
+
+        /// Read the new password from the first line of standard input (for scripts)
+        #[arg(long, conflicts_with = "generate")]
+        password_stdin: bool,
+
+        /// Make up a strong password and print it
+        #[arg(long)]
+        generate: bool,
+
+        /// Leave the account's existing sign-ins (browser sessions, app tokens) alone
+        #[arg(long)]
+        keep_sessions: bool,
+
+        /// The server's database
+        #[arg(long, env = "DATABASE_URL", default_value = "sqlite:data/svrctlrs.db")]
+        database_url: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -93,6 +121,22 @@ async fn main() {
             keep,
             database_url,
         } => handle_backup(&database_url, &out, keep).await,
+        Commands::ResetPassword {
+            username,
+            password_stdin,
+            generate,
+            keep_sessions,
+            database_url,
+        } => {
+            handle_reset_password(
+                &database_url,
+                &username,
+                password_stdin,
+                generate,
+                !keep_sessions,
+            )
+            .await
+        }
     };
 
     if let Err(e) = result {
@@ -236,6 +280,120 @@ async fn handle_backup(database_url: &str, out: &Path, keep: usize) -> anyhow::R
     Ok(())
 }
 
+/// A random password of 24 characters from an unambiguous alphabet (~139 bits).
+fn generate_password() -> String {
+    use rand::Rng;
+    const ALPHABET: &[u8] = b"abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    let mut rng = rand::rngs::OsRng;
+    (0..24)
+        .map(|_| ALPHABET[rng.gen_range(0..ALPHABET.len())] as char)
+        .collect()
+}
+
+/// The new password: from stdin, generated, or asked for twice without echo.
+fn new_password(password_stdin: bool, generate: bool) -> anyhow::Result<(String, bool)> {
+    use std::io::{BufRead, IsTerminal};
+    if generate {
+        return Ok((generate_password(), true));
+    }
+    if password_stdin {
+        let mut line = String::new();
+        std::io::stdin().lock().read_line(&mut line)?;
+        return Ok((line.trim_end_matches(['\r', '\n']).to_string(), false));
+    }
+    if !std::io::stdin().is_terminal() {
+        anyhow::bail!(
+            "no terminal to ask on: run with `docker exec -it`, or pass --password-stdin or --generate"
+        );
+    }
+    let first = rpassword::prompt_password("New password (at least 12 characters): ")?;
+    let again = rpassword::prompt_password("Repeat it: ")?;
+    if first != again {
+        anyhow::bail!("the two passwords differ; nothing was changed");
+    }
+    Ok((first, false))
+}
+
+/// Sign-ins that ended
+#[derive(Debug, PartialEq)]
+struct ResetOutcome {
+    user_id: i64,
+    sessions_ended: usize,
+}
+
+/// Set `username`'s password and, with `end_sessions`, delete every session record of that
+/// account (browser cookies and app tokens alike) so whoever had it is signed out. Audited.
+async fn reset_password(
+    pool: &Pool<Sqlite>,
+    username: &str,
+    password: &str,
+    end_sessions: bool,
+) -> anyhow::Result<ResetOutcome> {
+    let user = queries::users::get_user_by_username(pool, username)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("there is no account called {username:?}"))?;
+    queries::users::update_password(pool, user.id, password).await?;
+
+    let mut sessions_ended = 0;
+    if end_sessions {
+        let store = SqliteStore::new(pool.clone());
+        // The table exists once the server has started; before that there is nobody to sign out
+        let ids: Vec<(String,)> =
+            svrctlrs_database::sqlx::query_as("SELECT id FROM tower_sessions")
+                .fetch_all(pool)
+                .await
+                .unwrap_or_default();
+        for (raw,) in ids {
+            let Ok(id) = raw.parse::<Id>() else { continue };
+            let Ok(Some(record)) = store.load(&id).await else {
+                continue;
+            };
+            if record.data.get("user_id").and_then(Value::as_i64) == Some(user.id) {
+                store.delete(&id).await?;
+                sessions_ended += 1;
+            }
+        }
+    }
+
+    queries::audit::record(
+        pool,
+        &NewAuditEntry::new("user.password_reset")
+            .target("user", user.id, &user.username)
+            .details(json!({ "via": "svrctl", "sessions_ended": sessions_ended })),
+    )
+    .await?;
+    Ok(ResetOutcome {
+        user_id: user.id,
+        sessions_ended,
+    })
+}
+
+async fn handle_reset_password(
+    database_url: &str,
+    username: &str,
+    password_stdin: bool,
+    generate: bool,
+    end_sessions: bool,
+) -> anyhow::Result<()> {
+    let (password, generated) = new_password(password_stdin, generate)?;
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect(database_url)
+        .await?;
+    let outcome = reset_password(&pool, username, &password, end_sessions).await?;
+    pool.close().await;
+    let mut report = json!({
+        "user": username,
+        "password": "changed",
+        "sessions_ended": outcome.sessions_ended,
+    });
+    if generated {
+        report["new_password"] = json!(password);
+    }
+    println!("{}", serde_json::to_string_pretty(&report)?);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -297,5 +455,104 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(v, "hello");
+    }
+
+    async fn database() -> (Pool<Sqlite>, SqliteStore) {
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .unwrap();
+        svrctlrs_database::run_migrations(&pool).await.unwrap();
+        let store = SqliteStore::new(pool.clone());
+        store.migrate().await.unwrap();
+        for name in ["admin", "bob"] {
+            queries::users::create_user(
+                &pool,
+                &svrctlrs_database::models::CreateUser {
+                    username: name.into(),
+                    password: "old-password-123".into(),
+                },
+            )
+            .await
+            .unwrap();
+        }
+        (pool, store)
+    }
+
+    async fn signed_in(store: &SqliteStore, user_id: i64) -> Id {
+        let mut record = tower_sessions::session::Record {
+            id: Id::default(),
+            data: std::collections::HashMap::from([("user_id".to_string(), json!(user_id))]),
+            expiry_date: time::OffsetDateTime::now_utc() + time::Duration::hours(1),
+        };
+        store.create(&mut record).await.unwrap();
+        record.id
+    }
+
+    #[tokio::test]
+    async fn reset_sets_the_password_and_signs_only_that_account_out() {
+        let (pool, store) = database().await;
+        let admin = queries::users::get_user_by_username(&pool, "admin")
+            .await
+            .unwrap()
+            .unwrap();
+        let a1 = signed_in(&store, admin.id).await;
+        let a2 = signed_in(&store, admin.id).await;
+        let bob = signed_in(&store, admin.id + 1).await;
+
+        let outcome = reset_password(&pool, "admin", "a-brand-new-password", true)
+            .await
+            .unwrap();
+        assert_eq!(outcome.sessions_ended, 2);
+        let after = queries::users::get_user(&pool, admin.id)
+            .await
+            .unwrap()
+            .unwrap();
+        assert!(
+            queries::users::verify_password("a-brand-new-password", &after.password_hash).unwrap()
+        );
+        assert!(
+            !queries::users::verify_password("old-password-123", &after.password_hash).unwrap()
+        );
+        assert!(store.load(&a1).await.unwrap().is_none());
+        assert!(store.load(&a2).await.unwrap().is_none());
+        assert!(
+            store.load(&bob).await.unwrap().is_some(),
+            "another account stays signed in"
+        );
+
+        let audit = queries::audit::list(&pool, 10, None).await.unwrap();
+        assert_eq!(audit[0].action, "user.password_reset");
+        assert_eq!(audit[0].target_id, Some(admin.id));
+    }
+
+    #[tokio::test]
+    async fn reset_refuses_an_unknown_account_and_a_short_password() {
+        let (pool, store) = database().await;
+        let s = signed_in(&store, 1).await;
+        assert!(
+            reset_password(&pool, "nobody", "a-brand-new-password", true)
+                .await
+                .is_err()
+        );
+        assert!(reset_password(&pool, "admin", "short", true).await.is_err());
+        assert!(
+            store.load(&s).await.unwrap().is_some(),
+            "nothing ended on a refusal"
+        );
+        let kept = reset_password(&pool, "admin", "a-brand-new-password", false)
+            .await
+            .unwrap();
+        assert_eq!(kept.sessions_ended, 0);
+        assert!(store.load(&s).await.unwrap().is_some());
+    }
+
+    #[test]
+    fn generated_passwords_are_long_and_differ() {
+        let a = generate_password();
+        assert_eq!(a.chars().count(), 24);
+        assert_ne!(a, generate_password());
+        assert!(a.chars().all(|c| c.is_ascii_alphanumeric()));
     }
 }

@@ -29,7 +29,10 @@ other web pages the operator visits (see CSWSH below).
   Passwords must be at least 12 characters. Failed logins are limited to 10 per 15 minutes
   per client address and per username (429 with `Retry-After`). Accounts are managed under
   Settings → Users (`/api/v1/users`); a password change requires the current password. Every
-  account is an administrator, so put the UI behind the edge passkey login as well.
+  account is an administrator, so put the UI behind the edge passkey login as well. Lockout
+  recovery is `svrctl reset-password <user>` on the host (it opens the database directly, so
+  it needs `docker exec`, never the network): it ends that account's sessions and app tokens
+  and is audited as `user.password_reset`.
 - **Sessions** — tower-sessions, SQLite store, `HttpOnly`, `Secure` unless
   `SESSION_SECURE=false`, `SameSite=Strict` by default; `SameSite=None` only when
   `ALLOWED_ORIGINS` is set for the native clients. Expiry: 24 h of inactivity. Logout flushes

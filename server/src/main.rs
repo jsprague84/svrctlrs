@@ -29,7 +29,7 @@ async fn main() -> anyhow::Result<()> {
     use tower_http::set_header::SetResponseHeaderLayer;
     use tower_sessions::{ExpiredDeletion, SessionManagerLayer};
     use tower_sessions_sqlx_store::SqliteStore;
-    use tracing::info;
+    use tracing::{info, warn};
 
     /// SvrCtlRS Server
     #[derive(Parser, Debug)]
@@ -111,22 +111,31 @@ async fn main() -> anyhow::Result<()> {
         deletion_task_store.continuously_delete_expired(tokio::time::Duration::from_secs(300)),
     );
 
-    // Seed initial admin user if ADMIN_USERNAME and ADMIN_PASSWORD are set and no users exist
+    // Seed the first account from ADMIN_PASSWORD (and ADMIN_USERNAME, default "admin") when no
+    // users exist. Without a password there is nobody to sign in as, so say so.
     {
         use svrctlrs_database::queries::users;
 
         let user_count = users::count_users(database.pool()).await?;
         if user_count == 0 {
-            if let (Ok(admin_username), Ok(admin_password)) = (
-                std::env::var("ADMIN_USERNAME"),
-                std::env::var("ADMIN_PASSWORD"),
-            ) {
-                let input = svrctlrs_database::models::CreateUser {
-                    username: admin_username.clone(),
-                    password: admin_password,
-                };
-                users::create_user(database.pool(), &input).await?;
-                info!(username = %admin_username, "Created initial admin user from environment variables");
+            match std::env::var("ADMIN_PASSWORD") {
+                Ok(admin_password) if !admin_password.is_empty() => {
+                    let admin_username = std::env::var("ADMIN_USERNAME")
+                        .ok()
+                        .map(|u| u.trim().to_string())
+                        .filter(|u| !u.is_empty())
+                        .unwrap_or_else(|| "admin".to_string());
+                    let input = svrctlrs_database::models::CreateUser {
+                        username: admin_username.clone(),
+                        password: admin_password,
+                    };
+                    users::create_user(database.pool(), &input).await?;
+                    info!(username = %admin_username, "Created initial admin user from environment variables");
+                }
+                _ => warn!(
+                    "No users exist and ADMIN_PASSWORD is not set: nobody can sign in until it is \
+                     set and the server restarted"
+                ),
             }
         }
     }

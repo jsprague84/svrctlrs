@@ -18,14 +18,14 @@ nix shell nixpkgs#cargo nixpkgs#rustc nixpkgs#clippy nixpkgs#rustfmt nixpkgs#pkg
 
 ```bash
 # terminal 1 — server on :8080 (plain http, so disable the Secure cookie flag)
-SESSION_SECURE=false ADMIN_PASSWORD=dev ENCRYPTION_KEY=$(openssl rand -hex 32) \
+SESSION_SECURE=false ADMIN_PASSWORD=dev-password-1 ENCRYPTION_KEY=$(openssl rand -hex 32) \
   DATABASE_URL=sqlite:data/svrctlrs.db cargo run --package server
 
 # terminal 2 — SPA with HMR; /api and /ws are proxied to :8080
 cd ui && npm ci && npm run dev
 ```
 
-Open http://localhost:5173 and log in as `admin`/`dev`. To test the server-served SPA instead,
+Open http://localhost:5173 and log in as `admin`/`dev-password-1`. To test the server-served SPA instead,
 `npm run build` and start the server with `SPA_DIR=ui/build`.
 
 Desktop app against the dev server: `cd ui && npm run tauri:dev`. Android:
@@ -141,7 +141,7 @@ repository Settings → Mirror settings, or `GET /api/v1/repos/jsprague/svrctlrs
 | Workflow | Trigger | Runner | Does |
 |---|---|---|---|
 | `ci.yaml` | every branch, tags, PRs to master | `rust-high` | fmt, clippy, cargo-audit, tests, svelte-check, eslint + prettier, vitest, SPA build, npm audit |
-| `docker.yaml` | `master`, `v*`, manual | `build` | builds the image with buildx, pushes `latest`/`sha`/`vX.Y.Z` to the Forgejo registry; on tags creates the release; on `master` waits for the commit's CI push run to be green (a PR run on the same commit does not count) and deploys to docker-vm |
+| `docker.yaml` | `master`, `v*`, manual | `build` | builds the image with buildx for `linux/amd64` and `linux/arm64` (cross-compiled on the amd64 runner: every `RUN` happens on `$BUILDPLATFORM`, the runtime stage only copies, so no QEMU), pushes `latest`/`sha`/`vX.Y.Z` to the Forgejo registry; on tags creates the release; on `master` waits for the commit's CI push run to be green (a PR run on the same commit does not count) and deploys to docker-vm |
 | `desktop.yaml` | `v*`, manual | `rust-high` | `.deb`/`.rpm` (gate) and AppImage (best effort), attached to the release |
 | `workflows-parked/android.yaml` | — | `android` | parked 2026-10-10 (the Android app is unused; the installable web app replaces it). Move it back to `workflows/` and run `tauri android init` for the `cc.jsnode.svrctlrs` identifier to revive it |
 

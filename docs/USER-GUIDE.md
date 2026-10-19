@@ -103,7 +103,8 @@ for 180 days.
 Settings → Users lists the accounts, lets you add one (username plus a password of at least
 12 characters) or delete one (not your own, not the last), and holds **Your password** for
 changing yours — the current password is required. Every account can open a shell on every
-configured server and manage accounts; there are no roles yet.
+configured server and manage accounts; there are no roles yet. Locked out? Whoever runs the
+server can set a new password with `svrctl reset-password` (DEPLOYMENT.md, "Locked out").
 
 ## The terminal
 

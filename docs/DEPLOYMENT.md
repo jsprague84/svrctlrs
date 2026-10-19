@@ -1,15 +1,20 @@
 # Deployment
 
 SvrCtlRS ships as one container image, `git.js-node.cc/jsprague/svrctlrs`, built by CI from
-`master` (tags `latest`, `<sha7>`, `<sha>`) and from release tags (`vX.Y.Z`). The container
+`master` (tags `latest`, `<sha7>`, `<sha>`) and from release tags (`vX.Y.Z`), for `linux/amd64`
+and `linux/arm64` (a Raspberry Pi 4 or 5 on a 64-bit OS, other ARM servers); Docker pulls the
+right one. The container
 runs as uid 1000, listens on 8080, stores everything under `/app/data`, and reports health
 through `/app/svrctl health` (which calls `GET /api/v1/health`).
 
 ## Compose
 
 `docker-compose.yml` in the repository is the reference. It expects a Traefik edge with an
-external `proxy` network (the dev-space edge standard); for a standalone host delete the
-`labels:` block and publish the port instead.
+external `proxy` network (the dev-space edge standard). For a host of its own use
+`docker-compose.standalone.yml` instead: no labels, no external network, port 8080 published
+on `127.0.0.1` for a reverse proxy on the same host (`SVRCTLRS_BIND=8080` in `.env` exposes it
+on every interface; on plain HTTP set `SESSION_SECURE=false` as well, or the browser drops the
+session cookie). Put TLS in front before it faces the internet.
 
 ```bash
 mkdir -p ~/docker-compose/svrctlrs && cd ~/docker-compose/svrctlrs
@@ -19,6 +24,9 @@ chmod 600 .env && $EDITOR .env
 docker compose up -d
 docker compose logs -f svrctlrs
 ```
+
+Standalone: fetch `docker-compose.standalone.yml` as `docker-compose.yml` in the second line;
+the rest is the same.
 
 ## Environment
 
@@ -41,6 +49,7 @@ docker compose logs -f svrctlrs
 | `TAG` | compose only | `latest` | image tag; the deploy script writes the deployed commit's short SHA here |
 | `SSH_KEY_PATH` | compose only | `./ssh` | host directory mounted read-only at `/home/svrctlrs/.ssh` for key-path credentials. Use a dedicated directory, not your own `~/.ssh`. |
 | `SVRCTLRS_HOST` | compose only | `svrctlrs.js-node.app` | Traefik host rule |
+| `SVRCTLRS_BIND` | standalone compose only | `127.0.0.1:8080` | host address and port published for the container's 8080 |
 
 The server also accepts `--addr` (default `0.0.0.0:8080`). Servers and credentials live in
 the database and are managed from the UI or API; there is no configuration file.
@@ -114,6 +123,23 @@ command="/home/ubuntu/docker-compose/svrctlrs/deploy.sh",no-port-forwarding,no-a
 The job's `known_hosts` pins docker-vm's ed25519 host key; update it in the workflow if the
 host is reinstalled. When the secret is missing the job logs a notice and exits 0, so an image
 still publishes.
+
+## Locked out
+
+If nobody can sign in (a forgotten password, the only account's password changed by someone
+else), set a new one from the host, next to the database:
+
+```bash
+docker exec -it svrctlrs /app/svrctl reset-password admin           # asks twice, no echo
+docker exec svrctlrs /app/svrctl reset-password admin --generate    # prints a new one
+echo "$NEW" | docker exec -i svrctlrs /app/svrctl reset-password admin --password-stdin
+```
+
+It needs no running server and no credentials: whoever can `docker exec` into the container
+already owns the data. The account is signed out everywhere (its browser sessions and app
+tokens end; other accounts are untouched; `--keep-sessions` skips that), and the audit log
+records `user.password_reset`. The 12-character minimum still applies. Outside a container,
+pass `--database-url sqlite:/path/to/svrctlrs.db`.
 
 ## Health and troubleshooting
 

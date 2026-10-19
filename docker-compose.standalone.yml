@@ -1,0 +1,46 @@
+# SvrCtlRS on a host of its own: no Traefik, no edge network, the port published directly.
+#
+#   curl -fsSL https://git.js-node.cc/jsprague/svrctlrs/raw/branch/master/docker-compose.standalone.yml -o docker-compose.yml
+#   curl -fsSL https://git.js-node.cc/jsprague/svrctlrs/raw/branch/master/.env.example -o .env
+#   chmod 600 .env && $EDITOR .env      # ADMIN_PASSWORD and ENCRYPTION_KEY at least
+#   docker compose up -d
+#
+# Put TLS in front of it (Caddy, nginx, a tunnel) before it is reachable from the internet:
+# every account can open a shell on every configured server. On a trusted LAN over plain
+# HTTP, set SESSION_SECURE=false in .env or the browser will not keep the session cookie.
+# docs/DEPLOYMENT.md has every variable; docker-compose.yml is the Traefik variant.
+services:
+  svrctlrs:
+    image: git.js-node.cc/jsprague/svrctlrs:${TAG:-latest}
+    container_name: svrctlrs
+    restart: ${RESTART_POLICY:-unless-stopped}
+    user: "1000:1000"
+    ports:
+      # Bound to localhost by default: a reverse proxy on this host reaches it, nothing else.
+      # Use "8080:8080" to expose it on every interface (a LAN, or a proxy on another host).
+      - "${SVRCTLRS_BIND:-127.0.0.1:8080}:8080"
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/svrctlrs.db}
+      - SPA_DIR=/app/ui/build
+      - SESSION_SECURE=${SESSION_SECURE:-true}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env (64 hex chars for AES-256-GCM)}
+      # Origins of non-browser clients (Tauri desktop/Android). Leave empty for browser-only use.
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+    volumes:
+      - svrctlrs-data:/app/data
+      # Optional: SSH keys the server may use for key-path credentials. Mount a dedicated
+      # directory, not your whole ~/.ssh.
+      - ${SSH_KEY_PATH:-./ssh}:/home/svrctlrs/.ssh:ro
+    healthcheck:
+      test: ["CMD", "/app/svrctl", "health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  svrctlrs-data:
+    driver: local

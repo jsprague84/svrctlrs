@@ -44,21 +44,23 @@ file.
 
 ```bash
 mkdir -p ~/docker-compose/svrctlrs && cd ~/docker-compose/svrctlrs
-curl -fsSLO https://git.js-node.cc/jsprague/svrctlrs/raw/branch/master/docker-compose.yml
-curl -fsSL  https://git.js-node.cc/jsprague/svrctlrs/raw/branch/master/.env.example -o .env
+curl -fsSL https://git.js-node.cc/jsprague/svrctlrs/raw/branch/master/docker-compose.standalone.yml -o docker-compose.yml
+curl -fsSL https://git.js-node.cc/jsprague/svrctlrs/raw/branch/master/.env.example -o .env
 chmod 600 .env
 # Edit .env: set ADMIN_PASSWORD and ENCRYPTION_KEY (openssl rand -hex 32)
 docker compose up -d
 ```
 
-The compose file is written for a Traefik edge with a `proxy` network; for a plain host, remove
-the `labels:` and add `ports: ["8080:8080"]`. The first start creates the admin user from
+That serves `http://127.0.0.1:8080` for a reverse proxy (TLS) on the same host; set
+`SVRCTLRS_BIND=8080` to expose it on the LAN, with `SESSION_SECURE=false` on plain HTTP.
+Behind a Traefik edge with a `proxy` network, use `docker-compose.yml` instead. Locked out:
+`docker exec -it svrctlrs /app/svrctl reset-password admin`. The first start creates the admin user from
 `ADMIN_USERNAME`/`ADMIN_PASSWORD`. Full instructions, including the reverse-proxy and
 cross-origin settings the desktop and Android apps need, are in
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-Images are published to `git.js-node.cc/jsprague/svrctlrs` with tags `latest`, `vX.Y.Z` and
-the commit SHA.
+Images are published to `git.js-node.cc/jsprague/svrctlrs` for `linux/amd64` and
+`linux/arm64` (Raspberry Pi 4/5 on a 64-bit OS) with tags `latest`, `vX.Y.Z` and the commit SHA.
 
 ## Desktop app
 
@@ -79,6 +81,7 @@ the deployment guide). On a phone, use the web app in the browser.
 | [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Building, testing, CI/CD, releasing |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | Gaps and planned improvements, prioritized |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | Reporting bugs, proposing changes, what a pull request needs |
 
 ## Development
 

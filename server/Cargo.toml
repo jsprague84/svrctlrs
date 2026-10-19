@@ -64,6 +64,8 @@ tempfile = "3.23.0"
 # One-time WebSocket tickets (random bytes, base64url)
 rand = "0.8"
 base64 = "0.22"
+# `svrctl reset-password`: read the new password without echoing it
+rpassword = "7"
 # OpenSSH-style SHA256 host key fingerprints
 sha2 = "0.10"
 russh-sftp = { workspace = true, optional = true }
