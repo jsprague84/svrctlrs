@@ -83,8 +83,10 @@ users), and keep the login limiter's state in the database so a restart does not
    makes three fail. The e2e against hermes stays for OpenSSH, SFTP and the WebSocket.
 10. **Session recording.** Opt-in per server; output frames from the existing ring written as
    asciicast v2 under the user's id, retention setting, download, and an in-app player.
-   Output only, never input. Scoped per user from day one. Measure WebSocket backpressure
-   under a large `cat` first and fix only if the send buffer grows.
+   Output only, never input. Scoped per user from day one. Backpressure measured 2026-10-19
+   (`scripts/dev/run-e2e.sh backpressure`): the send side does not grow (a client that stops
+   reading during a 200 MiB burst costs the server about 15 MB; the PTY driver never waits),
+   so no flow control; a client that fell behind the ring was left blank and is now redrawn.
 11. **Predictive local echo** for lossy phone links: typed printable characters shown at once
     in a provisional style and reconciled against the server's echo (sshx does this well).
     Needs the pane split first.

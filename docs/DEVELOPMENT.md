@@ -83,6 +83,14 @@ pane's transport (`ui/src/lib/terminal/`). It is what the loopback tests cannot 
 OpenSSH `sshd`, SFTP, the WebSocket protocol in both frame formats, and the session API. CI
 cannot run it (no SSH target); say in the commit that it passed.
 
+`scripts/dev/run-e2e.sh backpressure` runs `scripts/dev/backpressure-check.py` instead: a
+200 MiB burst read at full speed (every byte, in order), the same burst against a client that
+stops reading for 15 s (the server's memory, read from `/proc`, must stay within 64 MB of where
+it started; output the ring no longer holds arrives as `replay_window_lost` plus a redraw),
+and Ctrl-C under `yes`. Run it after changing how output reaches sockets (`sessions.rs`'s
+`Follower`, the forwarder in `terminal_pty.rs`). `BURST_MB`, `STALL_SECS` and `LIMIT_MB` adjust
+it.
+
 `scripts/dev/pane-phone-check.py` is the same idea for the terminal pane on a phone: a Pixel 7
 emulation in Chromium with real touch events (CDP), against a throwaway server and the same
 SSH target. It goes through the first-contact dialog, typing, tap-to-move-cursor, long-press

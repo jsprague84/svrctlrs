@@ -55,7 +55,10 @@ does not pull in Tauri's GTK/WebKit dependencies.
    `Conflict` → 409, `InvalidInput` → 400, anything else a logged 500), so handlers use `?`.
 4. **The terminal WebSocket** carries a small JSON protocol (`API.md`, "WebSocket protocol");
    PTY output itself travels as binary frames (`seq` + raw bytes) so the terminal decodes the
-   stream. PTY sessions live in `sessions.rs` and outlive their sockets. Every SSH connection
+   stream. PTY sessions live in `sessions.rs` and outlive their sockets. Each socket reads a
+   session through a `Follower` (the replay ring, then live frames, the ring again when it
+   falls behind, a redraw when even the ring has moved on); the PTY driver never waits for a
+   slow client. Every SSH connection
    — the shell, the connection test, SFTP, "Authorize key" — goes through `ssh.rs`: russh,
    host key verified during the handshake (first contact recorded and refused until the user
    confirms the fingerprint, mismatch refused, fail closed), password or key

@@ -9,15 +9,23 @@
 //!
 //! Frames hold the PTY's raw bytes: a multibyte character split across two SSH reads must
 //! reach the terminal intact, which a per-chunk UTF-8 conversion cannot guarantee.
+//!
+//! Everything that consumes a session's output — each attached socket, and the recorder when
+//! the server records sessions — does so through a [`Follower`]: the ring first, then live
+//! frames, and the ring again whenever it falls behind. The PTY driver never waits for any of
+//! them, so a slow client costs only its own view (measured with
+//! `scripts/dev/backpressure-check.py`: memory stays bounded by the ring and the broadcast
+//! buffer however long a client stops reading).
 
 use std::collections::{HashMap, VecDeque};
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
 
+use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, mpsc, Mutex};
 use tokio::task::JoinHandle;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 /// What the socket side can ask the PTY driver to do.
 #[derive(Debug)]
@@ -27,24 +35,27 @@ pub enum PtyCommand {
     Close,
 }
 
-/// One numbered chunk of terminal output, as the PTY produced it.
+/// One numbered chunk of terminal output, as the PTY produced it, and when.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OutputFrame {
     pub seq: u64,
     pub data: Arc<[u8]>,
+    pub at: Instant,
 }
 
-/// What attached sockets receive.
+/// What a session broadcasts to its followers.
 #[derive(Debug, Clone)]
 pub enum SessionEvent {
     Output(OutputFrame),
+    /// A client resized the terminal.
+    Resized {
+        cols: u32,
+        rows: u32,
+        at: Instant,
+    },
     /// The shell ended (or the session was closed); the reason is shown to the user.
     Closed(Arc<str>),
 }
-
-/// A reconnecting client asked for more history than the ring still holds.
-#[derive(Debug, PartialEq, Eq)]
-pub struct WindowLost;
 
 /// Bounded FIFO of recent output, by frame count and by bytes.
 #[derive(Debug)]
@@ -89,23 +100,19 @@ impl ReplayRing {
         self.frames.front().map(|f| f.seq)
     }
 
-    /// Frames with `seq > last_seen`. `Err(WindowLost)` when `last_seen` predates the ring,
-    /// meaning the client must redraw from scratch; a `last_seen` of 0 asks for everything
-    /// that is still held and never fails.
-    pub fn replay_since(&self, last_seen: u64) -> Result<Vec<OutputFrame>, WindowLost> {
-        if last_seen != 0 {
-            match self.oldest_seq() {
-                // Ring moved past what the client saw: there is a gap we cannot fill.
-                Some(oldest) if last_seen + 1 < oldest => return Err(WindowLost),
-                _ => {}
-            }
-        }
-        Ok(self
-            .frames
+    /// Whether frames after `seq` have already been evicted: the ring moved past it, leaving a
+    /// gap nobody can fill.
+    pub fn lost_after(&self, seq: u64) -> bool {
+        self.oldest_seq().is_some_and(|oldest| oldest > seq + 1)
+    }
+
+    /// The held frames with `seq > after`, in order.
+    pub fn frames_after(&self, after: u64) -> Vec<OutputFrame> {
+        self.frames
             .iter()
-            .filter(|f| f.seq > last_seen)
+            .filter(|f| f.seq > after)
             .cloned()
-            .collect())
+            .collect()
     }
 }
 
@@ -122,17 +129,43 @@ pub struct LiveSession {
     seq: AtomicU64,
     attachments: AtomicUsize,
     detach_timer: Mutex<Option<JoinHandle<()>>>,
-    closed: AtomicBool,
+    /// Set once, when the shell ends: why.
+    closed: OnceLock<Arc<str>>,
 }
 
 impl LiveSession {
+    /// Frames the broadcast buffer holds for followers that have not read them yet; one that
+    /// falls further behind is caught up from the ring.
+    pub const BROADCAST_CAPACITY: usize = 512;
+
     pub fn new(
         user_id: i64,
         server_id: i64,
         server_name: String,
         command_tx: mpsc::Sender<PtyCommand>,
     ) -> Arc<Self> {
-        let (events, _) = broadcast::channel(512);
+        Self::with_buffers(
+            user_id,
+            server_id,
+            server_name,
+            command_tx,
+            ReplayRing::new(
+                ReplayRing::DEFAULT_MAX_FRAMES,
+                ReplayRing::DEFAULT_MAX_BYTES,
+            ),
+            Self::BROADCAST_CAPACITY,
+        )
+    }
+
+    fn with_buffers(
+        user_id: i64,
+        server_id: i64,
+        server_name: String,
+        command_tx: mpsc::Sender<PtyCommand>,
+        ring: ReplayRing,
+        broadcast_capacity: usize,
+    ) -> Arc<Self> {
+        let (events, _) = broadcast::channel(broadcast_capacity);
         Arc::new(Self {
             id: new_session_id(),
             user_id,
@@ -141,17 +174,16 @@ impl LiveSession {
             created_at: chrono::Utc::now(),
             command_tx,
             events,
-            replay: Mutex::new(ReplayRing::new(
-                ReplayRing::DEFAULT_MAX_FRAMES,
-                ReplayRing::DEFAULT_MAX_BYTES,
-            )),
+            replay: Mutex::new(ring),
             seq: AtomicU64::new(0),
             attachments: AtomicUsize::new(0),
             detach_timer: Mutex::new(None),
-            closed: AtomicBool::new(false),
+            closed: OnceLock::new(),
         })
     }
 
+    /// The raw event stream; consumers use [`LiveSession::follow`].
+    #[cfg(test)]
     pub fn subscribe(&self) -> broadcast::Receiver<SessionEvent> {
         self.events.subscribe()
     }
@@ -161,7 +193,27 @@ impl LiveSession {
     }
 
     pub fn is_closed(&self) -> bool {
-        self.closed.load(Ordering::SeqCst)
+        self.closed.get().is_some()
+    }
+
+    /// Why the shell ended, once it has.
+    pub fn close_reason(&self) -> Option<Arc<str>> {
+        self.closed.get().cloned()
+    }
+
+    /// Stream this session's output from after `after_seq` on; see [`Follower`].
+    pub fn follow(self: &Arc<Self>, after_seq: u64) -> Follower {
+        // Subscribe first: a close after this point reaches the receiver, one before it is
+        // seen by `is_closed`, and one in between is seen by both (harmless).
+        let events = self.events.subscribe();
+        Follower {
+            ended_before: self.is_closed(),
+            events,
+            live: Arc::clone(self),
+            sent: after_seq,
+            pending: VecDeque::new(),
+            done: false,
+        }
     }
 
     /// Record and broadcast a chunk of PTY output. Returns its sequence number.
@@ -170,6 +222,7 @@ impl LiveSession {
         let frame = OutputFrame {
             seq,
             data: Arc::from(bytes),
+            at: Instant::now(),
         };
         self.replay.lock().await.push(frame.clone());
         // No subscribers is fine: the ring keeps it for whoever attaches next.
@@ -182,8 +235,10 @@ impl LiveSession {
         self.push_output(text.as_bytes().to_vec()).await
     }
 
-    pub async fn replay_since(&self, last_seen: u64) -> Result<Vec<OutputFrame>, WindowLost> {
-        self.replay.lock().await.replay_since(last_seen)
+    /// Everything the ring holds.
+    #[cfg(test)]
+    pub async fn held_frames(&self) -> Vec<OutputFrame> {
+        self.replay.lock().await.frames_after(0)
     }
 
     pub async fn latest_seq(&self) -> u64 {
@@ -201,7 +256,13 @@ impl LiveSession {
         self.command_tx
             .send(PtyCommand::Resize { cols, rows })
             .await
-            .map_err(|_| "PTY is gone".to_string())
+            .map_err(|_| "PTY is gone".to_string())?;
+        let _ = self.events.send(SessionEvent::Resized {
+            cols,
+            rows,
+            at: Instant::now(),
+        });
+        Ok(())
     }
 
     /// Ask the PTY driver to end the shell. The driver then calls [`LiveSession::mark_closed`].
@@ -209,10 +270,133 @@ impl LiveSession {
         let _ = self.command_tx.send(PtyCommand::Close).await;
     }
 
-    /// The shell ended. Tells every attached socket and is idempotent.
+    /// The shell ended. Tells every follower and is idempotent: the first reason sticks.
     pub fn mark_closed(&self, reason: &str) {
-        if !self.closed.swap(true, Ordering::SeqCst) {
-            let _ = self.events.send(SessionEvent::Closed(Arc::from(reason)));
+        let reason: Arc<str> = Arc::from(reason);
+        if self.closed.set(reason.clone()).is_ok() {
+            let _ = self.events.send(SessionEvent::Closed(reason));
+        }
+    }
+}
+
+/// What a follower hands on, in order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Followed {
+    Output(OutputFrame),
+    /// The follower fell further behind than the ring reaches. What it missed is gone; the
+    /// frames that come next are everything the ring still holds, to redraw from scratch.
+    WindowLost,
+    Resized {
+        cols: u32,
+        rows: u32,
+        at: Instant,
+    },
+    /// The shell ended. Nothing follows.
+    Closed(Arc<str>),
+}
+
+/// One consumer's view of a session's output from a sequence number on: what the ring holds
+/// after it ([`Follower::catch_up`]), then live frames ([`Follower::next`]). Every frame after
+/// the starting point is handed out once, in order, or, when some are gone (the follower fell
+/// behind the broadcast buffer *and* the ring), [`Followed::WindowLost`] comes first and then
+/// everything the ring still holds. It subscribes when created, so nothing produced after
+/// [`LiveSession::follow`] returns is missed.
+pub struct Follower {
+    live: Arc<LiveSession>,
+    events: broadcast::Receiver<SessionEvent>,
+    sent: u64,
+    pending: VecDeque<Followed>,
+    /// The shell had ended before this follower subscribed, so no `Closed` will arrive
+    ended_before: bool,
+    done: bool,
+}
+
+impl Follower {
+    /// What the ring holds after the last frame handed out: the missed frames in order, or
+    /// `WindowLost` and then everything still held.
+    pub async fn catch_up(&mut self) -> Vec<Followed> {
+        let ring = self.live.replay.lock().await;
+        let lost = ring.lost_after(self.sent);
+        let frames = ring.frames_after(if lost { 0 } else { self.sent });
+        drop(ring);
+        self.hand_out(lost, frames)
+    }
+
+    /// Everything the ring holds, for a consumer that has nothing yet and wants the current
+    /// screen (a socket attaching with `last_seq` 0). Nothing was owed to it before, so unlike
+    /// [`Follower::catch_up`] this never reports a lost window.
+    pub async fn redraw(&mut self) -> Vec<Followed> {
+        let frames = self.live.replay.lock().await.frames_after(0);
+        self.hand_out(false, frames)
+    }
+
+    fn hand_out(&mut self, lost: bool, frames: Vec<OutputFrame>) -> Vec<Followed> {
+        if let Some(last) = frames.last() {
+            self.sent = last.seq;
+        }
+        lost.then_some(Followed::WindowLost)
+            .into_iter()
+            .chain(frames.into_iter().map(Followed::Output))
+            .collect()
+    }
+
+    /// The next item, waiting for the shell if need be; `None` after `Closed`.
+    pub async fn next(&mut self) -> Option<Followed> {
+        loop {
+            if let Some(item) = self.pending.pop_front() {
+                return Some(item);
+            }
+            if self.done {
+                return None;
+            }
+            if self.ended_before {
+                // Its `Closed` went to nobody; the ring holds all of its output.
+                let rest = self.catch_up().await;
+                self.pending.extend(rest);
+                let reason = self
+                    .live
+                    .close_reason()
+                    .unwrap_or_else(|| Arc::from("Session ended"));
+                self.pending.push_back(Followed::Closed(reason));
+                self.done = true;
+                continue;
+            }
+            match self.events.recv().await {
+                Ok(SessionEvent::Output(frame)) => {
+                    if frame.seq <= self.sent {
+                        continue; // already handed out from the ring
+                    }
+                    if frame.seq > self.sent + 1 {
+                        // Not lagged, yet a gap: frames pushed before this follower
+                        // subscribed and not caught up. Fill it from the ring.
+                        let items = self.catch_up().await;
+                        self.pending.extend(items);
+                        continue;
+                    }
+                    self.sent = frame.seq;
+                    return Some(Followed::Output(frame));
+                }
+                Ok(SessionEvent::Resized { cols, rows, at }) => {
+                    return Some(Followed::Resized { cols, rows, at });
+                }
+                Ok(SessionEvent::Closed(reason)) => {
+                    // Output is in the ring before it is broadcast, and the close comes last
+                    let rest = self.catch_up().await;
+                    self.pending.extend(rest);
+                    self.pending.push_back(Followed::Closed(reason));
+                    self.done = true;
+                }
+                Err(RecvError::Lagged(missed)) => {
+                    debug!(
+                        session_id = %self.live.id,
+                        missed,
+                        "Slow follower; catching up from the replay ring"
+                    );
+                    let items = self.catch_up().await;
+                    self.pending.extend(items);
+                }
+                Err(RecvError::Closed) => self.done = true,
+            }
         }
     }
 }
@@ -419,6 +603,7 @@ mod tests {
         OutputFrame {
             seq,
             data: Arc::from(s.as_bytes()),
+            at: Instant::now(),
         }
     }
 
@@ -440,26 +625,32 @@ mod tests {
     }
 
     #[test]
-    fn replay_returns_the_gap_or_reports_a_lost_window() {
+    fn the_ring_returns_what_follows_and_knows_what_it_lost() {
         let mut ring = ReplayRing::new(10, 1000);
         for i in 1..=6 {
             ring.push(frame(i, "x"));
         }
-        let got = ring.replay_since(4).unwrap();
+        let got = ring.frames_after(4);
         assert_eq!(got.iter().map(|f| f.seq).collect::<Vec<_>>(), [5, 6]);
-        assert!(ring.replay_since(6).unwrap().is_empty());
+        assert!(ring.frames_after(6).is_empty());
+        assert!(!ring.lost_after(0) && !ring.lost_after(4));
         // Everything, for a client that has nothing yet
-        assert_eq!(ring.replay_since(0).unwrap().len(), 6);
+        assert_eq!(ring.frames_after(0).len(), 6);
 
         let mut small = ReplayRing::new(2, 1000);
         for i in 1..=6 {
             small.push(frame(i, "x"));
         }
         assert_eq!(small.oldest_seq(), Some(5));
-        assert_eq!(small.replay_since(2), Err(WindowLost));
+        assert!(small.lost_after(2), "3 and 4 are gone");
         // last_seen == oldest - 1 is contiguous, so it is not a gap
-        assert_eq!(small.replay_since(4).unwrap().len(), 2);
-        assert!(small.replay_since(0).is_ok());
+        assert!(!small.lost_after(4));
+        assert_eq!(small.frames_after(4).len(), 2);
+        assert!(small.lost_after(0), "1 to 4 are gone");
+        assert!(
+            !ReplayRing::new(2, 1000).lost_after(0),
+            "an empty ring lost nothing"
+        );
     }
 
     fn session(user: i64) -> (Arc<LiveSession>, mpsc::Receiver<PtyCommand>) {
@@ -479,13 +670,123 @@ mod tests {
             SessionEvent::Output(f) => assert_eq!((f.seq, &*f.data), (1, &b"a"[..])),
             other => panic!("{other:?}"),
         }
-        let late = s.replay_since(1).await.unwrap();
+        let late = s.held_frames().await.split_off(1);
         assert_eq!(late.len(), 2);
         assert_eq!(&*late[0].data, b"b");
         assert_eq!(&*late[1].data, &[0xE2, 0x94][..]);
         s.mark_closed("done");
         s.mark_closed("twice is harmless");
         assert!(s.is_closed());
+    }
+
+    /// The sequence numbers of the output items, with `L` for a lost window
+    fn seqs(items: &[Followed]) -> String {
+        items
+            .iter()
+            .filter_map(|i| match i {
+                Followed::Output(f) => Some(f.seq.to_string()),
+                Followed::WindowLost => Some("L".into()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
+    async fn next_n(follow: &mut Follower, n: usize) -> Vec<Followed> {
+        let mut out = Vec::new();
+        for _ in 0..n {
+            let item = tokio::time::timeout(Duration::from_secs(2), follow.next())
+                .await
+                .expect("an item in time")
+                .expect("not finished");
+            out.push(item);
+        }
+        out
+    }
+
+    #[tokio::test]
+    async fn a_follower_replays_the_ring_then_follows_live_output_resizes_and_the_close() {
+        let (s, _rx) = session(1);
+        s.push_text("one").await;
+        s.push_text("two").await;
+        let mut follow = s.follow(0);
+        assert_eq!(seqs(&follow.catch_up().await), "1,2");
+
+        s.push_text("three").await;
+        s.resize(120, 40).await.unwrap();
+        s.mark_closed("Shell exited with status 0");
+        let items = next_n(&mut follow, 3).await;
+        assert_eq!(seqs(&items), "3");
+        assert!(matches!(
+            items[1],
+            Followed::Resized {
+                cols: 120,
+                rows: 40,
+                ..
+            }
+        ));
+        assert_eq!(
+            items[2],
+            Followed::Closed(Arc::from("Shell exited with status 0"))
+        );
+        assert!(follow.next().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn a_follower_of_an_ended_session_finishes_from_the_ring() {
+        let (s, _rx) = session(1);
+        for t in ["a", "b", "c"] {
+            s.push_text(t).await;
+        }
+        s.mark_closed("done");
+        // Subscribed after the close was broadcast: the ring and the stored reason finish it
+        let mut follow = s.follow(1);
+        let items = next_n(&mut follow, 3).await;
+        assert_eq!(seqs(&items), "2,3");
+        assert_eq!(items[2], Followed::Closed(Arc::from("done")));
+        assert!(follow.next().await.is_none());
+    }
+
+    fn small(
+        ring_frames: usize,
+        broadcast: usize,
+    ) -> (Arc<LiveSession>, mpsc::Receiver<PtyCommand>) {
+        let (tx, rx) = mpsc::channel(8);
+        let s = LiveSession::with_buffers(
+            1,
+            1,
+            "web".into(),
+            tx,
+            ReplayRing::new(ring_frames, 1 << 20),
+            broadcast,
+        );
+        (s, rx)
+    }
+
+    #[tokio::test]
+    async fn a_follower_that_lags_the_broadcast_is_caught_up_from_the_ring() {
+        let (s, _rx) = small(100, 2);
+        let mut follow = s.follow(0);
+        for i in 0..10 {
+            s.push_text(&i.to_string()).await;
+        }
+        // Eight of the ten fell out of the broadcast buffer; the ring still has them all
+        let items = next_n(&mut follow, 10).await;
+        assert_eq!(seqs(&items), "1,2,3,4,5,6,7,8,9,10");
+    }
+
+    #[tokio::test]
+    async fn a_follower_behind_the_ring_gets_a_lost_window_and_a_redraw() {
+        let (s, _rx) = small(3, 2);
+        let mut follow = s.follow(0);
+        for i in 0..10 {
+            s.push_text(&i.to_string()).await;
+        }
+        // 1–7 are gone everywhere; the follower is told, then gets what the ring holds
+        let items = next_n(&mut follow, 4).await;
+        assert_eq!(seqs(&items), "L,8,9,10");
+        s.push_text("live again").await;
+        assert_eq!(seqs(&next_n(&mut follow, 1).await), "11");
     }
 
     #[tokio::test]

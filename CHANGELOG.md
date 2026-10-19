@@ -40,6 +40,14 @@ the release workflow uses the matching section as the release notes.
   lines).
 
 ### Fixed
+- **A terminal that falls behind no longer goes blank.** When a client stops reading during a
+  large burst (a stalled phone link, a `cat` of a big file) and the server's replay ring moves
+  past what it saw, the server said so but sent nothing more, so the screen was cleared and
+  only later output appeared. It now redraws from what the ring still holds, as an attach
+  already did. Measured on the way, with `scripts/dev/run-e2e.sh backpressure`: a client that
+  stops reading costs the server a bounded amount of memory (about 15 MB with a 200 MiB burst
+  and a 15 s stall), a fast one gets every byte, and Ctrl-C under `yes` brings the prompt back
+  in a quarter of a second, so no flow control is needed.
 - **Hidden terminals no longer shrink their shell to 10×3.** A pane behind another tab, or
   every pane while the Servers or Settings page was open, fitted itself to its computed `100%`
   size read as 100 px and resized the remote PTY to about 10 columns by 3 rows. Programs in

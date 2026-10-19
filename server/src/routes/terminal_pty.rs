@@ -20,7 +20,7 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, info, warn};
 
 use crate::routes::ui::auth::CurrentUser;
-use crate::sessions::{LiveSession, OutputFrame, PtyCommand, SessionEvent};
+use crate::sessions::{Followed, LiveSession, OutputFrame, PtyCommand};
 use crate::ssh::ConnectError;
 use crate::state::AppState;
 use svrctlrs_database::models::NewAuditEntry;
@@ -386,9 +386,10 @@ async fn send_output(sender: &WsSender, frame: &OutputFrame, binary: bool) -> bo
     .await
 }
 
-/// Stream a session's output to one socket: first everything after `last_seq` from the replay
-/// ring, then live frames. A lagging subscriber is caught up from the ring instead of silently
-/// losing frames; a client too far behind the ring is told to redraw from scratch.
+/// Stream a session's output to one socket: everything after `last_seq` from the replay ring
+/// (between `replay_start` and `replay_end`), then live frames. A socket that falls behind is
+/// caught up from the ring; one too far behind for the ring gets `replay_window_lost` and a
+/// redraw from what the ring still holds, whether that happens on attach or later.
 fn spawn_forwarder(
     live: Arc<LiveSession>,
     last_seq: u64,
@@ -396,78 +397,42 @@ fn spawn_forwarder(
     binary: bool,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let mut events = live.subscribe();
-        let mut sent = last_seq;
-
+        let mut follow = live.follow(last_seq);
         if last_seq > 0 || live.latest_seq().await > 0 {
             send(&sender, PtyResponse::plain("replay_start", "")).await;
-            match live.replay_since(last_seq).await {
-                Ok(frames) => {
-                    for f in frames {
-                        if !send_output(&sender, &f, binary).await {
-                            return;
-                        }
-                        sent = f.seq;
-                    }
-                }
-                Err(_) => {
-                    // Redraw from what the ring still has.
-                    send(&sender, PtyResponse::plain("replay_window_lost", "")).await;
-                    if let Ok(frames) = live.replay_since(0).await {
-                        for f in frames {
-                            if !send_output(&sender, &f, binary).await {
-                                return;
-                            }
-                            sent = f.seq;
-                        }
-                    }
+            // A client with nothing on screen wants the screen; one that has seen frames wants
+            // exactly the rest, or to hear that some are gone.
+            let items = if last_seq == 0 {
+                follow.redraw().await
+            } else {
+                follow.catch_up().await
+            };
+            for item in items {
+                if !forward(&sender, item, binary).await {
+                    return;
                 }
             }
             send(&sender, PtyResponse::plain("replay_end", "")).await;
         }
-        if live.is_closed() {
-            send(&sender, PtyResponse::plain("closed", "Session ended")).await;
-            return;
-        }
-
-        loop {
-            match events.recv().await {
-                Ok(SessionEvent::Output(f)) => {
-                    if f.seq <= sent {
-                        continue; // already replayed
-                    }
-                    if !send_output(&sender, &f, binary).await {
-                        return;
-                    }
-                    sent = f.seq;
-                }
-                Ok(SessionEvent::Closed(reason)) => {
-                    send(&sender, PtyResponse::plain("closed", reason.to_string())).await;
-                    return;
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                    debug!(
-                        lagged = n,
-                        "Slow PTY client; catching up from the replay ring"
-                    );
-                    match live.replay_since(sent).await {
-                        Ok(frames) => {
-                            for f in frames {
-                                if !send_output(&sender, &f, binary).await {
-                                    return;
-                                }
-                                sent = f.seq;
-                            }
-                        }
-                        Err(_) => {
-                            send(&sender, PtyResponse::plain("replay_window_lost", "")).await;
-                        }
-                    }
-                }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
+        while let Some(item) = follow.next().await {
+            if !forward(&sender, item, binary).await {
+                return;
             }
         }
     })
+}
+
+/// Hand one followed item to the socket. `false` when the socket is gone or the session ended.
+async fn forward(sender: &WsSender, item: Followed, binary: bool) -> bool {
+    match item {
+        Followed::Output(frame) => send_output(sender, &frame, binary).await,
+        Followed::WindowLost => send(sender, PtyResponse::plain("replay_window_lost", "")).await,
+        Followed::Resized { .. } => true,
+        Followed::Closed(reason) => {
+            send(sender, PtyResponse::plain("closed", reason.to_string())).await;
+            false
+        }
+    }
 }
 
 /// Start an interactive PTY session: connect through the shared SSH client, open a shell
@@ -641,7 +606,7 @@ pub(crate) fn spawn_pty_driver(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sessions::SessionRegistry;
+    use crate::sessions::{SessionEvent, SessionRegistry};
     use crate::test_support::ssh_server::{Event, Options, TestSshServer};
     use crate::test_support::{add_credential, add_server, database, trust_recorded_keys};
     use std::time::Duration;
@@ -679,7 +644,7 @@ mod tests {
 
     /// Everything the session printed so far, as text
     async fn screen(live: &LiveSession) -> String {
-        let frames = live.replay_since(0).await.unwrap();
+        let frames = live.held_frames().await;
         frames
             .iter()
             .map(|f| String::from_utf8_lossy(&f.data).into_owned())
@@ -776,7 +741,7 @@ mod tests {
         );
 
         // Output is numbered in order, so a reconnect can ask for what it missed
-        let frames = run.live.replay_since(0).await.unwrap();
+        let frames = run.live.held_frames().await;
         assert!(frames.windows(2).all(|w| w[1].seq == w[0].seq + 1));
 
         run.live.send_input(b"exit 3\n").await.unwrap();

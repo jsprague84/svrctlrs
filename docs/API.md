@@ -233,7 +233,7 @@ Server → client:
 | `connected` | `session_id`, `data` | the shell is up (`shell`) or reattached (`attach`) |
 | `output` | `seq`, `data` | terminal output; `seq` increases by one per frame. Only for clients that did not send `binary: true` (see below) |
 | `replay_start` / `replay_end` | — | brackets the frames resent after an `attach` |
-| `replay_window_lost` | — | the client was further behind than the ring holds; redraw from scratch, the whole ring follows |
+| `replay_window_lost` | — | the client was further behind than the ring holds, on attach or later (it stopped reading during a burst); redraw from scratch, the whole ring follows |
 | `closed` | `data` | the shell ended (exit, `close`, TTL expiry, server shutdown); the socket stays open but the session is gone |
 | `error` | `data`, `code?` | `code: "session_gone"` — the id is unknown or expired, send `shell`; `code: "quota"` — too many sessions |
 | `pong` | — | — |

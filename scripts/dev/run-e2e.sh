@@ -6,6 +6,7 @@
 #
 #   E2E_SSH_HOST=10.0.0.5 E2E_SSH_USER=ubuntu E2E_SSH_KEY=~/.ssh/id_ed25519 scripts/dev/run-e2e.sh
 #   scripts/dev/run-e2e.sh binary      # only the binary-frame pass
+#   scripts/dev/run-e2e.sh backpressure  # burst/stall/Ctrl-C memory check (backpressure-check.py)
 set -u
 cd "$(dirname "$0")/../.."
 : "${E2E_SSH_HOST:?set E2E_SSH_HOST to a host the key can log in to}"
@@ -21,6 +22,11 @@ target/debug/server --addr 127.0.0.1:18080 > "$WORK/server.log" 2>&1 &
 SPID=$!
 for _ in $(seq 1 40); do curl -sf http://127.0.0.1:18080/api/v1/health >/dev/null && break; sleep 0.5; done
 kill -0 "$SPID" 2>/dev/null || { echo "server died:"; tail -20 "$WORK/server.log"; exit 1; }
+
+if [ "${1:-both}" = backpressure ]; then
+  SERVER_PID=$SPID $PYTHON scripts/dev/backpressure-check.py
+  exit $?
+fi
 
 status=0
 if [ "${1:-both}" != legacy ]; then
