@@ -127,7 +127,7 @@ server's message. Audit actions: `files.download`, `files.upload` (`bytes`), `fi
 |---|---|---|
 | GET | `/credentials` | — (no secrets: `has_value`, `has_passphrase`, plus `key_source` (`key` \| `path`, SSH keys only), `fingerprint` (`SHA256:…` for keys with material), `in_use`, `used_by` (server names)) |
 | POST | `/credentials` | `name`, `credential_type` (`password` \| `ssh_key` \| `api_token`), `value`, `description?`, `username?`, `passphrase?` |
-| GET | `/credentials/{id}` | `has_value`, `has_passphrase`, `in_use`, and for keys with material `public_key` (the `authorized_keys` line) — never the secrets |
+| GET | `/credentials/{id}` | `has_value`, `has_passphrase`, `in_use`, `key_source` and `fingerprint` as in the list, and for keys with material `public_key` (the `authorized_keys` line) — never the secrets |
 | PUT | `/credentials/{id}` | `name?`, `description?` (`""` clears), `value?`, `username?` (`""` clears), `passphrase?` (omit to keep, `""` to remove) |
 | DELETE | `/credentials/{id}` | — |
 | POST | `/credentials/generate-key` | `name`, `description?`, `comment?` → 201 `{id, public_key}`; an ed25519 key stored encrypted as an `ssh_key` credential |

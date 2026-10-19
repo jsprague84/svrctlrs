@@ -104,6 +104,36 @@ pub fn public_key_of(cred: &Credential) -> Option<String> {
     key.public_key().to_openssh().ok()
 }
 
+/// What the credential list shows about an SSH key instead of its value.
+#[derive(Debug, PartialEq, Eq)]
+pub struct KeySummary {
+    /// `key`: pasted or generated material stored in the database; `path`: a file on the server
+    pub source: &'static str,
+    pub has_passphrase: bool,
+    /// `SHA256:…` of the public half; `None` for a path or material that does not decode
+    pub fingerprint: Option<String>,
+}
+
+/// Summary of an `ssh_key` credential. It needs the decrypted credential: the list query
+/// redacts `value` and `metadata` in SQL, and a redacted value looks like neither a key nor a
+/// readable path. `None` for other credential types.
+pub fn key_summary(cred: &Credential) -> Option<KeySummary> {
+    if !cred.is_ssh_key() {
+        return None;
+    }
+    Some(KeySummary {
+        source: if cred.value_is_key_material() {
+            "key"
+        } else {
+            "path"
+        },
+        has_passphrase: cred.passphrase().is_some(),
+        fingerprint: public_key_of(cred)
+            .as_deref()
+            .map(crate::host_keys::fingerprint),
+    })
+}
+
 /// The server's own default keys (`~/.ssh/id_*`), used when a server has no credential.
 pub async fn default_keys() -> Vec<KeyCandidate> {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
@@ -161,6 +191,42 @@ mod tests {
             g.public_openssh
         );
         assert_eq!(public_key_of(&cred("/some/path", None)), None);
+    }
+
+    #[test]
+    fn key_summary_describes_material_paths_and_passphrases() {
+        let g = generate_ed25519("svrctlrs test").unwrap();
+        let s = key_summary(&cred(&g.private_openssh, None)).unwrap();
+        assert_eq!(s.source, "key");
+        assert!(!s.has_passphrase);
+        assert_eq!(
+            s.fingerprint.as_deref(),
+            Some(crate::host_keys::fingerprint(&g.public_openssh).as_str())
+        );
+        assert!(s.fingerprint.unwrap().starts_with("SHA256:"));
+
+        let s = key_summary(&cred(
+            "/home/svrctlrs/.ssh/id_ed25519",
+            Some(r#"{"passphrase":"pw"}"#),
+        ))
+        .unwrap();
+        assert_eq!(
+            s,
+            KeySummary {
+                source: "path",
+                has_passphrase: true,
+                fingerprint: None
+            }
+        );
+
+        // What the list query returns before decryption: must not be taken for a path
+        // that someone typed, which is why the list reads the decrypted row.
+        let redacted = cred("[REDACTED]", Some(r#"{"redacted":true}"#));
+        assert_eq!(key_summary(&redacted).unwrap().source, "path");
+
+        let mut password = cred("hunter2", None);
+        password.credential_type_str = "password".to_string();
+        assert_eq!(key_summary(&password), None);
     }
 
     #[tokio::test]

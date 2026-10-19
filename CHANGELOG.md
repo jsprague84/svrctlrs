@@ -21,6 +21,11 @@ the release workflow uses the matching section as the release notes.
   when shown.
 - The new shell started after "previous session has ended" asks for binary output frames like
   every other shell, so a multibyte character split across two SSH reads stays intact.
+- **The Credentials page described every SSH key as a file path**, with no fingerprint and no
+  passphrase marker: the list query redacts values in SQL, and the key's kind was then read
+  from the redacted text. The list now reads each key's decrypted row on the server (the
+  values still never leave it), and `GET /credentials/{id}` reports `key_source` and
+  `fingerprint` too.
 
 ## [3.1.0] - 2026-10-18
 

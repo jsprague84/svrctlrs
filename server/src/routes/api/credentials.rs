@@ -15,7 +15,7 @@ use svrctlrs_database::{
     models::{CreateCredential, UpdateCredential},
     queries::credentials,
 };
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 use super::ApiError;
 use crate::routes::ui::auth::{client_ip, CurrentUser};
@@ -47,40 +47,42 @@ async fn list_credentials(State(state): State<AppState>) -> Result<impl IntoResp
         .await
         .unwrap_or_default();
 
-    // Redact credential values for security; derive what the page can show instead
-    let redacted: Vec<_> = creds
-        .into_iter()
-        .map(|c| {
-            let used_by: Vec<&str> = servers
-                .iter()
-                .filter(|s| s.credential_id == Some(c.id))
-                .map(|s| s.name.as_str())
-                .collect();
-            let public_key = crate::ssh_keys::public_key_of(&c);
-            let key_source = if !c.is_ssh_key() {
-                None
-            } else if c.value_is_key_material() {
-                Some("key")
-            } else {
-                Some("path")
-            };
-            json!({
-                "id": c.id,
-                "name": c.name,
-                "credential_type": c.credential_type_str,
-                "description": c.description,
-                "username": c.username,
-                "has_value": !c.value.is_empty(),
-                "has_passphrase": c.passphrase().is_some(),
-                "key_source": key_source,
-                "fingerprint": public_key.as_deref().map(crate::host_keys::fingerprint),
-                "in_use": !used_by.is_empty(),
-                "used_by": used_by,
-                "created_at": c.created_at,
-                "updated_at": c.updated_at
-            })
-        })
-        .collect();
+    // Values stay redacted; derive what the page can show instead. The list query redacts in
+    // SQL, so an SSH key's source, passphrase and fingerprint come from its decrypted row.
+    let mut redacted = Vec::with_capacity(creds.len());
+    for c in creds {
+        let used_by: Vec<&str> = servers
+            .iter()
+            .filter(|s| s.credential_id == Some(c.id))
+            .map(|s| s.name.as_str())
+            .collect();
+        let summary = if c.is_ssh_key() {
+            match credentials::get_credential(&state.pool, c.id).await {
+                Ok(full) => crate::ssh_keys::key_summary(&full),
+                Err(e) => {
+                    warn!(credential_id = c.id, error = %e, "Could not read SSH key for the list");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        redacted.push(json!({
+            "id": c.id,
+            "name": c.name,
+            "credential_type": c.credential_type_str,
+            "description": c.description,
+            "username": c.username,
+            "has_value": !c.value.is_empty(),
+            "has_passphrase": summary.as_ref().is_some_and(|s| s.has_passphrase),
+            "key_source": summary.as_ref().map(|s| s.source),
+            "fingerprint": summary.and_then(|s| s.fingerprint),
+            "in_use": !used_by.is_empty(),
+            "used_by": used_by,
+            "created_at": c.created_at,
+            "updated_at": c.updated_at
+        }));
+    }
 
     Ok(Json(json!({
         "credentials": redacted
@@ -99,6 +101,7 @@ async fn get_credential(
 
     // Check if in use
     let in_use = credentials::credential_in_use(&state.pool, id).await?;
+    let summary = crate::ssh_keys::key_summary(&cred);
 
     Ok(Json(json!({
         "id": cred.id,
@@ -108,6 +111,8 @@ async fn get_credential(
         "username": cred.username,
         "has_value": !cred.value.is_empty(),
         "has_passphrase": cred.passphrase().is_some(),
+        "key_source": summary.as_ref().map(|s| s.source),
+        "fingerprint": summary.and_then(|s| s.fingerprint),
         "public_key": crate::ssh_keys::public_key_of(&cred),
         "in_use": in_use,
         "created_at": cred.created_at,
