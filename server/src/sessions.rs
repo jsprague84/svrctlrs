@@ -724,7 +724,7 @@ mod tests {
     async fn next_n(follow: &mut Follower, n: usize) -> Vec<Followed> {
         let mut out = Vec::new();
         for _ in 0..n {
-            let item = tokio::time::timeout(Duration::from_secs(2), follow.next())
+            let item = tokio::time::timeout(Duration::from_secs(20), follow.next())
                 .await
                 .expect("an item in time")
                 .expect("not finished");

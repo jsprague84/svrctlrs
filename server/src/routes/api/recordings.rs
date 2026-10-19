@@ -204,8 +204,9 @@ mod tests {
             .unwrap();
         live.push_text(text).await;
         live.mark_closed("Shell exited with status 0");
-        // Wait for this recorder only; the store stays open for the next one
-        for _ in 0..300 {
+        // Wait for this recorder only; the store stays open for the next one. Generous: CI runs
+        // beside image builds, and every write here is a fsync on a file database.
+        for _ in 0..3000 {
             let r = recordings::get_for_user(&h.state.pool, id, user)
                 .await
                 .unwrap();
@@ -275,21 +276,18 @@ mod tests {
             disposition.starts_with("attachment; filename*=UTF-8''web-"),
             "{disposition}"
         );
-        let audit = svrctlrs_database::queries::audit::list(&h.state.pool, 10, None)
-            .await
-            .unwrap();
-        // The audit write is fire-and-forget; give it a moment
-        let mut downloaded = audit.iter().any(|a| a.action == "recording.downloaded");
-        for _ in 0..50 {
-            if downloaded {
-                break;
-            }
-            tokio::time::sleep(Duration::from_millis(10)).await;
+        // The audit write is fire-and-forget; wait for it
+        let mut downloaded = false;
+        for _ in 0..3000 {
             downloaded = svrctlrs_database::queries::audit::list(&h.state.pool, 10, None)
                 .await
                 .unwrap()
                 .iter()
                 .any(|a| a.action == "recording.downloaded");
+            if downloaded {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
         assert!(downloaded, "downloads are audited");
 

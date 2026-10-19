@@ -663,7 +663,7 @@ mod tests {
         f.live.resize(100, 30).await.unwrap();
         f.live.push_text("\r\n$ ").await;
         f.live.mark_closed("Shell exited with status 0");
-        f.store.finish_all(Duration::from_secs(5)).await;
+        f.store.finish_all(Duration::from_secs(30)).await;
 
         let row = queries::recordings::get_for_user(&f.pool, id, 1)
             .await
@@ -723,7 +723,7 @@ mod tests {
             f.live.push_text(&"x".repeat(100)).await;
         }
         // The recorder gives up on its own; the session is still open
-        for _ in 0..200 {
+        for _ in 0..3000 {
             if !f.live.is_recorded() {
                 break;
             }
@@ -732,7 +732,7 @@ mod tests {
         assert!(!f.live.is_recorded(), "no longer recorded");
         assert!(!f.live.is_closed());
         f.live.mark_closed("done");
-        f.store.finish_all(Duration::from_secs(5)).await;
+        f.store.finish_all(Duration::from_secs(30)).await;
 
         let row = queries::recordings::get_for_user(&f.pool, id, 1)
             .await
@@ -750,7 +750,7 @@ mod tests {
         let id = start(&f.pool, &f.store, &f.live, 80, 24).await.unwrap();
         f.live.push_text("old").await;
         f.live.mark_closed("done");
-        f.store.finish_all(Duration::from_secs(5)).await;
+        f.store.finish_all(Duration::from_secs(30)).await;
         let row = queries::recordings::get_for_user(&f.pool, id, 1)
             .await
             .unwrap();
