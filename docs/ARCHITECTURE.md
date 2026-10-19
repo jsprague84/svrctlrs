@@ -44,10 +44,11 @@ does not pull in Tauri's GTK/WebKit dependencies.
    HTTP routes also sit behind a 30 s `TimeoutLayer`; the WebSocket and the SFTP file routes
    (`routes/api/files.rs`, streamed transfers) do not.
 2. **`require_auth`** (`server/src/routes/ui/auth.rs`) exempts `/auth/login`, `/auth/logout`,
-   `/api/v1/auth/login`, `/api/v1/health`, `/_app/*` and `OPTIONS`. Everything else needs
-   either a session cookie, or a Bearer token (the session id) with `X-User-Id`, or for
-   WebSockets `?token=&user_id=` query parameters. Unauthenticated browser requests redirect to
-   `/auth/login`; API requests get 401.
+   `/api/v1/auth/login`, `/api/v1/health`, the static app shell, `/manifest.webmanifest` and
+   `OPTIONS` (list in `SECURITY.md`). Everything else needs a session cookie, a Bearer token
+   (the session id, looked up in the session store), or on a WebSocket upgrade a one-time
+   `?ticket=`; the user always comes from the session record. Unauthenticated browser requests
+   redirect to `/auth/login`; API requests get 401.
 3. **API handlers** (`server/src/routes/api/*.rs`) validate input, call `database` queries,
    and return JSON. Errors use the `ApiError` envelope (see `API.md`): `ApiError` implements
    `IntoResponse` and converts from `svrctlrs_core::Error` by kind (`NotFound` → 404,

@@ -150,6 +150,29 @@ pub async fn last_logins(pool: &Pool<Sqlite>) -> Result<Vec<(i64, chrono::DateTi
     .map_err(Error::Database)
 }
 
+/// The servers `user_id` opened shells on most recently, newest first, as `(id, name)`.
+/// Only servers that still exist and are enabled. Feeds the installed app's home-screen
+/// shortcuts, so it is per user like everything else a user sees.
+#[instrument(skip(pool))]
+pub async fn recent_servers(
+    pool: &Pool<Sqlite>,
+    user_id: i64,
+    limit: i64,
+) -> Result<Vec<(i64, String)>> {
+    sqlx::query_as::<_, (i64, String)>(
+        "SELECT s.id, s.name FROM audit_log a JOIN servers s ON s.id = a.target_id \
+         WHERE a.action = 'session.pty_opened' AND a.target_type = 'server' \
+           AND a.user_id = ? AND s.enabled = 1 \
+         GROUP BY s.id ORDER BY MAX(a.id) DESC LIMIT ?",
+    )
+    .bind(user_id)
+    .bind(limit)
+    .fetch_all(pool)
+    .await
+    .context("Failed to read recent servers")
+    .map_err(Error::Database)
+}
+
 /// Delete entries older than `days`. Returns how many were removed.
 #[instrument(skip(pool))]
 pub async fn prune_older_than_days(pool: &Pool<Sqlite>, days: i64) -> Result<u64> {
@@ -222,6 +245,60 @@ mod tests {
             "kept when there is no user"
         );
         assert_eq!(rest[0].client_ip.as_deref(), Some("10.0.0.9"));
+    }
+
+    #[tokio::test]
+    async fn recent_servers_are_per_user_newest_first_and_enabled_only() {
+        let pool = setup().await;
+        sqlx::query("INSERT INTO users (username, password_hash) VALUES ('bob', 'x')")
+            .execute(&pool)
+            .await
+            .unwrap();
+        for (name, enabled) in [("web", 1), ("db", 1), ("old", 0)] {
+            sqlx::query("INSERT INTO servers (name, hostname, enabled) VALUES (?, '10.0.0.1', ?)")
+                .bind(name)
+                .bind(enabled)
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        let ids: Vec<(i64, String)> = sqlx::query_as("SELECT id, name FROM servers ORDER BY id")
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+        let (web, db, old) = (ids[0].0, ids[1].0, ids[2].0);
+        let opened = |user: i64, id: i64, name: &str| {
+            NewAuditEntry::new("session.pty_opened")
+                .user(user)
+                .target("server", id, name)
+        };
+        for entry in [
+            opened(1, web, "web"),
+            opened(1, db, "db"),
+            opened(1, old, "old"),
+            opened(1, web, "web"),
+            opened(2, db, "db"),
+            // Not a shell: does not count
+            NewAuditEntry::new("server.updated")
+                .user(1)
+                .target("server", db, "db"),
+        ] {
+            record(&pool, &entry).await.unwrap();
+        }
+
+        let alice = recent_servers(&pool, 1, 3).await.unwrap();
+        assert_eq!(
+            alice,
+            vec![(web, "web".to_string()), (db, "db".to_string())],
+            "newest first, the disabled one left out"
+        );
+        assert_eq!(recent_servers(&pool, 1, 1).await.unwrap().len(), 1);
+        assert_eq!(
+            recent_servers(&pool, 2, 3).await.unwrap(),
+            vec![(db, "db".to_string())],
+            "only bob's own shells"
+        );
+        assert!(recent_servers(&pool, 99, 3).await.unwrap().is_empty());
     }
 
     #[tokio::test]

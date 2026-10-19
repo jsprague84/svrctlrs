@@ -38,7 +38,12 @@ other web pages the operator visits (see CSWSH below).
   they first obtain a one-time ticket from `POST /api/v1/auth/ws-ticket` and pass `?ticket=`.
   The user is always read from the session record, never from the client.
 - **Exempt routes** — `/auth/login`, `/auth/logout`, `/api/v1/auth/login`, `/api/v1/health`,
-  `/_app/*` and `OPTIONS` preflights. `/api/v1/health` reveals only version and revision.
+  the static app shell (`/_app/*`, `/icons/*`, `/fonts/*`, `/favicon.svg`,
+  `/service-worker.js`), `/manifest.webmanifest` and `OPTIONS` preflights. `/api/v1/health`
+  reveals only version and revision. The manifest is served by the server
+  (`routes/ui/manifest.rs`): signed out it is the shipped file; with a session cookie it adds
+  shortcuts naming the user's own three most recently opened servers (`Cache-Control:
+  private, no-cache`, `Vary: Cookie`), read from that user's audit rows only.
 
 ## Credential encryption
 

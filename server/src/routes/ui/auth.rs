@@ -17,7 +17,7 @@ use crate::state::AppState;
 use svrctlrs_database::models::NewAuditEntry;
 
 /// Session key for the authenticated user's ID
-const USER_ID_KEY: &str = "user_id";
+pub(crate) const USER_ID_KEY: &str = "user_id";
 
 /// The authenticated user for this request, set by [`require_auth`] on every request that
 /// passes it (cookie or token). Handlers take it as an extractor; it is the only place a
@@ -40,7 +40,8 @@ impl<S: Send + Sync> FromRequestParts<S> for CurrentUser {
 /// Authentication middleware that protects all routes except exempted ones.
 ///
 /// Exempt routes: /auth/login, /auth/logout, /api/v1/auth/login, /api/v1/health, SPA assets
-/// (`/_app/*`, icons, favicon, web manifest, service worker — none of which carry data).
+/// (`/_app/*`, icons, fonts, favicon, service worker — none of which carry data) and the web
+/// manifest, which reads the session itself and adds the signed-in user's own shortcuts.
 ///
 /// Two ways in, both ending with a [`CurrentUser`] extension on the request:
 /// - the session cookie, holding `user_id`;
