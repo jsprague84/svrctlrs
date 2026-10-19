@@ -9,8 +9,9 @@ names the evidence for a fix.
 
 **3.1.0 released 2026-10-18**: host-key confirmation, keepalives and jump hosts, tags and
 `ssh_config` import, startup command, file browser, typed errors, migration baseline (Next
-items 1–6 below, struck through). The pane split, the SSH test server, the UI pass and session
-recording are the 3.2 work.
+items 1–6 below, struck through). **3.2.0 released 2026-10-19**: the pane split, the UI pass,
+the in-process SSH test server, session recording, predictive echo and preferences per
+account (items 7–12).
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an

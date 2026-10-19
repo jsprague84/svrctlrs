@@ -5,6 +5,17 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-10-19
+
+The "phone" release: typing over a slow or lossy link shows at once (predictive echo, never at
+a password prompt), terminal preferences follow the account so the phone and the laptop agree,
+every control is sized for a finger, and the installed app gets home-screen shortcuts to your
+recent servers. Shells can now be recorded, opt-in per server, encrypted and visible only to
+the user whose shell it was. The SSH client is tested in CI against an in-process SSH server.
+Upgrading needs nothing from you: two migrations run at start-up, recording stays off until you
+switch it on for a server, and the first sign-in uploads the terminal preferences that browser
+already had.
+
 ### Added
 - **Terminal preferences follow your account.** Font, cursor, scrollback, scrolling, the
   leader key and predictive echo are saved on the server, so the phone and the laptop agree;
