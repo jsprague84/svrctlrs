@@ -76,7 +76,9 @@ command, then the persistent-session protocol (shell, dropped socket, reattach w
 at a `stty -echo` prompt absent from it, 404 for a second account on every route), and agent
 tokens (a full-admin token opens a shell through the ticket exchange without a cookie, its
 audit row names it, a read-only token gets 403 for tickets and files, revoking ends the
-shell). `scripts/dev/run-e2e.sh` starts a throwaway debug server and
+shell), and approvals (a token set to ask first gets 202 for a delete, cannot approve it,
+and the owner's approval makes the call). `scripts/dev/run-e2e.sh` starts a throwaway debug
+server and
 runs both frame formats:
 
 ```bash
@@ -119,7 +121,9 @@ scrolls sideways, if a phone control is under 40 px to the finger (the extra-key
 one deliberate exception), if Escape does not close a modal or the row menu, or if Tab leaves a
 modal. On Settings → Access it creates a full-admin token that never expires (the dialog
 must warn), reads it from the copy-once display, uses it from outside the browser (200 on the
-server list, 403 on `/tokens`), checks the list never shows it, and revokes it (then 401).
+server list, 403 on `/tokens`), checks the list never shows it, and revokes it (then 401);
+then a token set to ask first tries to delete a server, the link opens the request on
+`/approvals`, and Deny leaves the server in place.
 With an SSH target it adds a live shell and the file browser, and (the live server
 records sessions) the recordings list and the player, checking that the player shows the
 recorded shell and closes on Escape; the pictures in

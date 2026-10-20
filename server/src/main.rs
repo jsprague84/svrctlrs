@@ -2,6 +2,7 @@
 
 mod api_tokens;
 mod app;
+mod approvals;
 mod audit;
 mod health_monitor;
 mod host_keys;

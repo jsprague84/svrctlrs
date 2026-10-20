@@ -137,6 +137,7 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
                 if touch {
                     let ip = client_ip(request.headers());
                     let id = token.id;
+                    let pool = pool.clone();
                     tokio::spawn(async move {
                         if let Err(e) =
                             svrctlrs_database::queries::api_tokens::touch(&pool, id, &ip).await
@@ -147,6 +148,26 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
                 }
                 if !token.preset.allows(request.method(), &path) {
                     return token_outside_preset(&token, request.method(), &path);
+                }
+                // The few destructive calls a token may make only with its owner's yes
+                if token.require_approval {
+                    if let Some((action, target)) =
+                        crate::approvals::gated(request.method(), &path)
+                    {
+                        let held = crate::approvals::hold(
+                            &pool,
+                            &token,
+                            action,
+                            target,
+                            request.method(),
+                            &path,
+                            request.headers(),
+                        )
+                        .await;
+                        if let Some(response) = held {
+                            return response;
+                        }
+                    }
                 }
                 proceed(request, next, token.user_id, Some(token)).await
             }
@@ -1143,6 +1164,7 @@ mod tests {
                 token_hash: secret.hash,
                 preset: preset.as_str().to_string(),
                 expires_in_days: Some(30),
+                require_approval: false,
             },
         )
         .await
@@ -1402,6 +1424,7 @@ mod tests {
                 user_id: 1,
                 name: "hermes".into(),
                 preset: api_tokens::Preset::FullAdmin,
+                require_approval: false,
             }),
         };
         let upgrade = |t: &str| {

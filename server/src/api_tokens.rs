@@ -102,6 +102,8 @@ const READ: &[&str] = &[
     "/api/v1/sessions",
     "/api/v1/recordings",
     "/api/v1/recordings/*",
+    // A token waits on its own approval request here
+    "/api/v1/approvals/*",
 ];
 
 /// What "servers & keys" adds to [`READ`]: managing servers, host keys and credentials.
@@ -145,6 +147,7 @@ const FULL_ADMIN: &[(&str, &str)] = &[
     ("DELETE", "/api/v1/quick-commands/*"),
     ("PUT", "/api/v1/users/me/preferences/*"),
     ("POST", "/api/v1/notifications/test"),
+    ("POST", "/api/v1/notifications/test-approval"),
 ];
 
 impl Preset {
@@ -195,7 +198,7 @@ impl Preset {
 /// `pattern` and `path` have the same segments, `*` standing for any one non-empty segment.
 /// One trailing slash on the path is ignored. Nothing is decoded or normalised, exactly as
 /// the router does not, so a path that matches here is the path the router sees.
-fn path_matches(pattern: &str, path: &str) -> bool {
+pub(crate) fn path_matches(pattern: &str, path: &str) -> bool {
     let path = match path.strip_suffix('/') {
         Some(p) if !p.is_empty() => p,
         _ => path,
@@ -221,6 +224,8 @@ pub struct TokenAuth {
     pub user_id: i64,
     pub name: String,
     pub preset: Preset,
+    /// Gated deletes wait for the owner's approval (`approvals.rs`)
+    pub require_approval: bool,
 }
 
 /// What became of a presented token.
@@ -278,6 +283,7 @@ fn judge(row: ApiToken, now: chrono::DateTime<chrono::Utc>) -> TokenCheck {
             user_id: row.user_id,
             name: row.name,
             preset,
+            require_approval: row.require_approval,
         },
         touch,
     }
@@ -399,6 +405,13 @@ mod tests {
             ("DELETE", "/api/v1/recordings/5", full),
             ("POST", "/api/v1/auth/ws-ticket", full),
             ("GET", "/ws/terminal/pty", full),
+            ("POST", "/api/v1/notifications/test-approval", full),
+            ("GET", "/api/v1/approvals/Zx9_abc", all),
+            ("PUT", "/api/v1/tokens/1", none),
+            // Approving is the owner's alone
+            ("GET", "/api/v1/approvals", none),
+            ("POST", "/api/v1/approvals/Zx9_abc/approve", none),
+            ("POST", "/api/v1/approvals/Zx9_abc/deny", none),
             // Never for a token: tokens, accounts, the owner's password, the HTML app
             ("GET", "/api/v1/tokens", none),
             ("POST", "/api/v1/tokens", none),

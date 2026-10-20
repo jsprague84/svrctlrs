@@ -20,6 +20,8 @@ pub struct ApiToken {
     pub last_used_at: Option<DateTime<Utc>>,
     pub last_used_ip: Option<String>,
     pub revoked_at: Option<DateTime<Utc>>,
+    /// Deleting a server or credential, or forgetting host keys, waits for the owner's yes
+    pub require_approval: bool,
 }
 
 impl ApiToken {
@@ -49,4 +51,5 @@ pub struct NewApiToken {
     pub preset: String,
     /// Lifetime from now; None: never expires
     pub expires_in_days: Option<u32>,
+    pub require_approval: bool,
 }

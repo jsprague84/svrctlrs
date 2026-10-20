@@ -31,6 +31,11 @@ pub struct AppState {
     pub recordings: Arc<RecordingStore>,
     /// Ids of API tokens as they are revoked or removed, so terminals opened with one end.
     pub token_revocations: tokio::sync::broadcast::Sender<i64>,
+    /// Ids of approval requests as they are decided, for callers waiting on one.
+    pub approval_events: tokio::sync::broadcast::Sender<String>,
+    /// The API routes without the auth layer, set once by `app::router`: an approved request
+    /// is made through it as the token that asked (`approvals.rs`).
+    pub api_router: Arc<std::sync::OnceLock<axum::Router>>,
 }
 
 impl AppState {
@@ -47,6 +52,8 @@ impl AppState {
             sessions: SessionRegistry::from_env(),
             recordings: RecordingStore::from_env(),
             token_revocations: tokio::sync::broadcast::channel(64).0,
+            approval_events: tokio::sync::broadcast::channel(64).0,
+            api_router: Arc::new(std::sync::OnceLock::new()),
         })
     }
 

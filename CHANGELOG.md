@@ -30,10 +30,21 @@ the release workflow uses the matching section as the release notes.
   `{{word:default}}` pre-filling the answer and a live preview of the finished command. Go
   templates (`{{.Names}}`, `{{json .}}`, `{{end}}`) are left as written.
 
+- **Approvals** for the few calls that cannot be undone: a token set to *ask first* (the
+  default for new tokens) that deletes a server, deletes a credential or forgets host keys gets
+  `202` and a link instead; the owner approves or denies it signed in on the new **Approvals**
+  page (phone or desktop), and only then does the server make the call, as the token. Links go
+  out as a push notification, to a Matrix room, to a webhook (n8n) or nowhere (the agent has
+  it), set under Settings → Notifications → Approval requests with a test button. A token can
+  wait for the answer (`GET /api/v1/approvals/{id}?wait=25`) but never approve. Migration
+  `108_approvals.sql`.
+
 ### Changed
 - Settings → **Users** is now **Access** (agent tokens and accounts); `?tab=users` still
   opens it.
 - A toast's dismiss button is a full-size tap target on phones.
+- Deleting a server that does not exist answers 404 (it answered 200), and the audit row of a
+  deleted server names it.
 
 ### Fixed
 - **`ADMIN_PASSWORD` alone created no account.** The first start seeded the admin only when

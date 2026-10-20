@@ -112,7 +112,9 @@ own.
   - *Read-only*: look, never touch.
 
   No token can create or revoke tokens or manage accounts, whatever its access. Lifetime is
-  30 days, 90 days, a year or never.
+  30 days, 90 days, a year or never. **Ask me before it deletes** (on by default) holds the
+  three calls that cannot be undone — deleting a server, deleting a credential, forgetting a
+  server's host keys — until you approve them (below); everything else runs at once.
 - The token (`svr_…`) is shown **once**, with a Copy button; SvrCtlRS keeps only a hash. Use
   it as `Authorization: Bearer svr_…`, or `export SVRCTLRS_TOKEN=svr_…` for `svrctl`.
 - The list shows each token's access, its first characters, when it was last used (hover for
@@ -121,6 +123,17 @@ own.
 
 A full-admin token that never expires is as good as your password on every server for as long
 as it exists; the dialog says so. See SECURITY.md, "API tokens".
+
+### Approvals
+
+When a token that asks first wants to delete something, SvrCtlRS sends you a link (Settings →
+Notifications → **Approval requests**: as a push notification, to a Matrix room, to a webhook
+such as an n8n workflow, or nowhere — the agent gets the link in its answer either way and can
+pass it on). The link opens **Approvals** (`/approvals`), signed in, on the phone or the
+desktop: what is asked ("Delete server web-01"), by which token, from where, and **Approve** or
+**Deny**. Approving makes the call there and then, and shows what came back; the agent, which
+can wait for your answer, sees the same. A request expires after an hour. Settings → Access
+shows how many are waiting. Nobody but you can approve: a token cannot, whatever its access.
 
 ## Accounts
 

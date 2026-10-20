@@ -572,7 +572,7 @@ async fn delete_server(
 ) -> Result<impl IntoResponse, ApiError> {
     info!(id = id, "Deleting server");
 
-    servers::delete_server(&state.pool, id).await?;
+    let name = servers::delete_server(&state.pool, id).await?;
 
     info!(id = id, "Server deleted successfully");
     crate::audit::record(
@@ -580,7 +580,7 @@ async fn delete_server(
         NewAuditEntry::new("server.deleted")
             .user(me)
             .client_ip(Some(client_ip(&headers)))
-            .target("server", id, ""),
+            .target("server", id, &name),
     );
 
     Ok(Json(json!({

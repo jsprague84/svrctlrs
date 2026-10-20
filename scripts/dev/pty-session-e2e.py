@@ -13,7 +13,8 @@ started with a short TTL and an SSH target the given key can log in to:
 Exercises: shell, dropped socket, attach with last_seq (gap replay), live input after
 reattach, full redraw from seq 0, `closed` on exit, `session_gone`, TTL expiry, and session
 recording (opt-in per server, output only, invisible to another user), and agent tokens
-(a shell through a ticket, audit attribution, presets, revocation). Output frames
+(a shell through a ticket, audit attribution, presets, revocation) and approvals (a held
+delete run once the owner approves). Output frames
 are requested in binary form (E2E_BINARY=0 for the legacy JSON `output` frames) and a
 multibyte marker checks that bytes reach the client intact.
 """
@@ -495,6 +496,30 @@ async def main():
     assert any(e["action"] == "session.pty_opened" and e.get("token_name") == agent for e in entries), \
         "no audit row names the token"
     print("agent token: shell via ticket, audit attribution, read-only refused, revoke ends shell ok")
+
+    # Approvals: a token set to ask first gets 202 for a delete; nothing happens until the
+    # owner approves, then the server makes the call as the token
+    asker = api("POST", "/api/v1/tokens", {"name": f"e2e asker {RUN}", "preset": "servers_keys",
+                                            "expires_in_days": 30, "require_approval": True})["secret"]
+    doomed = api("POST", "/api/v1/servers", {"name": f"e2e doomed {RUN}", "hostname": "192.0.2.1", "port": 22})
+    doomed_id = doomed["id"] if "id" in doomed else doomed["data"]["id"]
+    st, body = token_call(asker, "DELETE", f"/api/v1/servers/{doomed_id}")
+    assert st == 202, (st, body)
+    aid = body["approval"]["id"]
+    assert "/approvals?id=" in body["approval"]["url"], body
+    st, _ = token_call(asker, "POST", f"/api/v1/approvals/{aid}/approve")
+    assert st == 403, st
+    api("GET", f"/api/v1/servers/{doomed_id}")  # still there
+    decided = api("POST", f"/api/v1/approvals/{aid}/approve")
+    assert decided["status"] == "done", decided
+    st, body = token_call(asker, "GET", f"/api/v1/approvals/{aid}?wait=1")
+    assert st == 200 and body["status"] == "done", (st, body)
+    try:
+        api("GET", f"/api/v1/servers/{doomed_id}")
+        raise AssertionError("the approved delete did not happen")
+    except urllib.error.HTTPError as e:
+        assert e.code == 404, e.code
+    print("approval: held, refused to the token, approved by the owner, done ok")
     print("ALL E2E CHECKS PASSED")
 
 asyncio.run(main())

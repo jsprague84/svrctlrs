@@ -2,6 +2,7 @@
 //! encryption key, and a loopback SSH server ([`ssh_server`]) for the client, host-key and PTY
 //! code paths that otherwise only the e2e run against a real host exercised.
 
+pub mod app;
 pub mod ssh_server;
 
 use svrctlrs_database::models::{CreateCredential, CreateServer, CredentialType};

@@ -18,6 +18,11 @@ use crate::{request_id, routes};
 /// `Secure` unless `session_secure` is false).
 pub fn router(state: AppState, session_store: SqliteStore, session_secure: bool) -> Router {
     let allowed_origins = state.allowed_origins.clone();
+    // What an approved request runs through (the API alone, behind no auth layer: the caller
+    // supplies the user and token itself)
+    let _ = state
+        .api_router
+        .set(Router::new().nest("/api", routes::api_routes(state.clone())));
 
     // Build UI router with state (SPA + auth)
     let ui_router = routes::ui::ui_routes().with_state(state.clone());

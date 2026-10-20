@@ -10,9 +10,11 @@
 //! ├── credentials/                Full CRUD
 //! ├── recordings/                 The caller's session recordings
 //! ├── settings/                   List + get + update
-//! └── tokens/                     The caller's API tokens (signed-in users only)
+//! ├── tokens/                     The caller's API tokens (signed-in users only)
+//! └── approvals/                  Held token calls the owner approves or denies
 //! ```
 
+pub mod approvals;
 pub mod audit;
 pub mod credentials;
 pub mod files;
@@ -215,6 +217,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/sessions", sessions::routes())
         .nest("/recordings", recordings::routes())
         .nest("/tokens", tokens::routes())
+        .nest("/approvals", approvals::routes())
 }
 
 /// Health check endpoint. Unauthenticated, so it reveals only version and revision; it does

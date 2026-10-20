@@ -95,6 +95,28 @@ Named credentials the owner creates under Settings → Access → Agent tokens
   attached to, opened elsewhere by the owner, is detached and left running). Deleting the
   owner deletes their tokens (`ON DELETE CASCADE`).
 
+- **Approvals.** A token can be set to *ask first* (the default for new tokens; existing ones
+  keep working as before until switched): then deleting a server, deleting a credential and
+  forgetting a server's host keys — and nothing else — answer `202` with a pending request
+  instead of running (`server/src/approvals.rs`, table `approvals`). The request names the
+  token, the call and its target, carries an unguessable id, and expires after an hour; asking
+  again returns the same request. Its link goes out through Settings → Notifications →
+  Approval requests (push, a webhook, a Matrix room, or nowhere: the caller's answer carries
+  it too). **Only the owner, signed in, can approve or deny**: no preset names
+  `/api/v1/approvals` or its decisions, so an agent cannot approve its own request, and an
+  approval given by replying to the agent would be the token approving itself, which is just
+  the "don't ask" setting. A token may read its request (`GET /api/v1/approvals/{id}`,
+  `?wait=` up to 25 s) to wait for the answer. On approval the server makes the held call
+  through the same API router as the token — the handler's own checks run, and its audit row
+  names the token — but only if the token is still active and its preset still covers the
+  call (otherwise nothing runs and the request shows `failed`, 410). The decision is one
+  conditional update, so a request runs at most once and never after it expired. Audit:
+  `approval.requested` (the token), `approval.approved` / `approval.denied` (the owner).
+  Settings a full-admin token may change include where approval requests go; redirecting
+  them hides requests from the owner but cannot approve one. The Matrix access token and the
+  webhook URL are write-only through the API, like the push token; like it they are stored in
+  the settings table unencrypted.
+
 **What a never-expiring full-admin token means.** It is a password-equivalent credential for
 every configured server that never times out: whoever reads it from an agent's config, a
 shell history or a log has a shell on every server until the owner revokes it. It is not

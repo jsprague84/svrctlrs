@@ -6,6 +6,9 @@
 	import Input from '#lib/components/ui/Input.svelte';
 	import Modal from '#lib/components/ui/Modal.svelte';
 	import RadioCards from '#lib/components/ui/RadioCards.svelte';
+	import Toggle from '#lib/components/ui/Toggle.svelte';
+	import { resolve } from '$app/paths';
+	import * as approvalsApi from '#lib/api/approvals.js';
 	import StateBlock from '#lib/components/ui/StateBlock.svelte';
 	import SettingsSection from '#lib/components/ui/SettingsSection.svelte';
 	import * as tokensApi from '#lib/api/tokens.js';
@@ -25,13 +28,24 @@
 	let name = $state('');
 	let preset = $state<string>('servers_keys');
 	let lifetime = $state('90');
+	let askFirst = $state(true);
 	let creating = $state(false);
+	/** Approval requests waiting for a decision */
+	let waiting = $state(0);
 	let created = $state<CreatedToken | null>(null);
 
 	let lifetimeDays = $derived(lifetime === 'never' ? null : Number(lifetime));
 	let canCreate = $derived(!creating && name.trim().length > 0 && name.trim().length <= 64);
 
-	onMount(load);
+	onMount(() => {
+		load();
+		approvalsApi
+			.listApprovals()
+			.then((r) => (waiting = r.waiting))
+			.catch(() => {
+				// the reminder is optional
+			});
+	});
 
 	async function load() {
 		loading = true;
@@ -49,6 +63,7 @@
 		name = '';
 		preset = 'servers_keys';
 		lifetime = '90';
+		askFirst = true;
 		created = null;
 		dialogOpen = true;
 	}
@@ -62,7 +77,12 @@
 		if (!canCreate) return;
 		creating = true;
 		try {
-			created = await tokensApi.createToken(name.trim(), preset as TokenPreset, lifetimeDays);
+			created = await tokensApi.createToken(
+				name.trim(),
+				preset as TokenPreset,
+				lifetimeDays,
+				askFirst && preset !== 'read_only'
+			);
 			tokens = [created.token, ...tokens];
 		} catch (e) {
 			toast.error(extractErrorMessage(e, 'Failed to create the token'));
@@ -92,6 +112,21 @@
 		} finally {
 			busy = busy.filter((id) => id !== t.id);
 		}
+	}
+
+	async function setAskFirst(t: ApiToken, on: boolean) {
+		try {
+			const updated = await tokensApi.setRequireApproval(t.id, on);
+			tokens = tokens.map((x) => (x.id === t.id ? updated : x));
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Failed to update the token'));
+			tokens = [...tokens];
+		}
+	}
+
+	/** Whether "ask first" means anything for this token (read-only tokens delete nothing) */
+	function canAsk(t: ApiToken): boolean {
+		return t.status === 'active' && t.preset !== 'read_only';
 	}
 
 	async function remove(t: ApiToken) {
@@ -161,6 +196,15 @@
 		</Button>
 	{/snippet}
 
+	{#if waiting > 0}
+		<a
+			href={resolve('/approvals')}
+			class="flex items-center justify-between gap-3 mb-3 px-3 min-h-11 rounded-sm border border-accent bg-accent/10 text-sm text-text-primary"
+		>
+			<span>{waiting} approval request{waiting === 1 ? '' : 's'} waiting for you</span>
+			<span class="text-accent">Review →</span>
+		</a>
+	{/if}
 	{#if loading}
 		<StateBlock kind="loading" title="Loading tokens…" compact />
 	{:else if loadError}
@@ -178,24 +222,32 @@
 		<ul class="md:hidden flex flex-col gap-2">
 			{#each tokens as t (t.id)}
 				<li
-					class="flex items-center gap-3 border border-border/50 rounded-sm px-3 py-2 {t.status !==
-					'active'
+					class="border border-border/50 rounded-sm px-3 py-2 {t.status !== 'active'
 						? 'opacity-70'
 						: ''}"
 				>
-					<div class="flex-1 min-w-0">
-						<div class="flex items-center gap-1.5 min-w-0">
-							<span class="text-sm text-text-primary font-medium truncate">{t.name}</span>
-							{@render statusBadge(t)}
+					<div class="flex items-center gap-3">
+						<div class="flex-1 min-w-0">
+							<div class="flex items-center gap-1.5 min-w-0">
+								<span class="text-sm text-text-primary font-medium truncate">{t.name}</span>
+								{@render statusBadge(t)}
+							</div>
+							<div class="text-[11px] text-text-muted truncate">
+								{tokensApi.presetLabel(t.preset)} · <span class="font-mono">{t.prefix}…</span>
+							</div>
+							<div class="text-[11px] text-text-muted truncate">
+								{usedText(t)} · {expiryText(t)}
+							</div>
 						</div>
-						<div class="text-[11px] text-text-muted truncate">
-							{tokensApi.presetLabel(t.preset)} · <span class="font-mono">{t.prefix}…</span>
-						</div>
-						<div class="text-[11px] text-text-muted truncate">
-							{usedText(t)} · {expiryText(t)}
-						</div>
+						{@render action(t)}
 					</div>
-					{@render action(t)}
+					{#if canAsk(t)}
+						<Toggle
+							checked={t.require_approval}
+							label="Ask me before it deletes"
+							onchange={(on) => setAskFirst(t, on)}
+						/>
+					{/if}
 				</li>
 			{/each}
 		</ul>
@@ -209,6 +261,7 @@
 					<th class="py-1 pr-3 font-medium">Token</th>
 					<th class="py-1 pr-3 font-medium">Last used</th>
 					<th class="py-1 pr-3 font-medium">Expires</th>
+					<th class="py-1 pr-3 font-medium" title="Deletes wait for your approval">Ask first</th>
 					<th class="py-1 font-medium"><span class="sr-only">Actions</span></th>
 				</tr>
 			</thead>
@@ -228,6 +281,18 @@
 							{t.last_used_at ? timeAgo(t.last_used_at) : 'never'}
 						</td>
 						<td class="py-1.5 pr-3 text-text-secondary">{expiryText(t)}</td>
+						<td class="py-0 pr-3">
+							{#if canAsk(t)}
+								<Toggle
+									checked={t.require_approval}
+									label={`Ask before ${t.name} deletes`}
+									labelHidden
+									onchange={(on) => setAskFirst(t, on)}
+								/>
+							{:else}
+								<span class="text-text-muted">—</span>
+							{/if}
+						</td>
 						<td class="py-1.5 text-right">{@render action(t)}</td>
 					</tr>
 				{/each}
@@ -287,6 +352,13 @@ curl -H "Authorization: Bearer $SVRCTLRS_TOKEN" \
 				}))}
 				bind:value={lifetime}
 			/>
+			{#if preset !== 'read_only'}
+				<Toggle
+					bind:checked={askFirst}
+					label="Ask me before it deletes"
+					description="Deleting a server or a credential, or forgetting host keys, waits until you approve it, signed in. The link goes out as set under Notifications."
+				/>
+			{/if}
 			{#if preset === 'full_admin' && lifetimeDays === null}
 				<p class="flex gap-2 text-xs text-warning">
 					<TriangleAlert class="w-4 h-4 flex-shrink-0" />

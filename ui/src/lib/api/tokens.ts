@@ -1,4 +1,4 @@
-import { get, post, del } from './client.js';
+import { get, post, put, del } from './client.js';
 
 export type TokenPreset = 'full_admin' | 'servers_keys' | 'read_only';
 export type TokenStatus = 'active' | 'expired' | 'revoked';
@@ -16,6 +16,8 @@ export interface ApiToken {
 	last_used_at: string | null;
 	last_used_ip: string | null;
 	revoked_at: string | null;
+	/** Deleting a server or credential, or forgetting host keys, waits for your approval */
+	require_approval: boolean;
 }
 
 export interface CreatedToken {
@@ -63,9 +65,20 @@ export async function listTokens(): Promise<ApiToken[]> {
 export function createToken(
 	name: string,
 	preset: TokenPreset,
-	expiresInDays: number | null
+	expiresInDays: number | null,
+	requireApproval: boolean
 ): Promise<CreatedToken> {
-	return post<CreatedToken>('/tokens', { name, preset, expires_in_days: expiresInDays });
+	return post<CreatedToken>('/tokens', {
+		name,
+		preset,
+		expires_in_days: expiresInDays,
+		require_approval: requireApproval
+	});
+}
+
+export async function setRequireApproval(id: number, on: boolean): Promise<ApiToken> {
+	const res = await put<{ token: ApiToken }>(`/tokens/${id}`, { require_approval: on });
+	return res.token;
 }
 
 export async function revokeToken(id: number): Promise<ApiToken> {

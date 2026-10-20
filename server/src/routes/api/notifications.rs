@@ -11,7 +11,55 @@ use crate::state::AppState;
 
 /// Create notifications router
 pub fn routes() -> Router<AppState> {
-    Router::new().route("/test", post(test_notification))
+    Router::new()
+        .route("/test", post(test_notification))
+        .route("/test-approval", post(test_approval_channel))
+}
+
+/// Send a sample approval request through the approval channel, as saved or as the form has
+/// it (an empty secret means the saved one).
+#[instrument(skip(state, headers, body))]
+async fn test_approval_channel(
+    State(state): State<AppState>,
+    crate::routes::ui::auth::CurrentUser(me): crate::routes::ui::auth::CurrentUser,
+    headers: axum::http::HeaderMap,
+    body: Option<Json<crate::approvals::ChannelOverride>>,
+) -> Result<impl IntoResponse, ApiError> {
+    let now = chrono::Utc::now();
+    let sample = svrctlrs_database::models::Approval {
+        id: "test".into(),
+        user_id: me,
+        token_id: None,
+        token_name: "test".into(),
+        action: "server.delete".into(),
+        method: "DELETE".into(),
+        path: "/api/v1/servers/0".into(),
+        target_type: "server".into(),
+        target_id: 0,
+        target_name: Some("example (a test; nothing will happen)".into()),
+        client_ip: None,
+        url: format!(
+            "{}/approvals",
+            crate::approvals::link_base(&state.pool, &headers).await
+        ),
+        status: "pending".into(),
+        created_at: now,
+        expires_at: now,
+        decided_at: None,
+        decided_by: None,
+        result_status: None,
+        result: None,
+    };
+    let over = body.map(|Json(o)| o);
+    match crate::approvals::notify(&state.pool, &sample, over.as_ref()).await {
+        Ok("none") => Err(ApiError::bad_request(
+            "The approval channel is None: requests are only in the caller's answer",
+        )),
+        Ok(channel) => Ok(Json(
+            json!({ "message": format!("Test request sent via {channel}") }),
+        )),
+        Err(e) => Err(ApiError::bad_request(e.to_string())),
+    }
 }
 
 /// Optional unsaved values to test with (`POST /notifications/test`)

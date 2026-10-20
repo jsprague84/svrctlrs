@@ -41,11 +41,30 @@ fn check_value(key: &str, value: &str) -> Result<(), ApiError> {
             "Keep recordings for 0 to 3650 days (0 keeps them until you delete them)",
         ));
     }
+    if key == "approval.channel" && !matches!(value, "push" | "webhook" | "matrix" | "none") {
+        return Err(ApiError::bad_request(
+            "The approval channel is push, webhook, matrix or none",
+        ));
+    }
+    if matches!(
+        key,
+        "approval.link_base" | "approval.matrix_homeserver" | "approval.webhook_url"
+    ) && !value.is_empty()
+        && !(value.starts_with("https://") || value.starts_with("http://"))
+    {
+        return Err(ApiError::bad_request(format!(
+            "{key} must start with http:// or https://"
+        )));
+    }
     Ok(())
 }
 
 fn is_secret(key: &str) -> bool {
-    key == "notification.token"
+    // A webhook URL usually carries its own secret in the path
+    matches!(
+        key,
+        "notification.token" | "approval.matrix_token" | "approval.webhook_url"
+    )
 }
 
 fn setting_json(s: &svrctlrs_database::models::Setting) -> serde_json::Value {

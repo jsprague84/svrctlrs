@@ -41,6 +41,7 @@ Refusals use the error envelope:
 | 401 | `TOKEN_EXPIRED` / `TOKEN_REVOKED` | the token's lifetime ended / it was revoked |
 | 401 | `TOKEN_IN_URL` | `?token=svr_…`: tokens go in the header only |
 | 403 | `TOKEN_SCOPE` | the preset does not name this method and path; `error.details: {preset, method, path}` |
+| 202 | — | a token set to ask first called `DELETE /servers/{id}`, `DELETE /credentials/{id}` or `DELETE /servers/{id}/host-keys`: `{approval, message, wait_url}` (see "Approvals"); nothing ran yet |
 
 Presets (`full_admin`, `servers_keys`, `read_only`) and exactly what each allows:
 `SECURITY.md`, "API tokens", and the table in `server/src/api_tokens.rs`. No preset reaches
@@ -240,6 +241,7 @@ recordings and API tokens.
 |---|---|---|
 | GET | `/tokens` | the caller's tokens, newest first: `{tokens: [...]}` |
 | POST | `/tokens` | `{name, preset, expires_in_days}` → 201 `{token, secret}` |
+| PUT | `/tokens/{id}` | `{require_approval}` → `{token}` |
 | POST | `/tokens/{id}/revoke` | → `{token}` (idempotent); terminals opened with it close |
 | DELETE | `/tokens/{id}` | remove it (any state) → `{id, message}` |
 
@@ -253,10 +255,43 @@ POST /api/v1/tokens
      "secret": "svr_x7Kq2m…"}
 ```
 
-`expires_in_days` is required: 1–3650, or `null` for a token that never expires. `name` is
+`expires_in_days` is required: 1–3650, or `null` for a token that never expires.
+`require_approval` (default `true`) makes the three gated deletes wait for the owner. `name` is
 1–64 characters and unique per user (409). `status` is `active`, `expired` or `revoked`. The
 `secret` appears in the create response only. Audited as `token.created`, `token.revoked`,
 `token.deleted`. Another user's token answers 404.
+
+## Approvals
+
+A token with `require_approval` that calls one of the gated deletes gets:
+
+```json
+202 Location: /api/v1/approvals/<id>?wait=25
+{"approval": {"id": "kq3…", "status": "pending", "action": "server.delete",
+              "summary": "Delete server web-01", "method": "DELETE", "path": "/api/v1/servers/5",
+              "target_type": "server", "target_id": 5, "target_name": "web-01",
+              "token_id": 3, "token_name": "hermes", "client_ip": "10.10.1.35",
+              "url": "https://svrctlrs.example/approvals?id=kq3…",
+              "created_at": "…", "expires_at": "…", "decided_at": null,
+              "result_status": null, "result": null},
+ "message": "Delete server web-01 needs the owner's approval: …",
+ "wait_url": "/api/v1/approvals/kq3…?wait=25"}
+```
+
+| Method | Path | Who | |
+|---|---|---|---|
+| GET | `/approvals` | signed in | the caller's requests, newest first (50): `{approvals, waiting}` |
+| GET | `/approvals/{id}` | signed in, or any token of the owner | one request; `?wait=N` (≤ 25) answers as soon as it is decided |
+| POST | `/approvals/{id}/approve` | signed in | runs the held call now, as the token → the request with `result_status` and `result` (the call's JSON) |
+| POST | `/approvals/{id}/deny` | signed in | → the request, `denied`; nothing runs |
+| POST | `/notifications/test-approval` | signed in, full admin | sends a sample request through the channel; body overrides the saved `channel`, `webhook_url`, `matrix_homeserver`, `matrix_room`, `matrix_token` |
+
+`status`: `pending`, `expired` (an hour passed), `denied`, `approved` (running), `done` (the
+call answered 2xx) or `failed` (it did not, or the token was revoked or removed first: 410,
+nothing ran). Deciding twice, or after expiry, is 409. Settings: `approval.channel` (`push`,
+`webhook`, `matrix`, `none`), `approval.webhook_url` and `approval.matrix_token` (write-only),
+`approval.matrix_homeserver`, `approval.matrix_room`, `approval.link_base` (where links start;
+empty: the address the call came to). The webhook receives `{title, message, url, approval}`.
 
 ## Audit log
 
@@ -274,7 +309,9 @@ count), `server.host_key_trusted` (details: `key_type`,
 `credential.updated`, `credential.deleted`, `session.pty_opened` (details: `login`, `auth` —
 `password` or the key used, `recorded`), `files.download`, `files.upload`, `files.mkdir`, `files.rename`,
 `files.delete` (details: the remote path), `recording.downloaded`, `recording.deleted`,
-`token.created` (details: `preset`, `expires_at`, `prefix`), `token.revoked`, `token.deleted`.
+`token.created` (details: `preset`, `expires_at`, `prefix`, `require_approval`), `token.updated`,
+`token.revoked`, `token.deleted`, `approval.requested` (names the token), `approval.approved`,
+`approval.denied` (details: `approval`, `action`, `token`).
 `server.created` and `server.updated` carry `record_sessions` when it was set or changed. `session.command` entries from the retired command mode remain
 readable until they age out. Entries never contain secrets, are kept for 180 days, and outlive
 deleted users.

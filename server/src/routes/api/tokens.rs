@@ -6,7 +6,7 @@ use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -29,7 +29,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/", get(list).post(create))
         .route("/{id}/revoke", post(revoke))
-        .route("/{id}", delete(remove))
+        .route("/{id}", axum::routing::put(update).delete(remove))
 }
 
 fn token_json(t: &ApiToken) -> serde_json::Value {
@@ -44,6 +44,7 @@ fn token_json(t: &ApiToken) -> serde_json::Value {
         "last_used_at": t.last_used_at,
         "last_used_ip": t.last_used_ip,
         "revoked_at": t.revoked_at,
+        "require_approval": t.require_approval,
     })
 }
 
@@ -64,6 +65,9 @@ struct CreateTokenInput {
     /// Required: a number of days, or `null` for a token that never expires
     #[serde(default, deserialize_with = "double_option")]
     expires_in_days: Option<Option<u32>>,
+    /// Deleting a server or credential, or forgetting host keys, waits for the owner's yes
+    /// (default true)
+    require_approval: Option<bool>,
 }
 
 #[instrument(skip(state, headers))]
@@ -103,6 +107,7 @@ async fn create(
             token_hash: secret.hash,
             preset: preset.as_str().to_string(),
             expires_in_days,
+            require_approval: input.require_approval.unwrap_or(true),
         },
     )
     .await?;
@@ -117,12 +122,40 @@ async fn create(
                 "preset": token.preset,
                 "expires_at": token.expires_at,
                 "prefix": token.prefix,
+                "require_approval": token.require_approval,
             })),
     );
     Ok((
         StatusCode::CREATED,
         Json(json!({ "token": token_json(&token), "secret": secret.secret })),
     ))
+}
+
+#[derive(Debug, Deserialize)]
+struct UpdateTokenInput {
+    require_approval: bool,
+}
+
+/// Turn approvals on or off for one of the caller's tokens.
+#[instrument(skip(state, headers))]
+async fn update(
+    State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
+    Path(id): Path<i64>,
+    Json(input): Json<UpdateTokenInput>,
+) -> Result<impl IntoResponse, ApiError> {
+    let token =
+        api_tokens::set_require_approval(&state.pool, me, id, input.require_approval).await?;
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("token.updated")
+            .user(me)
+            .client_ip(Some(client_ip(&headers)))
+            .target("token", token.id, &token.name)
+            .details(json!({ "require_approval": token.require_approval })),
+    );
+    Ok(Json(json!({ "token": token_json(&token) })))
 }
 
 #[instrument(skip(state, headers))]
@@ -172,130 +205,15 @@ async fn remove(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::body::{to_bytes, Body};
-    use axum::http::{header, Request};
+    use crate::test_support::app::{call, eventually, AppHarness};
     use futures_util::{SinkExt, StreamExt};
     use std::time::Duration;
-    use svrctlrs_database::models::{CreateUser, CredentialType};
+    use svrctlrs_database::models::CredentialType;
     use tokio_tungstenite::tungstenite::Message as WsMessage;
-    use tower::ServiceExt;
-    use tower_sessions_sqlx_store::SqliteStore;
-
-    struct Harness {
-        app: Router,
-        state: AppState,
-        /// The owner's session id, used as a session Bearer token
-        session: String,
-        _dir: tempfile::TempDir,
-    }
-
-    async fn harness() -> Harness {
-        crate::test_support::ensure_encryption();
-        let dir = tempfile::tempdir().unwrap();
-        let url = format!("sqlite:{}", dir.path().join("t.db").display());
-        let database = svrctlrs_database::Database::new(&url).await.unwrap();
-        database.migrate().await.unwrap();
-        let state = AppState::new(database, vec![]).await.unwrap();
-        let store = SqliteStore::new(state.pool.clone());
-        store.migrate().await.unwrap();
-        svrctlrs_database::queries::users::create_user(
-            &state.pool,
-            &CreateUser {
-                username: "ann".into(),
-                password: "correct horse battery".into(),
-            },
-        )
-        .await
-        .unwrap();
-        let app = crate::app::router(state.clone(), store, false);
-        let (status, body) = call(
-            &app,
-            "POST",
-            "/api/v1/auth/login",
-            None,
-            Some(json!({ "username": "ann", "password": "correct horse battery" })),
-        )
-        .await;
-        assert_eq!(status, StatusCode::OK, "{body}");
-        let session = body["session_id"].as_str().unwrap().to_string();
-        Harness {
-            app,
-            state,
-            session,
-            _dir: dir,
-        }
-    }
-
-    async fn call(
-        app: &Router,
-        method: &str,
-        uri: &str,
-        bearer: Option<&str>,
-        body: Option<serde_json::Value>,
-    ) -> (StatusCode, serde_json::Value) {
-        let mut request = Request::builder()
-            .method(method)
-            .uri(uri)
-            .header(header::CONTENT_TYPE, "application/json");
-        if let Some(t) = bearer {
-            request = request.header(header::AUTHORIZATION, format!("Bearer {t}"));
-        }
-        let request = request
-            .body(body.map_or_else(Body::empty, |b| Body::from(b.to_string())))
-            .unwrap();
-        let response = app.clone().oneshot(request).await.unwrap();
-        let status = response.status();
-        let bytes = to_bytes(response.into_body(), 1 << 20).await.unwrap();
-        (
-            status,
-            serde_json::from_slice(&bytes).unwrap_or(serde_json::Value::Null),
-        )
-    }
-
-    impl Harness {
-        async fn owner(
-            &self,
-            method: &str,
-            uri: &str,
-            body: Option<serde_json::Value>,
-        ) -> (StatusCode, serde_json::Value) {
-            call(&self.app, method, uri, Some(&self.session), body).await
-        }
-
-        /// A new token's (id, secret)
-        async fn token(&self, name: &str, preset: &str) -> (i64, String) {
-            let (status, body) = self
-                .owner(
-                    "POST",
-                    "/api/v1/tokens",
-                    Some(json!({ "name": name, "preset": preset, "expires_in_days": null })),
-                )
-                .await;
-            assert_eq!(status, StatusCode::CREATED, "{body}");
-            (
-                body["token"]["id"].as_i64().unwrap(),
-                body["secret"].as_str().unwrap().to_string(),
-            )
-        }
-    }
-
-    async fn eventually<F, Fut>(mut check: F) -> bool
-    where
-        F: FnMut() -> Fut,
-        Fut: std::future::Future<Output = bool>,
-    {
-        for _ in 0..150 {
-            if check().await {
-                return true;
-            }
-            tokio::time::sleep(Duration::from_millis(20)).await;
-        }
-        false
-    }
 
     #[tokio::test]
     async fn tokens_are_created_once_listed_without_secrets_revoked_and_removed() {
-        let h = harness().await;
+        let h = AppHarness::new().await;
         let (status, body) = h
             .owner(
                 "POST",
@@ -416,7 +334,7 @@ mod tests {
     #[tokio::test]
     async fn a_full_admin_token_opens_a_shell_through_a_ticket_and_revoking_it_ends_the_shell() {
         use crate::test_support::ssh_server::{Options, TestSshServer};
-        let h = harness().await;
+        let h = AppHarness::new().await;
         let ssh = TestSshServer::start(Options::password("alice", "pw")).await;
         let cred = crate::test_support::add_credential(
             &h.state.pool,

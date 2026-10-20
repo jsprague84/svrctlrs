@@ -144,3 +144,107 @@ impl NotificationClient {
         .await
     }
 }
+
+/// How long a webhook or Matrix post may take before it counts as failed.
+const SEND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+fn http_client() -> Result<reqwest::Client> {
+    reqwest::Client::builder()
+        .timeout(SEND_TIMEOUT)
+        .build()
+        .context("Failed to build HTTP client")
+}
+
+/// POST `payload` as JSON to a webhook (an n8n workflow that forwards it, say).
+pub async fn post_webhook(url: &str, payload: &serde_json::Value) -> Result<()> {
+    info!(provider = "webhook", "Sending notification");
+    http_client()?
+        .post(url)
+        .json(payload)
+        .send()
+        .await
+        .context("Failed to call the webhook")?
+        .error_for_status()
+        .context("The webhook returned an error")?;
+    Ok(())
+}
+
+/// A Matrix room, posted to with an account's access token (client-server API).
+#[derive(Debug, Clone)]
+pub struct MatrixRoom {
+    /// `https://matrix.example.org`
+    pub homeserver: String,
+    /// `!abc123:example.org`
+    pub room_id: String,
+    pub access_token: String,
+}
+
+impl MatrixRoom {
+    /// The `PUT …/rooms/{room}/send/m.room.message/{txn}` URL, segments percent-encoded.
+    fn send_url(&self, txn_id: &str) -> Result<reqwest::Url> {
+        let mut url = reqwest::Url::parse(self.homeserver.trim_end_matches('/'))
+            .context("The Matrix homeserver is not a URL")?;
+        url.path_segments_mut()
+            .map_err(|_| anyhow::anyhow!("The Matrix homeserver URL cannot take a path"))?
+            .pop_if_empty()
+            .extend([
+                "_matrix",
+                "client",
+                "v3",
+                "rooms",
+                &self.room_id,
+                "send",
+                "m.room.message",
+                txn_id,
+            ]);
+        Ok(url)
+    }
+
+    /// Post a message: `text` for clients without formatting, `html` for the rest. `txn_id`
+    /// makes a retry of the same message idempotent.
+    pub async fn send(&self, txn_id: &str, text: &str, html: &str) -> Result<()> {
+        info!(provider = "matrix", "Sending notification");
+        http_client()?
+            .put(self.send_url(txn_id)?)
+            .bearer_auth(&self.access_token)
+            .json(&serde_json::json!({
+                "msgtype": "m.text",
+                "body": text,
+                "format": "org.matrix.custom.html",
+                "formatted_body": html,
+            }))
+            .send()
+            .await
+            .context("Failed to post to Matrix")?
+            .error_for_status()
+            .context("Matrix returned an error")?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn matrix_send_url_encodes_the_room_and_keeps_a_base_path() {
+        let room = MatrixRoom {
+            homeserver: "https://matrix.example.org/".into(),
+            room_id: "!abc123:example.org".into(),
+            access_token: "t".into(),
+        };
+        assert_eq!(
+            room.send_url("svr-1").unwrap().as_str(),
+            "https://matrix.example.org/_matrix/client/v3/rooms/!abc123:example.org/send/m.room.message/svr-1"
+        );
+        let behind_a_path = MatrixRoom {
+            homeserver: "https://example.org/matrix".into(),
+            ..room
+        };
+        assert!(behind_a_path
+            .send_url("x")
+            .unwrap()
+            .as_str()
+            .starts_with("https://example.org/matrix/_matrix/client/v3/rooms/"));
+    }
+}

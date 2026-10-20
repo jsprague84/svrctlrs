@@ -137,6 +137,7 @@ mod tests {
                 user_id: 3,
                 name: "hermes".into(),
                 preset: crate::api_tokens::Preset::FullAdmin,
+                require_approval: false,
             }),
         };
         let t = tickets.issue(owner.clone());

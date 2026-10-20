@@ -246,6 +246,25 @@ with sync_playwright() as p:
             page.get_by_role("button", name=f"Remove token {agent}").wait_for(timeout=5000)
             check("a revoked token is refused", token_status() == 401)
             shot("settings-access-tokens", full=True)
+            # Approval: a token set to ask first tries to delete a server; the link opens the
+            # request, and Deny leaves the server alone
+            asker = api("POST", "/api/v1/tokens", {"name": f"asker-{vp_name}-{theme}", "preset": "servers_keys",
+                                                   "expires_in_days": 30, "require_approval": True})["secret"]
+            nas = next(x for x in api("GET", "/api/v1/servers")["servers"] if x["name"] == "nas")
+            req = urllib.request.Request(BASE + f"/api/v1/servers/{nas['id']}", method="DELETE",
+                headers={"Authorization": f"Bearer {asker}"})
+            with urllib.request.urlopen(req) as r:
+                held = json.loads(r.read())
+                check("a gated delete is held (202)", r.status == 202, str(r.status))
+            go(f"/approvals?id={held['approval']['id']}")
+            check("the link opens the request",
+                  page.get_by_role("heading", name="Delete server nas").count() == 1)
+            shot("approval")
+            page.get_by_role("region", name="Requested action").get_by_role("button", name="Deny").click()
+            page.wait_for_timeout(800)
+            check("denied, and the server is still there",
+                  any(x["name"] == "nas" for x in api("GET", "/api/v1/servers")["servers"]))
+            shot("approvals", full=True)
             if SSH_HOST and theme == "dark":
                 # A live shell on the real target, for the README and USER-GUIDE pictures
                 go("/")

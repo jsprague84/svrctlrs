@@ -1,6 +1,7 @@
 // Database models
 
 pub mod api_token;
+pub mod approval;
 pub mod audit;
 pub mod credential;
 pub mod quick_command;
@@ -14,6 +15,7 @@ pub mod user_setting;
 
 // Re-export all models for convenience
 pub use api_token::*;
+pub use approval::*;
 pub use audit::*;
 pub use credential::*;
 pub use quick_command::*;

@@ -149,13 +149,19 @@ compact screens for everything below.
     from `main.rs`) a full-admin token opening a shell on the loopback SSH server via a ticket,
     then revoked; the e2e does the same against OpenSSH on hermes and the UI sweep creates,
     uses and revokes one per viewport.
-16. **Approvals, rare and per token.** Only deleting a server profile, deleting a credential
-    or key, and forgetting a server's host keys can require approval, and a token can be set
-    to need none. A gated call answers `202` with a pending action and an approval link;
-    svrctlrs sends the link through a configured channel (Matrix room directly or through the
-    n8n webhook, ntfy/Gotify, or whatever the agent posts); the owner approves or denies
-    signed in, on phone or desktop; the caller waits (`--wait`). Approving by replying to the
-    agent would be the token approving itself, which is the "no approval" setting.
+16. ~~**Approvals, rare and per token.**~~ Done 2026-10-19: `require_approval` per token
+    (default on for new tokens, a toggle in the list); the auth layer holds exactly
+    `DELETE /servers/{id}`, `DELETE /credentials/{id}` and `DELETE /servers/{id}/host-keys`
+    (`server/src/approvals.rs`, `108_approvals.sql`) and answers `202` with the request and a
+    link, re-asking returns the same one; links go out by push (Gotify/ntfy), webhook (n8n),
+    Matrix (client-server API) or not at all, with a test button. The owner approves or denies
+    on `/approvals` signed in; no preset reaches the decision routes. On approval the call is
+    replayed through the API router as the token (still active, preset still covering it),
+    once, before the hour is up; the result is stored and a waiting caller
+    (`GET /approvals/{id}?wait=25`) hears it at once. Tests through the real router: held,
+    self-approval refused, waiter woken, delete done and audited under the token, deny, a
+    revoked token (410, nothing runs), webhook and Matrix delivery against a local listener.
+    Found on the way: deleting a missing server answered 200 (now 404).
 17. **Typed responses and the OpenAPI document (utoipa).** Every handler's response becomes a
     `Serialize + ToSchema` struct that produces exactly today's JSON (the UI depends on it),
     one module per commit; `GET /api/v1/openapi.json` behind auth; `docs/openapi.json`

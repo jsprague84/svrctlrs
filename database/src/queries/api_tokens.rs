@@ -9,16 +9,17 @@ use tracing::instrument;
 use crate::models::{ApiToken, NewApiToken};
 
 const COLUMNS: &str = "id, user_id, name, prefix, preset, created_at, expires_at, last_used_at, \
-                       last_used_ip, revoked_at";
+                       last_used_ip, revoked_at, require_approval";
 
 /// Store a new token and return it. A name the user already has is a [`Error::Conflict`].
 #[instrument(skip(pool, token), fields(user_id = token.user_id, name = %token.name))]
 pub async fn create(pool: &Pool<Sqlite>, token: &NewApiToken) -> Result<ApiToken> {
     sqlx::query_as::<_, ApiToken>(&format!(
         r#"
-        INSERT INTO api_tokens (user_id, name, prefix, token_hash, preset, expires_at)
+        INSERT INTO api_tokens (user_id, name, prefix, token_hash, preset, expires_at,
+                                require_approval)
         VALUES (?, ?, ?, ?, ?,
-                CASE WHEN ? IS NULL THEN NULL ELSE datetime('now', '+' || ? || ' days') END)
+                CASE WHEN ? IS NULL THEN NULL ELSE datetime('now', '+' || ? || ' days') END, ?)
         RETURNING {COLUMNS}
         "#
     ))
@@ -29,6 +30,7 @@ pub async fn create(pool: &Pool<Sqlite>, token: &NewApiToken) -> Result<ApiToken
     .bind(&token.preset)
     .bind(token.expires_in_days)
     .bind(token.expires_in_days)
+    .bind(token.require_approval)
     .fetch_one(pool)
     .await
     .map_err(super::write_error("token", "create"))
@@ -86,6 +88,27 @@ pub async fn revoke(pool: &Pool<Sqlite>, user_id: i64, id: i64) -> Result<ApiTok
     .fetch_optional(pool)
     .await
     .context("Failed to revoke token")
+    .map_err(Error::Database)?
+    .ok_or_else(|| Error::NotFound(format!("token {id}")))
+}
+
+/// Turn approvals on or off for one of the user's tokens and return it.
+#[instrument(skip(pool))]
+pub async fn set_require_approval(
+    pool: &Pool<Sqlite>,
+    user_id: i64,
+    id: i64,
+    on: bool,
+) -> Result<ApiToken> {
+    sqlx::query_as::<_, ApiToken>(&format!(
+        "UPDATE api_tokens SET require_approval = ? WHERE id = ? AND user_id = ? RETURNING {COLUMNS}"
+    ))
+    .bind(on)
+    .bind(id)
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await
+    .context("Failed to update token")
     .map_err(Error::Database)?
     .ok_or_else(|| Error::NotFound(format!("token {id}")))
 }
@@ -151,6 +174,7 @@ mod tests {
             token_hash: hash.to_string(),
             preset: "read_only".to_string(),
             expires_in_days: days,
+            require_approval: false,
         }
     }
 
@@ -200,6 +224,13 @@ mod tests {
         assert_eq!(revoked.status_at(chrono::Utc::now()), "revoked");
         // Revoking again keeps the first time
         assert_eq!(revoke(&pool, 1, t.id).await.unwrap().revoked_at, Some(at));
+
+        let on = set_require_approval(&pool, 1, t.id, true).await.unwrap();
+        assert!(on.require_approval);
+        assert!(matches!(
+            set_require_approval(&pool, 2, t.id, false).await,
+            Err(Error::NotFound(_))
+        ));
 
         delete(&pool, 1, t.id).await.unwrap();
         assert!(find_by_hash(&pool, "h1").await.unwrap().is_none());

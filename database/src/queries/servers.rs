@@ -172,15 +172,16 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
 
 /// Delete a server
 #[instrument(skip(pool))]
-pub async fn delete_server(pool: &Pool<Sqlite>, id: i64) -> Result<()> {
-    sqlx::query("DELETE FROM servers WHERE id = ?")
-        .bind(id)
-        .execute(pool)
-        .await
-        .context("Failed to delete server")
-        .map_err(Error::Database)?;
-
-    Ok(())
+pub async fn delete_server(pool: &Pool<Sqlite>, id: i64) -> Result<String> {
+    let name: Option<String> =
+        sqlx::query_scalar("DELETE FROM servers WHERE id = ? RETURNING name")
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .context("Failed to delete server")
+            .map_err(Error::Database)?;
+    // The deleted server's name, for the audit log; a missing one is NotFound
+    name.ok_or_else(|| Error::NotFound(format!("server {id}")))
 }
 
 /// Record why a server could not be reached, leaving `last_seen_at` as the last success.
