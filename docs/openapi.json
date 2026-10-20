@@ -599,6 +599,195 @@
         }
       }
     },
+    "/api/v1/recordings": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "Newest first, with the retention and size limit the list explains.",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "Default 100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "The smallest id of the previous page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recordings/{id}": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "One of the caller's recordings; anyone else's is 404",
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordingOne"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "Delete a finished recording and its file. One still being written is refused: end the\nsession first, so the recorder is not left writing to a deleted file.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Still being recorded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recordings/{id}/cast": {
+      "get": {
+        "tags": [
+          "recordings"
+        ],
+        "summary": "The recording as plain asciicast v2, decrypted as it streams. A recording still being\nwritten returns what has been written so far.",
+        "operationId": "cast",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "description": "Serve as a file download (and audit it) instead of for the player",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "asciicast v2",
+            "content": {
+              "application/x-asciicast": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions": {
       "get": {
         "tags": [
@@ -1773,6 +1962,126 @@
         "properties": {
           "command": {
             "$ref": "#/components/schemas/QuickCommand"
+          }
+        }
+      },
+      "Recording": {
+        "type": "object",
+        "description": "One recorded shell (asciicast v2, encrypted at rest; `GET /recordings/{id}/cast` streams it).",
+        "required": [
+          "id",
+          "user_id",
+          "server_name",
+          "session_id",
+          "cols",
+          "rows",
+          "started_at",
+          "duration_ms",
+          "size_bytes",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "server_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Null once the server is deleted; `server_name` keeps what it was called"
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string",
+            "description": "The live session this recorded"
+          },
+          "cols": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Terminal size when the recording started; resizes are events in the file"
+          },
+          "rows": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ended_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Plaintext asciicast bytes written so far (the size of a download)"
+          },
+          "status": {
+            "type": "string",
+            "description": "`recording`, `complete`, `truncated`, `interrupted` or `failed`"
+          },
+          "end_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it ended: the shell's exit, the size limit, the error"
+          }
+        }
+      },
+      "RecordingList": {
+        "type": "object",
+        "description": "`GET /recordings`",
+        "required": [
+          "recordings",
+          "retention_days",
+          "max_bytes"
+        ],
+        "properties": {
+          "recordings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Recording"
+            }
+          },
+          "retention_days": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Recordings older than this are deleted; 0 keeps them"
+          },
+          "max_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "A recording stops at this size and the shell goes on unrecorded",
+            "minimum": 0
+          }
+        }
+      },
+      "RecordingOne": {
+        "type": "object",
+        "required": [
+          "recording"
+        ],
+        "properties": {
+          "recording": {
+            "$ref": "#/components/schemas/Recording"
           }
         }
       },

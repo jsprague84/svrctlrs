@@ -6,12 +6,11 @@ use axum::{
     body::Body,
     extract::{Path, Query, State},
     http::{header, HeaderMap, HeaderValue},
-    response::{IntoResponse, Response},
-    routing::get,
+    response::Response,
     Json,
 };
-use serde::Deserialize;
-use serde_json::json;
+use svrctlrs_api::recordings::{CastQuery, Recording, RecordingList, RecordingOne, RecordingQuery};
+use svrctlrs_api::{ErrorBody, IdMessage};
 use svrctlrs_database::models::NewAuditEntry;
 use svrctlrs_database::queries::recordings;
 use tracing::{info, instrument};
@@ -19,61 +18,74 @@ use tracing::{info, instrument};
 use super::ApiError;
 use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
-        .route("/", get(list))
-        .route("/{id}", get(get_one).delete(remove))
-        .route("/{id}/cast", get(cast))
+        .routes(routes!(list))
+        .routes(routes!(get_one, remove))
+        .routes(routes!(cast))
 }
 
-#[derive(Debug, Deserialize)]
-struct ListQuery {
-    #[serde(default)]
-    server_id: Option<i64>,
-    #[serde(default)]
-    limit: Option<i64>,
-    /// The smallest id of the previous page
-    #[serde(default)]
-    before: Option<i64>,
+fn recording(r: svrctlrs_database::models::Recording) -> Recording {
+    Recording {
+        id: r.id,
+        user_id: r.user_id,
+        server_id: r.server_id,
+        server_name: r.server_name,
+        session_id: r.session_id,
+        cols: r.cols,
+        rows: r.rows,
+        started_at: r.started_at,
+        ended_at: r.ended_at,
+        duration_ms: r.duration_ms,
+        size_bytes: r.size_bytes,
+        status: r.status,
+        end_reason: r.end_reason,
+    }
 }
 
 /// Newest first, with the retention and size limit the list explains.
+#[utoipa::path(get, path = "/", tag = "recordings", params(RecordingQuery),
+    responses((status = 200, body = RecordingList)))]
 #[instrument(skip(state))]
 async fn list(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
-    Query(q): Query<ListQuery>,
-) -> Result<impl IntoResponse, ApiError> {
+    Query(q): Query<RecordingQuery>,
+) -> Result<Json<RecordingList>, ApiError> {
     let limit = q.limit.unwrap_or(100);
     let items = recordings::list_for_user(&state.pool, me, q.server_id, limit, q.before).await?;
-    Ok(Json(json!({
-        "recordings": items,
-        "retention_days": crate::recordings::retention_days(&state.pool).await,
-        "max_bytes": state.recordings.max_bytes(),
-    })))
+    Ok(Json(RecordingList {
+        recordings: items.into_iter().map(recording).collect(),
+        retention_days: crate::recordings::retention_days(&state.pool).await,
+        max_bytes: state.recordings.max_bytes(),
+    }))
 }
 
+/// One of the caller's recordings; anyone else's is 404
+#[utoipa::path(get, path = "/{id}", tag = "recordings", params(("id" = i64, Path)),
+    responses((status = 200, body = RecordingOne), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state))]
 async fn get_one(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
-    let recording = recordings::get_for_user(&state.pool, id, me).await?;
-    Ok(Json(json!({ "recording": recording })))
-}
-
-#[derive(Debug, Deserialize)]
-struct CastQuery {
-    /// Serve as a file download (and audit it) instead of for the player
-    #[serde(default)]
-    download: bool,
+) -> Result<Json<RecordingOne>, ApiError> {
+    let r = recordings::get_for_user(&state.pool, id, me).await?;
+    Ok(Json(RecordingOne {
+        recording: recording(r),
+    }))
 }
 
 /// The recording as plain asciicast v2, decrypted as it streams. A recording still being
 /// written returns what has been written so far.
+#[utoipa::path(get, path = "/{id}/cast", tag = "recordings",
+    params(("id" = i64, Path), CastQuery),
+    responses(
+        (status = 200, description = "asciicast v2", content_type = "application/x-asciicast", body = String),
+        (status = 404, body = ErrorBody),
+    ))]
 #[instrument(skip(state, headers))]
 async fn cast(
     State(state): State<AppState>,
@@ -130,13 +142,19 @@ async fn cast(
 
 /// Delete a finished recording and its file. One still being written is refused: end the
 /// session first, so the recorder is not left writing to a deleted file.
+#[utoipa::path(delete, path = "/{id}", tag = "recordings", params(("id" = i64, Path)),
+    responses(
+        (status = 200, body = IdMessage),
+        (status = 404, body = ErrorBody),
+        (status = 409, description = "Still being recorded", body = ErrorBody),
+    ))]
 #[instrument(skip(state, headers))]
 async fn remove(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<IdMessage>, ApiError> {
     let recording = recordings::get_for_user(&state.pool, id, me).await?;
     if recording.status == "recording" {
         return Err(ApiError::conflict(
@@ -155,7 +173,7 @@ async fn remove(
             .client_ip(Some(client_ip(&headers)))
             .target("recording", recording.id, &recording.server_name),
     );
-    Ok(Json(json!({ "id": id, "message": "Recording deleted" })))
+    Ok(Json(IdMessage::new(id, "Recording deleted")))
 }
 
 #[cfg(test)]
@@ -163,6 +181,7 @@ mod tests {
     use super::*;
     use axum::body::to_bytes;
     use axum::http::{Request, StatusCode};
+    use serde_json::json;
     use std::sync::Arc;
     use std::time::Duration;
     use svrctlrs_database::Database;
