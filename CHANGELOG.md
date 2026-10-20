@@ -29,6 +29,9 @@ the release workflow uses the matching section as the release notes.
   `{"error": {code, message, hint}}`, stable exit codes (3 = a human must act, 4 not found,
   5 not allowed, …), servers and credentials by id or name, never a prompt, `--wait` for
   approvals, examples in `--help`. It reads the server's own `svrctlrs-api` types.
+- `svrctl diagnose <server> --credential <cred>` (and `POST /servers/{id}/diagnose` with
+  `credential_id`) tests a stored credential against a server without changing the server or
+  its recorded status — how an agent proves a rotated-away key no longer works.
 - **`skills/svrctlrs/SKILL.md`**: the skill Hermes (`hermes skills tap add
   jsprague84/svrctlrs`), Claude Code and other agents load to use svrctl well: the
   diagnose-and-fix loop and the rules.

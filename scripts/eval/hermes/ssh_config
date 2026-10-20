@@ -1,0 +1,18 @@
+Host eval-web
+    HostName eval-web
+    Port 2222
+    User eval
+
+Host eval-db-replica
+    HostName eval-db
+    Port 2222
+    User eval
+
+Host eval-key-alt
+    HostName eval-key
+    Port 2222
+    User eval
+    ProxyJump eval-db-replica
+
+Host *
+    ServerAliveInterval 30

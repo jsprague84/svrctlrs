@@ -1,0 +1,1 @@
+Add the host "eval-db" to svrctlrs and get it onto an SSH key: hostname eval-db, port 2222, user eval. Log in the first time with the credential that is already stored in svrctlrs as "eval password". Use svrctl. The host is a Docker container on this machine if you need to check anything on it. Report the result.

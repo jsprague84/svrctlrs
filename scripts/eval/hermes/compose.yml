@@ -1,0 +1,24 @@
+# svrctlrs eval on hermes: a throwaway svrctlrs and three SSH hosts, nothing published
+# beyond 127.0.0.1. `docker compose -p svrctlrs-eval down -v` removes all of it.
+name: svrctlrs-eval
+services:
+  svrctlrs:
+    image: git.js-node.cc/jsprague/svrctlrs:${SVRCTLRS_TAG}
+    environment:
+      ADMIN_USERNAME: admin
+      ADMIN_PASSWORD: ${EVAL_ADMIN_PASSWORD}
+      ENCRYPTION_KEY: ${EVAL_ENCRYPTION_KEY}
+      SESSION_SECURE: "false"
+    ports: ["127.0.0.1:18990:8080"]
+    volumes: [svrctlrs-data:/app/data]
+  eval-web:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment: {PUID: "1000", PGID: "1000", USER_NAME: eval, PASSWORD_ACCESS: "true", USER_PASSWORD: "${EVAL_SSH_PASSWORD}"}
+  eval-db:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment: {PUID: "1000", PGID: "1000", USER_NAME: eval, PASSWORD_ACCESS: "true", USER_PASSWORD: "${EVAL_SSH_PASSWORD}"}
+  eval-key:
+    image: lscr.io/linuxserver/openssh-server:latest
+    environment: {PUID: "1000", PGID: "1000", USER_NAME: eval, PASSWORD_ACCESS: "false", PUBLIC_KEY: "${EVAL_OLD_PUBKEY}"}
+volumes:
+  svrctlrs-data:

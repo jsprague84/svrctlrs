@@ -187,13 +187,19 @@ compact screens for everything below.
     (a step list with fixes, phone and desktop) and Rotate key. Tests against the loopback SSH
     server, which learned exec and applies the install/removal commands, so a rotated-away key
     is proved refused; the e2e runs diagnose, exec and onboard against OpenSSH on hermes.
-19. **`svrctl` as the agent CLI, a `SKILL.md`, and an eval.** JSON output when not on a
-    terminal, never prompts, stable exit codes, errors as JSON with a hint, examples in
-    `--help`; a ~1k-token `SKILL.md` in the repo that Hermes adds as a skill source and Claude
-    Code can load. Done when Hermes (default and local-qwen) passes five realistic tasks —
-    "why can't I reach X?" and fix it, onboard a host, rotate a key, import an `ssh_config`,
-    tag servers — with transcripts read. MCP (a few task tools over Streamable HTTP, bearer
-    token) only if a client without a shell needs it; it goes under "Maybe later" until then.
+19. ~~**`svrctl` as the agent CLI, a `SKILL.md`, and an eval.**~~ Done 2026-10-19: `svrctl`
+    (`server/src/bin/svrctl/`) covers servers, credentials, host keys, diagnose (with
+    `--credential` to test one without changing the server), exec, onboard, rotate-key,
+    import, tag, approvals and audit; JSON when piped, errors with hints, stable exit codes
+    (3 = a human must act), never a prompt, `--wait` for approvals, examples in `--help`,
+    the server's own `svrctlrs-api` types; `server/tests/svrctl.rs` runs both binaries.
+    `skills/svrctlrs/SKILL.md` (~950 tokens) is installed in Hermes default and local-qwen
+    (`hermes skills install jsprague84/svrctlrs/svrctlrs`, after rewording two lines its
+    scanner blocked) and linked for Claude Code. The eval (`scripts/eval/hermes/`): both
+    profiles passed all five tasks (why can't I reach X + fix, onboard, rotate, import, tag)
+    with every host key compared out of band; the transcripts led to `diagnose --credential`,
+    a rotate-key hint that no longer invites deleting the old credential, and a "do only
+    what was asked" rule in the skill. MCP stays under "Maybe later".
 
 ## Maybe later
 

@@ -1,0 +1,1 @@
+Svrctlrs (our SSH terminal manager) cannot reach the server "eval-web". Find out why and fix it so svrctlrs can connect. Use svrctl (it is configured in your environment). The eval hosts are Docker containers on this machine (eval-web, eval-db, eval-key); you may inspect them with docker if you need facts about a host. Report what was wrong and what you changed.

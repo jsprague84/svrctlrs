@@ -78,6 +78,11 @@ the real `svrctl` binary against it: JSON on a pipe, exit codes, errors with hin
 presets, `import` from stdin, and a delete held for approval that `--wait` sees through once
 the owner approves.
 
+`scripts/eval/hermes/` is the agent eval of ROADMAP item 19: a throwaway svrctlrs and three
+SSH hosts in Docker on the Hermes VM, five tasks run as one-shot Hermes sessions, a grader for
+the end state, and a transcript summarizer; its README has the results. Run it after changing
+`svrctl`, the skill or the operations.
+
 **API types and the OpenAPI document.** Handlers return types from the `svrctlrs-api` crate
 (`api/src/*.rs`, `Serialize + ToSchema`) and are registered with
 `OpenApiRouter::routes(routes!(…))` plus `#[utoipa::path(…)]`, so a route is routed and

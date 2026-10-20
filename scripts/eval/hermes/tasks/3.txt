@@ -1,0 +1,1 @@
+Rotate the SSH key that svrctlrs uses for the server "eval-key", and make sure the old key no longer works there. Use svrctl and report what happened.
