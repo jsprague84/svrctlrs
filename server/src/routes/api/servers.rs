@@ -7,7 +7,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -21,10 +21,11 @@ use tracing::{error, info, instrument, warn};
 
 use super::ApiError;
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
 /// Create servers router
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/", get(list_servers).post(create_server))
         .route("/import", post(import_servers))
         .route(

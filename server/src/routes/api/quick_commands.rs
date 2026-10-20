@@ -5,7 +5,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
     routing::get,
-    Json, Router,
+    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -15,10 +15,11 @@ use tracing::{info, instrument};
 use super::ApiError;
 use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
 /// Create quick commands router
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/", get(list_commands).post(create_command))
         .route(
             "/{id}",

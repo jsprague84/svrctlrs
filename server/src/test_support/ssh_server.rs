@@ -5,7 +5,8 @@
 //!
 //! The shell echoes what is typed (as a tty in cooked mode would) and answers each line:
 //! `exit N` ends the session with exit status N, `big N` prints N bytes, anything else prints
-//! `ran: <line>` and a new prompt.
+//! `ran: <line>` and a new prompt. An exec request runs one such command: `echo X` prints X,
+//! `exit N` exits N, anything else prints `ran: <command>`; then the channel closes.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -25,6 +26,7 @@ pub enum Event {
     Pty { term: String, cols: u32, rows: u32 },
     Env { name: String, value: String },
     Shell,
+    Exec(String),
     Resize { cols: u32, rows: u32 },
     Input(Vec<u8>),
     DirectTcpip { host: String, port: u32 },
@@ -311,6 +313,31 @@ impl server::Handler for Connection {
         self.record(Event::Shell).await;
         self.shells.push(channel);
         let _ = session.data(channel, &b"$ "[..]);
+        Ok(())
+    }
+
+    async fn exec_request(
+        &mut self,
+        channel: ChannelId,
+        data: &[u8],
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        let command = String::from_utf8_lossy(data).into_owned();
+        self.record(Event::Exec(command.clone())).await;
+        let _ = session.channel_success(channel);
+        let (out, code) = if let Some(text) = command.strip_prefix("echo ") {
+            (format!("{text}\n"), 0)
+        } else if let Some(code) = command.strip_prefix("exit ") {
+            (String::new(), code.trim().parse().unwrap_or(1))
+        } else {
+            (format!("ran: {command}\n"), 0)
+        };
+        if !out.is_empty() {
+            let _ = session.data(channel, out.into_bytes());
+        }
+        let _ = session.exit_status_request(channel, code);
+        let _ = session.eof(channel);
+        let _ = session.close(channel);
         Ok(())
     }
 

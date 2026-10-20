@@ -96,7 +96,7 @@ pub fn router(state: AppState, session_store: SqliteStore, session_secure: bool)
     // upload reads its body for as long as the file takes).
     let ws_routes = Router::new()
         .merge(terminal_pty_router)
-        .merge(routes::api::files::routes().with_state(state.clone()));
+        .merge(Router::from(routes::api::files::routes()).with_state(state.clone()));
 
     // Build main router
     let app = Router::new()

@@ -7,7 +7,7 @@ use axum::{
     http::HeaderMap,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -19,9 +19,10 @@ use super::ApiError;
 use crate::approvals::{approval_json, decide, MAX_WAIT_SECS};
 use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/", get(list))
         .route("/{id}", get(get_one))
         .route("/{id}/approve", post(approve))

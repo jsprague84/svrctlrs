@@ -1,6 +1,6 @@
 //! Notification API endpoints
 
-use axum::{extract::State, response::IntoResponse, routing::post, Json, Router};
+use axum::{extract::State, response::IntoResponse, routing::post, Json};
 use serde_json::json;
 use svrctlrs_core::notifications::NotificationClient;
 use svrctlrs_database::queries::settings;
@@ -8,10 +8,11 @@ use tracing::{info, instrument};
 
 use super::ApiError;
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
 /// Create notifications router
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/test", post(test_notification))
         .route("/test-approval", post(test_approval_channel))
 }

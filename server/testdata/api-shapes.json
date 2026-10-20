@@ -1,0 +1,905 @@
+{
+  "DELETE /credentials/{id}": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "DELETE /profiles/{id}": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "DELETE /quick-commands/{id}": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "DELETE /servers/{id}": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "DELETE /servers/{id} (held for approval)": {
+    "body": {
+      "approval": {
+        "action": "string",
+        "client_ip": "string",
+        "created_at": "string",
+        "decided_at": "null",
+        "expires_at": "string",
+        "id": "string",
+        "method": "string",
+        "path": "string",
+        "result": "null",
+        "result_status": "null",
+        "status": "string",
+        "summary": "string",
+        "target_id": "integer",
+        "target_name": "string",
+        "target_type": "string",
+        "token_id": "integer",
+        "token_name": "string",
+        "url": "string"
+      },
+      "message": "string",
+      "wait_url": "string"
+    },
+    "status": 202
+  },
+  "DELETE /servers/{id}/host-keys": {
+    "body": {
+      "removed": "integer",
+      "server_id": "integer"
+    },
+    "status": 200
+  },
+  "DELETE /sessions/{id} (missing)": {
+    "body": {
+      "error": {
+        "code": "string",
+        "message": "string"
+      },
+      "success": "boolean"
+    },
+    "status": 404
+  },
+  "DELETE /tokens/{id}": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "DELETE /users/{id}": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "GET /approvals": {
+    "body": {
+      "approvals": [
+        {
+          "action": "string",
+          "client_ip": "string",
+          "created_at": "string",
+          "decided_at": "null",
+          "expires_at": "string",
+          "id": "string",
+          "method": "string",
+          "path": "string",
+          "result": "null",
+          "result_status": "null",
+          "status": "string",
+          "summary": "string",
+          "target_id": "integer",
+          "target_name": "string",
+          "target_type": "string",
+          "token_id": "integer",
+          "token_name": "string",
+          "url": "string"
+        }
+      ],
+      "waiting": "integer"
+    },
+    "status": 200
+  },
+  "GET /approvals/{id}": {
+    "body": {
+      "action": "string",
+      "client_ip": "string",
+      "created_at": "string",
+      "decided_at": "null",
+      "expires_at": "string",
+      "id": "string",
+      "method": "string",
+      "path": "string",
+      "result": "null",
+      "result_status": "null",
+      "status": "string",
+      "summary": "string",
+      "target_id": "integer",
+      "target_name": "string",
+      "target_type": "string",
+      "token_id": "integer",
+      "token_name": "string",
+      "url": "string"
+    },
+    "status": 200
+  },
+  "GET /audit": {
+    "body": {
+      "entries": [
+        {
+          "action": "string",
+          "at": "string",
+          "client_ip": "string",
+          "details": "null|string",
+          "id": "integer",
+          "target_id": "integer|null",
+          "target_name": "null|string",
+          "target_type": "null|string",
+          "token_id": "integer|null",
+          "token_name": "null|string",
+          "user_id": "integer",
+          "username": "string"
+        }
+      ],
+      "next_before": "null"
+    },
+    "status": 200
+  },
+  "GET /credentials": {
+    "body": {
+      "credentials": [
+        {
+          "created_at": "string",
+          "credential_type": "string",
+          "description": "null|string",
+          "fingerprint": "null|string",
+          "has_passphrase": "boolean",
+          "has_value": "boolean",
+          "id": "integer",
+          "in_use": "boolean",
+          "key_source": "null|string",
+          "name": "string",
+          "updated_at": "string",
+          "used_by": [
+            "empty"
+          ],
+          "username": "null|string"
+        }
+      ]
+    },
+    "status": 200
+  },
+  "GET /credentials/{id} (key)": {
+    "body": {
+      "created_at": "string",
+      "credential_type": "string",
+      "description": "null",
+      "fingerprint": "string",
+      "has_passphrase": "boolean",
+      "has_value": "boolean",
+      "id": "integer",
+      "in_use": "boolean",
+      "key_source": "string",
+      "name": "string",
+      "public_key": "string",
+      "updated_at": "string",
+      "username": "null"
+    },
+    "status": 200
+  },
+  "GET /credentials/{id} (password)": {
+    "body": {
+      "created_at": "string",
+      "credential_type": "string",
+      "description": "string",
+      "fingerprint": "null",
+      "has_passphrase": "boolean",
+      "has_value": "boolean",
+      "id": "integer",
+      "in_use": "boolean",
+      "key_source": "null",
+      "name": "string",
+      "public_key": "null",
+      "updated_at": "string",
+      "username": "string"
+    },
+    "status": 200
+  },
+  "GET /health": {
+    "body": {
+      "database": "string",
+      "revision": "string",
+      "service": "string",
+      "status": "string",
+      "version": "string"
+    },
+    "status": 200
+  },
+  "GET /profiles": {
+    "body": {
+      "profiles": [
+        {
+          "created_at": "string",
+          "description": "null",
+          "id": "integer",
+          "is_default": "boolean",
+          "layout": "string",
+          "name": "string",
+          "pane_configs": "string",
+          "updated_at": "string",
+          "user_id": "integer"
+        }
+      ]
+    },
+    "status": 200
+  },
+  "GET /profiles/{id}": {
+    "body": {
+      "profile": {
+        "created_at": "string",
+        "description": "null",
+        "id": "integer",
+        "is_default": "boolean",
+        "layout": "string",
+        "name": "string",
+        "pane_configs": "string",
+        "updated_at": "string",
+        "user_id": "integer"
+      }
+    },
+    "status": 200
+  },
+  "GET /quick-commands": {
+    "body": {
+      "commands": [
+        {
+          "category": "string",
+          "command": "string",
+          "created_at": "string",
+          "id": "integer",
+          "name": "string",
+          "server_id": "integer",
+          "sort_order": "integer",
+          "updated_at": "string",
+          "user_id": "integer"
+        }
+      ]
+    },
+    "status": 200
+  },
+  "GET /quick-commands/{id}": {
+    "body": {
+      "command": {
+        "category": "string",
+        "command": "string",
+        "created_at": "string",
+        "id": "integer",
+        "name": "string",
+        "server_id": "integer",
+        "sort_order": "integer",
+        "updated_at": "string",
+        "user_id": "integer"
+      }
+    },
+    "status": 200
+  },
+  "GET /recordings": {
+    "body": {
+      "max_bytes": "integer",
+      "recordings": [
+        {
+          "cols": "integer",
+          "duration_ms": "integer",
+          "end_reason": "null",
+          "ended_at": "null",
+          "id": "integer",
+          "rows": "integer",
+          "server_id": "integer",
+          "server_name": "string",
+          "session_id": "string",
+          "size_bytes": "integer",
+          "started_at": "string",
+          "status": "string",
+          "user_id": "integer"
+        }
+      ],
+      "retention_days": "integer"
+    },
+    "status": 200
+  },
+  "GET /recordings/{id}": {
+    "body": {
+      "recording": {
+        "cols": "integer",
+        "duration_ms": "integer",
+        "end_reason": "null",
+        "ended_at": "null",
+        "id": "integer",
+        "rows": "integer",
+        "server_id": "integer",
+        "server_name": "string",
+        "session_id": "string",
+        "size_bytes": "integer",
+        "started_at": "string",
+        "status": "string",
+        "user_id": "integer"
+      }
+    },
+    "status": 200
+  },
+  "GET /servers": {
+    "body": {
+      "servers": [
+        {
+          "created_at": "string",
+          "credential_id": "integer",
+          "description": "null|string",
+          "enabled": "boolean",
+          "hostname": "string",
+          "id": "integer",
+          "last_error": "null",
+          "last_seen_at": "null",
+          "name": "string",
+          "port": "integer",
+          "record_sessions": "boolean",
+          "startup_command": "null|string",
+          "tags": [
+            "string"
+          ],
+          "updated_at": "string",
+          "username": "null|string",
+          "via_server_id": "integer|null"
+        }
+      ]
+    },
+    "status": 200
+  },
+  "GET /servers/{id}": {
+    "body": {
+      "server": {
+        "created_at": "string",
+        "credential_id": "integer",
+        "description": "string",
+        "enabled": "boolean",
+        "hostname": "string",
+        "id": "integer",
+        "last_error": "null",
+        "last_seen_at": "null",
+        "name": "string",
+        "port": "integer",
+        "record_sessions": "boolean",
+        "startup_command": "null",
+        "tags": [
+          "string"
+        ],
+        "updated_at": "string",
+        "username": "string",
+        "via_server_id": "null"
+      }
+    },
+    "status": 200
+  },
+  "GET /servers/{id} (missing)": {
+    "body": {
+      "error": {
+        "code": "string",
+        "message": "string"
+      },
+      "success": "boolean"
+    },
+    "status": 404
+  },
+  "GET /servers/{id} (via)": {
+    "body": {
+      "server": {
+        "created_at": "string",
+        "credential_id": "integer",
+        "description": "null",
+        "enabled": "boolean",
+        "hostname": "string",
+        "id": "integer",
+        "last_error": "null",
+        "last_seen_at": "null",
+        "name": "string",
+        "port": "integer",
+        "record_sessions": "boolean",
+        "startup_command": "string",
+        "tags": [
+          "empty"
+        ],
+        "updated_at": "string",
+        "username": "null",
+        "via_server_id": "integer"
+      }
+    },
+    "status": 200
+  },
+  "GET /servers/{id}/host-keys": {
+    "body": {
+      "host_keys": [
+        {
+          "fingerprint": "string",
+          "first_seen_at": "string",
+          "id": "integer",
+          "key_type": "string",
+          "last_seen_at": "string",
+          "trusted": "boolean",
+          "trusted_at": "null"
+        }
+      ],
+      "server_id": "integer"
+    },
+    "status": 200
+  },
+  "GET /sessions": {
+    "body": {
+      "detach_ttl_secs": "integer",
+      "sessions": [
+        "empty"
+      ]
+    },
+    "status": 200
+  },
+  "GET /settings": {
+    "body": {
+      "settings": {
+        "app": [
+          {
+            "description": "string",
+            "is_set": "boolean",
+            "key": "string",
+            "secret": "boolean",
+            "updated_at": "string",
+            "value": "string",
+            "value_type": "string"
+          }
+        ],
+        "approval": [
+          {
+            "description": "string",
+            "is_set": "boolean",
+            "key": "string",
+            "secret": "boolean",
+            "updated_at": "string",
+            "value": "string",
+            "value_type": "string"
+          }
+        ],
+        "notification": [
+          {
+            "description": "string",
+            "is_set": "boolean",
+            "key": "string",
+            "secret": "boolean",
+            "updated_at": "string",
+            "value": "string",
+            "value_type": "string"
+          }
+        ],
+        "recording": [
+          {
+            "description": "string",
+            "is_set": "boolean",
+            "key": "string",
+            "secret": "boolean",
+            "updated_at": "string",
+            "value": "string",
+            "value_type": "string"
+          }
+        ]
+      }
+    },
+    "status": 200
+  },
+  "GET /settings/{key}": {
+    "body": {
+      "description": "string",
+      "is_set": "boolean",
+      "key": "string",
+      "secret": "boolean",
+      "updated_at": "string",
+      "value": "string",
+      "value_type": "string"
+    },
+    "status": 200
+  },
+  "GET /status": {
+    "body": {
+      "resources": {
+        "servers": "integer"
+      },
+      "status": "string",
+      "version": "string"
+    },
+    "status": 200
+  },
+  "GET /tokens": {
+    "body": {
+      "tokens": [
+        {
+          "created_at": "string",
+          "expires_at": "string",
+          "id": "integer",
+          "last_used_at": "null",
+          "last_used_ip": "null",
+          "name": "string",
+          "prefix": "string",
+          "preset": "string",
+          "require_approval": "boolean",
+          "revoked_at": "null",
+          "status": "string"
+        }
+      ]
+    },
+    "status": 200
+  },
+  "GET /tokens (as a token)": {
+    "body": {
+      "error": {
+        "code": "string",
+        "details": {
+          "method": "string",
+          "path": "string",
+          "preset": "string"
+        },
+        "message": "string"
+      },
+      "success": "boolean"
+    },
+    "status": 403
+  },
+  "GET /users": {
+    "body": {
+      "users": [
+        {
+          "created_at": "string",
+          "id": "integer",
+          "is_me": "boolean",
+          "last_login_at": "null|string",
+          "updated_at": "string",
+          "username": "string"
+        }
+      ]
+    },
+    "status": 200
+  },
+  "GET /users/me/preferences/terminal (unset)": {
+    "body": {
+      "key": "string",
+      "updated_at": "null",
+      "value": "null"
+    },
+    "status": 200
+  },
+  "POST /approvals/{id}/approve": {
+    "body": {
+      "action": "string",
+      "client_ip": "string",
+      "created_at": "string",
+      "decided_at": "string",
+      "expires_at": "string",
+      "id": "string",
+      "method": "string",
+      "path": "string",
+      "result": {
+        "id": "integer",
+        "message": "string"
+      },
+      "result_status": "integer",
+      "status": "string",
+      "summary": "string",
+      "target_id": "integer",
+      "target_name": "string",
+      "target_type": "string",
+      "token_id": "integer",
+      "token_name": "string",
+      "url": "string"
+    },
+    "status": 200
+  },
+  "POST /approvals/{id}/deny (decided)": {
+    "body": {
+      "error": {
+        "code": "string",
+        "message": "string"
+      },
+      "success": "boolean"
+    },
+    "status": 409
+  },
+  "POST /auth/ws-ticket": {
+    "body": {
+      "expires_in_secs": "integer",
+      "ticket": "string"
+    },
+    "status": 200
+  },
+  "POST /credentials": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 201
+  },
+  "POST /credentials (taken name)": {
+    "body": {
+      "error": {
+        "code": "string",
+        "message": "string"
+      },
+      "success": "boolean"
+    },
+    "status": 409
+  },
+  "POST /credentials/generate-key": {
+    "body": {
+      "id": "integer",
+      "message": "string",
+      "public_key": "string"
+    },
+    "status": 201
+  },
+  "POST /notifications/test (unset)": {
+    "body": "null",
+    "status": 400
+  },
+  "POST /profiles": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 201
+  },
+  "POST /quick-commands": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 201
+  },
+  "POST /servers": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 201
+  },
+  "POST /servers (taken name)": {
+    "body": {
+      "error": {
+        "code": "string",
+        "message": "string"
+      },
+      "success": "boolean"
+    },
+    "status": 409
+  },
+  "POST /servers (via)": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 201
+  },
+  "POST /servers/import": {
+    "body": {
+      "created": [
+        {
+          "hostname": "string",
+          "id": "integer",
+          "name": "string"
+        }
+      ],
+      "notes": [
+        "empty"
+      ],
+      "skipped": [
+        {
+          "name": "string",
+          "reason": "string"
+        }
+      ]
+    },
+    "status": 200
+  },
+  "POST /servers/{id}/host-keys/trust": {
+    "body": {
+      "host_key": {
+        "fingerprint": "string",
+        "first_seen_at": "string",
+        "id": "integer",
+        "key_type": "string",
+        "last_seen_at": "string",
+        "trusted": "boolean",
+        "trusted_at": "string"
+      },
+      "server_id": "integer"
+    },
+    "status": 200
+  },
+  "POST /servers/{id}/host-keys/trust (wrong)": {
+    "body": {
+      "error": {
+        "code": "string",
+        "message": "string"
+      },
+      "success": "boolean"
+    },
+    "status": 404
+  },
+  "POST /servers/{id}/test": {
+    "body": {
+      "hostname": "string",
+      "latency_ms": "integer",
+      "message": "string",
+      "port": "integer",
+      "server_id": "integer",
+      "success": "boolean"
+    },
+    "status": 200
+  },
+  "POST /servers/{id}/test (unconfirmed)": {
+    "body": {
+      "code": "string",
+      "details": {
+        "fingerprint": "string",
+        "key_type": "string",
+        "server_id": "integer",
+        "server_name": "string"
+      },
+      "hostname": "string",
+      "latency_ms": "integer",
+      "message": "string",
+      "port": "integer",
+      "server_id": "integer",
+      "success": "boolean"
+    },
+    "status": 200
+  },
+  "POST /settings": {
+    "body": {
+      "key": "string",
+      "message": "string"
+    },
+    "status": 201
+  },
+  "POST /tokens": {
+    "body": {
+      "secret": "string",
+      "token": {
+        "created_at": "string",
+        "expires_at": "string",
+        "id": "integer",
+        "last_used_at": "null",
+        "last_used_ip": "null",
+        "name": "string",
+        "prefix": "string",
+        "preset": "string",
+        "require_approval": "boolean",
+        "revoked_at": "null",
+        "status": "string"
+      }
+    },
+    "status": 201
+  },
+  "POST /tokens/{id}/revoke": {
+    "body": {
+      "token": {
+        "created_at": "string",
+        "expires_at": "string",
+        "id": "integer",
+        "last_used_at": "string",
+        "last_used_ip": "string",
+        "name": "string",
+        "prefix": "string",
+        "preset": "string",
+        "require_approval": "boolean",
+        "revoked_at": "string",
+        "status": "string"
+      }
+    },
+    "status": 200
+  },
+  "POST /users": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 201
+  },
+  "PUT /credentials/{id}": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "PUT /profiles/{id}": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "PUT /quick-commands/{id}": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "PUT /servers/{id}": {
+    "body": {
+      "id": "integer",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "PUT /settings": {
+    "body": {
+      "message": "string",
+      "updated": [
+        "string"
+      ]
+    },
+    "status": 200
+  },
+  "PUT /settings/{key}": {
+    "body": {
+      "key": "string",
+      "message": "string"
+    },
+    "status": 200
+  },
+  "PUT /tokens/{id}": {
+    "body": {
+      "token": {
+        "created_at": "string",
+        "expires_at": "string",
+        "id": "integer",
+        "last_used_at": "null",
+        "last_used_ip": "null",
+        "name": "string",
+        "prefix": "string",
+        "preset": "string",
+        "require_approval": "boolean",
+        "revoked_at": "null",
+        "status": "string"
+      }
+    },
+    "status": 200
+  },
+  "PUT /users/me/password (wrong current)": {
+    "body": {
+      "error": {
+        "code": "string",
+        "message": "string"
+      },
+      "success": "boolean"
+    },
+    "status": 401
+  },
+  "PUT /users/me/preferences/terminal": {
+    "body": {
+      "key": "string",
+      "updated_at": "string",
+      "value": {
+        "fontSize": "integer"
+      }
+    },
+    "status": 200
+  }
+}

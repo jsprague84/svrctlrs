@@ -15,7 +15,7 @@ use axum::{
     http::{header, HeaderMap, HeaderValue},
     response::{IntoResponse, Response},
     routing::{get, post},
-    Json, Router,
+    Json,
 };
 use russh_sftp::client::SftpSession;
 use russh_sftp::protocol::{FileType, StatusCode as SftpStatus};
@@ -29,6 +29,7 @@ use tracing::{info, instrument, warn};
 use super::ApiError;
 use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
 type ApiResult<T> = Result<T, ApiError>;
 
@@ -36,8 +37,8 @@ type ApiResult<T> = Result<T, ApiError>;
 const MAX_UPLOAD_BYTES: usize = 4 * 1024 * 1024 * 1024;
 
 /// Full paths: this router is merged beside the API router, outside its request timeout.
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/api/v1/servers/{id}/files", get(list).delete(remove))
         .route(
             "/api/v1/servers/{id}/files/content",

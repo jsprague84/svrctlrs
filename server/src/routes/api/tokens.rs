@@ -7,7 +7,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -21,12 +21,13 @@ use super::{double_option, ApiError};
 use crate::api_tokens::{self as tokens, Preset};
 use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
 /// Longest lifetime a token may be given in days; `null` (never) is always allowed.
 const MAX_LIFETIME_DAYS: u32 = 3650;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/", get(list).post(create))
         .route("/{id}/revoke", post(revoke))
         .route("/{id}", axum::routing::put(update).delete(remove))

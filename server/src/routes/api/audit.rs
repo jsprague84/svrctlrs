@@ -4,7 +4,7 @@ use axum::{
     extract::{Query, State},
     response::IntoResponse,
     routing::get,
-    Json, Router,
+    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -13,9 +13,10 @@ use tracing::instrument;
 
 use super::ApiError;
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
-pub fn routes() -> Router<AppState> {
-    Router::new().route("/", get(list_audit))
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new().route("/", get(list_audit))
 }
 
 #[derive(Debug, Deserialize)]

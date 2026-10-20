@@ -1,5 +1,7 @@
 //! SvrCtlRS Server — Terminal-focused infrastructure management
 
+#[cfg(test)]
+mod api_shapes;
 mod api_tokens;
 mod app;
 mod approvals;

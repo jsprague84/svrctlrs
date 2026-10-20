@@ -85,6 +85,7 @@ pub enum Preset {
 /// Paths a read-only token may GET (and HEAD). `*` is one path segment.
 const READ: &[&str] = &[
     "/api/v1/status",
+    "/api/v1/openapi.json",
     "/api/v1/servers",
     "/api/v1/servers/*",
     "/api/v1/servers/*/host-keys",
@@ -355,6 +356,7 @@ mod tests {
         let none: &[Preset] = &[];
         let cases: &[(&str, &str, &[Preset])] = &[
             ("GET", "/api/v1/status", all),
+            ("GET", "/api/v1/openapi.json", all),
             ("GET", "/api/v1/servers", all),
             ("HEAD", "/api/v1/servers", all),
             ("POST", "/api/v1/servers", write),

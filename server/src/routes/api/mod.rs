@@ -28,12 +28,13 @@ pub mod settings;
 pub mod tokens;
 pub mod users;
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use tracing::{debug, instrument};
 
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
 /// Deserialize an optional field so that *absent* and *null* are distinguishable:
 /// `None` when the key is missing, `Some(None)` for `null`, `Some(Some(v))` for a value.
@@ -200,11 +201,12 @@ impl From<anyhow::Error> for ApiError {
 }
 
 /// Create the complete v1 API router
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         // System endpoints
         .route("/health", get(health_check))
         .route("/status", get(server_status))
+        .route("/openapi.json", get(openapi_document))
         // Resource endpoints
         .nest("/servers", servers::routes())
         .nest("/credentials", credentials::routes())
@@ -218,6 +220,16 @@ pub fn routes() -> Router<AppState> {
         .nest("/recordings", recordings::routes())
         .nest("/tokens", tokens::routes())
         .nest("/approvals", approvals::routes())
+}
+
+/// The OpenAPI document of this server's API (the same as `docs/openapi.json` in its
+/// source).
+async fn openapi_document() -> Json<serde_json::Value> {
+    static DOC: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
+    Json(
+        DOC.get_or_init(|| serde_json::to_value(crate::routes::openapi()).unwrap_or_default())
+            .clone(),
+    )
 }
 
 /// Health check endpoint. Unauthenticated, so it reveals only version and revision; it does

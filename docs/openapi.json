@@ -1,0 +1,75 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "SvrCtlRS API",
+    "description": "Self-hosted terminal/SSH management. Authenticate with an API token (`Authorization: Bearer svr_…`, Settings → Access) or the session cookie. Errors use the `ErrorBody` envelope. The terminal WebSocket (`/ws/terminal/pty`) is described in docs/API.md.",
+    "contact": {
+      "name": "Johnathon Sprague"
+    },
+    "license": {
+      "name": "MIT OR Apache-2.0"
+    },
+    "version": "3.3.0"
+  },
+  "paths": {},
+  "components": {
+    "schemas": {
+      "ErrorBody": {
+        "type": "object",
+        "description": "Every error: `{ \"success\": false, \"error\": { \"code\", \"message\", \"details\"? } }`.",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "Always false"
+          },
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetails"
+          }
+        }
+      },
+      "ErrorDetails": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "`BAD_REQUEST`, `UNAUTHORIZED`, `FORBIDDEN`, `NOT_FOUND`, `CONFLICT`, `HOST_KEY_MISMATCH`,\n`HOST_KEY_UNCONFIRMED`, `TOKEN_INVALID`, `TOKEN_EXPIRED`, `TOKEN_REVOKED`,\n`TOKEN_IN_URL`, `TOKEN_SCOPE`, `INTERNAL_ERROR`"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "description": "Extras a client can act on (for example the fingerprint of an unconfirmed host key)"
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "svr_ API token"
+      },
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "id"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    },
+    {
+      "cookie": []
+    }
+  ]
+}

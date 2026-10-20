@@ -7,7 +7,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -21,10 +21,11 @@ use super::ApiError;
 use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
 use svrctlrs_database::models::NewAuditEntry;
+use utoipa_axum::router::OpenApiRouter;
 
 /// Create credentials router
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/", get(list_credentials).post(create_credential))
         .route("/generate-key", post(generate_key))
         .route(

@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, State},
     response::IntoResponse,
     routing::get,
-    Json, Router,
+    Json,
 };
 use serde_json::json;
 use tracing::instrument;
@@ -13,9 +13,10 @@ use tracing::instrument;
 use super::ApiError;
 use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/", get(list_sessions))
         .route("/{id}", axum::routing::delete(close_session))
 }

@@ -8,7 +8,7 @@ use axum::{
     http::{header, HeaderMap, HeaderValue},
     response::{IntoResponse, Response},
     routing::get,
-    Json, Router,
+    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -19,9 +19,10 @@ use tracing::{info, instrument};
 use super::ApiError;
 use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/", get(list))
         .route("/{id}", get(get_one).delete(remove))
         .route("/{id}/cast", get(cast))
@@ -224,7 +225,7 @@ mod tests {
         method: &str,
         uri: &str,
     ) -> (StatusCode, HeaderMap, Vec<u8>) {
-        let app = routes()
+        let app = axum::Router::from(routes())
             .with_state(h.state.clone())
             .layer(axum::Extension(CurrentUser(user)));
         let response = app

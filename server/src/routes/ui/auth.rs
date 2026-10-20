@@ -401,11 +401,16 @@ pub fn redacted_uri(uri: &Uri) -> String {
 
 /// Create auth router
 pub fn routes() -> Router<AppState> {
-    Router::new()
+    Router::from(api_routes())
         .route("/auth/login", get(login_page).post(login))
+        .route("/auth/logout", post(logout))
+}
+
+/// The JSON auth routes, which the OpenAPI document describes.
+pub fn api_routes() -> utoipa_axum::router::OpenApiRouter<AppState> {
+    utoipa_axum::router::OpenApiRouter::new()
         .route("/api/v1/auth/login", post(login_json))
         .route("/api/v1/auth/ws-ticket", post(ws_ticket))
-        .route("/auth/logout", post(logout))
 }
 
 /// Login form data

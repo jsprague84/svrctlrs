@@ -6,7 +6,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::IntoResponse,
     routing::{get, put},
-    Json, Router,
+    Json,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -19,9 +19,10 @@ use tracing::{info, instrument};
 use super::ApiError;
 use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
+use utoipa_axum::router::OpenApiRouter;
 
-pub fn routes() -> Router<AppState> {
-    Router::new()
+pub fn routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
         .route("/", get(list_users).post(create_user))
         .route("/me/password", put(change_password))
         .route(
@@ -267,7 +268,7 @@ mod tests {
         uri: &str,
         body: Option<serde_json::Value>,
     ) -> (StatusCode, serde_json::Value) {
-        let app = routes()
+        let app = axum::Router::from(routes())
             .with_state(state.clone())
             .layer(axum::Extension(CurrentUser(user)));
         let request = Request::builder()
