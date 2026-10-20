@@ -308,7 +308,7 @@ key. All four live outside the 30 s request timeout.
 
 | Method | Path | Presets | |
 |---|---|---|---|
-| POST | `/servers/{id}/diagnose` | servers & keys, full admin | → `Diagnosis`: `ok`, `verdict`, and per hop (jump hosts first) the steps `dns`, `tcp` (or `tunnel` behind a jump host), `handshake`, `host_key`, `login`, each `ok`/`failed`/`skipped` with `detail`, `fix` and `duration_ms` |
+| POST | `/servers/{id}/diagnose` | servers & keys, full admin | body optional: `{credential_id}` tries that stored credential instead of the server's (the server and its status stay as they are) → `Diagnosis`: `ok`, `verdict`, and per hop (jump hosts first) the steps `dns`, `tcp` (or `tunnel` behind a jump host), `handshake`, `host_key`, `login`, each `ok`/`failed`/`skipped` with `detail`, `fix` and `duration_ms` |
 | POST | `/servers/{id}/exec` | full admin | `{command, timeout_secs?}` (1–600, default 60) → `{exit_code, stdout, stderr, stdout_truncated, stderr_truncated, timed_out, duration_ms}`; 1 MiB per stream; `exit_code` null after a timeout |
 | POST | `/servers/onboard` | servers & keys, full admin | `{name, hostname, port?, username?, credential_id, via_server_id?, tags?, fingerprint?, new_key?, dry_run?}` → `{server_id, done, steps, next}` |
 | POST | `/servers/{id}/rotate-key` | servers & keys, full admin | `{remove_old?, dry_run?}` → `{done, old_credential_id, new_credential_id, steps, next}` |

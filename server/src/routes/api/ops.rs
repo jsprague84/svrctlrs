@@ -13,8 +13,8 @@ use axum::{
 };
 use serde_json::json;
 use svrctlrs_api::ops::{
-    Diagnosis, ExecRequest, ExecResult, OnboardRequest, OnboardResult, OpStep, RotateKeyRequest,
-    RotateKeyResult,
+    DiagnoseRequest, Diagnosis, ExecRequest, ExecResult, OnboardRequest, OnboardResult, OpStep,
+    RotateKeyRequest, RotateKeyResult,
 };
 use svrctlrs_api::ErrorBody;
 use svrctlrs_database::models::{CreateServer, NewAuditEntry};
@@ -53,25 +53,50 @@ fn op(step: &str, status: &str, detail: impl Into<String>) -> OpStep {
 /// handshake, the host key and the login, per hop, with a fix for the first failure. Runs from
 /// where svrctlrs runs. A first contact records the presented key as unconfirmed.
 #[utoipa::path(post, path = "/api/v1/servers/{id}/diagnose", tag = "operations",
-    params(("id" = i64, Path)),
+    params(("id" = i64, Path)), request_body(content = Option<DiagnoseRequest>),
     responses((status = 200, body = Diagnosis), (status = 404, body = ErrorBody)))]
-#[instrument(skip(state, headers))]
+#[instrument(skip(state, headers, body))]
 async fn diagnose(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
+    body: axum::body::Bytes,
 ) -> Result<Json<Diagnosis>, ApiError> {
     let server = servers::get_server(&state.pool, id).await?;
-    let report = crate::diagnose::diagnose(&state.pool, &server).await;
-    // What the sidebar dot and the Servers page show, as after a connection test
-    let recorded = if report.ok {
-        servers::update_server_status(&state.pool, id, None).await
+    // The body is optional, and clients send an empty one with a JSON content type
+    let request: DiagnoseRequest = if body.iter().all(u8::is_ascii_whitespace) {
+        DiagnoseRequest::default()
     } else {
-        servers::update_server_last_error(&state.pool, id, &report.verdict).await
+        serde_json::from_slice(&body)
+            .map_err(|e| ApiError::bad_request(format!("Invalid request body: {e}")))?
     };
-    if let Err(e) = recorded {
-        warn!(id, error = %e, "Failed to record the diagnosis");
+    let override_id = request.credential_id;
+    let credential = match override_id {
+        Some(cid) => Some(
+            credentials::get_credential(&state.pool, cid)
+                .await
+                .map_err(|e| match e {
+                    svrctlrs_core::Error::NotFound(_) => {
+                        ApiError::bad_request(format!("Credential {cid} does not exist"))
+                    }
+                    other => other.into(),
+                })?,
+        ),
+        None => None,
+    };
+    let report = crate::diagnose::diagnose(&state.pool, &server, credential).await;
+    // What the sidebar dot and the Servers page show, as after a connection test; not when
+    // another credential was being tried
+    if override_id.is_none() {
+        let recorded = if report.ok {
+            servers::update_server_status(&state.pool, id, None).await
+        } else {
+            servers::update_server_last_error(&state.pool, id, &report.verdict).await
+        };
+        if let Err(e) = recorded {
+            warn!(id, error = %e, "Failed to record the diagnosis");
+        }
     }
     info!(id, ok = report.ok, verdict = %report.verdict, "Server diagnosed");
     crate::audit::record(
@@ -80,7 +105,9 @@ async fn diagnose(
             .user(me)
             .client_ip(Some(client_ip(&headers)))
             .target("server", id, &server.name)
-            .details(json!({ "ok": report.ok, "verdict": report.verdict })),
+            .details(
+                json!({ "ok": report.ok, "verdict": report.verdict, "credential_id": override_id }),
+            ),
     );
     Ok(Json(report))
 }
@@ -614,8 +641,8 @@ async fn rotate_key(
 
     let mut next = if others == 0 {
         Some(format!(
-            "{} is no longer used by any server; delete it when you are sure \
-             (DELETE /api/v1/credentials/{old_id})",
+            "{} is no longer used by any server and was kept; deleting it is the owner's call \
+             (tell them; DELETE /api/v1/credentials/{old_id} if they want it gone)",
             old.name
         ))
     } else {
@@ -1062,6 +1089,21 @@ mod tests {
             "failed",
             "the old key is gone: {d}"
         );
+        // The same proof without touching any server: diagnose with the old credential
+        let (_, d) = h
+            .owner(
+                "POST",
+                &format!("/api/v1/servers/{sid}/diagnose"),
+                Some(json!({ "credential_id": old })),
+            )
+            .await;
+        assert_eq!(step(&d, 0, "login")["status"], "failed", "{d}");
+        let row = queries::servers::get_server(&pool, sid).await.unwrap();
+        assert!(
+            row.last_error.is_none(),
+            "trying a credential records nothing"
+        );
+        assert_eq!(row.credential_id, Some(new_id));
 
         // A password server has nothing to rotate
         let pw = add_credential(&pool, "pw", CredentialType::Password, "pw").await;

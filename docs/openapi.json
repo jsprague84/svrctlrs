@@ -1719,6 +1719,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/DiagnoseRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -3770,6 +3786,20 @@
           },
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "DiagnoseRequest": {
+        "type": "object",
+        "description": "`POST /servers/{id}/diagnose` body (optional)",
+        "properties": {
+          "credential_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Log in with this stored credential instead of the server's own, to test it (for\nexample that a rotated-away key no longer works) without changing the server. The\nserver's recorded status is left alone."
           }
         }
       },

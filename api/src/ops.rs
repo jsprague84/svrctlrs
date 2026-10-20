@@ -20,6 +20,16 @@ pub struct Diagnosis {
     pub duration_ms: u64,
 }
 
+/// `POST /servers/{id}/diagnose` body (optional)
+#[derive(Debug, Clone, Default, Serialize, Deserialize, ToSchema)]
+pub struct DiagnoseRequest {
+    /// Log in with this stored credential instead of the server's own, to test it (for
+    /// example that a rotated-away key no longer works) without changing the server. The
+    /// server's recorded status is left alone.
+    #[serde(default)]
+    pub credential_id: Option<i64>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct DiagnosisHop {
     pub server_id: i64,

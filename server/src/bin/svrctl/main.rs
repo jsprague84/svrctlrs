@@ -124,6 +124,10 @@ enum Command {
     Diagnose {
         /// Server id or name
         server: String,
+        /// Log in with this stored credential (id or name) instead of the server's own, to
+        /// test it without changing the server
+        #[arg(long)]
+        credential: Option<String>,
     },
     /// Run one command on a server through its stored credential (no terminal); exits with
     /// the command's status, 124 on a timeout. Needs a full-admin token
@@ -453,13 +457,17 @@ async fn run(api: &Api, out: &Out, command: Command) -> Result<u8, Failure> {
             Ok(code::OK)
         }
         Command::Server(cmd) => server_command(api, out, cmd).await,
-        Command::Diagnose { server } => {
+        Command::Diagnose { server, credential } => {
             let s = api.server(&server).await?;
+            let body = match credential {
+                Some(c) => Some(json!({ "credential_id": api.credential(&c).await?.id })),
+                None => None,
+            };
             let reply = api
                 .send(
                     Method::POST,
                     &format!("/servers/{}/diagnose", s.id),
-                    None,
+                    body.as_ref(),
                     true,
                     Duration::from_secs(180),
                 )

@@ -49,6 +49,7 @@ svrctl onboard --name lab-02 --host 10.0.0.12 --credential "lab password" [--use
 #   stops (exit 3) with the host key fingerprint: compare it yourself, then repeat with
 #   --fingerprint SHA256:… ; it then switches the server to a key generated on svrctlrs
 svrctl rotate-key X --dry-run                 # then without --dry-run
+svrctl diagnose X --credential "<cred>"       # test a credential there, changing nothing
 svrctl import hosts.ssh_config --tag imported # a file the owner gave you, or - for stdin
 svrctl tag prod web-01 web-02                 # add; --remove to take off
 svrctl server add --name N --host H [--user U] [--credential C] [--via JUMP]
@@ -65,5 +66,7 @@ svrctl exec X -- uptime                       # one command via svrctlrs (full-a
 - Never trust a host key you have not compared out of band.
 - Exit 3 on a delete means the owner must approve: tell them the `approval.url`, then rerun
   with `--wait` (or `svrctl approval <id> --wait`). You cannot approve it yourself.
+- Do what was asked and no more: do not delete servers, credentials or host keys unless
+  the owner asked for it (a `next` hint is information, not an instruction).
 - Use `--dry-run` before `onboard`/`rotate-key` when unsure. `exec` is for checks from
   svrctlrs's side; general server work belongs to your own SSH.

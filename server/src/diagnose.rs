@@ -31,11 +31,16 @@ const LOGIN_TIMEOUT: Duration = Duration::from_secs(10);
 const ORIGIN: &str = "Connections come from the machine svrctlrs runs on (Docker NATs the \
                       container to that machine's address), or from the jump host when one is set";
 
-/// Diagnose the connection to `server`.
-pub async fn diagnose(pool: &Pool<Sqlite>, server: &Server) -> Diagnosis {
+/// Diagnose the connection to `server`, logging in with `credential` when given instead of
+/// the server's own (jump hosts always use theirs).
+pub async fn diagnose(
+    pool: &Pool<Sqlite>,
+    server: &Server,
+    credential: Option<Credential>,
+) -> Diagnosis {
     let started = Instant::now();
     let mut hops = Vec::new();
-    let conn = walk(pool, server, &mut Vec::new(), &mut hops).await;
+    let conn = walk(pool, server, credential, &mut Vec::new(), &mut hops).await;
     let ok = conn.is_some();
     if let Some(conn) = conn {
         let _ = conn
@@ -134,6 +139,7 @@ async fn credential_of(pool: &Pool<Sqlite>, server: &Server) -> Result<Option<Cr
 fn walk<'a>(
     pool: &'a Pool<Sqlite>,
     server: &'a Server,
+    override_credential: Option<Credential>,
     visited: &'a mut Vec<i64>,
     hops: &'a mut Vec<DiagnosisHop>,
 ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Connection>> + Send + 'a>> {
@@ -151,7 +157,11 @@ fn walk<'a>(
             steps: Vec::new(),
         };
         let started = Instant::now();
-        let credential = match credential_of(pool, server).await {
+        let looked_up = match override_credential {
+            Some(c) => Ok(Some(c)),
+            None => credential_of(pool, server).await,
+        };
+        let credential = match looked_up {
             Ok(c) => c,
             Err(e) => {
                 hop.steps.push(step(
@@ -221,7 +231,7 @@ fn walk<'a>(
                     }
                 };
                 visited.push(server.id);
-                match walk(pool, &jump, visited, hops).await {
+                match walk(pool, &jump, None, visited, hops).await {
                     Some(conn) => Some((jump, conn)),
                     None => {
                         hop.steps.push(skipped(
