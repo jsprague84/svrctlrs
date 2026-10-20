@@ -84,3 +84,57 @@ export async function authorizeKey(
 ): Promise<{ success: boolean; message: string }> {
 	return post<{ success: boolean; message: string }>(`/servers/${id}/authorize-key`, input);
 }
+
+export interface DiagnosisStep {
+	/** config, dns, tcp, jump_host, tunnel, handshake, host_key or login */
+	step: string;
+	status: 'ok' | 'failed' | 'skipped';
+	detail: string;
+	fix: string | null;
+	duration_ms: number;
+}
+
+export interface DiagnosisHop {
+	server_id: number;
+	server_name: string;
+	address: string;
+	via_server_id: number | null;
+	steps: DiagnosisStep[];
+}
+
+export interface Diagnosis {
+	server_id: number;
+	server_name: string;
+	ok: boolean;
+	verdict: string;
+	/** Jump hosts first, the server last */
+	hops: DiagnosisHop[];
+	duration_ms: number;
+}
+
+/** Why svrctlrs can or cannot reach the server, step by step, from where it runs. */
+export function diagnose(id: number): Promise<Diagnosis> {
+	return post<Diagnosis>(`/servers/${id}/diagnose`);
+}
+
+export interface OpStep {
+	step: string;
+	status: 'ok' | 'failed' | 'skipped' | 'waiting' | 'planned';
+	detail: string;
+}
+
+export interface RotateKeyResult {
+	server_id: number;
+	done: boolean;
+	dry_run: boolean;
+	old_credential_id: number | null;
+	new_credential_id: number | null;
+	steps: OpStep[];
+	next: string | null;
+}
+
+/** New key generated here, installed with the current one, proved, switched to; the old
+ *  public key removed from the server. */
+export function rotateKey(id: number): Promise<RotateKeyResult> {
+	return post<RotateKeyResult>(`/servers/${id}/rotate-key`, {});
+}

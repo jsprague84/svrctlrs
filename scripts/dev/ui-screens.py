@@ -207,6 +207,27 @@ with sync_playwright() as p:
                     page.keyboard.press("Escape")
                     page.wait_for_timeout(200)
                     check("Escape closes the row menu", page.get_by_role("menu").count() == 0)
+            # Diagnose: the live server passes every step; without one, an unreachable lab
+            # address fails at TCP with a fix
+            target = LIVE if SSH_HOST else "pi-garage"
+            go("/servers")
+            if vp_name == "phone":
+                page.get_by_role("button", name=f"Actions for {target}").first.click()
+                page.get_by_role("menuitem", name="Diagnose").click()
+            else:
+                page.locator("li", has_text=target).get_by_role("button", name="Diagnose the connection").first.click()
+            dialog = page.get_by_role("dialog", name=f"Diagnose {target}")
+            dialog.wait_for(timeout=5000)
+            dialog.get_by_text("Connecting step by step").wait_for(state="detached", timeout=25000)
+            verdict = dialog.get_by_role("status").first.inner_text()
+            if SSH_HOST:
+                # A fresh database has not confirmed lab-01's key yet: that is the right verdict too
+                check(f"diagnose passes on {target}, or stops at its unconfirmed key ({vp_name}-{theme})",
+                      "is reachable" in verdict or "host key is not trusted" in verdict, verdict)
+            else:
+                check(f"diagnose names the failure ({vp_name}-{theme})", "cannot be reached" in verdict, verdict)
+            shot("diagnose")
+            page.keyboard.press("Escape")
             go("/credentials")
             shot("credentials", full=True)
             for tab in ["general", "notifications", "commands", "access", "audit", "about"]:

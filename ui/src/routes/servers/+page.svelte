@@ -11,7 +11,9 @@
 		TerminalSquare,
 		Search,
 		FileInput,
-		MonitorPlay
+		MonitorPlay,
+		Stethoscope,
+		RotateCw
 	} from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
@@ -25,6 +27,7 @@
 	import StateBlock from '#lib/components/ui/StateBlock.svelte';
 	import ActionMenu, { type MenuItem } from '#lib/components/ui/ActionMenu.svelte';
 	import AuthorizeKeyModal from '#lib/components/servers/AuthorizeKeyModal.svelte';
+	import DiagnoseModal from '#lib/components/servers/DiagnoseModal.svelte';
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import * as credState from '#lib/state/credentials.svelte.js';
 	import * as terminalState from '#lib/state/terminal.svelte.js';
@@ -52,6 +55,8 @@
 	/** Last Test result per server, shown inline in the row */
 	let testResults = $state<Record<number, TestConnectionResult>>({});
 	let authServer = $state<Server | null>(null);
+	let diagnoseServer = $state<Server | null>(null);
+	let rotating = $state<number | null>(null);
 	// Host keys modal
 	let keysServer = $state<{ id: number; name: string } | null>(null);
 	let hostKeys = $state<HostKey[]>([]);
@@ -331,12 +336,23 @@
 				onSelect: () => handleTest(server.id),
 				disabled: testing === server.id
 			},
+			{ label: 'Diagnose', icon: Stethoscope, onSelect: () => (diagnoseServer = server) },
 			{
 				label: 'Authorize key',
 				icon: ShieldCheck,
 				onSelect: () => (authServer = server),
 				attention: needsKey(server)
 			},
+			...(canRotate(server)
+				? [
+						{
+							label: 'Rotate key',
+							icon: RotateCw,
+							onSelect: () => rotateKey(server),
+							disabled: rotating === server.id
+						}
+					]
+				: []),
 			{ label: 'Host keys', icon: KeyRound, onSelect: () => openHostKeys(server) },
 			...(server.record_sessions
 				? [{ label: 'Recordings', icon: MonitorPlay, onSelect: () => openRecordings(server) }]
@@ -351,6 +367,37 @@
 	}
 
 	/** A key should be installed: no credential, or a password one */
+	/** A stored key (not a path) can be rotated */
+	function canRotate(server: Server): boolean {
+		const cred = credentials.find((c) => c.id === server.credential_id);
+		return !!cred && cred.credential_type === 'ssh_key' && cred.key_source === 'key';
+	}
+
+	async function rotateKey(server: Server) {
+		const ok = await confirmDialog({
+			title: `Rotate the key of ${server.name}?`,
+			message:
+				'SvrCtlRS generates a new key, installs it with the current one, checks that it logs in, switches the server to it and removes the old public key from the server. The old credential stays under Credentials.',
+			confirmLabel: 'Rotate key'
+		});
+		if (!ok) return;
+		rotating = server.id;
+		try {
+			const result = await serversApi.rotateKey(server.id);
+			const failed = result.steps.find((s) => s.status === 'failed');
+			if (result.done) toast.success(`New key on ${server.name}. ${result.next ?? ''}`.trim());
+			else
+				toast.error(
+					failed ? `${failed.detail}. ${result.next ?? ''}` : (result.next ?? 'Not done')
+				);
+			await Promise.all([serversState.loadServers(), credState.loadCredentials()]);
+		} catch (e) {
+			toast.error(extractErrorMessage(e, 'Failed to rotate the key'));
+		} finally {
+			rotating = null;
+		}
+	}
+
 	function needsKey(server: Server): boolean {
 		if (!server.enabled) return false;
 		const cred = credentials.find((c) => c.id === server.credential_id);
@@ -560,6 +607,16 @@
 								{/if}
 							</Button>
 							<Button
+								variant="ghost"
+								size="sm"
+								onclick={() => (diagnoseServer = server)}
+								aria-label="Diagnose the connection"
+								title="Why it can or cannot be reached, step by step"
+							>
+								<Stethoscope class="w-3.5 h-3.5" />
+								<span class="hidden lg:inline">Diagnose</span>
+							</Button>
+							<Button
 								variant={needsKey(server) ? 'secondary' : 'ghost'}
 								size="sm"
 								class={needsKey(server) ? 'text-warning' : ''}
@@ -570,6 +627,19 @@
 								<ShieldCheck class="w-3.5 h-3.5" />
 								<span class="hidden lg:inline">Authorize key</span>
 							</Button>
+							{#if canRotate(server)}
+								<Button
+									variant="ghost"
+									size="sm"
+									onclick={() => rotateKey(server)}
+									disabled={rotating === server.id}
+									aria-label="Rotate the SSH key"
+									title="Replace the server's key with a new one"
+								>
+									<RotateCw class="w-3.5 h-3.5 {rotating === server.id ? 'animate-spin' : ''}" />
+									<span class="hidden xl:inline">Rotate</span>
+								</Button>
+							{/if}
 							<Button
 								variant="ghost"
 								size="sm"
@@ -750,6 +820,11 @@
 </Modal>
 
 <AuthorizeKeyModal server={authServer} onClose={() => (authServer = null)} />
+<DiagnoseModal
+	server={diagnoseServer}
+	onClose={() => (diagnoseServer = null)}
+	onDone={() => serversState.loadServers()}
+/>
 
 <Modal open={showImport} title="Import from ssh_config" onClose={() => (showImport = false)}>
 	{#if importResult}
