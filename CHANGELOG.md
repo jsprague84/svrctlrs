@@ -9,6 +9,8 @@ the release workflow uses the matching section as the release notes.
 - `POST /api/v1/settings` accepted `value_type: number`, which the settings table refuses
   (a 500), and refused `integer`, which it accepts. It now takes `string`, `integer`,
   `boolean` or `json`.
+- Deleting a credential that does not exist answers 404 (it answered 200), and the audit rows
+  of an updated or deleted credential name it (the name was empty).
 
 ## [3.3.0] - 2026-10-19
 

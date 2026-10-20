@@ -81,6 +81,282 @@
         }
       }
     },
+    "/api/v1/credentials": {
+      "get": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "List all credentials",
+        "description": "Note: Credential values are redacted for security.",
+        "operationId": "list_credentials",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Create a new credential",
+        "operationId": "create_credential",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewCredential"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/credentials/generate-key": {
+      "post": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Generate an ed25519 key pair, store the private half as an encrypted `ssh_key`\ncredential, and return the public half for `authorized_keys`.",
+        "operationId": "generate_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateKey"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratedKey"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/credentials/{id}": {
+      "get": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Get credential by ID",
+        "description": "Note: Credential value is redacted for security.",
+        "operationId": "get_credential",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Update an existing credential",
+        "operationId": "update_credential",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CredentialChanges"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "credentials"
+        ],
+        "summary": "Delete a credential; one a server still uses is refused",
+        "operationId": "delete_credential",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for the owner's approval (a token set to ask first)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A server uses it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/health": {
       "get": {
         "tags": [
@@ -1451,6 +1727,211 @@
           }
         }
       },
+      "CredentialChanges": {
+        "type": "object",
+        "description": "`PUT /credentials/{id}`: only the fields given change",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "passphrase": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Omit to keep the current passphrase; an empty string removes it"
+          }
+        }
+      },
+      "CredentialDetail": {
+        "type": "object",
+        "description": "One credential (value redacted; an SSH key's public half included).",
+        "required": [
+          "id",
+          "name",
+          "credential_type",
+          "has_value",
+          "has_passphrase",
+          "in_use",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "credential_type": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "has_value": {
+            "type": "boolean"
+          },
+          "has_passphrase": {
+            "type": "boolean"
+          },
+          "key_source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "public_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SSH keys: the line for `authorized_keys`"
+          },
+          "in_use": {
+            "type": "boolean"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CredentialList": {
+        "type": "object",
+        "required": [
+          "credentials"
+        ],
+        "properties": {
+          "credentials": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CredentialSummary"
+            }
+          }
+        }
+      },
+      "CredentialSummary": {
+        "type": "object",
+        "description": "A credential in the list (values redacted).",
+        "required": [
+          "id",
+          "name",
+          "credential_type",
+          "has_value",
+          "has_passphrase",
+          "in_use",
+          "used_by",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "credential_type": {
+            "type": "string",
+            "description": "`password`, `ssh_key` or `api_token`"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The login it comes with, if any"
+          },
+          "has_value": {
+            "type": "boolean"
+          },
+          "has_passphrase": {
+            "type": "boolean"
+          },
+          "key_source": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SSH keys: `key` (material stored here) or `path` (a file on the server)"
+          },
+          "fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SSH keys: `SHA256:…` of the public half"
+          },
+          "in_use": {
+            "type": "boolean",
+            "description": "Some server uses it (deleting it is refused)"
+          },
+          "used_by": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The names of the servers that use it"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "description": "Every error: `{ \"success\": false, \"error\": { \"code\", \"message\", \"details\"? } }`.",
@@ -1484,6 +1965,52 @@
           },
           "details": {
             "description": "Extras a client can act on (for example the fingerprint of an unconfirmed host key)"
+          }
+        }
+      },
+      "GenerateKey": {
+        "type": "object",
+        "description": "`POST /credentials/generate-key`: an ed25519 key made on the server; the private half\nnever leaves it.",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Comment at the end of the public key line (default `svrctlrs:<name>`)"
+          }
+        }
+      },
+      "GeneratedKey": {
+        "type": "object",
+        "required": [
+          "id",
+          "public_key",
+          "message"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "public_key": {
+            "type": "string",
+            "description": "The line for `authorized_keys`"
+          },
+          "message": {
+            "type": "string"
           }
         }
       },
@@ -1545,6 +2072,47 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "NewCredential": {
+        "type": "object",
+        "description": "`POST /credentials`",
+        "required": [
+          "name",
+          "credential_type",
+          "value"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "credential_type": {
+            "type": "string",
+            "description": "`password`, `ssh_key` or `api_token`"
+          },
+          "value": {
+            "type": "string",
+            "description": "The password, or OpenSSH private key material (or a key path on the server)"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "passphrase": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Passphrase of an encrypted SSH key"
           }
         }
       },

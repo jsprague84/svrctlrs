@@ -5,12 +5,14 @@
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
-    routing::{get, post},
     Json,
 };
-use serde::Deserialize;
 use serde_json::json;
+use svrctlrs_api::credentials::{
+    CredentialChanges, CredentialDetail, CredentialList, CredentialSummary, GenerateKey,
+    GeneratedKey, NewCredential,
+};
+use svrctlrs_api::{ErrorBody, IdMessage};
 use svrctlrs_database::{
     models::{CreateCredential, UpdateCredential},
     queries::credentials,
@@ -21,26 +23,27 @@ use super::ApiError;
 use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
 use svrctlrs_database::models::NewAuditEntry;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 /// Create credentials router
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
-        .route("/", get(list_credentials).post(create_credential))
-        .route("/generate-key", post(generate_key))
-        .route(
-            "/{id}",
-            get(get_credential)
-                .put(update_credential)
-                .delete(delete_credential),
-        )
+        .routes(routes!(list_credentials, create_credential))
+        .routes(routes!(generate_key))
+        .routes(routes!(
+            get_credential,
+            update_credential,
+            delete_credential
+        ))
 }
 
 /// List all credentials
 ///
 /// Note: Credential values are redacted for security.
+#[utoipa::path(get, path = "/", tag = "credentials",
+    responses((status = 200, body = CredentialList)))]
 #[instrument(skip(state))]
-async fn list_credentials(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
+async fn list_credentials(State(state): State<AppState>) -> Result<Json<CredentialList>, ApiError> {
     let creds = credentials::list_credentials(&state.pool).await?;
 
     // Which servers use each credential: the list is what tells you whether deleting is safe
@@ -52,10 +55,10 @@ async fn list_credentials(State(state): State<AppState>) -> Result<impl IntoResp
     // SQL, so an SSH key's source, passphrase and fingerprint come from its decrypted row.
     let mut redacted = Vec::with_capacity(creds.len());
     for c in creds {
-        let used_by: Vec<&str> = servers
+        let used_by: Vec<String> = servers
             .iter()
             .filter(|s| s.credential_id == Some(c.id))
-            .map(|s| s.name.as_str())
+            .map(|s| s.name.clone())
             .collect();
         let summary = if c.is_ssh_key() {
             match credentials::get_credential(&state.pool, c.id).await {
@@ -68,79 +71,76 @@ async fn list_credentials(State(state): State<AppState>) -> Result<impl IntoResp
         } else {
             None
         };
-        redacted.push(json!({
-            "id": c.id,
-            "name": c.name,
-            "credential_type": c.credential_type_str,
-            "description": c.description,
-            "username": c.username,
-            "has_value": !c.value.is_empty(),
-            "has_passphrase": summary.as_ref().is_some_and(|s| s.has_passphrase),
-            "key_source": summary.as_ref().map(|s| s.source),
-            "fingerprint": summary.and_then(|s| s.fingerprint),
-            "in_use": !used_by.is_empty(),
-            "used_by": used_by,
-            "created_at": c.created_at,
-            "updated_at": c.updated_at
-        }));
+        redacted.push(CredentialSummary {
+            id: c.id,
+            has_value: !c.value.is_empty(),
+            name: c.name,
+            credential_type: c.credential_type_str,
+            description: c.description,
+            username: c.username,
+            has_passphrase: summary.as_ref().is_some_and(|s| s.has_passphrase),
+            key_source: summary.as_ref().map(|s| s.source.to_string()),
+            fingerprint: summary.and_then(|s| s.fingerprint),
+            in_use: !used_by.is_empty(),
+            used_by,
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+        });
     }
 
-    Ok(Json(json!({
-        "credentials": redacted
-    })))
+    Ok(Json(CredentialList {
+        credentials: redacted,
+    }))
 }
 
 /// Get credential by ID
 ///
 /// Note: Credential value is redacted for security.
+#[utoipa::path(get, path = "/{id}", tag = "credentials", params(("id" = i64, Path)),
+    responses((status = 200, body = CredentialDetail), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state))]
 async fn get_credential(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<CredentialDetail>, ApiError> {
     let cred = credentials::get_credential(&state.pool, id).await?;
 
     // Check if in use
     let in_use = credentials::credential_in_use(&state.pool, id).await?;
     let summary = crate::ssh_keys::key_summary(&cred);
 
-    Ok(Json(json!({
-        "id": cred.id,
-        "name": cred.name,
-        "credential_type": cred.credential_type_str,
-        "description": cred.description,
-        "username": cred.username,
-        "has_value": !cred.value.is_empty(),
-        "has_passphrase": cred.passphrase().is_some(),
-        "key_source": summary.as_ref().map(|s| s.source),
-        "fingerprint": summary.and_then(|s| s.fingerprint),
-        "public_key": crate::ssh_keys::public_key_of(&cred),
-        "in_use": in_use,
-        "created_at": cred.created_at,
-        "updated_at": cred.updated_at
-    })))
-}
-
-/// Generate-key input
-#[derive(Debug, Deserialize)]
-struct GenerateKeyInput {
-    name: String,
-    #[serde(default)]
-    description: Option<String>,
-    /// Comment at the end of the public key line (defaults to `svrctlrs:<name>`)
-    #[serde(default)]
-    comment: Option<String>,
+    Ok(Json(CredentialDetail {
+        has_value: !cred.value.is_empty(),
+        has_passphrase: cred.passphrase().is_some(),
+        key_source: summary.as_ref().map(|s| s.source.to_string()),
+        fingerprint: summary.and_then(|s| s.fingerprint),
+        public_key: crate::ssh_keys::public_key_of(&cred),
+        id: cred.id,
+        name: cred.name,
+        credential_type: cred.credential_type_str,
+        description: cred.description,
+        username: cred.username,
+        in_use,
+        created_at: cred.created_at,
+        updated_at: cred.updated_at,
+    }))
 }
 
 /// Generate an ed25519 key pair, store the private half as an encrypted `ssh_key`
 /// credential, and return the public half for `authorized_keys`.
+#[utoipa::path(post, path = "/generate-key", tag = "credentials", request_body = GenerateKey,
+    responses(
+        (status = 201, body = GeneratedKey),
+        (status = 400, body = ErrorBody),
+        (status = 409, description = "The name is taken", body = ErrorBody),
+    ))]
 #[instrument(skip(state, input))]
 async fn generate_key(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
-    Json(input): Json<GenerateKeyInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<GenerateKey>,
+) -> Result<(StatusCode, Json<GeneratedKey>), ApiError> {
     let name = input.name.trim().to_string();
     if name.is_empty() {
         return Err(ApiError::bad_request("name is required"));
@@ -172,27 +172,12 @@ async fn generate_key(
     );
     Ok((
         StatusCode::CREATED,
-        Json(json!({
-            "id": id,
-            "public_key": generated.public_openssh,
-            "message": "Key generated"
-        })),
+        Json(GeneratedKey {
+            id,
+            public_key: generated.public_openssh,
+            message: "Key generated".to_string(),
+        }),
     ))
-}
-
-/// Create credential input
-#[derive(Debug, Deserialize)]
-struct CreateCredentialInput {
-    name: String,
-    credential_type: String,
-    value: String,
-    #[serde(default)]
-    description: Option<String>,
-    #[serde(default)]
-    username: Option<String>,
-    /// Passphrase of an encrypted SSH key; stored encrypted in the credential's metadata.
-    #[serde(default)]
-    passphrase: Option<String>,
 }
 
 /// Credential metadata carrying the passphrase, or none when it is empty.
@@ -203,13 +188,19 @@ fn passphrase_metadata(passphrase: Option<String>) -> Option<serde_json::Value> 
 }
 
 /// Create a new credential
+#[utoipa::path(post, path = "/", tag = "credentials", request_body = NewCredential,
+    responses(
+        (status = 201, body = IdMessage),
+        (status = 400, body = ErrorBody),
+        (status = 409, description = "The name is taken", body = ErrorBody),
+    ))]
 #[instrument(skip(state, input))]
 async fn create_credential(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
-    Json(input): Json<CreateCredentialInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<NewCredential>,
+) -> Result<(StatusCode, Json<IdMessage>), ApiError> {
     info!(name = %input.name, "Creating credential");
 
     // Parse credential type
@@ -254,39 +245,27 @@ async fn create_credential(
 
     Ok((
         StatusCode::CREATED,
-        Json(json!({
-            "id": id,
-            "message": "Credential created successfully"
-        })),
+        Json(IdMessage::new(id, "Credential created successfully")),
     ))
 }
 
-/// Update credential input
-#[derive(Debug, Deserialize)]
-struct UpdateCredentialInput {
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    value: Option<String>,
-    #[serde(default)]
-    description: Option<String>,
-    #[serde(default)]
-    username: Option<String>,
-    /// New passphrase for an encrypted SSH key. Omit to keep the current one; send an empty
-    /// string to remove it.
-    #[serde(default)]
-    passphrase: Option<String>,
-}
-
 /// Update an existing credential
+#[utoipa::path(put, path = "/{id}", tag = "credentials", params(("id" = i64, Path)),
+    request_body = CredentialChanges,
+    responses(
+        (status = 200, body = IdMessage),
+        (status = 400, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 409, description = "The name is taken", body = ErrorBody),
+    ))]
 #[instrument(skip(state, input))]
 async fn update_credential(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-    Json(input): Json<UpdateCredentialInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<CredentialChanges>,
+) -> Result<Json<IdMessage>, ApiError> {
     info!(id = id, "Updating credential");
 
     // Verify credential exists
@@ -301,6 +280,7 @@ async fn update_credential(
         }
     }
 
+    let audit_name = input.name.clone().unwrap_or_else(|| existing.name.clone());
     let update = UpdateCredential {
         name: input.name,
         value: input.value,
@@ -320,28 +300,33 @@ async fn update_credential(
         NewAuditEntry::new("credential.updated")
             .user(me)
             .client_ip(Some(client_ip(&headers)))
-            .target("credential", id, "")
+            .target("credential", id, &audit_name)
             .details(json!({
                 "value_changed": update.value.is_some(),
                 "passphrase_changed": update.metadata.is_some(),
             })),
     );
 
-    Ok(Json(json!({
-        "id": id,
-        "message": "Credential updated successfully"
-    })))
+    Ok(Json(IdMessage::new(id, "Credential updated successfully")))
 }
 
-/// Delete a credential
+/// Delete a credential; one a server still uses is refused
+#[utoipa::path(delete, path = "/{id}", tag = "credentials", params(("id" = i64, Path)),
+    responses(
+        (status = 200, body = IdMessage),
+        (status = 202, description = "Held for the owner's approval (a token set to ask first)"),
+        (status = 404, body = ErrorBody),
+        (status = 409, description = "A server uses it", body = ErrorBody),
+    ))]
 #[instrument(skip(state))]
 async fn delete_credential(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<IdMessage>, ApiError> {
     info!(id = id, "Deleting credential");
+    let name = credentials::get_credential(&state.pool, id).await?.name;
 
     // Check if in use
     let in_use = credentials::credential_in_use(&state.pool, id).await?;
@@ -360,11 +345,8 @@ async fn delete_credential(
         NewAuditEntry::new("credential.deleted")
             .user(me)
             .client_ip(Some(client_ip(&headers)))
-            .target("credential", id, ""),
+            .target("credential", id, &name),
     );
 
-    Ok(Json(json!({
-        "id": id,
-        "message": "Credential deleted successfully"
-    })))
+    Ok(Json(IdMessage::new(id, "Credential deleted successfully")))
 }

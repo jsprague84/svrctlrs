@@ -8,6 +8,7 @@
 
 pub mod audit;
 pub mod common;
+pub mod credentials;
 pub mod notifications;
 pub mod profiles;
 pub mod quick_commands;
