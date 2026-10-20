@@ -27,13 +27,15 @@ server/      Axum app: main.rs, app.rs (the router stack), ssh.rs (the one SSH c
              api_tokens.rs + approvals.rs (agent tokens: presets, held deletes),
              diagnose.rs + key_ops.rs + routes/api/ops.rs (diagnose, exec, onboard, rotate-key),
              routes/{api/*, terminal_pty.rs, ui/auth.rs}, health_monitor.rs,
-             bin/svrctl.rs (CLI used by the container healthcheck),
+             bin/svrctl/ (the agent CLI over the API + local backup/reset-password;
+             also the container healthcheck), tests/svrctl.rs (both binaries end to end),
              test_support/ (tests only: loopback SSH server, in-memory database, the full
              app on a temporary database)
 ui/          SvelteKit 5 SPA (adapter-static → ui/build, served by the server at SPA_DIR)
 ui/src-tauri/  Tauri 2 desktop + Android (excluded from the Cargo workspace)
 .forgejo/    CI images and workflows (ci, docker, android, desktop)
 scripts/ci/  release helper; scripts/deploy/ docker-vm deploy (forced-command target)
+skills/      svrctlrs/SKILL.md, the agent skill for svrctl (linked from .claude/skills/)
 ```
 
 ## Commands

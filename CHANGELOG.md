@@ -22,6 +22,16 @@ the release workflow uses the matching section as the release notes.
   audited, full-admin tokens only) and `POST /api/v1/servers/onboard` (add a server, trust its
   key with the fingerprint you compared, switch it to a generated key; resumable, `dry_run`).
   No request carries a password or private key.
+- **`svrctl` is the agent CLI**: servers (list, show, add, edit, rm, test), `diagnose`,
+  `exec`, `onboard`, `rotate-key`, `host-keys`, `trust`, `forget-keys`, `import`, `tag`,
+  `credentials`, `key generate`/`authorize`, `credential rm`, `approval`, `audit`, `openapi`.
+  One JSON document when piped (`--json`/`--text` to choose), errors as
+  `{"error": {code, message, hint}}`, stable exit codes (3 = a human must act, 4 not found,
+  5 not allowed, …), servers and credentials by id or name, never a prompt, `--wait` for
+  approvals, examples in `--help`. It reads the server's own `svrctlrs-api` types.
+- **`skills/svrctlrs/SKILL.md`**: the skill Hermes (`hermes skills tap add
+  jsprague84/svrctlrs`), Claude Code and other agents load to use svrctl well: the
+  diagnose-and-fix loop and the rules.
 
 ### Fixed
 - `POST /api/v1/settings` accepted `value_type: number`, which the settings table refuses

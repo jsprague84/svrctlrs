@@ -145,6 +145,11 @@ own.
 A full-admin token that never expires is as good as your password on every server for as long
 as it exists; the dialog says so. See SECURITY.md, "API tokens".
 
+Agents use the token with **svrctl** (`export SVRCTLRS_URL=… SVRCTLRS_TOKEN=svr_…`;
+`svrctl --help` lists everything, with examples) and the skill file `skills/svrctlrs/SKILL.md`,
+which teaches them the diagnose-and-fix loop and the rules (never a password on a command
+line, never trust a host key without comparing it, approvals are yours).
+
 ### Approvals
 
 When a token that asks first wants to delete something, SvrCtlRS sends you a link (Settings →

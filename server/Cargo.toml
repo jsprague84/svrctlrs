@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [[bin]]
 name = "svrctl"
-path = "src/bin/svrctl.rs"
+path = "src/bin/svrctl/main.rs"
 
 [dependencies]
 # Internal crates (server-only - contain tokio, sqlx, etc.)

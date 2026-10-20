@@ -29,6 +29,11 @@ file.
   command palette (`Ctrl+K`).
 - **Notifications** — [rstify](https://git.js-node.cc/jsprague/rstify)/Gotify/ntfy push for
   server health checks and command completion.
+- **Agents** — named API tokens with access presets (full admin, servers & keys,
+  read-only), approvals for the deletes that cannot be undone, an OpenAPI document, and
+  `svrctl`, a CLI made for agents (JSON when piped, stable exit codes, hints in errors) with
+  a skill file (`skills/svrctlrs/SKILL.md`) that Hermes, Claude Code and other agents load.
+  `svrctl diagnose <server>` answers "why can't I reach it?" step by step, with a fix.
 - **Clients** — the web UI served by the server, with a mobile layout (touch gestures, an
   extra-keys row, swipe between tabs) that works in a phone browser; and a Tauri desktop app
   for Linux (`.deb`, `.rpm`, AppImage).
@@ -61,6 +66,23 @@ cross-origin settings the desktop and Android apps need, are in
 
 Images are published to `git.js-node.cc/jsprague/svrctlrs` for `linux/amd64` and
 `linux/arm64` (Raspberry Pi 4/5 on a 64-bit OS) with tags `latest`, `vX.Y.Z` and the commit SHA.
+
+## For agents
+
+Create a token under Settings → Access → Agent tokens, then:
+
+```bash
+export SVRCTLRS_URL=https://svrctlrs.example SVRCTLRS_TOKEN=svr_…
+svrctl servers
+svrctl diagnose web-01
+svrctl onboard --name lab-02 --host 10.0.0.12 --credential "lab password"
+```
+
+`svrctl` is in the image (`docker cp svrctlrs:/app/svrctl .`) and in every build
+(`cargo build --release -p server --bin svrctl`). Hermes adds the skill with
+`hermes skills tap add jsprague84/svrctlrs`; Claude Code finds it in `.claude/skills/` when
+working in this repository, or copy `skills/svrctlrs/` into `~/.claude/skills/`. The full API
+is in `GET /api/v1/openapi.json`.
 
 ## Desktop app
 

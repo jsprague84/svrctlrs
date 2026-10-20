@@ -73,6 +73,11 @@ removal commands of `key_ops.rs` to its accepted keys, so authorize-key, onboard
 rotate-key are tested end to end (`routes/api/ops.rs`): a new key really logs in afterwards
 and a removed one really does not.
 
+`server/tests/svrctl.rs` starts the real `server` binary on a temporary database and drives
+the real `svrctl` binary against it: JSON on a pipe, exit codes, errors with hints, token
+presets, `import` from stdin, and a delete held for approval that `--wait` sees through once
+the owner approves.
+
 **API types and the OpenAPI document.** Handlers return types from the `svrctlrs-api` crate
 (`api/src/*.rs`, `Serialize + ToSchema`) and are registered with
 `OpenApiRouter::routes(routes!(…))` plus `#[utoipa::path(…)]`, so a route is routed and
