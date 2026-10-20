@@ -4,12 +4,12 @@
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
-    routing::{get, put},
     Json,
 };
-use serde::Deserialize;
-use serde_json::json;
+use svrctlrs_api::users::{
+    NewUser, PasswordChange, Preference, PreferenceValue, UserAccount, UserList,
+};
+use svrctlrs_api::{ErrorBody, IdMessage, Message};
 use svrctlrs_database::{
     models::{CreateUser, NewAuditEntry, UserSetting},
     queries::{user_settings, users},
@@ -19,39 +19,38 @@ use tracing::{info, instrument};
 use super::ApiError;
 use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
-        .route("/", get(list_users).post(create_user))
-        .route("/me/password", put(change_password))
-        .route(
-            "/me/preferences/{key}",
-            get(get_preference).put(put_preference),
-        )
-        .route("/{id}", axum::routing::delete(delete_user))
+        .routes(routes!(list_users, create_user))
+        .routes(routes!(change_password))
+        .routes(routes!(get_preference, put_preference))
+        .routes(routes!(delete_user))
 }
 
-fn user_json(
+fn user_view(
     u: &svrctlrs_database::models::User,
     me: i64,
     last_login_at: Option<chrono::DateTime<chrono::Utc>>,
-) -> serde_json::Value {
-    json!({
-        "id": u.id,
-        "username": u.username,
-        "is_me": u.id == me,
-        "last_login_at": last_login_at,
-        "created_at": u.created_at,
-        "updated_at": u.updated_at,
-    })
+) -> UserAccount {
+    UserAccount {
+        id: u.id,
+        username: u.username.clone(),
+        is_me: u.id == me,
+        last_login_at,
+        created_at: u.created_at,
+        updated_at: u.updated_at,
+    }
 }
 
+/// Every account
+#[utoipa::path(get, path = "/", tag = "users", responses((status = 200, body = UserList)))]
 #[instrument(skip(state))]
 async fn list_users(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<UserList>, ApiError> {
     let list = users::list_users(&state.pool).await?;
     // From the audit log; a missing entry just means no login since the log began
     let last: std::collections::HashMap<i64, chrono::DateTime<chrono::Utc>> =
@@ -60,26 +59,27 @@ async fn list_users(
             .unwrap_or_default()
             .into_iter()
             .collect();
-    let list: Vec<_> = list
+    let users = list
         .iter()
-        .map(|u| user_json(u, me, last.get(&u.id).copied()))
+        .map(|u| user_view(u, me, last.get(&u.id).copied()))
         .collect();
-    Ok(Json(json!({ "users": list })))
+    Ok(Json(UserList { users }))
 }
 
-#[derive(Debug, Deserialize)]
-struct CreateUserInput {
-    username: String,
-    password: String,
-}
-
+/// Create an account (signed-in users only; no token can)
+#[utoipa::path(post, path = "/", tag = "users", request_body = NewUser,
+    responses(
+        (status = 201, body = IdMessage),
+        (status = 400, body = ErrorBody),
+        (status = 409, description = "The name is taken", body = ErrorBody),
+    ))]
 #[instrument(skip(state, input))]
 async fn create_user(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
-    Json(input): Json<CreateUserInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<NewUser>,
+) -> Result<(StatusCode, Json<IdMessage>), ApiError> {
     let username = input.username.trim().to_string();
     if username.is_empty() || username.chars().count() > 64 {
         return Err(ApiError::bad_request("username must be 1–64 characters"));
@@ -108,17 +108,20 @@ async fn create_user(
     );
     Ok((
         StatusCode::CREATED,
-        Json(json!({ "id": id, "message": "User created" })),
+        Json(IdMessage::new(id, "User created")),
     ))
 }
 
+/// Delete an account: not your own, not the last one (signed-in users only)
+#[utoipa::path(delete, path = "/{id}", tag = "users", params(("id" = i64, Path)),
+    responses((status = 200, body = IdMessage), (status = 400, body = ErrorBody)))]
 #[instrument(skip(state))]
 async fn delete_user(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<IdMessage>, ApiError> {
     if id == me {
         return Err(ApiError::bad_request("you cannot delete your own account"));
     }
@@ -139,24 +142,24 @@ async fn delete_user(
             .client_ip(Some(crate::routes::ui::auth::client_ip(&headers)))
             .target("user", id, &name),
     );
-    Ok(Json(json!({ "id": id, "message": "User deleted" })))
-}
-
-#[derive(Debug, Deserialize)]
-struct ChangePasswordInput {
-    current_password: String,
-    new_password: String,
+    Ok(Json(IdMessage::new(id, "User deleted")))
 }
 
 /// Change the caller's own password; the current password is required so a hijacked session
 /// alone cannot lock the owner out.
+#[utoipa::path(put, path = "/me/password", tag = "users", request_body = PasswordChange,
+    responses(
+        (status = 200, body = Message),
+        (status = 400, description = "The new password is too short", body = ErrorBody),
+        (status = 401, description = "The current password is wrong", body = ErrorBody),
+    ))]
 #[instrument(skip(state, input))]
 async fn change_password(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
-    Json(input): Json<ChangePasswordInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<PasswordChange>,
+) -> Result<Json<Message>, ApiError> {
     let user = users::get_user(&state.pool, me)
         .await?
         .ok_or_else(|| ApiError::not_found("User"))?;
@@ -172,7 +175,7 @@ async fn change_password(
             .user(me)
             .client_ip(Some(crate::routes::ui::auth::client_ip(&headers))),
     );
-    Ok(Json(json!({ "message": "Password changed" })))
+    Ok(Json(Message::new("Password changed")))
 }
 
 /// The preference documents a user can keep on the server. The UI owns their contents.
@@ -188,41 +191,46 @@ fn preference_key(key: &str) -> Result<&str, ApiError> {
         .ok_or_else(|| ApiError::not_found("Preference"))
 }
 
-fn preference_json(key: &str, row: Option<&UserSetting>) -> serde_json::Value {
+fn preference_view(key: &str, row: Option<&UserSetting>) -> Preference {
     // A stored value always parsed when it was saved; a row that somehow does not is "unset"
-    let value = row.and_then(|r| serde_json::from_str::<serde_json::Value>(&r.value).ok());
-    json!({
-        "key": key,
-        "value": value,
-        "updated_at": row.map(|r| r.updated_at),
-    })
+    Preference {
+        key: key.to_string(),
+        value: row.and_then(|r| serde_json::from_str::<serde_json::Value>(&r.value).ok()),
+        updated_at: row.map(|r| r.updated_at),
+    }
 }
 
 /// The caller's own preference document under `key`; `value` is null until they save one.
+#[utoipa::path(get, path = "/me/preferences/{key}", tag = "users",
+    params(("key" = String, Path, description = "Only `terminal`")),
+    responses((status = 200, body = Preference), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state))]
 async fn get_preference(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     Path(key): Path<String>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<Preference>, ApiError> {
     let key = preference_key(&key)?;
     let row = user_settings::get(&state.pool, me, key).await?;
-    Ok(Json(preference_json(key, row.as_ref())))
-}
-
-#[derive(Debug, Deserialize)]
-struct PutPreferenceInput {
-    value: serde_json::Value,
+    Ok(Json(preference_view(key, row.as_ref())))
 }
 
 /// Replace the caller's own preference document under `key` (a JSON object, at most 16 KiB).
+#[utoipa::path(put, path = "/me/preferences/{key}", tag = "users",
+    params(("key" = String, Path, description = "Only `terminal`")),
+    request_body = PreferenceValue,
+    responses(
+        (status = 200, body = Preference),
+        (status = 400, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+    ))]
 #[instrument(skip(state, input))]
 async fn put_preference(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     Path(key): Path<String>,
-    Json(input): Json<PutPreferenceInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<PreferenceValue>,
+) -> Result<Json<Preference>, ApiError> {
     let key = preference_key(&key)?;
     if !input.value.is_object() {
         return Err(ApiError::bad_request("value must be a JSON object"));
@@ -232,7 +240,7 @@ async fn put_preference(
         return Err(ApiError::bad_request("value is larger than 16 KiB"));
     }
     let row = user_settings::put(&state.pool, me, key, &text).await?;
-    Ok(Json(preference_json(key, Some(&row))))
+    Ok(Json(preference_view(key, Some(&row))))
 }
 
 #[cfg(test)]
@@ -240,6 +248,7 @@ mod tests {
     use super::*;
     use axum::body::{to_bytes, Body};
     use axum::http::Request;
+    use serde_json::json;
     use tower::ServiceExt;
 
     async fn state() -> (AppState, tempfile::TempDir) {

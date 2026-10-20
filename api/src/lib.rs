@@ -14,5 +14,6 @@ pub mod quick_commands;
 pub mod sessions;
 pub mod settings;
 pub mod system;
+pub mod users;
 
 pub use common::*;
