@@ -300,6 +300,35 @@ nothing ran). Deciding twice, or after expiry, is 409. Settings: `approval.chann
 `approval.matrix_homeserver`, `approval.matrix_room`, `approval.link_base` (where links start;
 empty: the address the call came to). The webhook receives `{title, message, url, approval}`.
 
+## Operations
+
+Task-level calls for agents (and the Servers page). They run on svrctlrs, from its container,
+with the stored credentials: requests name credentials, never carry a password or private
+key. All four live outside the 30 s request timeout.
+
+| Method | Path | Presets | |
+|---|---|---|---|
+| POST | `/servers/{id}/diagnose` | servers & keys, full admin | → `Diagnosis`: `ok`, `verdict`, and per hop (jump hosts first) the steps `dns`, `tcp` (or `tunnel` behind a jump host), `handshake`, `host_key`, `login`, each `ok`/`failed`/`skipped` with `detail`, `fix` and `duration_ms` |
+| POST | `/servers/{id}/exec` | full admin | `{command, timeout_secs?}` (1–600, default 60) → `{exit_code, stdout, stderr, stdout_truncated, stderr_truncated, timed_out, duration_ms}`; 1 MiB per stream; `exit_code` null after a timeout |
+| POST | `/servers/onboard` | servers & keys, full admin | `{name, hostname, port?, username?, credential_id, via_server_id?, tags?, fingerprint?, new_key?, dry_run?}` → `{server_id, done, steps, next}` |
+| POST | `/servers/{id}/rotate-key` | servers & keys, full admin | `{remove_old?, dry_run?}` → `{done, old_credential_id, new_credential_id, steps, next}` |
+
+**diagnose** behaves like the connection test (a first contact records the presented key as
+unconfirmed; the server's `last_seen_at`/`last_error` are updated) and is audited as
+`server.diagnosed`. **exec** refuses an unconfirmed or mismatched host key like a shell (428 /
+409) and is audited as `server.exec` with the command as typed (first 500 characters): keep
+secrets out of command lines. **onboard** creates the server with `credential_id` as the way
+in, or picks up a server of the same name and hostname; it stops with `next` when it needs
+you: on first contact it returns the fingerprint (`host_key` step `waiting`) and trusts it only
+when called again with that `fingerprint`, a different one fails. With `new_key` (default) it
+generates `"<name> key"`, installs it with the way in, proves it and switches to it. **rotate-key**
+needs a server that logs in with a stored key: it checks the key, generates
+`"<name> key <date>"`, installs it with the old key, proves it, switches, and (with
+`remove_old`, default) removes the old public key from `authorized_keys`; the old credential
+is kept and `next` says whether other servers still use it. `dry_run` on onboard and
+rotate-key lists the steps as `planned` and changes nothing. Step statuses: `ok`, `failed`,
+`skipped`, `waiting`, `planned`.
+
 ## Audit log
 
 | Method | Path | Query | Response |
@@ -316,6 +345,9 @@ count), `server.host_key_trusted` (details: `key_type`,
 `credential.updated`, `credential.deleted`, `session.pty_opened` (details: `login`, `auth` —
 `password` or the key used, `recorded`), `files.download`, `files.upload`, `files.mkdir`, `files.rename`,
 `files.delete` (details: the remote path), `recording.downloaded`, `recording.deleted`,
+`server.diagnosed` (details: `ok`, `verdict`), `server.exec` (details: `command`, `exit_code`,
+`timed_out`, `duration_ms`), `server.onboarded`, `server.key_rotated` (details: the old and new
+credential ids),
 `token.created` (details: `preset`, `expires_at`, `prefix`, `require_approval`), `token.updated`,
 `token.revoked`, `token.deleted`, `approval.requested` (names the token), `approval.approved`,
 `approval.denied` (details: `approval`, `action`, `token`).

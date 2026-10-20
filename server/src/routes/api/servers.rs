@@ -60,17 +60,6 @@ pub(crate) fn server_view(s: svrctlrs_database::models::Server) -> Server {
     }
 }
 
-/// What `ssh-copy-id` does: append the public key to `~/.ssh/authorized_keys` with sane
-/// permissions, idempotently.
-fn authorized_keys_install_command(public_key: &str) -> String {
-    let escaped = public_key.replace('\'', "'\\''");
-    format!(
-        "umask 077 && mkdir -p ~/.ssh && touch ~/.ssh/authorized_keys && \
-         (grep -qxF '{escaped}' ~/.ssh/authorized_keys || printf '%s\\n' '{escaped}' >> ~/.ssh/authorized_keys) && \
-         chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys && echo svrctlrs-key-installed"
-    )
-}
-
 /// Install a key credential's public half on the server using one-time bootstrap access,
 /// verify that the key now logs in, and make it the server's credential.
 #[utoipa::path(post, path = "/{id}/authorize-key", tag = "servers", params(("id" = i64, Path)),
@@ -94,22 +83,8 @@ async fn authorize_key(
     use svrctlrs_database::queries::credentials;
 
     let server = servers::get_server(&state.pool, id).await?;
-    let hostname = server.hostname.clone();
-    let port = u16::try_from(server.port)
-        .map_err(|_| ApiError::bad_request("Server port is out of range"))?;
-
     let key_cred = credentials::get_credential(&state.pool, input.credential_id).await?;
-    if !key_cred.is_ssh_key() {
-        return Err(ApiError::bad_request(
-            "The credential to authorize must be an SSH key",
-        ));
-    }
-    let public_key = crate::ssh_keys::public_key_of(&key_cred).ok_or_else(|| {
-        ApiError::bad_request(
-            "Cannot derive the public key: the credential must hold private key material \
-             (generate a key, or paste one), not a path",
-        )
-    })?;
+    crate::key_ops::public_half(&key_cred)?;
 
     // Bootstrap identity: the typed password (as a throwaway credential) or a stored one.
     let bootstrap: Credential = match (input.password, input.bootstrap_credential_id) {
@@ -135,66 +110,7 @@ async fn authorize_key(
         }
     };
 
-    let install = authorized_keys_install_command(&public_key);
-    let (stdout, stderr, code) = crate::ssh::run(&state.pool, &server, Some(&bootstrap), &install)
-        .await
-        .map_err(|e| {
-            // A host-key refusal keeps its code and details so the client can offer the fix
-            let crate::ssh::ConnectError::Failed(e) = e else {
-                return ApiError::from(e);
-            };
-            let login = format!(
-                "{}@{}:{}",
-                server.username.as_deref().unwrap_or("root"),
-                hostname,
-                port
-            );
-            let hint = if e.contains("Password authentication failed") {
-                " Either the password is wrong, or this server does not allow password logins at \
-             all (sshd `PasswordAuthentication no`, the default on hardened hosts). In that case \
-             bootstrap with an existing key credential instead, or copy the public key into \
-             ~/.ssh/authorized_keys by hand (Credentials → Public key)."
-            } else {
-                ""
-            };
-            ApiError::bad_request(format!(
-                "Could not log in as {login} to install the key: {e}.{hint}"
-            ))
-        })?;
-    if code != 0 || !stdout.contains("svrctlrs-key-installed") {
-        return Err(ApiError::bad_request(format!(
-            "Installing the key failed (exit {code}): {}",
-            stderr.trim()
-        )));
-    }
-
-    // Prove the key works before switching the server over to it.
-    let (_, stderr, code) = crate::ssh::run(
-        &state.pool,
-        &server,
-        Some(&key_cred),
-        "echo svrctlrs-key-ok",
-    )
-    .await
-    .map_err(|e| {
-        ApiError::bad_request(format!("Key installed, but logging in with it failed: {e}"))
-    })?;
-    if code != 0 {
-        return Err(ApiError::bad_request(format!(
-            "Key installed, but logging in with it failed (exit {code}): {}",
-            stderr.trim()
-        )));
-    }
-
-    let update = UpdateServer {
-        credential_id: Some(Some(key_cred.id)),
-        ..Default::default()
-    };
-    servers::update_server(&state.pool, id, &update)
-        .await
-        .map_err(|e| {
-            ApiError::internal_error(format!("Key works, but updating the server failed: {e}"))
-        })?;
+    crate::key_ops::install_and_switch(&state.pool, &server, &key_cred, &bootstrap).await?;
 
     info!(
         server_id = id,
@@ -218,19 +134,6 @@ async fn authorize_key(
             key_cred.name, server.name
         ),
     }))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn install_command_is_idempotent_and_quotes_the_key() {
-        let cmd = authorized_keys_install_command("ssh-ed25519 AAAA it's");
-        assert!(cmd.contains("grep -qxF 'ssh-ed25519 AAAA it'\\''s'"));
-        assert!(cmd.contains("chmod 600 ~/.ssh/authorized_keys"));
-        assert!(cmd.ends_with("echo svrctlrs-key-installed"));
-    }
 }
 
 fn host_key_view(k: &svrctlrs_database::models::ServerHostKey) -> HostKey {
@@ -438,7 +341,7 @@ async fn create_server(
 }
 
 /// A jump host must exist, must not be the server itself, and must not lead back to it.
-async fn check_jump_host(
+pub(crate) async fn check_jump_host(
     state: &AppState,
     server_id: Option<i64>,
     via: i64,

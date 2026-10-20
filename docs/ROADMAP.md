@@ -175,14 +175,18 @@ compact screens for everything below.
     `value_type: number`, which the table refuses (now `integer`); deleting a missing
     credential answered 200 (now 404); several audit rows had empty target names; the loopback
     SSH test server learned `exec`. `svrctl` adopts the types with item 19.
-18. **Task-level operations.** `diagnose` (DNS → TCP → SSH handshake → host key → login, and
-    the jump host, run from svrctlrs itself — the same container, address, DNS and
-    credentials that fail — with a verdict and a fix per step), `exec` (one command on one
-    server through the stored credentials, output and exit status back, audited; not a
-    fleet runner), `onboard` (create, test, show the fingerprint, install a generated key) and
-    `rotate-key` (generate, install with the working credential, test, switch, remove the old
-    public key). Private keys and passwords never pass through the agent. Mutations take
-    `--dry-run`.
+18. ~~**Task-level operations.**~~ Done 2026-10-19 (`routes/api/ops.rs`, outside the request
+    timeout): `diagnose` (`diagnose.rs`: DNS → TCP, or the jump host's tunnel → handshake → host
+    key → login, per hop, with the same handler and login as `ssh::connect`, a verdict and a fix
+    per failed step, the server's status updated like a test), `exec` (one command, 1–600 s,
+    1 MiB per stream, audited with the command, full-admin tokens only), `onboard` (create or
+    resume, trust the host key only with the caller's fingerprint, check the login, generate a
+    key and switch to it; stops with `next` when it needs you) and `rotate-key` (check, generate,
+    install with the old key, prove, switch, remove the old public key). Mutations take
+    `dry_run`; requests name stored credentials, never carry one. The Servers page has Diagnose
+    (a step list with fixes, phone and desktop) and Rotate key. Tests against the loopback SSH
+    server, which learned exec and applies the install/removal commands, so a rotated-away key
+    is proved refused; the e2e runs diagnose, exec and onboard against OpenSSH on hermes.
 19. **`svrctl` as the agent CLI, a `SKILL.md`, and an eval.** JSON output when not on a
     terminal, never prompts, stable exit codes, errors as JSON with a hint, examples in
     `--help`; a ~1k-token `SKILL.md` in the repo that Hermes adds as a skill source and Claude

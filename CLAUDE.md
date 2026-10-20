@@ -25,6 +25,7 @@ database/    sqlx models, queries, embedded migrations (migrations/ current, mig
 server/      Axum app: main.rs, app.rs (the router stack), ssh.rs (the one SSH client),
              sessions.rs (server-owned PTYs), recordings.rs (opt-in session recording),
              api_tokens.rs + approvals.rs (agent tokens: presets, held deletes),
+             diagnose.rs + key_ops.rs + routes/api/ops.rs (diagnose, exec, onboard, rotate-key),
              routes/{api/*, terminal_pty.rs, ui/auth.rs}, health_monitor.rs,
              bin/svrctl.rs (CLI used by the container healthcheck),
              test_support/ (tests only: loopback SSH server, in-memory database, the full

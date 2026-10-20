@@ -79,6 +79,7 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
     let mut doc = OpenApiRouter::<AppState>::with_openapi(ApiDoc::openapi())
         .nest("/api/v1", api::routes())
         .merge(api::files::routes())
+        .merge(api::ops::routes())
         .merge(ui::auth::api_routes())
         .into_openapi();
     doc.info.version = env!("CARGO_PKG_VERSION").to_string();

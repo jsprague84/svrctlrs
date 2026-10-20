@@ -17,6 +17,8 @@ Android app; those talk to a remote server over the same API.
  │ routes/terminal_pty.rs  interactive shell over WebSocket                 │
  │ ssh.rs                  the one SSH client (russh): host keys, auth, exec │
  │ ssh_config.rs           reads Host blocks of a pasted ssh_config (import)  │
+ │ diagnose.rs             the connection walked step by step, with fixes     │
+ │ key_ops.rs              install/remove public keys (authorize, rotate)     │
  │ sessions.rs             server-owned PTY sessions, replay ring, TTL      │
  │ recordings.rs           opt-in asciicast recording, encrypted, per user  │
  │ health_monitor.rs       periodic checks → notifications (rstify/Gotify) │
@@ -64,7 +66,12 @@ does not pull in Tauri's GTK/WebKit dependencies.
    and return `svrctlrs-api` types as JSON. Each module's router is a utoipa
    `OpenApiRouter`; `routes!(handler)` routes and documents a handler at once, and
    `routes::openapi()` assembles the document served at `GET /api/v1/openapi.json` (and kept
-   in `docs/openapi.json`). Errors use the `ApiError` envelope (see `API.md`): `ApiError` implements
+   in `docs/openapi.json`). The task-level operations (`routes/api/ops.rs`: diagnose, exec,
+   onboard, rotate-key) sit outside the request timeout beside the file routes; diagnose
+   (`diagnose.rs`) walks DNS → TCP or tunnel → handshake → host key → login per hop with the
+   same handler and login code as `ssh::connect` (split into `Handler::new` and
+   `ssh::authenticate` for it), and key installs go through `key_ops.rs`. Errors use the
+   `ApiError` envelope (see `API.md`): `ApiError` implements
    `IntoResponse` and converts from `svrctlrs_core::Error` by kind (`NotFound` → 404,
    `Conflict` → 409, `InvalidInput` → 400, anything else a logged 500), so handlers use `?`.
 4. **The terminal WebSocket** carries a small JSON protocol (`API.md`, "WebSocket protocol");

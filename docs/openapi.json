@@ -1423,6 +1423,56 @@
         }
       }
     },
+    "/api/v1/servers/onboard": {
+      "post": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Add a server and get it to a trusted key: create it with a stored credential as the way\nin, confirm its host key (only with the fingerprint you compared on the host), check the\nlogin, then generate a key here, install it with the way in, prove it and switch to it.\nStops at the first step that needs you, saying what to do; run it again to continue (a\nserver of the same name and hostname is picked up). `dry_run` changes nothing.",
+        "operationId": "onboard",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OnboardRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How far it got; `next` says what to do when not `done`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A server of that name has another hostname",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/servers/{id}": {
       "get": {
         "tags": [
@@ -1611,6 +1661,126 @@
           },
           "400": {
             "description": "Bootstrap failed, or the key does not log in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Host key mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Host key not confirmed yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}/diagnose": {
+      "post": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Why svrctlrs can or cannot reach the server: DNS, TCP (or the jump host's tunnel), the SSH\nhandshake, the host key and the login, per hop, with a fix for the first failure. Runs from\nwhere svrctlrs runs. A first contact records the presented key as unconfirmed.",
+        "operationId": "diagnose",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Diagnosis"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}/exec": {
+      "post": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Run one command on the server through its stored credential, without a terminal, and\nreturn its output and exit status. Audited with the command as typed: keep secrets out of\ncommand lines.",
+        "operationId": "exec",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request, or the connection failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -2123,6 +2293,67 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HostKeyTrusted"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}/rotate-key": {
+      "post": {
+        "tags": [
+          "operations"
+        ],
+        "summary": "Replace the server's key: check the current one logs in, generate a new key here, install\nit with the current one, prove it, switch, and remove the old public key from the server's\n`authorized_keys`. The old credential is kept (other servers may use it). `dry_run`\nchanges nothing.",
+        "operationId": "rotate_key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RotateKeyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "How far it got; `next` says what to do",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RotateKeyResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The server does not log in with a stored key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -3542,6 +3773,117 @@
           }
         }
       },
+      "Diagnosis": {
+        "type": "object",
+        "description": "`POST /servers/{id}/diagnose`: why svrctlrs can or cannot reach a server, step by step,\nfrom where svrctlrs runs (its container, address, DNS and credentials).",
+        "required": [
+          "server_id",
+          "server_name",
+          "ok",
+          "verdict",
+          "hops",
+          "duration_ms"
+        ],
+        "properties": {
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean",
+            "description": "Every step passed: a shell would open"
+          },
+          "verdict": {
+            "type": "string",
+            "description": "One sentence: what is wrong, or that all is well"
+          },
+          "hops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosisHop"
+            },
+            "description": "The jump hosts in order, then the server itself"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
+      "DiagnosisHop": {
+        "type": "object",
+        "required": [
+          "server_id",
+          "server_name",
+          "address",
+          "steps"
+        ],
+        "properties": {
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "description": "`user@host:port`"
+          },
+          "via_server_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Reached through this jump host"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosisStep"
+            }
+          }
+        }
+      },
+      "DiagnosisStep": {
+        "type": "object",
+        "required": [
+          "step",
+          "status",
+          "detail",
+          "duration_ms"
+        ],
+        "properties": {
+          "step": {
+            "type": "string",
+            "description": "`config`, `dns`, `tcp`, `jump_host`, `tunnel`, `handshake`, `host_key` or `login`"
+          },
+          "status": {
+            "type": "string",
+            "description": "`ok`, `failed` or `skipped`"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "fix": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What to do about a failure"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Entry": {
         "type": "object",
         "description": "One directory entry.",
@@ -3622,6 +3964,74 @@
           },
           "details": {
             "description": "Extras a client can act on (for example the fingerprint of an unconfirmed host key)"
+          }
+        }
+      },
+      "ExecRequest": {
+        "type": "object",
+        "description": "`POST /servers/{id}/exec`: one command, no terminal, through the stored credential.",
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "timeout_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "1–600 seconds, default 60",
+            "minimum": 0
+          }
+        }
+      },
+      "ExecResult": {
+        "type": "object",
+        "required": [
+          "server_id",
+          "stdout",
+          "stderr",
+          "stdout_truncated",
+          "stderr_truncated",
+          "timed_out",
+          "duration_ms"
+        ],
+        "properties": {
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "exit_code": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Null when the command was still running at the deadline"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "stdout_truncated": {
+            "type": "boolean",
+            "description": "More than 1 MiB came out on that stream; the rest was dropped"
+          },
+          "stderr_truncated": {
+            "type": "boolean"
+          },
+          "timed_out": {
+            "type": "boolean"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       },
@@ -4343,6 +4753,132 @@
           }
         }
       },
+      "OnboardRequest": {
+        "type": "object",
+        "description": "`POST /servers/onboard`: add a server, confirm its host key, check the login, and switch\nit to a key generated on svrctlrs. Run it again with `fingerprint` after comparing the key;\na server of the same name and hostname is picked up where it stopped.",
+        "required": [
+          "name",
+          "hostname",
+          "credential_id"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Default 22"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "credential_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The way in: a credential stored in svrctlrs that already works there (a password or\na key). Passwords and private keys never travel in this request."
+          },
+          "via_server_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The `SHA256:` fingerprint you compared on the host; it is trusted only if it matches"
+          },
+          "new_key": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Generate a key here, install it with the way in, and switch to it (default true)"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "description": "Say what would happen, change nothing"
+          }
+        }
+      },
+      "OnboardResult": {
+        "type": "object",
+        "required": [
+          "done",
+          "dry_run",
+          "steps"
+        ],
+        "properties": {
+          "server_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Null in a dry run, or when nothing was created"
+          },
+          "done": {
+            "type": "boolean",
+            "description": "Every step passed"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpStep"
+            }
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What to do next, when not done"
+          }
+        }
+      },
+      "OpStep": {
+        "type": "object",
+        "description": "One step of an onboarding or key rotation.",
+        "required": [
+          "step",
+          "status",
+          "detail"
+        ],
+        "properties": {
+          "step": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`ok`, `failed`, `skipped`, `waiting` (on you) or `planned` (a dry run)"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
       "PasswordChange": {
         "type": "object",
         "description": "`PUT /users/me/password`",
@@ -4773,6 +5309,69 @@
           },
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "RotateKeyRequest": {
+        "type": "object",
+        "description": "`POST /servers/{id}/rotate-key`: generate a new key, install it with the current one,\nprove it, switch, and remove the old public key from the server.",
+        "properties": {
+          "remove_old": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Remove the old public key from `authorized_keys` (default true)"
+          },
+          "dry_run": {
+            "type": "boolean"
+          }
+        }
+      },
+      "RotateKeyResult": {
+        "type": "object",
+        "required": [
+          "server_id",
+          "done",
+          "dry_run",
+          "steps"
+        ],
+        "properties": {
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "old_credential_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "new_credential_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OpStep"
+            }
+          },
+          "next": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },

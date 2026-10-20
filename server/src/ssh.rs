@@ -164,6 +164,32 @@ pub struct Handler {
     server_id: i64,
     server_name: String,
     refusal: Arc<Mutex<Option<ConnectError>>>,
+    /// The key the server presented (`type`, `SHA256:` fingerprint), for diagnosis
+    presented: Arc<Mutex<Option<(String, String)>>>,
+}
+
+/// What a [`Handler`] learns during the handshake: why it refused, and which key it saw.
+#[derive(Clone, Default)]
+pub struct HandshakeNotes {
+    pub refusal: Arc<Mutex<Option<ConnectError>>>,
+    pub presented: Arc<Mutex<Option<(String, String)>>>,
+}
+
+impl Handler {
+    /// A host-key checker for `server`, and where it writes what it learns.
+    pub fn new(pool: &Pool<Sqlite>, server: &Server) -> (Self, HandshakeNotes) {
+        let notes = HandshakeNotes::default();
+        (
+            Self {
+                pool: pool.clone(),
+                server_id: server.id,
+                server_name: server.name.clone(),
+                refusal: notes.refusal.clone(),
+                presented: notes.presented.clone(),
+            },
+            notes,
+        )
+    }
 }
 
 impl client::Handler for Handler {
@@ -179,6 +205,8 @@ impl client::Handler for Handler {
             .next()
             .unwrap_or("unknown")
             .to_string();
+        *self.presented.lock().await =
+            Some((key_type.clone(), host_keys::fingerprint(&openssh_key)));
         let refusal =
             match host_keys::verify_and_record(&self.pool, self.server_id, &key_type, &openssh_key)
                 .await
@@ -214,8 +242,26 @@ pub struct Connection {
     _via: Option<Box<Connection>>,
 }
 
+impl Connection {
+    /// An authenticated session from its parts (for code that walks the steps itself, like a
+    /// diagnosis); `via` is kept open for as long as this one lives.
+    pub fn assemble(
+        handle: Handle<Handler>,
+        target: Target,
+        auth: String,
+        via: Option<Connection>,
+    ) -> Self {
+        Self {
+            handle,
+            target,
+            auth,
+            _via: via.map(Box::new),
+        }
+    }
+}
+
 /// Longest chain of jump hosts followed before giving up (also stops a loop in the data).
-const MAX_JUMPS: usize = 4;
+pub const MAX_JUMPS: usize = 4;
 
 /// Default `SSH_KEEPALIVE_SECS`.
 const DEFAULT_KEEPALIVE_SECS: u64 = 15;
@@ -320,13 +366,7 @@ fn connect_via<'a>(
             }
         };
 
-        let refusal = Arc::new(Mutex::new(None));
-        let handler = Handler {
-            pool: pool.clone(),
-            server_id: server.id,
-            server_name: server.name.clone(),
-            refusal: refusal.clone(),
-        };
+        let (handler, notes) = Handler::new(pool, server);
         let config = client_config();
         let connected = match &via {
             None => client::connect(config, (target.hostname.as_str(), target.port), handler).await,
@@ -353,33 +393,76 @@ fn connect_via<'a>(
         let mut handle = match connected {
             Ok(h) => h,
             Err(e) => {
-                let why = refusal.lock().await.take();
+                let why = notes.refusal.lock().await.take();
                 return Err(why.unwrap_or_else(|| {
                     ConnectError::Failed(format!("SSH connection to {login} failed: {e}"))
                 }));
             }
         };
 
+        let auth = authenticate(&mut handle, &target, plan)
+            .await
+            .map_err(|f| ConnectError::Failed(f.message))?;
+
+        info!(login = %login, auth = %auth, "SSH authenticated");
+        Ok(Connection {
+            handle,
+            target,
+            auth,
+            _via: via,
+        })
+    })
+}
+
+/// Why a login was refused: the sentence for the user, and the methods the server said it
+/// would still accept (so a diagnosis can tell "wrong password" from "passwords are off").
+#[derive(Debug, Clone)]
+pub struct AuthFailure {
+    pub message: String,
+    pub remaining_methods: Vec<String>,
+}
+
+/// Log in on a handshaken session as the plan says: a password, or each key in turn. Returns
+/// the accepted method's label (`password`, or the key's).
+pub async fn authenticate(
+    handle: &mut Handle<Handler>,
+    target: &Target,
+    plan: AuthPlan,
+) -> Result<String, AuthFailure> {
+    let login = target.login();
+    let methods = |m: &russh::MethodSet| -> Vec<String> {
+        m.iter().map(|k| String::from(<&str>::from(k))).collect()
+    };
+    let fail = |message: String, remaining_methods: Vec<String>| AuthFailure {
+        message,
+        remaining_methods,
+    };
+    {
         let auth = match plan {
             AuthPlan::Password(password) => match handle
                 .authenticate_password(target.username.clone(), password)
                 .await
             {
                 Ok(AuthResult::Success) => "password".to_string(),
-                Ok(AuthResult::Failure { .. }) => {
-                    return Err(ConnectError::Failed(format!(
-                        "Password authentication failed for {login}"
-                    )));
+                Ok(AuthResult::Failure {
+                    remaining_methods, ..
+                }) => {
+                    return Err(fail(
+                        format!("Password authentication failed for {login}"),
+                        methods(&remaining_methods),
+                    ));
                 }
                 Err(e) => {
-                    return Err(ConnectError::Failed(format!(
-                        "Password authentication failed for {login}: {e}"
-                    )))
+                    return Err(fail(
+                        format!("Password authentication failed for {login}: {e}"),
+                        Vec::new(),
+                    ))
                 }
             },
             AuthPlan::Keys(keys) => {
                 let mut tried = Vec::with_capacity(keys.len());
                 let mut last_error = String::from("no key could be used");
+                let mut remaining: Vec<String> = Vec::new();
                 let mut accepted = None;
                 for key in &keys {
                     tried.push(key.label.clone());
@@ -411,9 +494,12 @@ fn connect_via<'a>(
                             accepted = Some(key.label.clone());
                             break;
                         }
-                        Ok(AuthResult::Failure { .. }) => {
+                        Ok(AuthResult::Failure {
+                            remaining_methods, ..
+                        }) => {
                             debug!(key = %key.label, "SSH key rejected");
                             last_error = format!("{} was rejected", key.label);
+                            remaining = methods(&remaining_methods);
                         }
                         Err(e) => {
                             debug!(key = %key.label, error = %e, "SSH authentication error");
@@ -424,23 +510,19 @@ fn connect_via<'a>(
                 match accepted {
                     Some(label) => label,
                     None => {
-                        return Err(ConnectError::Failed(format!(
-                            "SSH authentication failed for {login}. Tried keys: {}. Last error: {last_error}",
-                            tried.join(", ")
-                        )));
+                        return Err(fail(
+                            format!(
+                                "SSH authentication failed for {login}. Tried keys: {}. Last error: {last_error}",
+                                tried.join(", ")
+                            ),
+                            remaining,
+                        ));
                     }
                 }
             }
         };
-
-        info!(login = %login, auth = %auth, "SSH authenticated");
-        Ok(Connection {
-            handle,
-            target,
-            auth,
-            _via: via,
-        })
-    })
+        Ok(auth)
+    }
 }
 
 /// What one command printed and how it ended. Bytes are kept until the end so a multibyte
@@ -505,6 +587,76 @@ pub async fn run(
         .disconnect(russh::Disconnect::ByApplication, "", "English")
         .await;
     Ok(output.finish())
+}
+
+/// One command's result with bounds: output past `cap` bytes per stream is dropped (and
+/// flagged), and a command still running at the deadline is left behind (the connection is
+/// closed, which ends it on most servers) with `timed_out` set and no exit code.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct BoundedOutput {
+    pub stdout: String,
+    pub stderr: String,
+    pub exit_code: Option<i32>,
+    pub stdout_truncated: bool,
+    pub stderr_truncated: bool,
+    pub timed_out: bool,
+}
+
+/// Run one command without a PTY, within `timeout` and `cap` bytes per stream.
+pub async fn run_bounded(
+    pool: &Pool<Sqlite>,
+    server: &Server,
+    credential: Option<&Credential>,
+    command: &str,
+    timeout: std::time::Duration,
+    cap: usize,
+) -> Result<BoundedOutput, ConnectError> {
+    let deadline = tokio::time::Instant::now() + timeout;
+    let conn = connect(pool, server, credential).await?;
+    let mut channel = conn
+        .handle
+        .channel_open_session()
+        .await
+        .map_err(|e| ConnectError::Failed(format!("Failed to open channel: {e}")))?;
+    channel
+        .exec(true, command)
+        .await
+        .map_err(|e| ConnectError::Failed(format!("Failed to run command: {e}")))?;
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let mut result = BoundedOutput::default();
+    let keep = |buf: &mut Vec<u8>, data: &[u8], truncated: &mut bool| {
+        let room = cap.saturating_sub(buf.len());
+        if data.len() > room {
+            *truncated = true;
+        }
+        buf.extend_from_slice(&data[..data.len().min(room)]);
+    };
+    loop {
+        match tokio::time::timeout_at(deadline, channel.wait()).await {
+            Err(_) => {
+                result.timed_out = true;
+                break;
+            }
+            Ok(None) | Ok(Some(ChannelMsg::Close)) => break,
+            Ok(Some(ChannelMsg::Data { data })) => {
+                keep(&mut out, &data, &mut result.stdout_truncated)
+            }
+            Ok(Some(ChannelMsg::ExtendedData { data, ext: 1 })) => {
+                keep(&mut err, &data, &mut result.stderr_truncated)
+            }
+            Ok(Some(ChannelMsg::ExitStatus { exit_status })) => {
+                result.exit_code = Some(i32::try_from(exit_status).unwrap_or(i32::MAX));
+            }
+            Ok(Some(_)) => {}
+        }
+    }
+    let _ = conn
+        .handle
+        .disconnect(russh::Disconnect::ByApplication, "", "English")
+        .await;
+    result.stdout = String::from_utf8_lossy(&out).into_owned();
+    result.stderr = String::from_utf8_lossy(&err).into_owned();
+    Ok(result)
 }
 
 #[cfg(test)]

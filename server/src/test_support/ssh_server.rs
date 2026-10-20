@@ -61,6 +61,18 @@ impl Options {
 struct Shared {
     options: Options,
     events: Mutex<Vec<Event>>,
+    /// Keys appended to `authorized_keys` by an install command over exec, and keys removed
+    /// from it by a removal command (these beat `options.authorized_keys`)
+    installed: Mutex<Vec<PublicKey>>,
+    removed: Mutex<Vec<PublicKey>>,
+}
+
+/// The key line between `marker'` and the next `'` in a command, parsed.
+fn quoted_key_after(command: &str, marker: &str) -> Option<PublicKey> {
+    let start = command.find(marker)? + marker.len();
+    let rest = &command[start..];
+    let end = rest.find('\'')?;
+    PublicKey::from_openssh(&rest[..end]).ok()
 }
 
 pub struct TestSshServer {
@@ -101,6 +113,8 @@ impl TestSshServer {
         let shared = Arc::new(Shared {
             options,
             events: Mutex::new(Vec::new()),
+            installed: Mutex::new(Vec::new()),
+            removed: Mutex::new(Vec::new()),
         });
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let port = listener.local_addr().expect("address").port();
@@ -211,11 +225,11 @@ impl server::Handler for Connection {
 
     async fn auth_publickey(&mut self, user: &str, key: &PublicKey) -> Result<Auth, Self::Error> {
         let options = &self.shared.options;
-        let accepted = user == options.user
-            && options
-                .authorized_keys
-                .iter()
-                .any(|k| k.key_data() == key.key_data());
+        let same = |k: &PublicKey| k.key_data() == key.key_data();
+        let listed = options.authorized_keys.iter().any(same)
+            || self.shared.installed.lock().await.iter().any(same);
+        let accepted =
+            user == options.user && listed && !self.shared.removed.lock().await.iter().any(same);
         self.record(Event::KeyAuth {
             user: user.to_string(),
             accepted,
@@ -325,7 +339,36 @@ impl server::Handler for Connection {
         let command = String::from_utf8_lossy(data).into_owned();
         self.record(Event::Exec(command.clone())).await;
         let _ = session.channel_success(channel);
-        let (out, code) = if let Some(text) = command.strip_prefix("echo ") {
+        let (out, code) = if command.contains("authorized_keys")
+            && command.contains("svrctlrs-key-installed")
+        {
+            // The install command of key_ops.rs: append the key it carries
+            match quoted_key_after(&command, "printf '%s\\n' '") {
+                Some(key) => {
+                    self.shared
+                        .removed
+                        .lock()
+                        .await
+                        .retain(|k| k.key_data() != key.key_data());
+                    self.shared.installed.lock().await.push(key);
+                    ("svrctlrs-key-installed\n".to_string(), 0)
+                }
+                None => (String::new(), 1),
+            }
+        } else if command.contains("authorized_keys") && command.contains("svrctlrs-key-removed") {
+            match quoted_key_after(&command, "grep -vxF '") {
+                Some(key) => {
+                    self.shared
+                        .installed
+                        .lock()
+                        .await
+                        .retain(|k| k.key_data() != key.key_data());
+                    self.shared.removed.lock().await.push(key);
+                    ("svrctlrs-key-removed\n".to_string(), 0)
+                }
+                None => (String::new(), 1),
+            }
+        } else if let Some(text) = command.strip_prefix("echo ") {
             (format!("{text}\n"), 0)
         } else if let Some(code) = command.strip_prefix("exit ") {
             (String::new(), code.trim().parse().unwrap_or(1))

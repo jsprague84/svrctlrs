@@ -88,6 +88,27 @@ error. The **Keys** button on a server lists the recorded keys, trusted or uncon
 their fingerprints and, once you have confirmed out of band that the key really changed,
 **Forget all keys** makes the next connection ask for confirmation again.
 
+### Can't reach a server?
+
+**Diagnose** on the server's row (in the **⋯** menu on a phone) makes the connection a shell
+would, one step at a time, from where SvrCtlRS runs: the name lookup, the TCP connection (or,
+behind a jump host, the jump host's tunnel), the SSH handshake, the host key and the login,
+for each jump host and then the server. It says in one sentence what is wrong and gives a fix
+for the step that failed, for example *nothing listens on port 22: is sshd running*, *a
+firewall drops the connection* (SSH comes from the machine SvrCtlRS runs on, not from your
+phone), *the key is not in authorized_keys: Authorize key*, or the fingerprint to compare on
+first contact. It runs from the server's side, so it also answers "it works from my laptop
+but not from here".
+
+**Rotate key** on a server that logs in with a stored key replaces that key: SvrCtlRS
+generates a new one, installs it with the current key, checks that it logs in, switches the
+server to it and removes the old public key from the server's `authorized_keys`. The old
+credential stays under Credentials; delete it once no server uses it.
+
+Agents get the same operations through the API, plus **exec** (one command, output and exit
+status back, audited) and **onboard** (add a server, confirm its key with the fingerprint you
+compared, switch it to a generated key); see API.md, "Operations".
+
 ## Audit log
 
 Settings → Audit (`/settings?tab=audit`) shows who did what, filtered by kind (logins,

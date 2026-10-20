@@ -13,8 +13,9 @@ started with a short TTL and an SSH target the given key can log in to:
 Exercises: shell, dropped socket, attach with last_seq (gap replay), live input after
 reattach, full redraw from seq 0, `closed` on exit, `session_gone`, TTL expiry, and session
 recording (opt-in per server, output only, invisible to another user), and agent tokens
-(a shell through a ticket, audit attribution, presets, revocation) and approvals (a held
-delete run once the owner approves). Output frames
+(a shell through a ticket, audit attribution, presets, revocation), approvals (a held
+delete run once the owner approves), and the operations diagnose, exec and onboard. Output
+frames
 are requested in binary form (E2E_BINARY=0 for the legacy JSON `output` frames) and a
 multibyte marker checks that bytes reach the client intact.
 """
@@ -520,6 +521,36 @@ async def main():
     except urllib.error.HTTPError as e:
         assert e.code == 404, e.code
     print("approval: held, refused to the token, approved by the owner, done ok")
+
+    # Operations from svrctlrs itself, against the real host. rotate-key and onboarding with a
+    # new key are left to the loopback tests: they would edit authorized_keys on the target.
+    d = api("POST", f"/api/v1/servers/{sid}/diagnose")
+    assert d["ok"] is True, d
+    steps = {st["step"]: st["status"] for st in d["hops"][-1]["steps"]}
+    assert steps == {"dns": "ok", "tcp": "ok", "handshake": "ok", "host_key": "ok", "login": "ok"}, steps
+    closed = api("POST", "/api/v1/servers", {"name": f"e2e closed {RUN}", "hostname": SSH_HOST, "port": 1,
+                                            "username": SSH_USER, "credential_id": cid})
+    closed_id = closed["id"] if "id" in closed else closed["data"]["id"]
+    d = api("POST", f"/api/v1/servers/{closed_id}/diagnose")
+    tcp = next(st for st in d["hops"][0]["steps"] if st["step"] == "tcp")
+    assert d["ok"] is False and tcp["status"] == "failed" and tcp["fix"], d
+    hop_d = api("POST", f"/api/v1/servers/{hop_sid}/diagnose")
+    assert hop_d["ok"] is True and len(hop_d["hops"]) == 2, hop_d
+    print("diagnose ok:", d["verdict"][:70])
+    out = api("POST", f"/api/v1/servers/{sid}/exec", {"command": "echo $((6*7)); echo oops >&2; exit 4"})
+    assert out["stdout"] == "42\n" and out["stderr"] == "oops\n" and out["exit_code"] == 4, out
+    out = api("POST", f"/api/v1/servers/{sid}/exec", {"command": "sleep 5", "timeout_secs": 1})
+    assert out["timed_out"] is True and out["exit_code"] is None, out
+    print("exec ok: stdout, stderr, exit status, timeout")
+    req = {"name": f"e2e onboard {RUN}", "hostname": SSH_HOST, "username": SSH_USER,
+           "credential_id": cid, "new_key": False}
+    first = api("POST", "/api/v1/servers/onboard", req)
+    waiting = next(st for st in first["steps"] if st["step"] == "host_key")
+    assert first["done"] is False and waiting["status"] == "waiting", first
+    fp = waiting["detail"].split()[-1]
+    done = api("POST", "/api/v1/servers/onboard", {**req, "fingerprint": fp})
+    assert done["done"] is True, done
+    print("onboard ok (no new key):", [st["step"] + "=" + st["status"] for st in done["steps"]])
     print("ALL E2E CHECKS PASSED")
 
 asyncio.run(main())

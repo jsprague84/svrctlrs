@@ -121,6 +121,9 @@ const SERVERS_KEYS: &[(&str, &str)] = &[
     ("POST", "/api/v1/credentials/generate-key"),
     ("PUT", "/api/v1/credentials/*"),
     ("DELETE", "/api/v1/credentials/*"),
+    ("POST", "/api/v1/servers/*/diagnose"),
+    ("POST", "/api/v1/servers/onboard"),
+    ("POST", "/api/v1/servers/*/rotate-key"),
 ];
 
 /// What "full admin" adds to both: terminals (through a WebSocket ticket), files,
@@ -128,6 +131,7 @@ const SERVERS_KEYS: &[(&str, &str)] = &[
 const FULL_ADMIN: &[(&str, &str)] = &[
     ("POST", "/api/v1/auth/ws-ticket"),
     ("GET", "/ws/terminal/pty"),
+    ("POST", "/api/v1/servers/*/exec"),
     ("GET", "/api/v1/servers/*/files"),
     ("DELETE", "/api/v1/servers/*/files"),
     ("GET", "/api/v1/servers/*/files/content"),
@@ -369,6 +373,10 @@ mod tests {
             ("DELETE", "/api/v1/servers/3/host-keys", write),
             ("POST", "/api/v1/servers/3/host-keys/trust", write),
             ("POST", "/api/v1/servers/3/authorize-key", write),
+            ("POST", "/api/v1/servers/3/diagnose", write),
+            ("POST", "/api/v1/servers/onboard", write),
+            ("POST", "/api/v1/servers/3/rotate-key", write),
+            ("POST", "/api/v1/servers/3/exec", full),
             ("GET", "/api/v1/servers/3/files", full),
             ("DELETE", "/api/v1/servers/3/files", full),
             ("GET", "/api/v1/servers/3/files/content", full),

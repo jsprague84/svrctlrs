@@ -83,7 +83,12 @@ Named credentials the owner creates under Settings → Access → Agent tokens
     credentials, importing, testing, trusting and forgetting host keys, generating and
     authorizing keys. No terminals or files.
   - *Full admin*: everything the owner can do, terminals (`/ws/terminal/pty` through a
-    ticket) and the SFTP file browser included.
+    ticket), the SFTP file browser and `exec` (one command on a server) included.
+  - *Servers & keys* also runs the operations that manage access without a shell:
+    `diagnose`, `onboard` (which trusts a host key only with the fingerprint the caller
+    compared) and `rotate-key`. These run on svrctlrs with the stored credentials; no
+    request carries or returns a password or private key, so nothing secret passes through an
+    agent (or its cloud model).
   - **No preset** names `/api/v1/tokens`, creating or deleting accounts, or changing a
     password. A token can never mint, change or revoke tokens or accounts, so revoking a
     token ends everything it can do, and a leaked token cannot leave a second way in behind.

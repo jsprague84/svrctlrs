@@ -68,7 +68,10 @@ and a jump host with a loop; `routes/terminal_pty.rs` drives the PTY driver (`op
 `spawn_pty_driver`) through a session: startup command, input, resize, exit status, close, a
 shell through a jump host and a 300 kB burst. They take under a second and need no network
 beyond 127.0.0.1. The loopback server also answers exec requests (`echo X`, `exit N`), so the
-connection test's success path runs too.
+connection test's success path runs too, and it applies the `authorized_keys` install and
+removal commands of `key_ops.rs` to its accepted keys, so authorize-key, onboard and
+rotate-key are tested end to end (`routes/api/ops.rs`): a new key really logs in afterwards
+and a removed one really does not.
 
 **API types and the OpenAPI document.** Handlers return types from the `svrctlrs-api` crate
 (`api/src/*.rs`, `Serialize + ToSchema`) and are registered with
@@ -99,8 +102,11 @@ at a `stty -echo` prompt absent from it, 404 for a second account on every route
 tokens (a full-admin token opens a shell through the ticket exchange without a cookie, its
 audit row names it, a read-only token gets 403 for tickets and files, revoking ends the
 shell), and approvals (a token set to ask first gets 202 for a delete, cannot approve it,
-and the owner's approval makes the call). `scripts/dev/run-e2e.sh` starts a throwaway debug
-server and
+and the owner's approval makes the call), and the operations against the real host:
+diagnose (direct, through the jump host, a closed port), exec (stdout, stderr, exit status, a
+timeout) and onboard without a new key. Rotate-key and onboarding with a new key stay in the
+loopback tests: against a real host they would edit its `authorized_keys`.
+`scripts/dev/run-e2e.sh` starts a throwaway debug server and
 runs both frame formats:
 
 ```bash

@@ -13,6 +13,7 @@ pub mod common;
 pub mod credentials;
 pub mod files;
 pub mod notifications;
+pub mod ops;
 pub mod profiles;
 pub mod quick_commands;
 pub mod recordings;

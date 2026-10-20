@@ -11,6 +11,17 @@ the release workflow uses the matching section as the release notes.
   its request and response types (67 operations). The types are a crate of their own,
   `svrctlrs-api`, shared with `svrctl`. Responses are byte-for-byte the JSON they were; a test
   records the shape of ~90 of them and fails on any change.
+- **Diagnose** (Servers page, and `POST /api/v1/servers/{id}/diagnose`): the connection a shell
+  would make, step by step from where svrctlrs runs — name lookup, TCP or the jump host's
+  tunnel, SSH handshake, host key, login, for every jump host too — with a one-sentence verdict
+  and a fix for the step that failed.
+- **Rotate key** (Servers page, and `POST /api/v1/servers/{id}/rotate-key`): a new key
+  generated, installed with the current one, proved, switched to, and the old public key
+  removed from the server.
+- For agents: `POST /api/v1/servers/{id}/exec` (one command, output and exit status, 1–600 s,
+  audited, full-admin tokens only) and `POST /api/v1/servers/onboard` (add a server, trust its
+  key with the fingerprint you compared, switch it to a generated key; resumable, `dry_run`).
+  No request carries a password or private key.
 
 ### Fixed
 - `POST /api/v1/settings` accepted `value_type: number`, which the settings table refuses
