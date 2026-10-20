@@ -5,27 +5,24 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
-    routing::get,
     Json,
 };
-use serde::Deserialize;
-use serde_json::json;
+use svrctlrs_api::settings::{
+    NewSetting, Setting, SettingSaved, SettingValue, SettingsList, SettingsUpdate, SettingsUpdated,
+};
+use svrctlrs_api::ErrorBody;
 use svrctlrs_database::queries::settings;
 use tracing::{info, instrument};
 
 use super::ApiError;
 use crate::state::AppState;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 /// Create settings router
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
-        .route(
-            "/",
-            get(list_settings).post(create_setting).put(update_settings),
-        )
-        .route("/{key}", get(get_setting).put(update_setting))
+        .routes(routes!(list_settings, create_setting, update_settings))
+        .routes(routes!(get_setting, update_setting))
 }
 
 /// Settings that are write-only through the API: reads say whether they are set, never what.
@@ -68,71 +65,63 @@ fn is_secret(key: &str) -> bool {
     )
 }
 
-fn setting_json(s: &svrctlrs_database::models::Setting) -> serde_json::Value {
+fn setting_view(s: svrctlrs_database::models::Setting) -> Setting {
     let secret = is_secret(&s.key);
-    json!({
-        "key": s.key,
-        "value": if secret { "" } else { s.value.as_str() },
-        "secret": secret,
-        "is_set": !s.value.is_empty(),
-        "value_type": s.value_type,
-        "description": s.description,
-        "updated_at": s.updated_at
-    })
+    Setting {
+        is_set: !s.value.is_empty(),
+        value: if secret { String::new() } else { s.value },
+        key: s.key,
+        secret,
+        value_type: s.value_type,
+        description: s.description,
+        updated_at: s.updated_at,
+    }
 }
 
-/// List all settings
+/// All settings, grouped by the part of the key before the first dot
+#[utoipa::path(get, path = "/", tag = "settings",
+    responses((status = 200, body = SettingsList)))]
 #[instrument(skip(state))]
-async fn list_settings(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
-    let all_settings = settings::list_settings(&state.pool).await?;
-
-    // Group settings by category for better organization
-    let mut categories: std::collections::HashMap<String, Vec<serde_json::Value>> =
-        std::collections::HashMap::new();
-
-    for setting in all_settings {
+async fn list_settings(State(state): State<AppState>) -> Result<Json<SettingsList>, ApiError> {
+    let mut groups = std::collections::BTreeMap::<String, Vec<Setting>>::new();
+    for setting in settings::list_settings(&state.pool).await? {
         let category = setting
             .key
             .split('.')
             .next()
             .unwrap_or("general")
             .to_string();
-
-        categories
+        groups
             .entry(category)
             .or_default()
-            .push(setting_json(&setting));
+            .push(setting_view(setting));
     }
-
-    Ok(Json(json!({
-        "settings": categories
-    })))
+    Ok(Json(SettingsList { settings: groups }))
 }
 
-/// Get setting by key
+/// One setting
+#[utoipa::path(get, path = "/{key}", tag = "settings",
+    params(("key" = String, Path, description = "e.g. notification.url")),
+    responses((status = 200, body = Setting), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state))]
 async fn get_setting(
     State(state): State<AppState>,
     Path(key): Path<String>,
-) -> Result<impl IntoResponse, ApiError> {
-    let setting = settings::get_setting(&state.pool, &key).await?;
-
-    Ok(Json(setting_json(&setting)))
-}
-
-/// Batch update input: `{"values": {"notification.url": "…", …}}`
-#[derive(Debug, Deserialize)]
-struct UpdateSettingsInput {
-    values: std::collections::BTreeMap<String, String>,
+) -> Result<Json<Setting>, ApiError> {
+    Ok(Json(setting_view(
+        settings::get_setting(&state.pool, &key).await?,
+    )))
 }
 
 /// Update several settings at once (upsert each). A secret key with an empty value is left
 /// untouched, so a form can resend everything without knowing the stored token.
+#[utoipa::path(put, path = "/", tag = "settings", request_body = SettingsUpdate,
+    responses((status = 200, body = SettingsUpdated), (status = 400, body = ErrorBody)))]
 #[instrument(skip(state, input), fields(keys = input.values.len()))]
 async fn update_settings(
     State(state): State<AppState>,
-    Json(input): Json<UpdateSettingsInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<SettingsUpdate>,
+) -> Result<Json<SettingsUpdated>, ApiError> {
     // All or nothing: refuse before writing any
     for (key, value) in &input.values {
         if key.trim().is_empty() {
@@ -149,31 +138,20 @@ async fn update_settings(
         written.push(key.clone());
     }
     info!(count = written.len(), "Settings updated");
-    Ok(Json(
-        json!({ "updated": written, "message": "Settings updated" }),
-    ))
-}
-
-/// Create setting input
-#[derive(Debug, Deserialize)]
-struct CreateSettingInput {
-    key: String,
-    value: String,
-    #[serde(default = "default_value_type")]
-    value_type: String,
-    description: Option<String>,
-}
-
-fn default_value_type() -> String {
-    "string".to_string()
+    Ok(Json(SettingsUpdated {
+        updated: written,
+        message: "Settings updated".to_string(),
+    }))
 }
 
 /// Create a new setting
+#[utoipa::path(post, path = "/", tag = "settings", request_body = NewSetting,
+    responses((status = 201, body = SettingSaved), (status = 400, body = ErrorBody)))]
 #[instrument(skip(state, input))]
 async fn create_setting(
     State(state): State<AppState>,
-    Json(input): Json<CreateSettingInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<NewSetting>,
+) -> Result<(StatusCode, Json<SettingSaved>), ApiError> {
     info!(key = %input.key, "Creating setting");
 
     // Validate key is not empty
@@ -181,11 +159,11 @@ async fn create_setting(
         return Err(ApiError::bad_request("Setting key cannot be empty"));
     }
 
-    // Validate value_type
-    let valid_types = ["string", "number", "boolean", "json"];
+    // Validate value_type: the ones the settings table accepts
+    let valid_types = ["string", "integer", "boolean", "json"];
     if !valid_types.contains(&input.value_type.as_str()) {
         return Err(ApiError::bad_request(
-            "value_type must be one of: string, number, boolean, json",
+            "value_type must be one of: string, integer, boolean, json",
         ));
     }
 
@@ -198,10 +176,10 @@ async fn create_setting(
                 ));
             }
         }
-        "number" => {
-            if input.value.parse::<f64>().is_err() {
+        "integer" => {
+            if input.value.trim().parse::<i64>().is_err() {
                 return Err(ApiError::bad_request(
-                    "Number setting must be a valid number",
+                    "Integer setting must be a whole number",
                 ));
             }
         }
@@ -231,26 +209,23 @@ async fn create_setting(
 
     Ok((
         StatusCode::CREATED,
-        Json(json!({
-            "key": input.key,
-            "message": "Setting created successfully"
-        })),
+        Json(SettingSaved {
+            key: input.key,
+            message: "Setting created successfully".to_string(),
+        }),
     ))
 }
 
-/// Update setting input
-#[derive(Debug, Deserialize)]
-struct UpdateSettingInput {
-    value: String,
-}
-
 /// Update (or create) a setting value — upsert behavior
+#[utoipa::path(put, path = "/{key}", tag = "settings", request_body = SettingValue,
+    params(("key" = String, Path, description = "e.g. recording.retention_days")),
+    responses((status = 200, body = SettingSaved), (status = 400, body = ErrorBody)))]
 #[instrument(skip(state, input))]
 async fn update_setting(
     State(state): State<AppState>,
     Path(key): Path<String>,
-    Json(input): Json<UpdateSettingInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<SettingValue>,
+) -> Result<Json<SettingSaved>, ApiError> {
     info!(key = %key, "Updating setting");
     check_value(&key, &input.value)?;
 
@@ -259,10 +234,10 @@ async fn update_setting(
 
     info!(key = %key, "Setting updated successfully");
 
-    Ok(Json(json!({
-        "key": key,
-        "message": "Setting updated successfully"
-    })))
+    Ok(Json(SettingSaved {
+        key,
+        message: "Setting updated successfully".to_string(),
+    }))
 }
 
 #[cfg(test)]

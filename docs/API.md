@@ -163,8 +163,8 @@ path is refused with 400 and a message saying why.
 
 | Method | Path | Body |
 |---|---|---|
-| GET | `/settings` | — grouped by prefix; each setting has `key, value, value_type, description, updated_at, secret, is_set`. A secret (`notification.token`) is write-only: `value` is always `""`, `is_set` says whether one is stored |
-| POST | `/settings` | `key`, `value`, `value_type` (`string` \| `number` \| `boolean` \| `json`), `description?` |
+| GET | `/settings` | — grouped by prefix; each setting has `key, value, value_type, description, updated_at, secret, is_set`. A secret (`notification.token`, `approval.matrix_token`, `approval.webhook_url`) is write-only: `value` is always `""`, `is_set` says whether one is stored |
+| POST | `/settings` | `key`, `value`, `value_type` (`string` \| `integer` \| `boolean` \| `json`), `description?` |
 | PUT | `/settings` | `{"values": {"key": "value", …}}` — upserts all in one request; a secret with an empty value is left untouched. Returns `updated` |
 | GET | `/settings/{key}` | — |
 | PUT | `/settings/{key}` | `{"value": "…"}` — validated against the stored `value_type` |

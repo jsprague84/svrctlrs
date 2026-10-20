@@ -5,6 +5,11 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Fixed
+- `POST /api/v1/settings` accepted `value_type: number`, which the settings table refuses
+  (a 500), and refused `integer`, which it accepts. It now takes `string`, `integer`,
+  `boolean` or `json`.
+
 ## [3.3.0] - 2026-10-19
 
 The "agents" release: agents and scripts (svrctl, an always-on agent, Claude Code) get their

@@ -221,6 +221,384 @@
         }
       }
     },
+    "/api/v1/profiles": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "The caller's profiles (and shared ones)",
+        "operationId": "list_profiles",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Create a new profile",
+        "operationId": "create_profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewProfile"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/profiles/{id}": {
+      "get": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "One profile; another user's is 404",
+        "operationId": "get_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileOne"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Update an existing profile",
+        "operationId": "update_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileChanges"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "profiles"
+        ],
+        "summary": "Delete a profile",
+        "operationId": "delete_profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/quick-commands": {
+      "get": {
+        "tags": [
+          "quick-commands"
+        ],
+        "summary": "The caller's quick commands",
+        "operationId": "list_commands",
+        "parameters": [
+          {
+            "name": "server_id",
+            "in": "query",
+            "description": "Only the commands for this server (and those for every server)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickCommandList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "quick-commands"
+        ],
+        "summary": "Create a new quick command",
+        "operationId": "create_command",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewQuickCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/quick-commands/{id}": {
+      "get": {
+        "tags": [
+          "quick-commands"
+        ],
+        "summary": "One quick command; another user's is 404",
+        "operationId": "get_command",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuickCommandOne"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "quick-commands"
+        ],
+        "summary": "Update an existing quick command",
+        "operationId": "update_command",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuickCommandChanges"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "quick-commands"
+        ],
+        "summary": "Delete a quick command",
+        "operationId": "delete_command",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions": {
       "get": {
         "tags": [
@@ -270,6 +648,188 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "All settings, grouped by the part of the key before the first dot",
+        "operationId": "list_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Update several settings at once (upsert each). A secret key with an empty value is left\nuntouched, so a form can resend everything without knowing the stored token.",
+        "operationId": "update_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsUpdated"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Create a new setting",
+        "operationId": "create_setting",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewSetting"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingSaved"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings/{key}": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "One setting",
+        "operationId": "get_setting",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "e.g. notification.url",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Setting"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Update (or create) a setting value — upsert behavior",
+        "operationId": "update_setting",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "description": "e.g. recording.retention_days",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingValue"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingSaved"
+                }
+              }
+            }
+          },
+          "400": {
             "content": {
               "application/json": {
                 "schema": {
@@ -516,6 +1076,23 @@
           }
         }
       },
+      "IdMessage": {
+        "type": "object",
+        "description": "`{ \"id\": 3, \"message\": \"…\" }`: what a create, update or delete of a numbered row answers.",
+        "required": [
+          "id",
+          "message"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "Message": {
         "type": "object",
         "description": "`{ \"message\": \"…\" }`",
@@ -525,6 +1102,96 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "NewProfile": {
+        "type": "object",
+        "description": "`POST /profiles`",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "layout": {
+            "type": "string",
+            "description": "Default `single`"
+          },
+          "pane_configs": {
+            "description": "JSON array of `{server_id}` objects, one per pane"
+          },
+          "is_default": {
+            "type": "boolean"
+          }
+        }
+      },
+      "NewQuickCommand": {
+        "type": "object",
+        "description": "`POST /quick-commands`",
+        "required": [
+          "name",
+          "command"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "server_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sort_order": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "NewSetting": {
+        "type": "object",
+        "description": "`POST /settings`",
+        "required": [
+          "key",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "value_type": {
+            "type": "string",
+            "description": "`string` (default), `integer`, `boolean` or `json`"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       },
@@ -556,6 +1223,235 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "layout",
+          "is_default",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "layout": {
+            "type": "string",
+            "description": "`single`, `split-h`, `split-v` or `quad`"
+          },
+          "pane_configs": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A JSON array of `{server_id}` objects, one per pane, as a string"
+          },
+          "is_default": {
+            "type": "boolean"
+          },
+          "user_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ProfileChanges": {
+        "type": "object",
+        "description": "`PUT /profiles/{id}`: only the fields given change",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "layout": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pane_configs": {},
+          "is_default": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "ProfileList": {
+        "type": "object",
+        "required": [
+          "profiles"
+        ],
+        "properties": {
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Profile"
+            }
+          }
+        }
+      },
+      "ProfileOne": {
+        "type": "object",
+        "required": [
+          "profile"
+        ],
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          }
+        }
+      },
+      "QuickCommand": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "command",
+          "category",
+          "sort_order",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "user_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string",
+            "description": "May hold `{{host}}`, `{{user}}`, `{{port}}`, `{{name}}` and `{{word}}` variables"
+          },
+          "server_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Only offered on this server, when set"
+          },
+          "category": {
+            "type": "string"
+          },
+          "sort_order": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "QuickCommandChanges": {
+        "type": "object",
+        "description": "`PUT /quick-commands/{id}`: only the fields given change",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "command": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "server_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sort_order": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          }
+        }
+      },
+      "QuickCommandList": {
+        "type": "object",
+        "required": [
+          "commands"
+        ],
+        "properties": {
+          "commands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuickCommand"
+            }
+          }
+        }
+      },
+      "QuickCommandOne": {
+        "type": "object",
+        "required": [
+          "command"
+        ],
+        "properties": {
+          "command": {
+            "$ref": "#/components/schemas/QuickCommand"
           }
         }
       },
@@ -638,6 +1534,134 @@
           "recorded": {
             "type": "boolean",
             "description": "Its output is being recorded"
+          }
+        }
+      },
+      "Setting": {
+        "type": "object",
+        "description": "One setting. Secret ones (`notification.token`, `approval.matrix_token`,\n`approval.webhook_url`) read back with an empty `value` and `is_set`.",
+        "required": [
+          "key",
+          "value",
+          "secret",
+          "is_set",
+          "value_type",
+          "updated_at"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "boolean",
+            "description": "Write-only through the API"
+          },
+          "is_set": {
+            "type": "boolean",
+            "description": "Whether a value is stored (the only thing a secret setting tells)"
+          },
+          "value_type": {
+            "type": "string",
+            "description": "`string`, `integer`, `boolean` or `json`"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "SettingSaved": {
+        "type": "object",
+        "description": "What a create or update of one setting answers",
+        "required": [
+          "key",
+          "message"
+        ],
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "SettingValue": {
+        "type": "object",
+        "description": "`PUT /settings/{key}`",
+        "required": [
+          "value"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
+          }
+        }
+      },
+      "SettingsList": {
+        "type": "object",
+        "description": "`GET /settings`: settings grouped by the part of the key before the first dot",
+        "required": [
+          "settings"
+        ],
+        "properties": {
+          "settings": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/Setting"
+              }
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SettingsUpdate": {
+        "type": "object",
+        "description": "`PUT /settings`: several at once; a secret key with an empty value is left as it is",
+        "required": [
+          "values"
+        ],
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "SettingsUpdated": {
+        "type": "object",
+        "required": [
+          "updated",
+          "message"
+        ],
+        "properties": {
+          "updated": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The keys written (secrets sent empty are not)"
+          },
+          "message": {
+            "type": "string"
           }
         }
       },

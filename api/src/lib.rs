@@ -9,7 +9,10 @@
 pub mod audit;
 pub mod common;
 pub mod notifications;
+pub mod profiles;
+pub mod quick_commands;
 pub mod sessions;
+pub mod settings;
 pub mod system;
 
 pub use common::*;
