@@ -55,7 +55,10 @@ does not pull in Tauri's GTK/WebKit dependencies.
    (`Bearer svr_…`, `server/src/api_tokens.rs`: hashed lookup, then the token's access preset
    decides by method and path, 403 for anything it does not name), a session Bearer token (the
    session id, looked up in the session store), or on a WebSocket upgrade a one-time
-   `?ticket=`; the user always comes from the session or token record. A token request runs
+   `?ticket=`; the user always comes from the session or token record. An API token is looked
+   at first and alone (a cookie beside it is ignored); two `Authorization` headers, or a login
+   carrying one, get 400, which keeps the edge's token router (DEPLOYMENT.md) from reaching
+   anything a token does not allow. A token request runs
    inside `audit::with_token`, so every audit row it writes names the token. For a token set
    to ask first, the three gated deletes stop here: `approvals::hold` stores the request,
    sends its link and answers 202; on the owner's approval `approvals::decide` replays the call

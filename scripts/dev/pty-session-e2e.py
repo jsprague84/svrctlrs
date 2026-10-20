@@ -475,6 +475,19 @@ async def main():
     assert st == 403 and body["error"]["code"] == "TOKEN_SCOPE", (st, body)
     st, body = token_call(reader, "GET", f"/api/v1/servers/{sid}/files")
     assert st == 403, st
+
+    # Behind the edge's token router an agent sends its token on the handshake itself (no
+    # ticket, no cookie), and a token never reaches the password login
+    async with websockets.connect(WS, additional_headers={"Authorization": f"Bearer {secret}"}) as ws:
+        await ws.send(json.dumps({"type": "shell", "server_id": sid, "cols": 80, "rows": 24, "binary": BINARY}))
+        fr = await recv_until(ws, lambda m: m["type"] in ("connected", "error"), 30)
+        assert fr[-1]["type"] == "connected", fr
+        header_session = fr[-1]["session_id"]
+    api("DELETE", f"/api/v1/sessions/{header_session}")
+    st, body = token_call(secret, "POST", "/api/v1/auth/login", {"username": USER, "password": PASSWORD})
+    assert st == 400 and body["error"]["code"] == "BAD_REQUEST", (st, body)
+    print("agent token: shell with the token on the handshake, login carrying a token refused ok")
+
     st, body = token_call(secret, "POST", "/api/v1/auth/ws-ticket")
     assert st == 200, (st, body)
     async with websockets.connect(f"{WS}?ticket={body['ticket']}") as ws:

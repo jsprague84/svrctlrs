@@ -16,7 +16,8 @@ reset-password`, `linux/arm64` images (items 13–14), and agent access: tokens 
 approvals for the deletes that cannot be undone (items 15–16).
 **3.4.0 released 2026-10-19**: the OpenAPI document and typed responses, diagnose, exec,
 onboard and rotate-key, and `svrctl` as the agent CLI with its skill and a Hermes eval
-(items 17–19): agent access is done.
+(items 17–19): agent access is done. **After 3.4.0** (2026-10-19): the password login closed
+to the internet (item 20); items 21–26 follow in the owner's order.
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an
@@ -204,20 +205,65 @@ compact screens for everything below.
     a rotate-key hint that no longer invites deleting the old credential, and a "do only
     what was asked" rule in the skill. MCP stays under "Maybe later".
 
+### After agent access (decided 2026-10-19, owner)
+
+A look at a real week's use (phone and desktop) next to `SECURITY.md` found one hole and six
+gaps; the owner set the order. Small and light stays the rule: nothing here adds a service
+beside the binary, and what an identity provider does stays optional.
+
+20. ~~**Password login only behind the passkey.**~~ Done 2026-10-19: the reference compose let
+    all of `/api/` and `/ws/` skip the edge passkey for the native apps, so a password alone
+    signed in from the internet (the login route answered from outside; SECURITY known
+    weakness 13). Every browser path is behind the passkey now; `svrctlrs-token` passes only
+    requests carrying `Bearer svr_…` (never the login) and `svrctlrs-health` the health check.
+    The auth layer judges a token request by the token alone (a cookie beside it counted
+    before), refuses two `Authorization` headers and a login carrying one (tests, e2e). The
+    web app reloads when an API call is redirected to the edge's sign-in, and a refused
+    terminal socket asks the API, so an expired passkey sign-in brings the prompt back.
+21. **Sign-in: OIDC and TOTP, both optional, both inside the binary.** OpenID Connect with any
+    provider (here Pocket ID, its own client limited to the `owner` group, per the dev-space
+    edge-auth standard), so one passkey sign-in replaces passkey-then-password and the edge
+    can drop tinyauth for svrctlrs; built-in TOTP for deployments without a provider; the login
+    limiter's state in the database, so a restart does not reset it. Without a provider the
+    password login stays the default; with one it can be turned off (break-glass: an
+    environment flag and `svrctl reset-password`). No new service; prefer crates already in
+    the build (`reqwest`, `sha2`, `rsa`/`p256`). Migration `109_…`.
+22. **Keep the desktop app** (owner: vim needs Ctrl+W, which a browser tab keeps for itself).
+    Sign-in through the system browser (RFC 8252: a one-time code handed back on a
+    `127.0.0.1` port, which Pocket ID matches on any port), the session in the OS keyring
+    instead of `localStorage` (SECURITY known weakness 4), the deprecated `?token=` removed,
+    and a build tried on the owner's desktop with vim (`:split`, Ctrl+W j). Needs 21.
+23. **Shells that outlive a deploy and a pocket.** Every push to `master` restarts the
+    container and ends every shell, and a detached shell is kept 15 minutes. A per-account
+    "keep detached shells" preference (15 min / 1 h / 8 h, capped by the server) and an opt-in
+    per-server persistent shell in tmux, so a restart reattaches the same remote shell (tmux
+    missing: a plain shell and a note).
+24. **Backups inside the app.** Nothing has run `svrctl backup` in production since
+    2026-10-05; PBS snapshots the VM nightly, but that is a crash copy of a live SQLite file.
+    A nightly `VACUUM INTO` with retention, run by the server like the recordings sweep, its
+    last run shown on About.
+25. **File browser: open before download, and edit small files.** A tap on a file downloads
+    it today, which the owner keeps doing by accident. Selecting a file shows it (text and
+    images in a viewer; download becomes an explicit action); small text files open in a plain
+    in-app editor that suits a phone (size cap, refuses a file changed since it was opened);
+    "Edit in terminal" opens a tab on that server with `${EDITOR:-vi}` on the file, so vim
+    keeps the owner's own config. No editor library in the bundle.
+26. **Signed-in devices.** The account's browser and app sessions (device, address, last use)
+    with sign-out per device, so a lost phone does not need a password reset that ends every
+    session.
+
 ## Maybe later
 
 - **Port forwarding** (owner, 2026-10-18): a VPN into the home LAN covers the need; a web
   preview through the server would also need wildcard DNS/TLS at the edge. Revisit only if
   there is a recurring case a VPN cannot serve.
-- **Roles, TOTP/passkeys, OIDC, a revocable session list** (owner, 2026-10-18): single-user
-  today. Required before the app is offered to other people; design the `role` column with
-  the migration squash so the baseline already has it.
-- **Edit small text files in the browser** from the file browser, instead of `nano` on a
-  phone keyboard.
-- **Tauri desktop**: untested since 2026-10-05; the PWA covers desktop browsers. Decide whether
-  it stays a release artifact or is parked like Android.
-- Login limiter state in the database (survives restarts); 2FA on the *target* via
-  keyboard-interactive auth if a server needs it.
+- **Roles, and passkeys built into the app** (owner, 2026-10-18): single-user today. Roles
+  are required before the app is offered to other people. (OIDC and TOTP are item 21, the
+  session list item 26.)
+- 2FA on the *target* via keyboard-interactive auth if a server needs it.
+- A **Paste** key on the phone's extra-keys row (pasting relies on the keyboard's clipboard
+  button today), and fullscreen with Keyboard Lock so Ctrl+W reaches vim in a Chromium
+  browser, if the desktop app (item 22) falls short.
 - **MCP server for agent access** (owner, 2026-10-19): only when a client without a shell
   (Claude Desktop, a phone app, Open WebUI) needs it. Then a few task-level tools mirroring
   items 18–19 over Streamable HTTP on the current spec, bearer token, each tool marked

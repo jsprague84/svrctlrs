@@ -146,6 +146,8 @@ interface Harness {
 	/** The predictive echo's screen, with `echo: true` */
 	screen: FakeEchoScreen;
 	echoMode: { value: EchoMode };
+	/** How often a socket closed before it ever opened */
+	refused: { count: number };
 	/** The newest socket */
 	ws(): FakeSocket;
 }
@@ -162,6 +164,7 @@ function harness(
 	const statuses: ConnectionStatus[] = [];
 	const views: SessionView[] = [];
 	const server = { id: opts.serverId === undefined ? 7 : opts.serverId };
+	const refused = { count: 0 };
 	const trust = vi.fn(async (_serverId: number, _fingerprint: string): Promise<unknown> => {
 		if (opts.trustFails) throw new Error('nope');
 		return {};
@@ -174,6 +177,7 @@ function harness(
 		trustHostKey: trust,
 		onStatus: (s) => statuses.push(s),
 		onView: (v) => views.push(v),
+		onRefused: () => refused.count++,
 		createSocket: (url) => {
 			const s = new FakeSocket(url);
 			sockets.push(s);
@@ -201,6 +205,7 @@ function harness(
 		server,
 		screen,
 		echoMode,
+		refused,
 		ws: () => sockets[sockets.length - 1]
 	};
 }
@@ -537,6 +542,24 @@ describe('reconnect', () => {
 		expect(h.session.currentView.note).toBe('Could not connect');
 		await vi.advanceTimersByTimeAsync(60_000);
 		expect(h.sockets).toHaveLength(1);
+	});
+
+	it('asks whether the sign-in still holds when a socket is refused, never when one drops', async () => {
+		const h = harness();
+		await connected(h);
+		// An established connection dropping says nothing about the sign-in
+		h.ws().drop();
+		expect(h.refused.count).toBe(0);
+		// The reconnect is refused before it opens (a proxy's login redirect looks like this)
+		await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS[0]);
+		h.ws().drop();
+		expect(h.refused.count).toBe(1);
+
+		// A first connect refused outright asks too
+		const fresh = harness();
+		await fresh.session.connect();
+		fresh.ws().drop();
+		expect(fresh.refused.count).toBe(1);
 	});
 
 	it('ignores events from a socket it has replaced', async () => {

@@ -98,6 +98,9 @@ export interface PtySessionOptions {
 	onView?: (view: SessionView) => void;
 	/** Predictive local echo over this screen; none without it */
 	echo?: { screen: EchoScreen; mode: () => EchoMode };
+	/** A socket closed before it ever opened. The browser does not say why (an expired
+	 *  sign-in, a proxy's login redirect, the server down), so the pane asks the API. */
+	onRefused?: () => void;
 	// Seams for tests; the browser's own by default
 	createSocket?: (url: string) => SocketLike;
 	storage?: KeyValueStore;
@@ -567,9 +570,11 @@ export class PtySession {
 				this.attemptReconnect();
 			} else if (!this.intentionalDisconnect && this.reconnectAttempt > 0) {
 				// Reconnect attempt failed before fully connecting
+				this.opts.onRefused?.();
 				this.attemptReconnect();
 			} else if (!this.intentionalDisconnect) {
 				// Refused before it ever connected (auth, origin, server down)
+				this.opts.onRefused?.();
 				this.setNote('Could not connect');
 				this.setStatus('error');
 			} else {

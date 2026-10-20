@@ -5,6 +5,22 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Security
+- **A password alone no longer signs in from the internet** behind the reference edge. The
+  compose file sent all of `/api/` and `/ws/` past the Pocket ID passkey for the native apps,
+  so the JSON login took a password without it, and that session opened shells. Every path a
+  browser uses is now behind the passkey; only requests carrying an API token (never the
+  login) and the health check skip it. The server judges a request that carries an API token
+  by the token alone (a session cookie sent with it no longer counts), refuses two
+  `Authorization` headers, and refuses a login that carries one.
+
+### Changed
+- The web app reloads the page when an API call comes back as a redirect to the edge's
+  sign-in (the passkey sign-in ran out), and a terminal that cannot connect asks the server
+  whether you are still signed in, so you get the sign-in instead of endless reconnects.
+- Behind a passkey edge the desktop and Android apps cannot sign in until they can sign in
+  through your browser (planned with OIDC).
+
 ## [3.4.0] - 2026-10-19
 
 The "agents, part two" release: your agents can now find out why a server cannot be reached

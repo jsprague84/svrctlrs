@@ -17,6 +17,7 @@
 	import * as terminalState from '#lib/state/terminal.svelte.js';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import * as serversApi from '#lib/api/servers.js';
+	import { checkSignIn } from '#lib/api/client.js';
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
 	import { PtySession, type SessionView } from '#lib/terminal/ptySession.js';
@@ -494,7 +495,8 @@
 				mode: () => terminalPrefs.getPrefs().predictiveEcho
 			},
 			onStatus: (s) => onStatusChange?.(tabId, s),
-			onView: (v) => (view = v)
+			onView: (v) => (view = v),
+			onRefused: () => void checkSignIn()
 		});
 		// Keyboard input and size changes go to the PTY while the socket is open. The pending
 		// CTL/ALT is only used up by a keystroke that is actually sent.

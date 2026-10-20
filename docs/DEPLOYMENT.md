@@ -56,19 +56,32 @@ the database and are managed from the UI or API; there is no configuration file.
 
 ## Reverse proxy and edge auth
 
-The reference compose uses two Traefik routers on the same host:
+The reference compose uses three Traefik routers on the same host:
 
-- `svrctlrs-secure` — the UI, behind `secure-auth-chain@file` (Pocket ID passkey via
-  tinyauth, then the app's own login).
-- `svrctlrs-api` — `PathPrefix(/api/)` and `PathPrefix(/ws/)`, behind `secure-chain@file`
-  (security headers only). The app authenticates these itself, and the desktop/Android apps
-  cannot complete a tinyauth redirect, so they must reach these paths directly.
+- `svrctlrs-secure` — every path (UI, `/api/`, `/ws/`), behind `secure-auth-chain@file`
+  (Pocket ID passkey via tinyauth, then the app's own login). The web app's API calls and its
+  terminal socket carry the passkey cookie like any page load. When that sign-in expires, an
+  API call comes back as a redirect to tinyauth; the app reloads the page so tinyauth can ask
+  for the passkey again.
+- `svrctlrs-token` — `/api/` and `/ws/` requests that carry `Authorization: Bearer svr_…`,
+  except the login, behind `secure-chain@file` (headers only). Agents and scripts (`svrctl`,
+  Hermes) cannot do a passkey; the app checks their token and gives the request exactly what
+  the token allows (SECURITY.md, "API tokens").
+- `svrctlrs-health` — `/api/v1/health` (version and revision only), headers only, for
+  monitors and the deploy check.
 
-If you do not run tinyauth, use the headers-only chain for both or drop the middlewares. The
-server sets its own CSP and security headers either way. WebSockets need no special proxy
+Do not route the rest of `/api/` around the passkey: that would let a password alone sign in
+from the internet (SECURITY.md, known weakness 13). If you do not run tinyauth or another
+login proxy, use the headers-only chain or drop the middlewares; the app's own login is then
+the only gate, so keep it on a private network or behind a VPN. The server sets its own CSP
+and security headers either way. WebSockets need no special proxy
 configuration with Traefik; with nginx add the usual `Upgrade`/`Connection` headers on `/ws/`.
 
 ## Native clients against this server
+
+Behind a passkey edge like the reference one the desktop and Android apps cannot sign in:
+they cannot complete the passkey redirect. That returns with sign-in through the system
+browser (ROADMAP items 21–22). Without such an edge:
 
 1. Add the app origins to `ALLOWED_ORIGINS` and restart.
 2. In the desktop or Android app, enter `https://<host>` on first launch. The app checks

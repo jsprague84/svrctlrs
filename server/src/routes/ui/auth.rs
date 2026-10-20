@@ -58,6 +58,12 @@ impl<S: Send + Sync> FromRequestParts<S> for CurrentUser {
 ///   the store, so it must be unexpired, and the user id comes from *that record* — never from
 ///   anything the client sends alongside it.
 ///
+/// A request that carries an API token is judged by that token alone, before any cookie is
+/// looked at. The reference edge lets requests with `Authorization: Bearer svr_…` past its
+/// passkey login, so nothing else may ride along on them: not a session cookie, not a second
+/// `Authorization` header, and never a password login (a login with an `Authorization`
+/// header is refused).
+///
 /// Unauthenticated: WebSocket upgrades and `/api/*` get 401; browser requests are redirected
 /// to the login page.
 pub async fn require_auth(session: Session, mut request: Request, next: Next) -> Response {
@@ -68,9 +74,27 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
         return next.run(request).await;
     }
 
+    // One credential per request: a proxy could route on one header and the app read the other
+    if request
+        .headers()
+        .get_all(header::AUTHORIZATION)
+        .iter()
+        .count()
+        > 1
+    {
+        return ApiError::bad_request("Send at most one Authorization header").into_response();
+    }
+
     // Exempt routes - no auth required (case-insensitive comparison)
     let path_lower = path.to_ascii_lowercase();
-    if path_lower == "/auth/login"
+    let is_login = path_lower == "/auth/login" || path_lower == "/api/v1/auth/login";
+    if is_login && request.headers().contains_key(header::AUTHORIZATION) {
+        return ApiError::bad_request(
+            "A login request carries no Authorization header; agents use their API token instead",
+        )
+        .into_response();
+    }
+    if is_login
         || path_lower == "/auth/logout"
         || path_lower == "/api/v1/auth/login"
         || path_lower == "/api/v1/health"
@@ -85,16 +109,21 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
         return next.run(request).await;
     }
 
+    let pool = request
+        .extensions()
+        .get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>()
+        .cloned();
+
+    // API token: header only, and first, so a cookie sent alongside it counts for nothing
+    if let Some(value) = bearer_token(request.headers()).filter(|t| api_tokens::is_api_token(t)) {
+        return token_auth(pool, &value, &path, request, next).await;
+    }
+
     // Session cookie
     if let Some(user_id) = session.get::<i64>(USER_ID_KEY).await.unwrap_or(None) {
         request.extensions_mut().insert(CurrentUser(user_id));
         return next.run(request).await;
     }
-
-    let pool = request
-        .extensions()
-        .get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>()
-        .cloned();
 
     // One-time ticket on a WebSocket upgrade (see ws_tickets.rs). Consumed on first use.
     if is_websocket_upgrade(request.headers()) {
@@ -126,76 +155,6 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
             }
             return proceed(request, next, owner.user_id, owner.token).await;
         }
-    }
-
-    // API token: header only
-    if let Some(value) = bearer_token(request.headers()).filter(|t| api_tokens::is_api_token(t)) {
-        let Some(pool) = pool else {
-            return StatusCode::UNAUTHORIZED.into_response();
-        };
-        return match api_tokens::check(&pool, &value, chrono::Utc::now()).await {
-            TokenCheck::Valid { token, touch } => {
-                if touch {
-                    let ip = client_ip(request.headers());
-                    let id = token.id;
-                    let pool = pool.clone();
-                    tokio::spawn(async move {
-                        if let Err(e) =
-                            svrctlrs_database::queries::api_tokens::touch(&pool, id, &ip).await
-                        {
-                            tracing::warn!(error = %e, token_id = id, "Failed to record token use");
-                        }
-                    });
-                }
-                if !token.preset.allows(request.method(), &path) {
-                    return token_outside_preset(&token, request.method(), &path);
-                }
-                // The few destructive calls a token may make only with its owner's yes
-                if token.require_approval {
-                    if let Some((action, target)) =
-                        crate::approvals::gated(request.method(), &path)
-                    {
-                        let held = crate::approvals::hold(
-                            &pool,
-                            &token,
-                            action,
-                            target,
-                            request.method(),
-                            &path,
-                            request.headers(),
-                        )
-                        .await;
-                        if let Some(response) = held {
-                            return response;
-                        }
-                    }
-                }
-                proceed(request, next, token.user_id, Some(token)).await
-            }
-            TokenCheck::Malformed => token_error(
-                StatusCode::UNAUTHORIZED,
-                "TOKEN_INVALID",
-                "Malformed API token: expected svr_ and 40 letters and digits",
-            ),
-            TokenCheck::Unknown => {
-                token_error(StatusCode::UNAUTHORIZED, "TOKEN_INVALID", "Unknown API token")
-            }
-            TokenCheck::Expired(name) => token_error(
-                StatusCode::UNAUTHORIZED,
-                "TOKEN_EXPIRED",
-                format!("The API token \"{name}\" has expired; create a new one under Settings → Access"),
-            ),
-            TokenCheck::Revoked(name) => token_error(
-                StatusCode::UNAUTHORIZED,
-                "TOKEN_REVOKED",
-                format!("The API token \"{name}\" was revoked"),
-            ),
-            TokenCheck::Error => token_error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "INTERNAL_ERROR",
-                "Could not check the API token",
-            ),
-        };
     }
 
     // Session token: Authorization header first, then the query string (older native
@@ -236,6 +195,85 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
 
     // Browser requests redirect to login
     Redirect::to("/auth/login").into_response()
+}
+
+/// Authenticate by an API token (`value` starts with `svr_`): the token's owner, inside the
+/// token's preset, with the approval hold for the gated deletes.
+async fn token_auth(
+    pool: Option<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>,
+    value: &str,
+    path: &str,
+    request: Request,
+    next: Next,
+) -> Response {
+    let Some(pool) = pool else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+    match api_tokens::check(&pool, value, chrono::Utc::now()).await {
+        TokenCheck::Valid { token, touch } => {
+            if touch {
+                let ip = client_ip(request.headers());
+                let id = token.id;
+                let pool = pool.clone();
+                tokio::spawn(async move {
+                    if let Err(e) =
+                        svrctlrs_database::queries::api_tokens::touch(&pool, id, &ip).await
+                    {
+                        tracing::warn!(error = %e, token_id = id, "Failed to record token use");
+                    }
+                });
+            }
+            if !token.preset.allows(request.method(), path) {
+                return token_outside_preset(&token, request.method(), path);
+            }
+            // The few destructive calls a token may make only with its owner's yes
+            if token.require_approval {
+                if let Some((action, target)) = crate::approvals::gated(request.method(), path) {
+                    let held = crate::approvals::hold(
+                        &pool,
+                        &token,
+                        action,
+                        target,
+                        request.method(),
+                        path,
+                        request.headers(),
+                    )
+                    .await;
+                    if let Some(response) = held {
+                        return response;
+                    }
+                }
+            }
+            proceed(request, next, token.user_id, Some(token)).await
+        }
+        TokenCheck::Malformed => token_error(
+            StatusCode::UNAUTHORIZED,
+            "TOKEN_INVALID",
+            "Malformed API token: expected svr_ and 40 letters and digits",
+        ),
+        TokenCheck::Unknown => token_error(
+            StatusCode::UNAUTHORIZED,
+            "TOKEN_INVALID",
+            "Unknown API token",
+        ),
+        TokenCheck::Expired(name) => token_error(
+            StatusCode::UNAUTHORIZED,
+            "TOKEN_EXPIRED",
+            format!(
+                "The API token \"{name}\" has expired; create a new one under Settings → Access"
+            ),
+        ),
+        TokenCheck::Revoked(name) => token_error(
+            StatusCode::UNAUTHORIZED,
+            "TOKEN_REVOKED",
+            format!("The API token \"{name}\" was revoked"),
+        ),
+        TokenCheck::Error => token_error(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "INTERNAL_ERROR",
+            "Could not check the API token",
+        ),
+    }
 }
 
 /// Let an authenticated request through as `user_id`, naming the API token (if any) in the
@@ -1009,16 +1047,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(login.status(), StatusCode::OK);
-        let cookie = login
-            .headers()
-            .get(header::SET_COOKIE)
-            .expect("a session cookie was set")
-            .to_str()
-            .unwrap()
-            .split(';')
-            .next()
-            .unwrap()
-            .to_string();
+        let cookie = session_cookie(&login);
 
         // Replaying that cookie identifies the user, with no token or header.
         let resp = app
@@ -1092,6 +1121,84 @@ mod tests {
                 "page lookalike {path:?} must redirect to login"
             );
         }
+    }
+
+    /// The `name=value` part of the session cookie a login response sets.
+    fn session_cookie(resp: &Response) -> String {
+        resp.headers()
+            .get(header::SET_COOKIE)
+            .expect("a session cookie was set")
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .to_string()
+    }
+
+    // The reference edge lets `Authorization: Bearer svr_…` requests past its passkey login.
+    // These three keep that door from leading anywhere a token does not.
+
+    #[tokio::test]
+    async fn a_login_with_an_authorization_header_is_refused() {
+        let (app, _, _) = app_with_store().await;
+        let fake = format!("Bearer svr_{}", "a".repeat(40));
+        for (path, value) in [
+            ("/api/v1/auth/login?id=5", fake.as_str()),
+            ("/API/V1/AUTH/LOGIN?id=5", fake.as_str()),
+            ("/api/v1/auth/login?id=5", "Basic YW5uOng="),
+            ("/auth/login", fake.as_str()),
+        ] {
+            let resp = app
+                .clone()
+                .oneshot(
+                    Request::get(path)
+                        .header(header::AUTHORIZATION, value)
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(
+                resp.status(),
+                StatusCode::BAD_REQUEST,
+                "{path} with {value}"
+            );
+            assert!(
+                resp.headers().get(header::SET_COOKIE).is_none(),
+                "{path}: no session may come of it"
+            );
+        }
+        // Without the header the same login goes through.
+        let resp = app
+            .oneshot(
+                Request::get("/api/v1/auth/login?id=5")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn two_authorization_headers_are_refused() {
+        let (app, store, _) = app_with_store().await;
+        let session = session_token(&store, 42, time::Duration::hours(1)).await;
+        let resp = app
+            .oneshot(
+                Request::get("/api/v1/whoami")
+                    .header(
+                        header::AUTHORIZATION,
+                        format!("Bearer svr_{}", "a".repeat(40)),
+                    )
+                    .header(header::AUTHORIZATION, format!("Bearer {session}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::BAD_REQUEST);
     }
 
     #[tokio::test]
@@ -1233,6 +1340,57 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(body_text(resp).await, "1:hermes");
+    }
+
+    #[tokio::test]
+    async fn a_session_cookie_does_not_ride_along_with_an_api_token() {
+        let (app, pool, _) = token_app().await;
+        let login = app
+            .clone()
+            .oneshot(
+                Request::get("/api/v1/auth/login")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let cookie = session_cookie(&login);
+        let with_cookie = |token: &str| {
+            let mut request = with_bearer("GET", "/api/v1/status", token);
+            request
+                .headers_mut()
+                .insert(header::COOKIE, cookie.parse().unwrap());
+            request
+        };
+
+        // The cookie alone is ann.
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::get("/api/v1/status")
+                    .header(header::COOKIE, &cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(body_text(resp).await, "1");
+
+        // With a made-up token next to it, the token decides: refused.
+        let resp = app
+            .clone()
+            .oneshot(with_cookie(&format!("svr_{}", "a".repeat(40))))
+            .await
+            .unwrap();
+        assert_eq!(
+            error_code(resp).await,
+            (StatusCode::UNAUTHORIZED, "TOKEN_INVALID".into())
+        );
+
+        // With a real token next to it, the request is the token's, preset and all.
+        let (_, token) = make_token(&pool, "hermes", api_tokens::Preset::ReadOnly).await;
+        let resp = app.oneshot(with_cookie(&token)).await.unwrap();
         assert_eq!(body_text(resp).await, "1:hermes");
     }
 

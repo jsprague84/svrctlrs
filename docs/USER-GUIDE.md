@@ -3,9 +3,11 @@
 ## Signing in
 
 Open the server URL and sign in with your SvrCtlRS username and password. Behind the dev-space
-edge you first pass the Pocket ID passkey prompt. On the desktop or Android app the first
+edge you first pass the Pocket ID passkey prompt; when that sign-in runs out (after 15 days
+there) the app reloads and the prompt comes back. On the desktop or Android app the first
 screen asks for the server URL (`https://…`); the app checks it can reach the server, then
-shows the same login.
+shows the same login. Behind the dev-space edge the desktop app cannot sign in yet, because
+it cannot pass the passkey prompt; use the browser or the installed web app.
 
 ## Setting up a new server (the short way)
 

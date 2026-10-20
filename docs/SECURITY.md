@@ -30,7 +30,8 @@ other web pages the operator visits (see CSWSH below).
   Passwords must be at least 12 characters. Failed logins are limited to 10 per 15 minutes
   per client address and per username (429 with `Retry-After`). Accounts are managed under
   Settings → Users (`/api/v1/users`); a password change requires the current password. Every
-  account is an administrator, so put the UI behind the edge passkey login as well. Lockout
+  account is an administrator, so put the whole app behind the edge passkey login as well
+  ("Deployment guidance"). Lockout
   recovery is `svrctl reset-password <user>` on the host (it opens the database directly, so
   it needs `docker exec`, never the network): it ends that account's sessions (browser and
   native app) and is audited as `user.password_reset`. API tokens are separate credentials and
@@ -42,7 +43,9 @@ other web pages the operator visits (see CSWSH below).
 - **Token auth for native clients** — `POST /api/v1/auth/login` returns the session id; the
   Tauri apps send it as `Authorization: Bearer`. For WebSockets (no headers on a handshake)
   they first obtain a one-time ticket from `POST /api/v1/auth/ws-ticket` and pass `?ticket=`.
-  The user is always read from the session record, never from the client.
+  The user is always read from the session record, never from the client. Behind a passkey
+  edge like the reference one these apps cannot sign in (they cannot complete the passkey
+  redirect); signing in through the system browser is ROADMAP item 22.
 - **API tokens** (agents and scripts: `svrctl`, Hermes, Claude Code) — see "API tokens" below.
 - **Exempt routes** — `/auth/login`, `/auth/logout`, `/api/v1/auth/login`, `/api/v1/health`,
   the static app shell (`/_app/*`, `/icons/*`, `/fonts/*`, `/favicon.svg`,
@@ -66,7 +69,14 @@ Named credentials the owner creates under Settings → Access → Agent tokens
   (`401 TOKEN_IN_URL`) so it never lands in proxy or access logs; a WebSocket takes a one-time
   ticket instead (`POST /api/v1/auth/ws-ticket` with the token), and the ticket carries the
   token's identity and preset to the upgrade, where the token is checked again (revoked in
-  the 30 s between: refused).
+  the 30 s between: refused). A WebSocket client that can set headers may instead send the
+  token on the handshake itself, which is what an agent does behind the reference edge.
+- **A token request is the token's alone.** The auth layer looks at an API token before
+  anything else, so a session cookie sent with it counts for nothing; a request with two
+  `Authorization` headers is refused (400), and so is a login (`/auth/login`,
+  `/api/v1/auth/login`) that carries any `Authorization` header. This is what lets the
+  reference edge pass requests carrying `Bearer svr_…` without the passkey: such a request
+  can do what the token allows and nothing else. Tested in `routes/ui/auth.rs` and the e2e.
 - **Identity.** A token acts as its owner: the auth layer sets `CurrentUser` to the owner,
   exactly as a session does, plus a `TokenAuth` extension naming the token. Every audit row
   the request writes carries `token_id` and `token_name` (set for the whole request by the
@@ -125,8 +135,8 @@ Named credentials the owner creates under Settings → Access → Agent tokens
 **What a never-expiring full-admin token means.** It is a password-equivalent credential for
 every configured server that never times out: whoever reads it from an agent's config, a
 shell history or a log has a shell on every server until the owner revokes it. It is not
-covered by the edge passkey login (the API router is headers-only for native clients), so it
-works from wherever the API is reachable. Prefer *servers & keys* for an agent that
+covered by the edge passkey login (requests carrying a token have their own router without
+it), so it works from wherever the API is reachable. Prefer *servers & keys* for an agent that
 administers the inventory, give each agent its own token so one can be revoked alone, and
 keep full-admin tokens in a secret store. The audit log shows what each token did.
 
@@ -223,10 +233,13 @@ time out after 30 s; WebSockets do not. TLS is the proxy's job.
 
 ## Deployment guidance
 
-- Put the UI behind the edge passkey login (`secure-auth-chain@file` in the reference compose)
-  so a password alone is never enough from the internet. The API/WS router is headers-only
-  because the native apps need it; see the CSWSH item below for why `ALLOWED_ORIGINS` should
-  stay empty on browser-only deployments.
+- Put every path a browser uses (UI, `/api/`, `/ws/`) behind the edge passkey login
+  (`secure-auth-chain@file` in the reference compose) so a password alone is never enough from
+  the internet. Only two narrow routers skip it: `svrctlrs-token` for requests carrying
+  `Authorization: Bearer svr_…` (never the login path) and `svrctlrs-health` for
+  `/api/v1/health`. Any other bypass of the passkey for `/api/` re-opens the password login
+  to the internet (known weakness 13). See the CSWSH item below for why `ALLOWED_ORIGINS`
+  should stay empty on browser-only deployments.
 - Mount a dedicated key directory, not your `~/.ssh`, if you use key-path credentials.
 - Keep `.env` at mode 0600; it holds `ENCRYPTION_KEY` and the bootstrap password.
 - Prefer `ssh_key` credentials with the key material pasted into the credential (stored
@@ -294,6 +307,15 @@ Ordered by impact. Each has a ROADMAP entry.
     key, and start-up encrypts any `encrypted = 0` rows left by an earlier plaintext run.
     (Production ran in that fallback from 2026-09-14 to 2026-10-04 because the compose file
     passed an empty `ENCRYPTION_KEY`.)
+13. ~~**A password alone was enough from the internet**~~ — fixed 2026-10-19: the reference
+    compose sent all of `/api/` and `/ws/` through a headers-only router for the native apps,
+    so `POST /api/v1/auth/login` took a password without the edge passkey, and the session it
+    returned opened shells on every server. Now every browser path is behind the passkey; a
+    narrow router passes only requests carrying an API token (never the login) plus the health
+    check, and the app judges a token request by the token alone, refuses a second
+    `Authorization` header and refuses a login that carries one (tested). Found by asking the
+    login route from outside: the app answered instead of the edge. The native apps' password
+    login no longer passes that edge; they return with OIDC sign-in (ROADMAP 21–22).
 
 ## Reporting
 

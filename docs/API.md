@@ -19,14 +19,16 @@ routes requires one of:
 | Session cookie | set by either login route | browser (also on WebSocket upgrades) |
 | API token | `Authorization: Bearer svr_…` (never in a URL) | agents, scripts, `svrctl` |
 | Bearer token | `Authorization: Bearer <session_id>` | Tauri desktop/Android |
-| One-time ticket | `?ticket=<ticket>` on WebSocket upgrades, from `POST /auth/ws-ticket` | Tauri desktop/Android |
+| One-time ticket | `?ticket=<ticket>` on WebSocket upgrades, from `POST /auth/ws-ticket` | Tauri desktop/Android; agents without header support |
 | Query token | `?token=<session_id>` on WebSocket upgrades | older native builds; deprecated |
 
 The token *is* the session id returned by the JSON login. It expires after 24 hours of
 inactivity. The user is always taken from the session record; `X-User-Id` and `user_id`
 parameters are ignored. Unauthenticated API calls get `401`; unauthenticated page loads
 redirect to `/auth/login`. Ten failed logins per 15 minutes, per client address or per
-username, answer `429` with `Retry-After`.
+username, answer `429` with `Retry-After`. A request carrying an API token is judged by that
+token alone (a cookie sent with it is ignored); two `Authorization` headers, or a login that
+carries one, answer `400`.
 
 ```http
 POST /api/v1/auth/ws-ticket          (authenticated)
@@ -363,8 +365,9 @@ deleted users.
 
 ## WebSocket protocol
 
-Both endpoints are JSON text frames. Authenticate with the session cookie (browser) or a
-one-time `?ticket=` (native apps). The upgrade's `Origin` must be the server's own host or one
+Both endpoints are JSON text frames. Authenticate with the session cookie (browser), an API
+token in the handshake's `Authorization` header (agents; the way through a passkey edge such
+as the reference one) or a one-time `?ticket=` (native apps). The upgrade's `Origin` must be the server's own host or one
 of `ALLOWED_ORIGINS`, else `403`.
 
 ### `/ws/terminal/pty` — interactive shell
