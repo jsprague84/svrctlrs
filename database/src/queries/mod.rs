@@ -1,5 +1,6 @@
 //! Database query modules
 
+pub mod api_tokens;
 pub mod audit;
 pub mod credentials;
 pub mod quick_commands;

@@ -20,6 +20,9 @@ pub struct AuditEntry {
     pub target_name: Option<String>,
     /// JSON object string
     pub details: Option<String>,
+    /// The API token the request came in with, if any (its name as it was then)
+    pub token_id: Option<i64>,
+    pub token_name: Option<String>,
 }
 
 /// An entry to record. Built with the chained setters; nothing here may be a secret.
@@ -33,6 +36,8 @@ pub struct NewAuditEntry {
     pub target_id: Option<i64>,
     pub target_name: Option<String>,
     pub details: Option<JsonValue>,
+    pub token_id: Option<i64>,
+    pub token_name: Option<String>,
 }
 
 impl NewAuditEntry {
@@ -67,6 +72,13 @@ impl NewAuditEntry {
 
     pub fn details(mut self, details: JsonValue) -> Self {
         self.details = Some(details);
+        self
+    }
+
+    /// The API token behind the request
+    pub fn token(mut self, id: i64, name: &str) -> Self {
+        self.token_id = Some(id);
+        self.token_name = Some(name.to_string());
         self
     }
 }

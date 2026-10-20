@@ -12,7 +12,7 @@ Android app; those talk to a remote server over the same API.
  │ require_auth middleware ── sessions (tower-sessions, SQLite store)       │
  │ routes/api/*  servers · credentials · settings · profiles ·             │
  │               quick-commands · notifications · users · audit · health · │
- │               recordings ·                                              │
+ │               recordings · tokens                                       │
  │               files (SFTP browse/transfer, outside the request timeout) │
  │ routes/terminal_pty.rs  interactive shell over WebSocket                 │
  │ ssh.rs                  the one SSH client (russh): host keys, auth, exec │
@@ -48,10 +48,14 @@ does not pull in Tauri's GTK/WebKit dependencies.
    (`routes/api/files.rs`, streamed transfers) do not.
 2. **`require_auth`** (`server/src/routes/ui/auth.rs`) exempts `/auth/login`, `/auth/logout`,
    `/api/v1/auth/login`, `/api/v1/health`, the static app shell, `/manifest.webmanifest` and
-   `OPTIONS` (list in `SECURITY.md`). Everything else needs a session cookie, a Bearer token
-   (the session id, looked up in the session store), or on a WebSocket upgrade a one-time
-   `?ticket=`; the user always comes from the session record. Unauthenticated browser requests
-   redirect to `/auth/login`; API requests get 401.
+   `OPTIONS` (list in `SECURITY.md`). Everything else needs a session cookie, an API token
+   (`Bearer svr_…`, `server/src/api_tokens.rs`: hashed lookup, then the token's access preset
+   decides by method and path, 403 for anything it does not name), a session Bearer token (the
+   session id, looked up in the session store), or on a WebSocket upgrade a one-time
+   `?ticket=`; the user always comes from the session or token record. A token request runs
+   inside `audit::with_token`, so every audit row it writes names the token. Unauthenticated
+   browser requests redirect to `/auth/login`; API requests get 401. The whole stack is built
+   by `server/src/app.rs::router`, which `main` serves and the end-to-end tests drive.
 3. **API handlers** (`server/src/routes/api/*.rs`) validate input, call `database` queries,
    and return JSON. Errors use the `ApiError` envelope (see `API.md`): `ApiError` implements
    `IntoResponse` and converts from `svrctlrs_core::Error` by kind (`NotFound` → 404,
@@ -85,6 +89,8 @@ does not pull in Tauri's GTK/WebKit dependencies.
   non-browser clients.
 - Credentials: `value` encrypted with AES-256-GCM (`core/src/encryption.rs`). The key comes
   from `ENCRYPTION_KEY` (64 hex chars), else `data/encryption.key`, else is generated.
+- API tokens: `api_tokens` table, SHA-256 of the secret only; presets enforced by
+  `Preset::allows` in the auth layer; never in a URL.
 - SSH host keys: `server_host_keys` table, one row per `(server_id, key_type)`; `trusted_at`
   NULL is the key seen on first contact, waiting for the user to confirm its fingerprint.
 
@@ -101,7 +107,8 @@ does not pull in Tauri's GTK/WebKit dependencies.
 | `quick_commands` | per-user snippets: name, command, optional `server_id`, category, sort order |
 | `settings` | key/value with `value_type`; `notification.*` and `app.default_profile_id` are seeded |
 | `user_settings` | a user's own preference documents: (`user_id`, `key`) → JSON `value`; only `terminal` today (`ON DELETE CASCADE`) |
-| `audit_log` | who did what: user, client address, action, target, JSON details; pruned after 180 days |
+| `api_tokens` | a user's named API tokens: SHA-256 `token_hash` (unique), display `prefix`, `preset`, `expires_at` (NULL = never), `last_used_at`/`last_used_ip`, `revoked_at`; name unique per user (`ON DELETE CASCADE`) |
+| `audit_log` | who did what: user, client address, action, target, JSON details, and the API token behind it (`token_id`, `token_name`, no foreign key so the name outlives the token); pruned after 180 days |
 | `session_recordings` | one recorded shell: owner `user_id` (`ON DELETE CASCADE`), `server_id` (`ON DELETE SET NULL`) and `server_name`, `session_id`, the encrypted file's name, start size, times, plaintext `size_bytes`, `status`, `end_reason` |
 
 Two migration chains are embedded (`database/src/lib.rs::run_migrations`). A fresh database

@@ -102,3 +102,6 @@ server = [
 [dev-dependencies]
 # `oneshot` for driving the router in middleware tests
 tower = { workspace = true, features = ["util"] }
+# A WebSocket client for the end-to-end token test (axum's own WebSocket crate, same version)
+tokio-tungstenite = "0.28"
+futures-util = { workspace = true }

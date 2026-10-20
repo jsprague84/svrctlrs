@@ -17,7 +17,7 @@
 		{ id: 'all', label: 'Everything' },
 		{ id: 'logins', label: 'Logins', action: 'login,logout' },
 		{ id: 'sessions', label: 'Sessions', action: 'session.,recording.' },
-		{ id: 'changes', label: 'Changes', action: 'server.,credential.,user.' }
+		{ id: 'changes', label: 'Changes', action: 'server.,credential.,user.,token.' }
 	];
 
 	let entries = $state<AuditEntry[]>([]);
@@ -107,8 +107,9 @@
 
 <div class="flex flex-col gap-3">
 	<p class="text-xs text-text-muted">
-		Logins, sessions, commands and changes to servers, credentials and accounts, kept for 180 days.
-		Commands are recorded as typed; keep secrets out of command lines.
+		Logins, sessions, commands and changes to servers, credentials, accounts and tokens, kept for
+		180 days. Actions taken with an API token name it under the user. Commands are recorded as
+		typed; keep secrets out of command lines.
 	</p>
 
 	<div class="flex flex-wrap items-center gap-2">
@@ -195,7 +196,14 @@
 								</span>
 								{timeAgo(e.at)}
 							</td>
-							<td class="py-1.5 pr-3 text-text-primary">{e.username ?? '—'}</td>
+							<td class="py-1.5 pr-3 text-text-primary">
+								{e.username ?? '—'}
+								{#if e.token_name}
+									<span class="block text-[11px] text-text-muted" title="API token"
+										>via {e.token_name}</span
+									>
+								{/if}
+							</td>
 							<td class="py-1.5 pr-3"><Badge variant={variant(e.action)}>{e.action}</Badge></td>
 							<td class="py-1.5 pr-3 text-text-primary">{targetText(e) || '—'}</td>
 							<td class="py-1.5 pr-3 font-mono text-text-muted hidden md:table-cell"

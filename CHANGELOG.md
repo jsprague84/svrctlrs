@@ -6,6 +6,14 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Added
+- **Agent tokens** (Settings → Access): named API tokens for agents and scripts, sent as
+  `Authorization: Bearer svr_…`. Each has an access preset — *full admin* (terminals and files
+  included), *servers & keys* or *read-only*, enforced in one place by method and path, deny
+  by default — and a lifetime of 30, 90 or 365 days or never. Shown once, stored as a hash,
+  last use recorded, revoked in one tap (a terminal opened with it closes). Every audit row a
+  token causes names it ("via hermes" in the Audit tab). No token can manage tokens or
+  accounts. `svrctl` takes one in `SVRCTLRS_TOKEN`. API tokens are refused in URLs; WebSockets
+  use the ticket exchange, which now carries the token. Migration `107_api_tokens.sql`.
 - **`linux/arm64` images** (Raspberry Pi 4/5 on a 64-bit OS, other ARM servers) next to
   `linux/amd64`, under the same tags; Docker pulls the right one. Both are cross-compiled on
   the amd64 runner, without emulation.
@@ -21,6 +29,11 @@ the release workflow uses the matching section as the release notes.
   from the active tab's server; any other `{{word}}` is asked for when the command runs, with
   `{{word:default}}` pre-filling the answer and a live preview of the finished command. Go
   templates (`{{.Names}}`, `{{json .}}`, `{{end}}`) are left as written.
+
+### Changed
+- Settings → **Users** is now **Access** (agent tokens and accounts); `?tab=users` still
+  opens it.
+- A toast's dismiss button is a full-size tap target on phones.
 
 ### Fixed
 - **`ADMIN_PASSWORD` alone created no account.** The first start seeded the admin only when

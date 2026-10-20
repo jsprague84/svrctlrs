@@ -29,6 +29,8 @@ pub struct AppState {
     pub sessions: Arc<SessionRegistry>,
     /// Where session recordings are written, and the recorders still writing.
     pub recordings: Arc<RecordingStore>,
+    /// Ids of API tokens as they are revoked or removed, so terminals opened with one end.
+    pub token_revocations: tokio::sync::broadcast::Sender<i64>,
 }
 
 impl AppState {
@@ -44,6 +46,7 @@ impl AppState {
             ws_tickets: Arc::new(WsTickets::default()),
             sessions: SessionRegistry::from_env(),
             recordings: RecordingStore::from_env(),
+            token_revocations: tokio::sync::broadcast::channel(64).0,
         })
     }
 

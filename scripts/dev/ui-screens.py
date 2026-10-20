@@ -209,9 +209,43 @@ with sync_playwright() as p:
                     check("Escape closes the row menu", page.get_by_role("menu").count() == 0)
             go("/credentials")
             shot("credentials", full=True)
-            for tab in ["general", "notifications", "commands", "users", "audit", "about"]:
+            for tab in ["general", "notifications", "commands", "access", "audit", "about"]:
                 go(f"/settings?tab={tab}")
                 shot(f"settings-{tab}", full=True)
+            # An agent token: created in the dialog, shown once, works outside the browser,
+            # revoked in one tap
+            agent = f"agent-{vp_name}-{theme}"
+            go("/settings?tab=access")
+            page.get_by_role("button", name="New token").click()
+            dialog = page.get_by_role("dialog", name="New token")
+            dialog.get_by_label("Name").fill(agent)
+            dialog.get_by_role("radio", name="Full admin").click()
+            dialog.get_by_role("radio", name="Never").click()
+            check("full admin + never warns", dialog.get_by_text("never expires opens a shell").count() == 1)
+            shot("token-new")
+            dialog.get_by_role("button", name="Create token").click()
+            created = page.get_by_role("dialog", name="Token created")
+            created.wait_for(timeout=5000)
+            secret = created.get_by_label("The new token").input_value()
+            check("the new token is shown once, whole", secret.startswith("svr_") and len(secret) == 44, secret[:6])
+            shot("token-created")
+            created.get_by_role("button", name="Done").click()
+
+            def token_status(path="/api/v1/servers"):
+                req = urllib.request.Request(BASE + path, headers={"Authorization": f"Bearer {secret}"})
+                try:
+                    with urllib.request.urlopen(req) as r:
+                        return r.status
+                except urllib.error.HTTPError as e:
+                    return e.code
+
+            check("the token reads the server list", token_status() == 200)
+            check("the token cannot list tokens", token_status("/api/v1/tokens") == 403)
+            check("the list shows no secret", secret not in page.content())
+            page.get_by_role("button", name=f"Revoke token {agent}").click()
+            page.get_by_role("button", name=f"Remove token {agent}").wait_for(timeout=5000)
+            check("a revoked token is refused", token_status() == 401)
+            shot("settings-access-tokens", full=True)
             if SSH_HOST and theme == "dark":
                 # A live shell on the real target, for the README and USER-GUIDE pictures
                 go("/")

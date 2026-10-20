@@ -10,6 +10,7 @@ routes requires one of:
 | Method | How | Used by |
 |---|---|---|
 | Session cookie | set by either login route | browser (also on WebSocket upgrades) |
+| API token | `Authorization: Bearer svr_…` (never in a URL) | agents, scripts, `svrctl` |
 | Bearer token | `Authorization: Bearer <session_id>` | Tauri desktop/Android |
 | One-time ticket | `?ticket=<ticket>` on WebSocket upgrades, from `POST /auth/ws-ticket` | Tauri desktop/Android |
 | Query token | `?token=<session_id>` on WebSocket upgrades | older native builds; deprecated |
@@ -25,8 +26,25 @@ POST /api/v1/auth/ws-ticket          (authenticated)
 200 {"ticket": "<43 url-safe chars>", "expires_in_secs": 30}
 ```
 
-A ticket is bound to the caller, valid for 30 seconds and consumed by the first WebSocket
-upgrade that presents it; it is not accepted on ordinary requests.
+A ticket is bound to the caller (and the API token it was asked with, whose access the
+upgrade then has), valid for 30 seconds and consumed by the first WebSocket upgrade that
+presents it; it is not accepted on ordinary requests.
+
+### API tokens
+
+Created by a signed-in user (`/tokens` below); a token acts as its owner, within its preset.
+Refusals use the error envelope:
+
+| Status | `error.code` | When |
+|---|---|---|
+| 401 | `TOKEN_INVALID` | malformed (`svr_` + 40 letters and digits expected) or unknown |
+| 401 | `TOKEN_EXPIRED` / `TOKEN_REVOKED` | the token's lifetime ended / it was revoked |
+| 401 | `TOKEN_IN_URL` | `?token=svr_…`: tokens go in the header only |
+| 403 | `TOKEN_SCOPE` | the preset does not name this method and path; `error.details: {preset, method, path}` |
+
+Presets (`full_admin`, `servers_keys`, `read_only`) and exactly what each allows:
+`SECURITY.md`, "API tokens", and the table in `server/src/api_tokens.rs`. No preset reaches
+`/tokens`, `POST /users`, `DELETE /users/{id}` or `PUT /users/me/password`.
 
 ```http
 POST /api/v1/auth/login
@@ -213,24 +231,50 @@ leader key and predictive echo; `ui/src/lib/terminal/prefsSync.ts` has the field
 defaults); any other key answers 404. The server stores the document as given and the UI
 merges it over its defaults, so fields a client does not know are ignored rather than fatal.
 
-Deleting a user cascades to their sessions, profiles, quick commands, preferences and
-recordings.
+Deleting a user cascades to their sessions, profiles, quick commands, preferences,
+recordings and API tokens.
+
+## API tokens (signed-in users only)
+
+| Method | Path | |
+|---|---|---|
+| GET | `/tokens` | the caller's tokens, newest first: `{tokens: [...]}` |
+| POST | `/tokens` | `{name, preset, expires_in_days}` → 201 `{token, secret}` |
+| POST | `/tokens/{id}/revoke` | → `{token}` (idempotent); terminals opened with it close |
+| DELETE | `/tokens/{id}` | remove it (any state) → `{id, message}` |
+
+```json
+POST /api/v1/tokens
+{"name": "hermes", "preset": "servers_keys", "expires_in_days": 90}
+
+201 {"token": {"id": 3, "name": "hermes", "prefix": "svr_x7Kq2m", "preset": "servers_keys",
+               "status": "active", "created_at": "…", "expires_at": "…",
+               "last_used_at": null, "last_used_ip": null, "revoked_at": null},
+     "secret": "svr_x7Kq2m…"}
+```
+
+`expires_in_days` is required: 1–3650, or `null` for a token that never expires. `name` is
+1–64 characters and unique per user (409). `status` is `active`, `expired` or `revoked`. The
+`secret` appears in the create response only. Audited as `token.created`, `token.revoked`,
+`token.deleted`. Another user's token answers 404.
 
 ## Audit log
 
 | Method | Path | Query | Response |
 |---|---|---|---|
-| GET | `/audit` | `limit` (1–500, default 100), `before` (id cursor), `action` (comma-separated prefixes, e.g. `login,session.`), `user_id`, `q` (case-insensitive substring of action, target name, details, username or address) | `entries` newest first, `next_before` for the following page or `null` |
+| GET | `/audit` | `limit` (1–500, default 100), `before` (id cursor), `action` (comma-separated prefixes, e.g. `login,session.`), `user_id`, `q` (case-insensitive substring of action, target name, details, username, address or token name) | `entries` newest first, `next_before` for the following page or `null` |
 
 Entry: `id, at, user_id, username, client_ip, action, target_type, target_id, target_name,
-details` (a JSON object string). Actions: `login`, `login.failed`, `login.rate_limited`,
+details` (a JSON object string), `token_id, token_name` (the API token the request came in
+with, else null; the name as it was then). Actions: `login`, `login.failed`, `login.rate_limited`,
 `logout`, `user.created`, `user.deleted`, `user.password_changed`, `server.created`,
 `server.updated`, `server.deleted`, `server.imported` (details: `created` names, `skipped`
 count), `server.host_key_trusted` (details: `key_type`,
 `fingerprint`), `server.host_keys_forgotten` (details: `removed`), `credential.created`,
 `credential.updated`, `credential.deleted`, `session.pty_opened` (details: `login`, `auth` —
 `password` or the key used, `recorded`), `files.download`, `files.upload`, `files.mkdir`, `files.rename`,
-`files.delete` (details: the remote path), `recording.downloaded`, `recording.deleted`.
+`files.delete` (details: the remote path), `recording.downloaded`, `recording.deleted`,
+`token.created` (details: `preset`, `expires_at`, `prefix`), `token.revoked`, `token.deleted`.
 `server.created` and `server.updated` carry `record_sessions` when it was set or changed. `session.command` entries from the retired command mode remain
 readable until they age out. Entries never contain secrets, are kept for 180 days, and outlive
 deleted users.

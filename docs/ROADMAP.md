@@ -1,6 +1,6 @@
 # Roadmap
 
-**Updated 2026-10-18.** The first part is the live plan: where the app stands against similar
+**Updated 2026-10-19.** The first part is the live plan: where the app stands against similar
 projects, what comes next and in which order, what is parked, and what is deliberately out of
 scope. The second part is the history of the 2026-10 hardening passes, kept because each row
 names the evidence for a fix.
@@ -134,12 +134,21 @@ reach servers over their own SSH; svrctlrs is not meant to be a second door to s
 token may open terminals and files when that helps a diagnosis. Phone and desktop both get
 compact screens for everything below.
 
-15. **Agent tokens.** Named tokens the owner creates under Settings: access preset (*full
-    admin* — everything the owner can do, terminals and files included — or narrower presets
-    such as *read-only* and *servers & keys*) and lifetime (30/90/365 days or **never**).
-    Stored hashed, shown once, last-used time, revoke in one tap; every audit row names the
-    token. Replaces "log in with the password and carry the session id" for scripts and
-    `svrctl`. Security-critical: server tests and `SECURITY.md` in the same change.
+15. ~~**Agent tokens.**~~ Done 2026-10-19: `svr_` + 40 alphanumerics, SHA-256 stored,
+    shown once (`107_api_tokens.sql`, `server/src/api_tokens.rs`, `routes/api/tokens.rs`);
+    presets *full admin* / *servers & keys* / *read-only* decided in one table by method and
+    path before any handler, deny by default, and none reaches token or account management;
+    lifetime 30/90/365 days or never; last use recorded; revoke in one tap, which also closes a
+    terminal opened with the token. The auth layer resolves a token to its owner as
+    `CurrentUser`, every audit row it causes carries `token_id`/`token_name` (a task-local the
+    middleware sets, carried past the WebSocket upgrade), tickets carry the token, and tokens
+    are refused in URLs. Settings → Access (Users renamed; phone grid stays 3×2): cards on the
+    phone, a table on the desktop, a create dialog with a copy-once display. Tests: the preset
+    table route by route, valid/expired/revoked/unknown/malformed/in-URL, 403 outside the
+    preset, audit attribution, and through the real router (`server/src/app.rs`, extracted
+    from `main.rs`) a full-admin token opening a shell on the loopback SSH server via a ticket,
+    then revoked; the e2e does the same against OpenSSH on hermes and the UI sweep creates,
+    uses and revokes one per viewport.
 16. **Approvals, rare and per token.** Only deleting a server profile, deleting a credential
     or key, and forgetting a server's host keys can require approval, and a token can be set
     to need none. A gated call answers `202` with a pending action and an approval link;

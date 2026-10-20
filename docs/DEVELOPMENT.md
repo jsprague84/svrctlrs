@@ -73,7 +73,10 @@ running server and a real SSH target: first-contact host-key confirmation, the c
 test, a jump host (the target through itself), SFTP, tags, `ssh_config` import, the startup
 command, then the persistent-session protocol (shell, dropped socket, reattach with replay,
 `closed`, `session_gone`, TTL), and session recording (a resize in the cast, a password typed
-at a `stty -echo` prompt absent from it, 404 for a second account on every route). `scripts/dev/run-e2e.sh` starts a throwaway debug server and
+at a `stty -echo` prompt absent from it, 404 for a second account on every route), and agent
+tokens (a full-admin token opens a shell through the ticket exchange without a cookie, its
+audit row names it, a read-only token gets 403 for tickets and files, revoking ends the
+shell). `scripts/dev/run-e2e.sh` starts a throwaway debug server and
 runs both frame formats:
 
 ```bash
@@ -114,7 +117,10 @@ with sample servers, tags, credentials, quick commands and a second account, the
 screenshot of every screen at phone and desktop size in both themes. It fails if a page
 scrolls sideways, if a phone control is under 40 px to the finger (the extra-keys row is the
 one deliberate exception), if Escape does not close a modal or the row menu, or if Tab leaves a
-modal. With an SSH target it adds a live shell and the file browser, and (the live server
+modal. On Settings → Access it creates a full-admin token that never expires (the dialog
+must warn), reads it from the copy-once display, uses it from outside the browser (200 on the
+server list, 403 on `/tokens`), checks the list never shows it, and revokes it (then 401).
+With an SSH target it adds a live shell and the file browser, and (the live server
 records sessions) the recordings list and the player, checking that the player shows the
 recorded shell and closes on Escape; the pictures in
 `docs/images/` come from that run (dark theme, phone shots at half size, `pngquant`-ed). The

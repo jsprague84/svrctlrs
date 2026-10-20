@@ -19,8 +19,8 @@ pub async fn record(pool: &Pool<Sqlite>, entry: &NewAuditEntry) -> Result<i64> {
     let result = sqlx::query(
         r#"
         INSERT INTO audit_log (user_id, username, client_ip, action, target_type, target_id,
-                               target_name, details)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                               target_name, details, token_id, token_name)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(entry.user_id)
@@ -31,6 +31,8 @@ pub async fn record(pool: &Pool<Sqlite>, entry: &NewAuditEntry) -> Result<i64> {
     .bind(entry.target_id)
     .bind(&entry.target_name)
     .bind(details)
+    .bind(entry.token_id)
+    .bind(&entry.token_name)
     .execute(pool)
     .await
     .context("Failed to record audit entry")
@@ -65,8 +67,8 @@ pub async fn list_filtered(
 ) -> Result<Vec<AuditEntry>> {
     let mut qb: sqlx::QueryBuilder<Sqlite> = sqlx::QueryBuilder::new(
         "SELECT a.id, a.at, a.user_id, COALESCE(u.username, a.username) AS username, a.client_ip, \
-         a.action, a.target_type, a.target_id, a.target_name, a.details \
-         FROM audit_log a LEFT JOIN users u ON u.id = a.user_id WHERE 1 = 1",
+         a.action, a.target_type, a.target_id, a.target_name, a.details, a.token_id, \
+         a.token_name FROM audit_log a LEFT JOIN users u ON u.id = a.user_id WHERE 1 = 1",
     );
     if let Some(before) = before {
         qb.push(" AND a.id < ").push_bind(before);
@@ -108,6 +110,7 @@ pub async fn list_filtered(
             "a.details",
             "COALESCE(u.username, a.username)",
             "a.client_ip",
+            "a.token_name",
         ]
         .iter()
         .enumerate()

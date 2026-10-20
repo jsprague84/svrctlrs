@@ -95,12 +95,36 @@ sessions, changes), user and free text; on a phone, tap a row for the address an
 It shows: logins (including failed and rate-limited attempts,
 with the client address), logouts, shells opened (with the login, whether a password or
 which key was used, and whether the shell was recorded), recording downloads and deletions,
-file transfers, and every change to servers, credentials and accounts. Entries are kept
-for 180 days.
+file transfers, and every change to servers, credentials, accounts and tokens. Anything done
+with an API token shows "via <token name>" under the user. Entries are kept for 180 days.
+
+## Agent tokens
+
+Settings → Access (`/settings?tab=access`) → **Agent tokens** is where agents and scripts get
+their own way in: `svrctl`, your always-on agent, Claude Code, a cron job. Each token is
+named, acts as you within its access, and can be revoked on its own, so give each agent its
+own.
+
+- **New token**: a name (which agent holds it), an access preset and a lifetime.
+  - *Full admin*: everything you can do, terminals and files included.
+  - *Servers & keys*: read everything; add, change and delete servers, credentials and host
+    keys. No terminals or files. The right one for an agent that fixes your server list.
+  - *Read-only*: look, never touch.
+
+  No token can create or revoke tokens or manage accounts, whatever its access. Lifetime is
+  30 days, 90 days, a year or never.
+- The token (`svr_…`) is shown **once**, with a Copy button; SvrCtlRS keeps only a hash. Use
+  it as `Authorization: Bearer svr_…`, or `export SVRCTLRS_TOKEN=svr_…` for `svrctl`.
+- The list shows each token's access, its first characters, when it was last used (hover for
+  the address on a desktop) and when it expires. **Revoke** takes effect at once (a terminal an
+  agent opened with it closes); a revoked or expired token stays listed until you **Remove** it.
+
+A full-admin token that never expires is as good as your password on every server for as long
+as it exists; the dialog says so. See SECURITY.md, "API tokens".
 
 ## Accounts
 
-Settings → Users lists the accounts, lets you add one (username plus a password of at least
+Settings → Access lists the accounts under **Accounts**, lets you add one (username plus a password of at least
 12 characters) or delete one (not your own, not the last), and holds **Your password** for
 changing yours — the current password is required. Every account can open a shell on every
 configured server and manage accounts; there are no roles yet. Locked out? Whoever runs the

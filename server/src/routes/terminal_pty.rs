@@ -16,9 +16,10 @@ use axum::{
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, error, info, warn};
 
+use crate::api_tokens::TokenAuth;
 use crate::routes::ui::auth::CurrentUser;
 use crate::sessions::{Followed, LiveSession, OutputFrame, PtyCommand};
 use crate::ssh::ConnectError;
@@ -96,6 +97,7 @@ async fn pty_ws_handler(
     headers: HeaderMap,
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
+    token: Option<axum::Extension<TokenAuth>>,
 ) -> Response {
     // Cross-site WebSocket hijacking guard; see auth::websocket_origin_allowed.
     if !crate::routes::ui::auth::websocket_origin_allowed(&headers, &state.allowed_origins) {
@@ -104,12 +106,58 @@ async fn pty_ws_handler(
     }
     info!("Interactive PTY WebSocket connection request");
     let ip = crate::routes::ui::auth::client_ip(&headers);
-    ws.on_upgrade(move |socket| handle_pty_socket(socket, state, user_id, ip))
-        .into_response()
+    let token = token.map(|axum::Extension(t)| t);
+    // The socket outlives the request's task, so it takes the token along: for the audit
+    // rows it writes, and to end when the token is revoked.
+    ws.on_upgrade(move |socket| {
+        let token_id = token.as_ref().map(|t| t.id);
+        crate::audit::with_token(
+            token,
+            handle_pty_socket(socket, state, user_id, ip, token_id),
+        )
+    })
+    .into_response()
+}
+
+/// What woke the socket loop
+enum Wake {
+    Message(Result<Message, axum::Error>),
+    Ended,
+    TokenRevoked,
+}
+
+/// Resolves when the API token `token_id` is revoked or removed; never without a token.
+async fn token_revoked(
+    state: &AppState,
+    revocations: &mut Option<broadcast::Receiver<i64>>,
+    token_id: Option<i64>,
+) {
+    let (Some(rx), Some(id)) = (revocations.as_mut(), token_id) else {
+        return std::future::pending().await;
+    };
+    loop {
+        match rx.recv().await {
+            Ok(revoked) if revoked == id => return,
+            Ok(_) => {}
+            // Missed some: ask the database instead
+            Err(broadcast::error::RecvError::Lagged(_)) => {
+                if !crate::api_tokens::still_valid(&state.pool, id).await {
+                    return;
+                }
+            }
+            Err(broadcast::error::RecvError::Closed) => return std::future::pending().await,
+        }
+    }
 }
 
 /// Commands to send to the PTY session
-async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, client_ip: String) {
+async fn handle_pty_socket(
+    socket: WebSocket,
+    state: AppState,
+    user_id: i64,
+    client_ip: String,
+    token_id: Option<i64>,
+) {
     let (ws_sender, mut ws_receiver) = socket.split();
     let ws_sender = Arc::new(tokio::sync::Mutex::new(ws_sender));
 
@@ -120,8 +168,27 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
     let mut forwarder: Option<tokio::task::JoinHandle<()>> = None;
     // `close` means "kill the shell"; anything else leaving a session behind only detaches it.
     let mut close_on_exit = false;
+    // A shell this socket started (not one it attached to) ends with a revoked token.
+    let mut started_here = false;
+    let mut revoked = false;
+    let mut revocations = token_id.map(|_| state.token_revocations.subscribe());
 
-    while let Some(msg) = ws_receiver.next().await {
+    loop {
+        let wake = tokio::select! {
+            msg = ws_receiver.next() => match msg {
+                Some(msg) => Wake::Message(msg),
+                None => Wake::Ended,
+            },
+            () = token_revoked(&state, &mut revocations, token_id) => Wake::TokenRevoked,
+        };
+        let msg = match wake {
+            Wake::Message(msg) => msg,
+            Wake::Ended => break,
+            Wake::TokenRevoked => {
+                revoked = true;
+                break;
+            }
+        };
         match msg {
             Ok(Message::Text(text)) => {
                 let req = match serde_json::from_str::<PtyRequest>(&text) {
@@ -198,6 +265,7 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
                                     ..PtyResponse::plain("connected", format!("\x1b[32m✓ Interactive shell session started\x1b[0m\r\n{note}"))
                                 }).await;
                                 session = Some(live);
+                                started_here = true;
                             }
                             Err(e) => {
                                 let (code, details) = match &e {
@@ -338,6 +406,22 @@ async fn handle_pty_socket(socket: WebSocket, state: AppState, user_id: i64, cli
 
     if let Some(task) = forwarder {
         task.abort();
+    }
+    if revoked {
+        warn!(token_id, "API token revoked; ending its terminal");
+        send(
+            &ws_sender,
+            PtyResponse {
+                code: Some("token_revoked".into()),
+                ..PtyResponse::plain(
+                    "error",
+                    "\r\n\x1b[31m✗ The API token this terminal was opened with was revoked\x1b[0m\r\n",
+                )
+            },
+        )
+        .await;
+        ws_sender.lock().await.close().await.ok();
+        close_on_exit = started_here;
     }
     if let Some(live) = session {
         if close_on_exit {

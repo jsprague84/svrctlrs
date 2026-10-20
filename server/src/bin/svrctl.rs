@@ -31,8 +31,9 @@ struct Cli {
     )]
     url: String,
 
-    /// Session token (from `POST /api/v1/auth/login`) for authenticated commands
-    #[arg(short, long, env = "SVRCTLRS_TOKEN")]
+    /// API token (`svr_…`, from Settings → Access → Agent tokens) or a session id, for
+    /// authenticated commands
+    #[arg(short, long, env = "SVRCTLRS_TOKEN", hide_env_values = true)]
     token: Option<String>,
 
     #[command(subcommand)]
@@ -81,7 +82,8 @@ enum Commands {
         #[arg(long)]
         generate: bool,
 
-        /// Leave the account's existing sign-ins (browser sessions, app tokens) alone
+        /// Leave the account's existing sign-ins (browser and native-app sessions) alone; API
+        /// tokens are never touched
         #[arg(long)]
         keep_sessions: bool,
 
@@ -322,7 +324,8 @@ struct ResetOutcome {
 }
 
 /// Set `username`'s password and, with `end_sessions`, delete every session record of that
-/// account (browser cookies and app tokens alike) so whoever had it is signed out. Audited.
+/// account (browser cookies and native-app session tokens alike) so whoever had it is signed
+/// out. API tokens are separate credentials and stay. Audited.
 async fn reset_password(
     pool: &Pool<Sqlite>,
     username: &str,

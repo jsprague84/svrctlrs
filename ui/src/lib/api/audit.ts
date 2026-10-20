@@ -12,6 +12,9 @@ export interface AuditEntry {
 	target_name: string | null;
 	/** JSON object string */
 	details: string | null;
+	/** The API token the action came in with, if any (its name at the time) */
+	token_id: number | null;
+	token_name: string | null;
 }
 
 export interface AuditPage {
@@ -23,7 +26,7 @@ export interface AuditFilter {
 	/** Comma-separated action prefixes, e.g. `login,session.` */
 	action?: string;
 	user_id?: number;
-	/** Free text over action, target, details, user and address */
+	/** Free text over action, target, details, user, address and token name */
 	q?: string;
 }
 

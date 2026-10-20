@@ -12,8 +12,10 @@ use serde::Deserialize;
 use tower_sessions::{session::Id, Session, SessionStore};
 use tower_sessions_sqlx_store::SqliteStore;
 
+use crate::api_tokens::{self, TokenAuth, TokenCheck};
 use crate::routes::api::ApiError;
 use crate::state::AppState;
+use crate::ws_tickets::TicketOwner;
 use svrctlrs_database::models::NewAuditEntry;
 
 /// Session key for the authenticated user's ID
@@ -43,17 +45,22 @@ impl<S: Send + Sync> FromRequestParts<S> for CurrentUser {
 /// (`/_app/*`, icons, fonts, favicon, service worker — none of which carry data) and the web
 /// manifest, which reads the session itself and adds the signed-in user's own shortcuts.
 ///
-/// Two ways in, both ending with a [`CurrentUser`] extension on the request:
+/// Four ways in, all ending with a [`CurrentUser`] extension on the request:
 /// - the session cookie, holding `user_id`;
-/// - a token (`Authorization: Bearer <session id>`, or `?token=` on WebSocket upgrades, which
-///   cannot carry headers from a browser). The token is looked up as a session record through
+/// - a one-time ticket on a WebSocket upgrade (`?ticket=`, see `ws_tickets.rs`);
+/// - an API token (`Authorization: Bearer svr_…`, see `api_tokens.rs`): the user is the
+///   token's owner, the request must fall inside the token's preset (403 otherwise, decided
+///   here for every route), a [`TokenAuth`] extension names the token, and every audit entry
+///   the request writes names it too. Never accepted in the URL;
+/// - a session token (`Authorization: Bearer <session id>`, or `?token=` on WebSocket
+///   upgrades, deprecated in favour of tickets). It is looked up as a session record through
 ///   the store, so it must be unexpired, and the user id comes from *that record* — never from
 ///   anything the client sends alongside it.
 ///
 /// Unauthenticated: WebSocket upgrades and `/api/*` get 401; browser requests are redirected
 /// to the login page.
 pub async fn require_auth(session: Session, mut request: Request, next: Next) -> Response {
-    let path = request.uri().path();
+    let path = request.uri().path().to_string();
 
     // Let CORS preflight requests through (OPTIONS method)
     if request.method() == axum::http::Method::OPTIONS {
@@ -83,6 +90,11 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
         return next.run(request).await;
     }
 
+    let pool = request
+        .extensions()
+        .get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>()
+        .cloned();
+
     // One-time ticket on a WebSocket upgrade (see ws_tickets.rs). Consumed on first use.
     if is_websocket_upgrade(request.headers()) {
         if let Some(ticket) = query_param(request.uri(), "ticket").filter(|t| !t.is_empty()) {
@@ -90,28 +102,97 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
                 .extensions()
                 .get::<std::sync::Arc<crate::ws_tickets::WsTickets>>()
                 .cloned();
-            if let Some(user_id) = tickets.and_then(|t| t.redeem(&ticket)) {
-                request.extensions_mut().insert(CurrentUser(user_id));
-                return next.run(request).await;
+            let Some(owner) = tickets.and_then(|t| t.redeem(&ticket)) else {
+                return StatusCode::UNAUTHORIZED.into_response();
+            };
+            if let Some(token) = &owner.token {
+                // Minted with a token: the upgrade gets that token's access, and only while
+                // the token is still good (it may have been revoked since).
+                if !token.preset.allows(request.method(), &path) {
+                    return token_outside_preset(token, request.method(), &path);
+                }
+                let valid = match &pool {
+                    Some(pool) => api_tokens::still_valid(pool, token.id).await,
+                    None => false,
+                };
+                if !valid {
+                    return token_error(
+                        StatusCode::UNAUTHORIZED,
+                        "TOKEN_REVOKED",
+                        format!("The API token \"{}\" is no longer valid", token.name),
+                    );
+                }
             }
-            return StatusCode::UNAUTHORIZED.into_response();
+            return proceed(request, next, owner.user_id, owner.token).await;
         }
     }
 
-    // Token: Authorization header first, then the query string (older native clients; deprecated in favour of tickets)
-    let token = bearer_token(request.headers())
-        .or_else(|| query_param(request.uri(), "token").filter(|t| !t.is_empty()));
-
-    if let Some(token) = token {
-        let pool = request
-            .extensions()
-            .get::<svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>>()
-            .cloned();
-        if let Some(pool) = pool {
-            if let Some(user_id) = user_id_for_token(&SqliteStore::new(pool), &token).await {
-                request.extensions_mut().insert(CurrentUser(user_id));
-                return next.run(request).await;
+    // API token: header only
+    if let Some(value) = bearer_token(request.headers()).filter(|t| api_tokens::is_api_token(t)) {
+        let Some(pool) = pool else {
+            return StatusCode::UNAUTHORIZED.into_response();
+        };
+        return match api_tokens::check(&pool, &value, chrono::Utc::now()).await {
+            TokenCheck::Valid { token, touch } => {
+                if touch {
+                    let ip = client_ip(request.headers());
+                    let id = token.id;
+                    tokio::spawn(async move {
+                        if let Err(e) =
+                            svrctlrs_database::queries::api_tokens::touch(&pool, id, &ip).await
+                        {
+                            tracing::warn!(error = %e, token_id = id, "Failed to record token use");
+                        }
+                    });
+                }
+                if !token.preset.allows(request.method(), &path) {
+                    return token_outside_preset(&token, request.method(), &path);
+                }
+                proceed(request, next, token.user_id, Some(token)).await
             }
+            TokenCheck::Malformed => token_error(
+                StatusCode::UNAUTHORIZED,
+                "TOKEN_INVALID",
+                "Malformed API token: expected svr_ and 40 letters and digits",
+            ),
+            TokenCheck::Unknown => {
+                token_error(StatusCode::UNAUTHORIZED, "TOKEN_INVALID", "Unknown API token")
+            }
+            TokenCheck::Expired(name) => token_error(
+                StatusCode::UNAUTHORIZED,
+                "TOKEN_EXPIRED",
+                format!("The API token \"{name}\" has expired; create a new one under Settings → Access"),
+            ),
+            TokenCheck::Revoked(name) => token_error(
+                StatusCode::UNAUTHORIZED,
+                "TOKEN_REVOKED",
+                format!("The API token \"{name}\" was revoked"),
+            ),
+            TokenCheck::Error => token_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "INTERNAL_ERROR",
+                "Could not check the API token",
+            ),
+        };
+    }
+
+    // Session token: Authorization header first, then the query string (older native
+    // clients; deprecated in favour of tickets). API tokens never travel in a URL.
+    let query_token = query_param(request.uri(), "token").filter(|t| !t.is_empty());
+    if query_token.as_deref().is_some_and(api_tokens::is_api_token) {
+        return token_error(
+            StatusCode::UNAUTHORIZED,
+            "TOKEN_IN_URL",
+            "API tokens go in the Authorization header, never in a URL; WebSockets take a \
+             ticket from POST /api/v1/auth/ws-ticket",
+        );
+    }
+    let token = bearer_token(request.headers()).or(query_token);
+
+    if let (Some(token), Some(pool)) = (token, pool) {
+        if let Some(user_id) = user_id_for_token(&SqliteStore::new(pool), &token).await {
+            request.extensions_mut().insert(CurrentUser(user_id));
+            return next.run(request).await;
         }
     }
 
@@ -133,6 +214,49 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
 
     // Browser requests redirect to login
     Redirect::to("/auth/login").into_response()
+}
+
+/// Let an authenticated request through as `user_id`, naming the API token (if any) in the
+/// request's extensions and in every audit entry the request writes.
+async fn proceed(
+    mut request: Request,
+    next: Next,
+    user_id: i64,
+    token: Option<TokenAuth>,
+) -> Response {
+    request.extensions_mut().insert(CurrentUser(user_id));
+    match token {
+        Some(token) => {
+            request.extensions_mut().insert(token.clone());
+            crate::audit::with_token(Some(token), next.run(request)).await
+        }
+        None => next.run(request).await,
+    }
+}
+
+fn token_error(status: StatusCode, code: &'static str, message: impl Into<String>) -> Response {
+    ApiError::new(status, code, message).into_response()
+}
+
+/// 403 for a request the token's preset does not name.
+fn token_outside_preset(token: &TokenAuth, method: &axum::http::Method, path: &str) -> Response {
+    tracing::warn!(token_id = token.id, token = %token.name, preset = token.preset.as_str(),
+        %method, path, "API token refused: outside its preset");
+    ApiError::new(
+        StatusCode::FORBIDDEN,
+        "TOKEN_SCOPE",
+        format!(
+            "The {} token \"{}\" does not allow {method} {path}",
+            token.preset.label(),
+            token.name
+        ),
+    )
+    .with_details(serde_json::json!({
+        "preset": token.preset.as_str(),
+        "method": method.as_str(),
+        "path": path,
+    }))
+    .into_response()
 }
 
 /// Whether a state-changing request came from this site. Browsers send `Sec-Fetch-Site` on
@@ -166,12 +290,17 @@ fn is_websocket_upgrade(headers: &HeaderMap) -> bool {
         .is_some_and(|v| v.eq_ignore_ascii_case("websocket"))
 }
 
-/// Mint a one-time WebSocket ticket for the authenticated caller.
+/// Mint a one-time WebSocket ticket for the authenticated caller (and the API token it came
+/// with, whose access the upgrade then has).
 async fn ws_ticket(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
+    token: Option<axum::Extension<TokenAuth>>,
 ) -> Json<serde_json::Value> {
-    let ticket = state.ws_tickets.issue(user_id);
+    let ticket = state.ws_tickets.issue(TicketOwner {
+        user_id,
+        token: token.map(|axum::Extension(t)| t),
+    });
     Json(serde_json::json!({
         "ticket": ticket,
         "expires_in_secs": state.ws_tickets.ttl().as_secs(),
@@ -781,7 +910,10 @@ mod tests {
     #[tokio::test]
     async fn websocket_tickets_redeem_once_and_only_on_upgrades() {
         let (app, _, tickets) = app_with_store().await;
-        let ticket = tickets.issue(9);
+        let ticket = tickets.issue(TicketOwner {
+            user_id: 9,
+            token: None,
+        });
 
         let upgrade = |t: &str| {
             Request::get(format!("/api/v1/whoami?ticket={t}"))
@@ -798,7 +930,10 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
 
         // A ticket is not a credential for ordinary requests.
-        let fresh = tickets.issue(9);
+        let fresh = tickets.issue(TicketOwner {
+            user_id: 9,
+            token: None,
+        });
         let resp = app
             .oneshot(
                 Request::get(format!("/api/v1/whoami?ticket={fresh}"))
@@ -926,5 +1061,387 @@ mod tests {
         // The route only handles GET, so reaching routing yields 405 — proof auth was bypassed.
         assert_ne!(resp.status(), StatusCode::UNAUTHORIZED);
         assert_eq!(resp.status(), StatusCode::METHOD_NOT_ALLOWED);
+    }
+
+    // ---- API tokens -------------------------------------------------------------------
+
+    /// A fully migrated database with the session store, one user (ann, id 1), and a router
+    /// whose routes sit on real paths so the presets apply: `GET /api/v1/status` echoes the
+    /// caller, `POST /api/v1/servers` writes an audit entry, `/ws/terminal/pty` echoes the
+    /// caller of an upgrade.
+    async fn token_app() -> (
+        Router,
+        svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>,
+        std::sync::Arc<crate::ws_tickets::WsTickets>,
+    ) {
+        let pool = crate::test_support::database().await;
+        let store = SqliteStore::new(pool.clone());
+        store.migrate().await.unwrap();
+        svrctlrs_database::sqlx::query(
+            "INSERT INTO users (username, password_hash) VALUES ('ann', 'x')",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        let tickets = std::sync::Arc::new(crate::ws_tickets::WsTickets::default());
+
+        async fn echo(
+            CurrentUser(id): CurrentUser,
+            token: Option<axum::Extension<TokenAuth>>,
+        ) -> String {
+            match token {
+                Some(axum::Extension(t)) => format!("{id}:{}", t.name),
+                None => id.to_string(),
+            }
+        }
+        let audit_pool = pool.clone();
+        let app = Router::new()
+            .route("/api/v1/status", get(echo))
+            .route("/ws/terminal/pty", get(echo))
+            .route(
+                "/api/v1/servers",
+                post(move |CurrentUser(id): CurrentUser| {
+                    let pool = audit_pool.clone();
+                    async move {
+                        crate::audit::record(
+                            &pool,
+                            NewAuditEntry::new("server.created")
+                                .user(id)
+                                .target("server", 7, "web"),
+                        );
+                        "created"
+                    }
+                }),
+            )
+            .route(
+                "/api/v1/auth/login",
+                get(|session: Session| async move {
+                    session.insert(USER_ID_KEY, 1_i64).await.unwrap();
+                    "ok"
+                }),
+            )
+            .layer(from_fn(require_auth))
+            .layer(Extension(pool.clone()))
+            .layer(Extension(tickets.clone()))
+            .layer(SessionManagerLayer::new(store));
+        (app, pool, tickets)
+    }
+
+    /// A token for ann with `preset`; `expired`/`revoked` set it up that way.
+    async fn make_token(
+        pool: &svrctlrs_database::SqlxPool<svrctlrs_database::SqlxSqlite>,
+        name: &str,
+        preset: api_tokens::Preset,
+    ) -> (i64, String) {
+        let secret = api_tokens::generate();
+        let row = svrctlrs_database::queries::api_tokens::create(
+            pool,
+            &svrctlrs_database::models::NewApiToken {
+                user_id: 1,
+                name: name.to_string(),
+                prefix: secret.prefix,
+                token_hash: secret.hash,
+                preset: preset.as_str().to_string(),
+                expires_in_days: Some(30),
+            },
+        )
+        .await
+        .unwrap();
+        (row.id, secret.secret)
+    }
+
+    fn with_bearer(method: &str, uri: &str, token: &str) -> Request<Body> {
+        Request::builder()
+            .method(method)
+            .uri(uri)
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap()
+    }
+
+    async fn error_code(resp: Response) -> (StatusCode, String) {
+        let status = resp.status();
+        let body: serde_json::Value = serde_json::from_str(&body_text(resp).await).unwrap();
+        (
+            status,
+            body["error"]["code"].as_str().unwrap_or("").to_string(),
+        )
+    }
+
+    #[tokio::test]
+    async fn an_api_token_acts_as_its_owner() {
+        let (app, pool, _) = token_app().await;
+        let (_, token) = make_token(&pool, "hermes", api_tokens::Preset::ReadOnly).await;
+        let resp = app
+            .oneshot(
+                Request::get("/api/v1/status")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .header("x-user-id", "999")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(body_text(resp).await, "1:hermes");
+    }
+
+    #[tokio::test]
+    async fn expired_revoked_unknown_and_malformed_tokens_are_refused() {
+        let (app, pool, _) = token_app().await;
+        let (expired_id, expired) = make_token(&pool, "old", api_tokens::Preset::FullAdmin).await;
+        svrctlrs_database::sqlx::query(
+            "UPDATE api_tokens SET expires_at = datetime('now', '-1 minute') WHERE id = ?",
+        )
+        .bind(expired_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let (revoked_id, revoked) = make_token(&pool, "gone", api_tokens::Preset::FullAdmin).await;
+        svrctlrs_database::queries::api_tokens::revoke(&pool, 1, revoked_id)
+            .await
+            .unwrap();
+        let unknown = api_tokens::generate().secret;
+
+        for (token, code) in [
+            (expired.as_str(), "TOKEN_EXPIRED"),
+            (revoked.as_str(), "TOKEN_REVOKED"),
+            (unknown.as_str(), "TOKEN_INVALID"),
+            ("svr_tooshort", "TOKEN_INVALID"),
+            (&format!("svr_{}!", "a".repeat(39)), "TOKEN_INVALID"),
+        ] {
+            let resp = app
+                .clone()
+                .oneshot(with_bearer("GET", "/api/v1/status", token))
+                .await
+                .unwrap();
+            assert_eq!(
+                error_code(resp).await,
+                (StatusCode::UNAUTHORIZED, code.to_string()),
+                "{token}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_token_outside_its_preset_gets_403() {
+        let (app, pool, _) = token_app().await;
+        let (_, read) = make_token(&pool, "reader", api_tokens::Preset::ReadOnly).await;
+        let (_, keys) = make_token(&pool, "keys", api_tokens::Preset::ServersKeys).await;
+        let (_, full) = make_token(&pool, "admin", api_tokens::Preset::FullAdmin).await;
+
+        let resp = app
+            .clone()
+            .oneshot(with_bearer("POST", "/api/v1/servers", &read))
+            .await
+            .unwrap();
+        assert_eq!(
+            error_code(resp).await,
+            (StatusCode::FORBIDDEN, "TOKEN_SCOPE".to_string())
+        );
+        let resp = app
+            .clone()
+            .oneshot(with_bearer("POST", "/api/v1/servers", &keys))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        // Not mounted here, but refused before routing: no token manages tokens or accounts
+        for (method, path) in [
+            ("GET", "/api/v1/tokens"),
+            ("POST", "/api/v1/tokens"),
+            ("POST", "/api/v1/users"),
+            ("PUT", "/api/v1/users/me/password"),
+        ] {
+            let resp = app
+                .clone()
+                .oneshot(with_bearer(method, path, &full))
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::FORBIDDEN, "{method} {path}");
+        }
+        // A terminal only for full admin
+        let upgrade = |token: &str| {
+            Request::get("/ws/terminal/pty")
+                .header(header::UPGRADE, "websocket")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap()
+        };
+        let resp = app.clone().oneshot(upgrade(&keys)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+        let resp = app.clone().oneshot(upgrade(&full)).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn api_tokens_are_refused_in_the_url() {
+        let (app, pool, _) = token_app().await;
+        let (_, full) = make_token(&pool, "admin", api_tokens::Preset::FullAdmin).await;
+        for req in [
+            Request::get(format!("/api/v1/status?token={full}"))
+                .body(Body::empty())
+                .unwrap(),
+            Request::get(format!("/ws/terminal/pty?token={full}"))
+                .header(header::UPGRADE, "websocket")
+                .body(Body::empty())
+                .unwrap(),
+        ] {
+            let resp = app.clone().oneshot(req).await.unwrap();
+            assert_eq!(
+                error_code(resp).await,
+                (StatusCode::UNAUTHORIZED, "TOKEN_IN_URL".to_string())
+            );
+        }
+    }
+
+    /// Poll for a condition the request kicked off without waiting (audit rows, last-used).
+    async fn eventually<F, Fut>(mut check: F) -> bool
+    where
+        F: FnMut() -> Fut,
+        Fut: std::future::Future<Output = bool>,
+    {
+        for _ in 0..100 {
+            if check().await {
+                return true;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+        }
+        false
+    }
+
+    #[tokio::test]
+    async fn every_audit_row_a_token_request_writes_names_the_token() {
+        let (app, pool, _) = token_app().await;
+        let (id, keys) = make_token(&pool, "hermes", api_tokens::Preset::ServersKeys).await;
+        let resp = app
+            .clone()
+            .oneshot(with_bearer("POST", "/api/v1/servers", &keys))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // The same action from a signed-in browser names no token
+        let login = app
+            .clone()
+            .oneshot(
+                Request::get("/api/v1/auth/login")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let cookie = login.headers()[header::SET_COOKIE]
+            .to_str()
+            .unwrap()
+            .split(';')
+            .next()
+            .unwrap()
+            .to_string();
+        let resp = app
+            .clone()
+            .oneshot(
+                Request::post("/api/v1/servers")
+                    .header(header::COOKIE, cookie)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        let rows = || async {
+            svrctlrs_database::queries::audit::list(&pool, 10, None)
+                .await
+                .unwrap()
+        };
+        assert!(eventually(|| async { rows().await.len() == 2 }).await);
+        let rows = rows().await;
+        let by_token = rows.iter().find(|r| r.token_id.is_some()).unwrap();
+        assert_eq!(by_token.token_id, Some(id));
+        assert_eq!(by_token.token_name.as_deref(), Some("hermes"));
+        assert_eq!(by_token.user_id, Some(1));
+        assert_eq!(rows.iter().filter(|r| r.token_id.is_none()).count(), 1);
+    }
+
+    #[tokio::test]
+    async fn token_use_is_recorded_with_time_and_address() {
+        let (app, pool, _) = token_app().await;
+        let (id, token) = make_token(&pool, "hermes", api_tokens::Preset::ReadOnly).await;
+        let resp = app
+            .oneshot(
+                Request::get("/api/v1/status")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .header("x-forwarded-for", "10.10.1.35")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert!(
+            eventually(|| async {
+                svrctlrs_database::queries::api_tokens::get(&pool, id)
+                    .await
+                    .unwrap()
+                    .and_then(|t| t.last_used_ip)
+                    .as_deref()
+                    == Some("10.10.1.35")
+            })
+            .await
+        );
+    }
+
+    #[tokio::test]
+    async fn a_ticket_minted_with_a_token_carries_it_and_dies_with_it() {
+        let (app, pool, tickets) = token_app().await;
+        let (id, _) = make_token(&pool, "hermes", api_tokens::Preset::FullAdmin).await;
+        let owner = TicketOwner {
+            user_id: 1,
+            token: Some(TokenAuth {
+                id,
+                user_id: 1,
+                name: "hermes".into(),
+                preset: api_tokens::Preset::FullAdmin,
+            }),
+        };
+        let upgrade = |t: &str| {
+            Request::get(format!("/ws/terminal/pty?ticket={t}"))
+                .header(header::UPGRADE, "websocket")
+                .body(Body::empty())
+                .unwrap()
+        };
+        let resp = app
+            .clone()
+            .oneshot(upgrade(&tickets.issue(owner.clone())))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        assert_eq!(body_text(resp).await, "1:hermes");
+
+        // Revoked between minting and upgrading
+        let ticket = tickets.issue(owner.clone());
+        svrctlrs_database::queries::api_tokens::revoke(&pool, 1, id)
+            .await
+            .unwrap();
+        let resp = app.clone().oneshot(upgrade(&ticket)).await.unwrap();
+        assert_eq!(
+            error_code(resp).await,
+            (StatusCode::UNAUTHORIZED, "TOKEN_REVOKED".to_string())
+        );
+
+        // A ticket from a narrower token cannot open what its token could not
+        let narrow = TicketOwner {
+            user_id: 1,
+            token: Some(TokenAuth {
+                preset: api_tokens::Preset::ReadOnly,
+                ..owner.token.clone().unwrap()
+            }),
+        };
+        let resp = app
+            .clone()
+            .oneshot(upgrade(&tickets.issue(narrow)))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
     }
 }

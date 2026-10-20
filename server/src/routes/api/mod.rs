@@ -9,7 +9,8 @@
 //! ├── servers/                    Full CRUD + test connection
 //! ├── credentials/                Full CRUD
 //! ├── recordings/                 The caller's session recordings
-//! └── settings/                   List + get + update
+//! ├── settings/                   List + get + update
+//! └── tokens/                     The caller's API tokens (signed-in users only)
 //! ```
 
 pub mod audit;
@@ -22,6 +23,7 @@ pub mod recordings;
 pub mod servers;
 pub mod sessions;
 pub mod settings;
+pub mod tokens;
 pub mod users;
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
@@ -212,6 +214,7 @@ pub fn routes() -> Router<AppState> {
         .nest("/audit", audit::routes())
         .nest("/sessions", sessions::routes())
         .nest("/recordings", recordings::routes())
+        .nest("/tokens", tokens::routes())
 }
 
 /// Health check endpoint. Unauthenticated, so it reveals only version and revision; it does

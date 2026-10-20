@@ -33,7 +33,7 @@
 					<Icon class="w-4 h-4 flex-shrink-0 mt-0.5" />
 					<p class="flex-1 text-sm">{toast.message}</p>
 					<button
-						class="-m-2 p-2 md:m-0 md:p-0.5 hover:opacity-70"
+						class="-my-3.5 -mr-3 w-11 h-11 flex flex-shrink-0 items-center justify-center md:m-0 md:w-auto md:h-auto md:p-0.5 hover:opacity-70"
 						onclick={() => removeToast(toast.id)}
 						aria-label="Dismiss notification"
 					>

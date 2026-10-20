@@ -16,6 +16,7 @@ they are not forgotten. Fixes are tracked in `ROADMAP.md` (History, P0 Security)
 | Stored credentials (passwords, key material) | AES-256-GCM with `ENCRYPTION_KEY` | anyone with the DB *and* the key, or with a valid session (the server decrypts on use) |
 | Server inventory, host keys | database file permissions (uid 1000 in the container) | anyone with the volume |
 | Sessions / tokens | SQLite `tower_sessions`, 24 h inactivity expiry | anyone with the DB; the client that holds the token |
+| API tokens (agents, scripts) | only a SHA-256 hash stored; access preset; optional expiry; revocable | whoever holds the secret, within its preset, until it expires or is revoked |
 | Session recordings (opt-in) | AES-256-GCM with `ENCRYPTION_KEY`; owner-only access | anyone with the files *and* the key; the owner's session |
 
 Assumed: TLS terminates at a reverse proxy; the SvrCtlRS container is on a private Docker
@@ -31,8 +32,9 @@ other web pages the operator visits (see CSWSH below).
   Settings → Users (`/api/v1/users`); a password change requires the current password. Every
   account is an administrator, so put the UI behind the edge passkey login as well. Lockout
   recovery is `svrctl reset-password <user>` on the host (it opens the database directly, so
-  it needs `docker exec`, never the network): it ends that account's sessions and app tokens
-  and is audited as `user.password_reset`.
+  it needs `docker exec`, never the network): it ends that account's sessions (browser and
+  native app) and is audited as `user.password_reset`. API tokens are separate credentials and
+  survive it, as they survive a password change; revoke them under Settings → Access.
 - **Sessions** — tower-sessions, SQLite store, `HttpOnly`, `Secure` unless
   `SESSION_SECURE=false`, `SameSite=Strict` by default; `SameSite=None` only when
   `ALLOWED_ORIGINS` is set for the native clients. Expiry: 24 h of inactivity. Logout flushes
@@ -41,6 +43,7 @@ other web pages the operator visits (see CSWSH below).
   Tauri apps send it as `Authorization: Bearer`. For WebSockets (no headers on a handshake)
   they first obtain a one-time ticket from `POST /api/v1/auth/ws-ticket` and pass `?ticket=`.
   The user is always read from the session record, never from the client.
+- **API tokens** (agents and scripts: `svrctl`, Hermes, Claude Code) — see "API tokens" below.
 - **Exempt routes** — `/auth/login`, `/auth/logout`, `/api/v1/auth/login`, `/api/v1/health`,
   the static app shell (`/_app/*`, `/icons/*`, `/fonts/*`, `/favicon.svg`,
   `/service-worker.js`), `/manifest.webmanifest` and `OPTIONS` preflights. `/api/v1/health`
@@ -48,6 +51,57 @@ other web pages the operator visits (see CSWSH below).
   (`routes/ui/manifest.rs`): signed out it is the shipped file; with a session cookie it adds
   shortcuts naming the user's own three most recently opened servers (`Cache-Control:
   private, no-cache`, `Vary: Cookie`), read from that user's audit rows only.
+
+## API tokens
+
+Named credentials the owner creates under Settings → Access → Agent tokens
+(`server/src/api_tokens.rs`, `routes/api/tokens.rs`, table `api_tokens`):
+
+- **Format and storage.** `svr_` plus 40 random letters and digits (about 238 bits from the OS
+  RNG). The secret is shown once, in the response that creates it; the database keeps only its
+  SHA-256 (a slow password hash adds nothing for a random secret but latency on every request)
+  and the first ten characters (`svr_` + 6) so a list can tell tokens apart. Lists never
+  return a secret or a hash.
+- **Use.** `Authorization: Bearer svr_…` only. A token in a URL (`?token=svr_…`) is refused
+  (`401 TOKEN_IN_URL`) so it never lands in proxy or access logs; a WebSocket takes a one-time
+  ticket instead (`POST /api/v1/auth/ws-ticket` with the token), and the ticket carries the
+  token's identity and preset to the upgrade, where the token is checked again (revoked in
+  the 30 s between: refused).
+- **Identity.** A token acts as its owner: the auth layer sets `CurrentUser` to the owner,
+  exactly as a session does, plus a `TokenAuth` extension naming the token. Every audit row
+  the request writes carries `token_id` and `token_name` (set for the whole request by the
+  middleware, so no handler can forget it; the terminal socket carries it past the upgrade),
+  and the Audit tab shows "via <token>" under the user. Last use (time and client address) is
+  recorded at most once a minute.
+- **Access presets**, decided in one place (`Preset::allows`) by method and path before any
+  handler runs, **deny by default**: anything a preset does not name is `403 TOKEN_SCOPE`.
+  - *Read-only*: `GET` on the inventory and configuration (servers, host keys, credentials
+    with values redacted, settings with secrets blanked, profiles, quick commands, users,
+    audit, sessions, recording metadata). No changes, no terminals, no files, no recording
+    content.
+  - *Servers & keys*: read-only plus creating, changing and deleting servers and
+    credentials, importing, testing, trusting and forgetting host keys, generating and
+    authorizing keys. No terminals or files.
+  - *Full admin*: everything the owner can do, terminals (`/ws/terminal/pty` through a
+    ticket) and the SFTP file browser included.
+  - **No preset** names `/api/v1/tokens`, creating or deleting accounts, or changing a
+    password. A token can never mint, change or revoke tokens or accounts, so revoking a
+    token ends everything it can do, and a leaked token cannot leave a second way in behind.
+- **Lifetime.** 30, 90 or 365 days, or never (the API takes any 1–3650 days or `null`).
+  Expired and revoked tokens answer `401 TOKEN_EXPIRED` / `TOKEN_REVOKED`; the row stays,
+  marked, until the owner removes it, so the audit and the list still explain it.
+- **Revocation** is one tap and immediate: the next request is refused, and a terminal opened
+  with the token is told and closed; a shell that terminal started is ended (a shell it only
+  attached to, opened elsewhere by the owner, is detached and left running). Deleting the
+  owner deletes their tokens (`ON DELETE CASCADE`).
+
+**What a never-expiring full-admin token means.** It is a password-equivalent credential for
+every configured server that never times out: whoever reads it from an agent's config, a
+shell history or a log has a shell on every server until the owner revokes it. It is not
+covered by the edge passkey login (the API router is headers-only for native clients), so it
+works from wherever the API is reachable. Prefer *servers & keys* for an agent that
+administers the inventory, give each agent its own token so one can be revoked alone, and
+keep full-admin tokens in a secret store. The audit log shows what each token did.
 
 ## Credential encryption
 

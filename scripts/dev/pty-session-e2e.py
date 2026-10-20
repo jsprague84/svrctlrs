@@ -12,7 +12,8 @@ started with a short TTL and an SSH target the given key can log in to:
 
 Exercises: shell, dropped socket, attach with last_seq (gap replay), live input after
 reattach, full redraw from seq 0, `closed` on exit, `session_gone`, TTL expiry, and session
-recording (opt-in per server, output only, invisible to another user). Output frames
+recording (opt-in per server, output only, invisible to another user), and agent tokens
+(a shell through a ticket, audit attribution, presets, revocation). Output frames
 are requested in binary form (E2E_BINARY=0 for the legacy JSON `output` frames) and a
 multibyte marker checks that bytes reach the client intact.
 """
@@ -447,6 +448,53 @@ async def main():
     except urllib.error.HTTPError as e:
         assert e.code == 404, e.code
     print("recording deleted ok")
+
+    # Agent tokens: a full-admin token opens a shell on the real host through a WebSocket
+    # ticket (no cookie, no Origin, as an agent would), its audit row names it, a read-only
+    # token gets no terminal, and revoking the token ends the shell it started
+    agent = f"e2e agent {RUN}"
+    made = api("POST", "/api/v1/tokens", {"name": agent, "preset": "full_admin", "expires_in_days": 30})
+    secret, tid = made["secret"], made["token"]["id"]
+    reader = api("POST", "/api/v1/tokens", {"name": f"e2e reader {RUN}", "preset": "read_only", "expires_in_days": None})["secret"]
+
+    def token_call(token, method, path, body=None):
+        data = json.dumps(body).encode() if body is not None else None
+        req = urllib.request.Request(BASE + path, data=data, method=method,
+            headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"})
+        try:
+            with urllib.request.urlopen(req) as r:
+                return r.status, json.loads(r.read() or b"null")
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read() or b"null")
+
+    st, _ = token_call(reader, "GET", "/api/v1/servers")
+    assert st == 200, st
+    st, body = token_call(reader, "POST", "/api/v1/auth/ws-ticket")
+    assert st == 403 and body["error"]["code"] == "TOKEN_SCOPE", (st, body)
+    st, body = token_call(reader, "GET", f"/api/v1/servers/{sid}/files")
+    assert st == 403, st
+    st, body = token_call(secret, "POST", "/api/v1/auth/ws-ticket")
+    assert st == 200, (st, body)
+    async with websockets.connect(f"{WS}?ticket={body['ticket']}") as ws:
+        await ws.send(json.dumps({"type": "shell", "server_id": sid, "cols": 80, "rows": 24, "binary": BINARY}))
+        fr = await recv_until(ws, lambda m: m["type"] in ("connected", "error"), 30)
+        assert fr[-1]["type"] == "connected", fr
+        token_session = fr[-1]["session_id"]
+        await ws.send(json.dumps({"type": "input", "data": "echo TOKEN-$((70+7))\n"}))
+        fr = await recv_until(ws, lambda m: m["type"] == "output" and "TOKEN-77" in m["data"] and not m["data"].startswith("echo"), 15)
+        assert fr and "TOKEN-77" in fr[-1]["data"], "no output in the token's shell"
+        api("POST", f"/api/v1/tokens/{tid}/revoke")
+        fr = await recv_until(ws, lambda m: m["type"] == "error", 10)
+        assert fr and fr[-1].get("code") == "token_revoked", fr[-3:]
+    st, body = token_call(secret, "GET", "/api/v1/servers")
+    assert st == 401 and body["error"]["code"] == "TOKEN_REVOKED", (st, body)
+    await asyncio.sleep(0.5)
+    live = [x["id"] for x in api("GET", "/api/v1/sessions")["sessions"]]
+    assert token_session not in live, "the revoked token's shell is still running"
+    entries = api("GET", "/api/v1/audit?limit=50")["entries"]
+    assert any(e["action"] == "session.pty_opened" and e.get("token_name") == agent for e in entries), \
+        "no audit row names the token"
+    print("agent token: shell via ticket, audit attribution, read-only refused, revoke ends shell ok")
     print("ALL E2E CHECKS PASSED")
 
 asyncio.run(main())

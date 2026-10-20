@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Settings, Bell, TerminalSquare, Users, ScrollText, Info } from '@lucide/svelte';
+	import { Settings, Bell, TerminalSquare, KeyRound, ScrollText, Info } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -8,22 +8,25 @@
 	import QuickCommandsSettings from '#lib/components/settings/QuickCommandsSettings.svelte';
 	import AboutSettings from '#lib/components/settings/AboutSettings.svelte';
 	import UsersSettings from '#lib/components/settings/UsersSettings.svelte';
+	import TokensSettings from '#lib/components/settings/TokensSettings.svelte';
 	import AuditSettings from '#lib/components/settings/AuditSettings.svelte';
 
-	type TabId = 'general' | 'notifications' | 'commands' | 'users' | 'audit' | 'about';
+	type TabId = 'general' | 'notifications' | 'commands' | 'access' | 'audit' | 'about';
 
 	const tabs: Array<{ id: TabId; label: string; short?: string; icon: typeof Settings }> = [
 		{ id: 'general', label: 'General', icon: Settings },
 		{ id: 'notifications', label: 'Notifications', icon: Bell },
 		{ id: 'commands', label: 'Quick Commands', short: 'Commands', icon: TerminalSquare },
-		{ id: 'users', label: 'Users', icon: Users },
+		{ id: 'access', label: 'Access', icon: KeyRound },
 		{ id: 'audit', label: 'Audit', icon: ScrollText },
 		{ id: 'about', label: 'About', icon: Info }
 	];
 
-	// The tab lives in the URL (?tab=audit) so a reload keeps it and docs can link to it
+	// The tab lives in the URL (?tab=audit) so a reload keeps it and docs can link to it.
+	// `users` is the Access tab's old name.
 	let activeTab = $derived.by((): TabId => {
-		const t = page.url?.searchParams.get('tab');
+		const raw = page.url?.searchParams.get('tab');
+		const t = raw === 'users' ? 'access' : raw;
 		return tabs.some((x) => x.id === t) ? (t as TabId) : 'general';
 	});
 
@@ -97,8 +100,11 @@
 			<NotificationSettings />
 		{:else if activeTab === 'commands'}
 			<QuickCommandsSettings />
-		{:else if activeTab === 'users'}
-			<UsersSettings />
+		{:else if activeTab === 'access'}
+			<div class="flex flex-col gap-6 max-w-3xl">
+				<TokensSettings />
+				<UsersSettings />
+			</div>
 		{:else if activeTab === 'audit'}
 			<AuditSettings />
 		{:else if activeTab === 'about'}

@@ -118,7 +118,7 @@
 	}
 </script>
 
-<div class="flex flex-col gap-6 max-w-2xl">
+<div class="flex flex-col gap-6">
 	<SettingsSection title="Your password" card>
 		<form
 			class="flex flex-col gap-3 max-w-sm"
