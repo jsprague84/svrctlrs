@@ -167,6 +167,14 @@ async fn svrctl_speaks_json_with_stable_exit_codes() {
         .unwrap()
         .contains("SVRCTLRS_TOKEN"));
 
+    // A stored password, so the connection gets as far as TCP wherever the test runs (with
+    // no credential, a machine without a default SSH key stops earlier)
+    s.owner(
+        reqwest::Method::POST,
+        "/credentials",
+        json!({ "name": "web password", "credential_type": "password", "value": "x" }),
+    )
+    .await;
     let (code, out, _) = s.svrctl(
         Some(&admin),
         &[
@@ -180,11 +188,17 @@ async fn svrctl_speaks_json_with_stable_exit_codes() {
             &closed,
             "--tag",
             "lab",
+            "--credential",
+            "WEB PASSWORD",
         ],
         None,
     );
     assert_eq!(code, 0, "{out}");
     assert_eq!(out["server"]["name"], "web");
+    assert!(
+        out["server"]["credential_id"].is_number(),
+        "credential found by name: {out}"
+    );
 
     let (code, out, _) = s.svrctl(Some(&admin), &["tag", "prod", "web"], None);
     assert_eq!(code, 0);
@@ -254,7 +268,11 @@ async fn svrctl_speaks_json_with_stable_exit_codes() {
         .unwrap()
         .starts_with("ssh-ed25519 "));
     let (_, out, _) = s.svrctl(Some(&admin), &["credentials"], None);
-    assert_eq!(out["credentials"][0]["name"], "agent key");
+    assert!(out["credentials"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|c| c["name"] == "agent key"));
 
     // Text when asked for, even on a pipe
     let (_, _, text) = s.svrctl(Some(&admin), &["--text", "servers"], None);
