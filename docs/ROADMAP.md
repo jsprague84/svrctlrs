@@ -11,7 +11,9 @@ names the evidence for a fix.
 `ssh_config` import, startup command, file browser, typed errors, migration baseline (Next
 items 1–6 below, struck through). **3.2.0 released 2026-10-19**: the pane split, the UI pass,
 the in-process SSH test server, session recording, predictive echo and preferences per
-account (items 7–12).
+account (items 7–12). **3.3.0 released 2026-10-19**: quick-command variables, `svrctl
+reset-password`, `linux/arm64` images (items 13–14), and agent access: tokens with presets and
+approvals for the deletes that cannot be undone (items 15–16).
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an

@@ -86,7 +86,7 @@ a failure reported with its header can be found in `docker logs` directly.
 
 | Method | Path | Auth | Response |
 |---|---|---|---|
-| GET | `/health` | no | `{"status":"ok","database":"ok","service":"svrctlrs","version":"3.2.0","revision":"<git sha>"}` — pings the database; `503` with `status: degraded` when it is unreachable. `revision` is baked into the container image; `unknown` outside CI builds |
+| GET | `/health` | no | `{"status":"ok","database":"ok","service":"svrctlrs","version":"3.3.0","revision":"<git sha>"}` — pings the database; `503` with `status: degraded` when it is unreachable. `revision` is baked into the container image; `unknown` outside CI builds |
 | GET | `/status` | yes | `{"status":"running","version":"…","resources":{"servers":<count>}}` |
 
 ## Servers

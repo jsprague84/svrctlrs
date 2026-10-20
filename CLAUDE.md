@@ -1,6 +1,6 @@
 # CLAUDE.md — AI development guide
 
-**Updated:** 2026-10-19 · **Version:** 3.2.0 · **Default branch:** `master`
+**Updated:** 2026-10-19 · **Version:** 3.3.0 · **Default branch:** `master`
 
 SvrCtlRS is a self-hosted **terminal/SSH management tool**: a Rust (Axum) server with a
 SvelteKit 5 SPA, wrapped by Tauri 2 for Linux desktop and Android. It is *not* the 1.x/2.x
@@ -21,11 +21,13 @@ schedulers, jobs, HTMX or Askama, it is describing the retired product.
 ```
 core/        encryption (AES-256-GCM), error type, notification senders
 database/    sqlx models, queries, embedded migrations (migrations/ current, migrations-legacy/ frozen)
-server/      Axum app: main.rs, ssh.rs (the one SSH client), sessions.rs (server-owned PTYs),
-             recordings.rs (opt-in session recording),
+server/      Axum app: main.rs, app.rs (the router stack), ssh.rs (the one SSH client),
+             sessions.rs (server-owned PTYs), recordings.rs (opt-in session recording),
+             api_tokens.rs + approvals.rs (agent tokens: presets, held deletes),
              routes/{api/*, terminal_pty.rs, ui/auth.rs}, health_monitor.rs,
              bin/svrctl.rs (CLI used by the container healthcheck),
-             test_support/ (tests only: loopback SSH server, in-memory database)
+             test_support/ (tests only: loopback SSH server, in-memory database, the full
+             app on a temporary database)
 ui/          SvelteKit 5 SPA (adapter-static → ui/build, served by the server at SPA_DIR)
 ui/src-tauri/  Tauri 2 desktop + Android (excluded from the Cargo workspace)
 .forgejo/    CI images and workflows (ci, docker, android, desktop)
@@ -60,7 +62,7 @@ CI's clippy may be older or newer than yours; green locally is not proof.
   No `unwrap()` on request paths.
 - **Migrations**: two embedded chains (`database/src/lib.rs::run_migrations`).
   `database/migrations/` is current: `100_baseline.sql` plus everything after it; add the next
-  change with the next free number (`107_…` after `106_user_settings.sql`). `database/migrations-legacy/` (`000`–`024`) is frozen and only runs for a
+  change with the next free number (`109_…` after `108_approvals.sql`). `database/migrations-legacy/` (`000`–`024`) is frozen and only runs for a
   database that predates the baseline, which is then marked as having `100` applied. Never
   edit a shipped migration (sqlx checksums them).
 - **Svelte 5**: runes only (`$state`, `$derived`, `$effect`, `$props`); callback props, not

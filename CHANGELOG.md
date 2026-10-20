@@ -5,6 +5,17 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-10-19
+
+The "agents" release: agents and scripts (svrctl, an always-on agent, Claude Code) get their
+own named tokens, each with an access preset (full admin, servers & keys, read-only), a
+lifetime up to never, a record of last use, the audit log naming it on everything it does, and
+a one-tap revoke that also closes any terminal it opened. A token can be set to ask first, and
+then deleting a server or a credential, or forgetting host keys, waits for you to approve it
+signed in, on the phone or the desktop, from a link sent by push, to a Matrix room or a
+webhook. Images are now built for `linux/arm64` too. Upgrading needs nothing from you: two
+migrations run at start-up, and nothing changes until you create a token.
+
 ### Added
 - **Agent tokens** (Settings → Access): named API tokens for agents and scripts, sent as
   `Authorization: Bearer svr_…`. Each has an access preset — *full admin* (terminals and files
