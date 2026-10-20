@@ -6,7 +6,9 @@
 //! describe what the server really answers. The server's handlers return these types and
 //! `svrctl` reads them.
 
+pub mod approvals;
 pub mod audit;
+pub mod auth;
 pub mod common;
 pub mod credentials;
 pub mod files;
@@ -18,6 +20,7 @@ pub mod servers;
 pub mod sessions;
 pub mod settings;
 pub mod system;
+pub mod tokens;
 pub mod users;
 
 pub use common::*;

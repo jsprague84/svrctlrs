@@ -16,6 +16,7 @@ use crate::api_tokens::{self, TokenAuth, TokenCheck};
 use crate::routes::api::ApiError;
 use crate::state::AppState;
 use crate::ws_tickets::TicketOwner;
+use svrctlrs_api::auth::{LoggedIn, LoginRefused};
 use svrctlrs_database::models::NewAuditEntry;
 
 /// Session key for the authenticated user's ID
@@ -313,19 +314,25 @@ fn is_websocket_upgrade(headers: &HeaderMap) -> bool {
 
 /// Mint a one-time WebSocket ticket for the authenticated caller (and the API token it came
 /// with, whose access the upgrade then has).
+#[utoipa::path(post, path = "/api/v1/auth/ws-ticket", tag = "auth",
+    responses(
+        (status = 200, description = "Use as `?ticket=` on `/ws/terminal/pty` within 30 s, once",
+            body = svrctlrs_api::auth::WsTicket),
+        (status = 403, description = "The token's preset has no terminal", body = svrctlrs_api::ErrorBody),
+    ))]
 async fn ws_ticket(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
     token: Option<axum::Extension<TokenAuth>>,
-) -> Json<serde_json::Value> {
+) -> Json<svrctlrs_api::auth::WsTicket> {
     let ticket = state.ws_tickets.issue(TicketOwner {
         user_id,
         token: token.map(|axum::Extension(t)| t),
     });
-    Json(serde_json::json!({
-        "ticket": ticket,
-        "expires_in_secs": state.ws_tickets.ttl().as_secs(),
-    }))
+    Json(svrctlrs_api::auth::WsTicket {
+        ticket,
+        expires_in_secs: state.ws_tickets.ttl().as_secs(),
+    })
 }
 
 fn bearer_token(headers: &HeaderMap) -> Option<String> {
@@ -409,8 +416,8 @@ pub fn routes() -> Router<AppState> {
 /// The JSON auth routes, which the OpenAPI document describes.
 pub fn api_routes() -> utoipa_axum::router::OpenApiRouter<AppState> {
     utoipa_axum::router::OpenApiRouter::new()
-        .route("/api/v1/auth/login", post(login_json))
-        .route("/api/v1/auth/ws-ticket", post(ws_ticket))
+        .routes(utoipa_axum::routes!(login_json))
+        .routes(utoipa_axum::routes!(ws_ticket))
 }
 
 /// Login form data
@@ -618,38 +625,54 @@ async fn login(
     }
 }
 
+fn refused(status: StatusCode, message: impl Into<String>) -> (StatusCode, Json<LoginRefused>) {
+    (
+        status,
+        Json(LoginRefused {
+            error: message.into(),
+        }),
+    )
+}
+
 /// JSON login handler for Tauri/SPA clients (no redirect, returns JSON)
+#[utoipa::path(post, path = "/api/v1/auth/login", tag = "auth", security(()),
+    request_body = svrctlrs_api::auth::Login,
+    responses(
+        (status = 200, description = "Signed in; the session cookie is set too", body = LoggedIn),
+        (status = 401, body = LoginRefused),
+        (status = 429, description = "Too many failures; see Retry-After", body = LoginRefused),
+    ))]
 async fn login_json(
     State(state): State<AppState>,
     headers: HeaderMap,
     session: Session,
-    Json(creds): Json<LoginForm>,
+    Json(login): Json<svrctlrs_api::auth::Login>,
 ) -> Response {
+    let creds = LoginForm {
+        username: login.username,
+        password: login.password,
+    };
     let user = match authenticate(&state, &headers, &session, &creds).await {
         Ok(user) => user,
         Err(LoginFailure::RateLimited(retry_after)) => {
             return (
-                StatusCode::TOO_MANY_REQUESTS,
                 [(
                     header::RETRY_AFTER,
                     retry_after.as_secs().max(1).to_string(),
                 )],
-                Json(serde_json::json!({"error": retry_after_message(retry_after)})),
+                refused(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    retry_after_message(retry_after),
+                ),
             )
                 .into_response();
         }
         Err(LoginFailure::InvalidCredentials) => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(serde_json::json!({"error": "Invalid username or password"})),
-            )
+            return refused(StatusCode::UNAUTHORIZED, "Invalid username or password")
                 .into_response();
         }
         Err(LoginFailure::Internal) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Internal server error"})),
-            )
+            return refused(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
                 .into_response();
         }
     };
@@ -657,17 +680,17 @@ async fn login_json(
     // Save now so the (cycled) id exists for clients that use it as a Bearer token
     if let Err(e) = session.save().await {
         tracing::error!(error = %e, "Failed to save session");
-        return (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Session error"})),
-        )
-            .into_response();
+        return refused(StatusCode::INTERNAL_SERVER_ERROR, "Session error").into_response();
     }
     let session_id = session.id().map(|id| id.to_string()).unwrap_or_default();
 
     tracing::info!(username = %user.username, user_id = user.id, "User logged in (JSON)");
-    Json(serde_json::json!({"success": true, "user_id": user.id, "session_id": session_id}))
-        .into_response()
+    Json(LoggedIn {
+        success: true,
+        user_id: user.id,
+        session_id,
+    })
+    .into_response()
 }
 
 /// Logout handler

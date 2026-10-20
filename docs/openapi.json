@@ -12,6 +12,175 @@
     "version": "3.3.0"
   },
   "paths": {
+    "/api/v1/approvals": {
+      "get": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "The caller's requests, newest first (signed-in users only)",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/approvals/{id}": {
+      "get": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "One request; with `?wait=N`, answers when it is decided or after N seconds (≤ 25).\nReadable by the owner's tokens, so the asker can wait for the answer.",
+        "operationId": "get_one",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "wait",
+            "in": "query",
+            "description": "Seconds to wait for a decision before answering (at most 25)",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Approval"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/approvals/{id}/approve": {
+      "post": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Approve: the held call runs now, as the token that asked (signed-in owner only)",
+        "operationId": "approve",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Decided; `result` is what the call answered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Approval"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already decided or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/approvals/{id}/deny": {
+      "post": {
+        "tags": [
+          "approvals"
+        ],
+        "summary": "Deny: nothing runs (signed-in owner only)",
+        "operationId": "deny",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Approval"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already decided or expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "tags": [
@@ -74,6 +243,90 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuditPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "JSON login handler for Tauri/SPA clients (no redirect, returns JSON)",
+        "operationId": "login_json",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Login"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in; the session cookie is set too",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggedIn"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRefused"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many failures; see Retry-After",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRefused"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/api/v1/auth/ws-ticket": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Mint a one-time WebSocket ticket for the authenticated caller (and the API token it came\nwith, whose access the upgrade then has).",
+        "operationId": "ws_ticket",
+        "responses": {
+          "200": {
+            "description": "Use as `?ticket=` on `/ws/terminal/pty` within 30 s, once",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WsTicket"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The token's preset has no terminal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -2188,6 +2441,201 @@
         }
       }
     },
+    "/api/v1/tokens": {
+      "get": {
+        "tags": [
+          "tokens"
+        ],
+        "summary": "The caller's tokens, newest first, revoked and expired ones included",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "tokens"
+        ],
+        "summary": "Create a token; the response is the only place its secret appears",
+        "operationId": "create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewToken"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedToken"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "You already have a token with that name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tokens/{id}": {
+      "put": {
+        "tags": [
+          "tokens"
+        ],
+        "summary": "Turn approvals on or off for one of the caller's tokens.",
+        "operationId": "update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenChanges"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOne"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "tokens"
+        ],
+        "summary": "Remove a token, whatever its state",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tokens/{id}/revoke": {
+      "post": {
+        "tags": [
+          "tokens"
+        ],
+        "summary": "Revoke a token now; terminals opened with it close",
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOne"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users": {
       "get": {
         "tags": [
@@ -2445,6 +2893,174 @@
   },
   "components": {
     "schemas": {
+      "ApiToken": {
+        "type": "object",
+        "description": "A token as listed: never its secret or hash.",
+        "required": [
+          "id",
+          "name",
+          "prefix",
+          "preset",
+          "status",
+          "created_at",
+          "require_approval"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "prefix": {
+            "type": "string",
+            "description": "`svr_` and the first six characters of the secret"
+          },
+          "preset": {
+            "type": "string",
+            "description": "`full_admin`, `servers_keys` or `read_only`"
+          },
+          "status": {
+            "type": "string",
+            "description": "`active`, `expired` or `revoked`"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Null: never expires"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_used_ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revoked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "require_approval": {
+            "type": "boolean",
+            "description": "Deleting a server or credential, or forgetting host keys, waits for the owner's yes"
+          }
+        }
+      },
+      "Approval": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "action",
+          "summary",
+          "method",
+          "path",
+          "target_type",
+          "target_id",
+          "token_name",
+          "url",
+          "created_at",
+          "expires_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Random; it is in the link"
+          },
+          "status": {
+            "type": "string",
+            "description": "`pending`, `expired`, `denied`, `approved` (running), `done` or `failed`"
+          },
+          "action": {
+            "type": "string",
+            "description": "`server.delete`, `credential.delete` or `server.host_keys_forget`"
+          },
+          "summary": {
+            "type": "string",
+            "description": "\"Delete server web-01\""
+          },
+          "method": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "target_type": {
+            "type": "string"
+          },
+          "target_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "target_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "token_name": {
+            "type": "string"
+          },
+          "client_ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "description": "Where the owner approves or denies it, signed in"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "decided_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "result_status": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "What the approved call answered"
+          },
+          "result": {}
+        }
+      },
       "ApprovalChannelTest": {
         "type": "object",
         "description": "`POST /notifications/test-approval`: where approval requests would go, unsaved; an empty\nsecret is the saved one.",
@@ -2479,6 +3095,26 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "ApprovalList": {
+        "type": "object",
+        "required": [
+          "approvals",
+          "waiting"
+        ],
+        "properties": {
+          "approvals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Approval"
+            }
+          },
+          "waiting": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How many are waiting now"
           }
         }
       },
@@ -2661,6 +3297,23 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          }
+        }
+      },
+      "CreatedToken": {
+        "type": "object",
+        "description": "What `POST /tokens` answers: the only time the secret is shown.",
+        "required": [
+          "token",
+          "secret"
+        ],
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/ApiToken"
+          },
+          "secret": {
+            "type": "string",
+            "description": "`svr_` + 40 letters and digits; send it as `Authorization: Bearer …`"
           }
         }
       },
@@ -3329,6 +3982,55 @@
           }
         }
       },
+      "LoggedIn": {
+        "type": "object",
+        "description": "A successful login: the session id doubles as a Bearer token for native apps.",
+        "required": [
+          "success",
+          "user_id",
+          "session_id"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "user_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "Login": {
+        "type": "object",
+        "description": "`POST /auth/login`",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "LoginRefused": {
+        "type": "object",
+        "description": "A refused login (this route predates the error envelope)",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
       "Message": {
         "type": "object",
         "description": "`{ \"message\": \"…\" }`",
@@ -3555,6 +4257,40 @@
               "string",
               "null"
             ]
+          }
+        }
+      },
+      "NewToken": {
+        "type": "object",
+        "description": "`POST /tokens`",
+        "required": [
+          "name",
+          "preset"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "1–64 characters, unique among your tokens"
+          },
+          "preset": {
+            "type": "string",
+            "description": "`full_admin`, `servers_keys` or `read_only`"
+          },
+          "expires_in_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "description": "Required: 1–3650 days, or null for a token that never expires",
+            "minimum": 0
+          },
+          "require_approval": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Default true"
           }
         }
       },
@@ -4495,6 +5231,43 @@
           }
         }
       },
+      "TokenChanges": {
+        "type": "object",
+        "description": "`PUT /tokens/{id}`",
+        "required": [
+          "require_approval"
+        ],
+        "properties": {
+          "require_approval": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TokenList": {
+        "type": "object",
+        "required": [
+          "tokens"
+        ],
+        "properties": {
+          "tokens": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ApiToken"
+            }
+          }
+        }
+      },
+      "TokenOne": {
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "$ref": "#/components/schemas/ApiToken"
+          }
+        }
+      },
       "TrustHostKey": {
         "type": "object",
         "description": "`POST /servers/{id}/host-keys/trust`",
@@ -4580,6 +5353,24 @@
             "items": {
               "$ref": "#/components/schemas/UserAccount"
             }
+          }
+        }
+      },
+      "WsTicket": {
+        "type": "object",
+        "description": "`POST /auth/ws-ticket`: one use, on a WebSocket upgrade only (`?ticket=`).",
+        "required": [
+          "ticket",
+          "expires_in_secs"
+        ],
+        "properties": {
+          "ticket": {
+            "type": "string"
+          },
+          "expires_in_secs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
           }
         }
       }

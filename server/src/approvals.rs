@@ -124,32 +124,31 @@ pub(crate) async fn link_base(pool: &SqlxPool<SqlxSqlite>, headers: &HeaderMap) 
     format!("{proto}://{host}")
 }
 
-/// The JSON every approval endpoint (and the 202) shows.
-pub fn approval_json(a: &Approval) -> serde_json::Value {
-    let result = a
-        .result
-        .as_deref()
-        .map(|r| serde_json::from_str(r).unwrap_or_else(|_| json!(r)));
-    json!({
-        "id": a.id,
-        "status": a.state_at(chrono::Utc::now()),
-        "action": a.action,
-        "summary": summary(&a.action, a.target_name.as_deref(), a.target_id),
-        "method": a.method,
-        "path": a.path,
-        "target_type": a.target_type,
-        "target_id": a.target_id,
-        "target_name": a.target_name,
-        "token_id": a.token_id,
-        "token_name": a.token_name,
-        "client_ip": a.client_ip,
-        "url": a.url,
-        "created_at": a.created_at,
-        "expires_at": a.expires_at,
-        "decided_at": a.decided_at,
-        "result_status": a.result_status,
-        "result": result,
-    })
+/// What every approval endpoint (and the 202) shows.
+pub fn approval_view(a: &Approval) -> svrctlrs_api::approvals::Approval {
+    svrctlrs_api::approvals::Approval {
+        id: a.id.clone(),
+        status: a.state_at(chrono::Utc::now()).to_string(),
+        action: a.action.clone(),
+        summary: summary(&a.action, a.target_name.as_deref(), a.target_id),
+        method: a.method.clone(),
+        path: a.path.clone(),
+        target_type: a.target_type.clone(),
+        target_id: a.target_id,
+        target_name: a.target_name.clone(),
+        token_id: a.token_id,
+        token_name: a.token_name.clone(),
+        client_ip: a.client_ip.clone(),
+        url: a.url.clone(),
+        created_at: a.created_at,
+        expires_at: a.expires_at,
+        decided_at: a.decided_at,
+        result_status: a.result_status,
+        result: a
+            .result
+            .as_deref()
+            .map(|r| serde_json::from_str(r).unwrap_or_else(|_| json!(r))),
+    }
 }
 
 fn accepted(a: &Approval) -> Response {
@@ -157,16 +156,16 @@ fn accepted(a: &Approval) -> Response {
     (
         StatusCode::ACCEPTED,
         [(header::LOCATION, wait.clone())],
-        Json(json!({
-            "approval": approval_json(a),
-            "message": format!(
+        Json(svrctlrs_api::approvals::HeldForApproval {
+            approval: approval_view(a),
+            message: format!(
                 "{} needs the owner's approval: they approve or deny it signed in at {} \
                  within {TTL_MINUTES} minutes",
                 summary(&a.action, a.target_name.as_deref(), a.target_id),
                 a.url
             ),
-            "wait_url": wait,
-        })),
+            wait_url: wait,
+        }),
     )
         .into_response()
 }
@@ -296,7 +295,7 @@ pub async fn notify(
                     "title": "svrctlrs: approval needed",
                     "message": text,
                     "url": a.url,
-                    "approval": approval_json(a),
+                    "approval": approval_view(a),
                 }),
             )
             .await?;

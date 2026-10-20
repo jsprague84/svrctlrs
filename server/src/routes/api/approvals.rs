@@ -5,55 +5,54 @@
 use axum::{
     extract::{Path, Query, State},
     http::HeaderMap,
-    response::IntoResponse,
-    routing::{get, post},
     Json,
 };
-use serde::Deserialize;
-use serde_json::json;
+use svrctlrs_api::approvals::{Approval, ApprovalList, WaitQuery};
+use svrctlrs_api::ErrorBody;
 use svrctlrs_database::queries::approvals;
 use tokio::sync::broadcast::error::RecvError;
 use tracing::instrument;
 
 use super::ApiError;
-use crate::approvals::{approval_json, decide, MAX_WAIT_SECS};
+use crate::approvals::{approval_view, decide, MAX_WAIT_SECS};
 use crate::routes::ui::auth::CurrentUser;
 use crate::state::AppState;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
-        .route("/", get(list))
-        .route("/{id}", get(get_one))
-        .route("/{id}/approve", post(approve))
-        .route("/{id}/deny", post(deny))
+        .routes(routes!(list))
+        .routes(routes!(get_one))
+        .routes(routes!(approve))
+        .routes(routes!(deny))
 }
 
+/// The caller's requests, newest first (signed-in users only)
+#[utoipa::path(get, path = "/", tag = "approvals", responses((status = 200, body = ApprovalList)))]
 #[instrument(skip(state))]
 async fn list(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<ApprovalList>, ApiError> {
     let list = approvals::list_for_user(&state.pool, me, 50).await?;
     let waiting = approvals::count_waiting(&state.pool, me).await?;
-    let list: Vec<_> = list.iter().map(approval_json).collect();
-    Ok(Json(json!({ "approvals": list, "waiting": waiting })))
-}
-
-#[derive(Debug, Deserialize)]
-struct WaitQuery {
-    /// Seconds to wait for a decision before answering
-    wait: Option<u64>,
+    Ok(Json(ApprovalList {
+        approvals: list.iter().map(approval_view).collect(),
+        waiting,
+    }))
 }
 
 /// One request; with `?wait=N`, answers when it is decided or after N seconds (≤ 25).
+/// Readable by the owner's tokens, so the asker can wait for the answer.
+#[utoipa::path(get, path = "/{id}", tag = "approvals", params(("id" = String, Path), WaitQuery),
+    responses((status = 200, body = Approval), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state))]
 async fn get_one(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     Path(id): Path<String>,
     Query(q): Query<WaitQuery>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<Approval>, ApiError> {
     // Subscribe before reading, so a decision between the two is not missed
     let mut events = state.approval_events.subscribe();
     let mut current = approvals::get(&state.pool, me, &id).await?;
@@ -82,29 +81,43 @@ async fn get_one(
         }
         current = approvals::get(&state.pool, me, &id).await?;
     }
-    Ok(Json(approval_json(&current)))
+    Ok(Json(approval_view(&current)))
 }
 
+/// Approve: the held call runs now, as the token that asked (signed-in owner only)
+#[utoipa::path(post, path = "/{id}/approve", tag = "approvals", params(("id" = String, Path)),
+    responses(
+        (status = 200, description = "Decided; `result` is what the call answered", body = Approval),
+        (status = 404, body = ErrorBody),
+        (status = 409, description = "Already decided or expired", body = ErrorBody),
+    ))]
 #[instrument(skip(state, headers))]
 async fn approve(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<Approval>, ApiError> {
     let decided = decide(&state, me, &id, true, &headers).await?;
-    Ok(Json(approval_json(&decided)))
+    Ok(Json(approval_view(&decided)))
 }
 
+/// Deny: nothing runs (signed-in owner only)
+#[utoipa::path(post, path = "/{id}/deny", tag = "approvals", params(("id" = String, Path)),
+    responses(
+        (status = 200, body = Approval),
+        (status = 404, body = ErrorBody),
+        (status = 409, description = "Already decided or expired", body = ErrorBody),
+    ))]
 #[instrument(skip(state, headers))]
 async fn deny(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<String>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<Approval>, ApiError> {
     let decided = decide(&state, me, &id, false, &headers).await?;
-    Ok(Json(approval_json(&decided)))
+    Ok(Json(approval_view(&decided)))
 }
 
 /// Held deletes through the real application: requested by a token, decided by its owner,

@@ -444,6 +444,42 @@ mod tests {
         }
     }
 
+    /// Every route a preset allows is a documented route: the preset table and the OpenAPI
+    /// document (which comes from the routers themselves) cannot drift apart.
+    #[test]
+    fn every_route_a_preset_allows_is_documented() {
+        let doc = serde_json::to_value(crate::routes::openapi()).unwrap();
+        let paths = doc["paths"].as_object().unwrap();
+        let documented = |method: &str, path: &str| {
+            paths.iter().any(|(template, item)| {
+                let t: Vec<&str> = template.split('/').collect();
+                let p: Vec<&str> = path.split('/').collect();
+                t.len() == p.len()
+                    && t.iter()
+                        .zip(&p)
+                        .all(|(a, b)| a == b || (a.starts_with('{') && a.ends_with('}')))
+                    && item.get(method.to_ascii_lowercase()).is_some()
+            })
+        };
+        let mut missing = Vec::new();
+        for list in [
+            READ.iter().map(|p| ("GET", *p)).collect::<Vec<_>>(),
+            SERVERS_KEYS.to_vec(),
+            FULL_ADMIN.to_vec(),
+        ] {
+            for (method, pattern) in list {
+                if pattern.starts_with("/ws/") {
+                    continue; // the WebSocket is described in docs/API.md
+                }
+                let concrete = pattern.replace('*', "1");
+                if !documented(method, &concrete) {
+                    missing.push(format!("{method} {pattern}"));
+                }
+            }
+        }
+        assert!(missing.is_empty(), "allowed but undocumented: {missing:?}");
+    }
+
     #[test]
     fn presets_round_trip_their_names() {
         for p in Preset::ALL {

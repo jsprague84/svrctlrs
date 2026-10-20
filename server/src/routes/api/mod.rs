@@ -37,8 +37,6 @@ use crate::state::AppState;
 use svrctlrs_api::system::{Health, Status, StatusResources};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-pub use svrctlrs_api::double_option;
-
 /// The API's error: a status code plus the `{ success: false, error: { code, message } }`
 /// envelope every client expects. Handlers return `Result<_, ApiError>` and use `?` on query
 /// results: [`svrctlrs_core::Error`] converts by kind (404 / 409 / 400, else a logged 500),

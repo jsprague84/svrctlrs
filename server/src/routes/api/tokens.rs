@@ -5,79 +5,76 @@
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
-    routing::{get, post},
     Json,
 };
-use serde::Deserialize;
 use serde_json::json;
+use svrctlrs_api::tokens::{CreatedToken, NewToken, TokenChanges, TokenList, TokenOne};
+use svrctlrs_api::{ErrorBody, IdMessage};
 use svrctlrs_database::{
     models::{ApiToken, NewApiToken, NewAuditEntry},
     queries::api_tokens,
 };
 use tracing::{info, instrument};
 
-use super::{double_option, ApiError};
+use super::ApiError;
 use crate::api_tokens::{self as tokens, Preset};
 use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 /// Longest lifetime a token may be given in days; `null` (never) is always allowed.
 const MAX_LIFETIME_DAYS: u32 = 3650;
 
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
-        .route("/", get(list).post(create))
-        .route("/{id}/revoke", post(revoke))
-        .route("/{id}", axum::routing::put(update).delete(remove))
+        .routes(routes!(list, create))
+        .routes(routes!(revoke))
+        .routes(routes!(update, remove))
 }
 
-fn token_json(t: &ApiToken) -> serde_json::Value {
-    json!({
-        "id": t.id,
-        "name": t.name,
-        "prefix": t.prefix,
-        "preset": t.preset,
-        "status": t.status_at(chrono::Utc::now()),
-        "created_at": t.created_at,
-        "expires_at": t.expires_at,
-        "last_used_at": t.last_used_at,
-        "last_used_ip": t.last_used_ip,
-        "revoked_at": t.revoked_at,
-        "require_approval": t.require_approval,
-    })
+fn token_view(t: &ApiToken) -> svrctlrs_api::tokens::ApiToken {
+    svrctlrs_api::tokens::ApiToken {
+        id: t.id,
+        name: t.name.clone(),
+        prefix: t.prefix.clone(),
+        preset: t.preset.clone(),
+        status: t.status_at(chrono::Utc::now()).to_string(),
+        created_at: t.created_at,
+        expires_at: t.expires_at,
+        last_used_at: t.last_used_at,
+        last_used_ip: t.last_used_ip.clone(),
+        revoked_at: t.revoked_at,
+        require_approval: t.require_approval,
+    }
 }
 
+/// The caller's tokens, newest first, revoked and expired ones included
+#[utoipa::path(get, path = "/", tag = "tokens", responses((status = 200, body = TokenList)))]
 #[instrument(skip(state))]
 async fn list(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<TokenList>, ApiError> {
     let list = api_tokens::list_for_user(&state.pool, me).await?;
-    let list: Vec<_> = list.iter().map(token_json).collect();
-    Ok(Json(json!({ "tokens": list })))
+    Ok(Json(TokenList {
+        tokens: list.iter().map(token_view).collect(),
+    }))
 }
 
-#[derive(Debug, Deserialize)]
-struct CreateTokenInput {
-    name: String,
-    preset: String,
-    /// Required: a number of days, or `null` for a token that never expires
-    #[serde(default, deserialize_with = "double_option")]
-    expires_in_days: Option<Option<u32>>,
-    /// Deleting a server or credential, or forgetting host keys, waits for the owner's yes
-    /// (default true)
-    require_approval: Option<bool>,
-}
-
+/// Create a token; the response is the only place its secret appears
+#[utoipa::path(post, path = "/", tag = "tokens", request_body = NewToken,
+    responses(
+        (status = 201, body = CreatedToken),
+        (status = 400, body = ErrorBody),
+        (status = 409, description = "You already have a token with that name", body = ErrorBody),
+    ))]
 #[instrument(skip(state, headers))]
 async fn create(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
-    Json(input): Json<CreateTokenInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<NewToken>,
+) -> Result<(StatusCode, Json<CreatedToken>), ApiError> {
     let name = input.name.trim().to_string();
     if name.is_empty() || name.chars().count() > 64 {
         return Err(ApiError::bad_request("name must be 1–64 characters"));
@@ -128,24 +125,25 @@ async fn create(
     );
     Ok((
         StatusCode::CREATED,
-        Json(json!({ "token": token_json(&token), "secret": secret.secret })),
+        Json(CreatedToken {
+            token: token_view(&token),
+            secret: secret.secret,
+        }),
     ))
 }
 
-#[derive(Debug, Deserialize)]
-struct UpdateTokenInput {
-    require_approval: bool,
-}
-
 /// Turn approvals on or off for one of the caller's tokens.
+#[utoipa::path(put, path = "/{id}", tag = "tokens", params(("id" = i64, Path)),
+    request_body = TokenChanges,
+    responses((status = 200, body = TokenOne), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state, headers))]
 async fn update(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-    Json(input): Json<UpdateTokenInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<TokenChanges>,
+) -> Result<Json<TokenOne>, ApiError> {
     let token =
         api_tokens::set_require_approval(&state.pool, me, id, input.require_approval).await?;
     crate::audit::record(
@@ -156,16 +154,21 @@ async fn update(
             .target("token", token.id, &token.name)
             .details(json!({ "require_approval": token.require_approval })),
     );
-    Ok(Json(json!({ "token": token_json(&token) })))
+    Ok(Json(TokenOne {
+        token: token_view(&token),
+    }))
 }
 
+/// Revoke a token now; terminals opened with it close
+#[utoipa::path(post, path = "/{id}/revoke", tag = "tokens", params(("id" = i64, Path)),
+    responses((status = 200, body = TokenOne), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state, headers))]
 async fn revoke(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<TokenOne>, ApiError> {
     let token = api_tokens::revoke(&state.pool, me, id).await?;
     // Terminals opened with it end now
     let _ = state.token_revocations.send(token.id);
@@ -177,16 +180,21 @@ async fn revoke(
             .client_ip(Some(client_ip(&headers)))
             .target("token", token.id, &token.name),
     );
-    Ok(Json(json!({ "token": token_json(&token) })))
+    Ok(Json(TokenOne {
+        token: token_view(&token),
+    }))
 }
 
+/// Remove a token, whatever its state
+#[utoipa::path(delete, path = "/{id}", tag = "tokens", params(("id" = i64, Path)),
+    responses((status = 200, body = IdMessage), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state, headers))]
 async fn remove(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<IdMessage>, ApiError> {
     let token = api_tokens::delete(&state.pool, me, id).await?;
     let _ = state.token_revocations.send(token.id);
     info!(user_id = me, token_id = token.id, name = %token.name, "API token removed");
@@ -197,7 +205,7 @@ async fn remove(
             .client_ip(Some(client_ip(&headers)))
             .target("token", token.id, &token.name),
     );
-    Ok(Json(json!({ "id": token.id, "message": "Token removed" })))
+    Ok(Json(IdMessage::new(token.id, "Token removed")))
 }
 
 /// The tokens API and a token's whole life through the real application stack: created by a
