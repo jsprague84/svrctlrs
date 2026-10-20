@@ -1064,6 +1064,511 @@
         }
       }
     },
+    "/api/v1/servers": {
+      "get": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "List all servers",
+        "operationId": "list_servers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerList"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "Create a new server",
+        "operationId": "create_server",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewServer"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/import": {
+      "post": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "Create servers from the `Host` blocks of an `ssh_config`. Names that already exist are\nskipped; `ProxyJump` becomes `via_server_id` when its first hop names a created or existing\nserver (by name, else by hostname). Nothing is connected to.",
+        "operationId": "import_servers",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportServers"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}": {
+      "get": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "Get server by ID",
+        "operationId": "get_server",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerOne"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "Update an existing server",
+        "operationId": "update_server",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerChanges"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The name is taken",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "Delete a server",
+        "operationId": "delete_server",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for the owner's approval (a token set to ask first)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}/authorize-key": {
+      "post": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "Install a key credential's public half on the server using one-time bootstrap access,\nverify that the key now logs in, and make it the server's credential.",
+        "operationId": "authorize_key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthorizeKey"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KeyAuthorized"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bootstrap failed, or the key does not log in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Host key mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Host key not confirmed yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}/host-keys": {
+      "get": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "SSH host keys recorded for a server, with OpenSSH-style fingerprints (no key material):\nthe trusted ones, and the unconfirmed one from a first contact, if any.",
+        "operationId": "list_host_keys",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostKeyList"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "Forget every host key recorded for a server. The next connection records the key it sees\nand asks for confirmation again; do this after the server's key legitimately changed.",
+        "operationId": "forget_host_keys",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostKeysForgotten"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Held for the owner's approval (a token set to ask first)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}/host-keys/trust": {
+      "post": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "Trust the host key recorded on first contact, identified by the fingerprint the user saw\n(so a key that changed between showing and confirming is not trusted by accident). 404 when\nno unconfirmed key with that fingerprint is waiting (connect once to record it).",
+        "operationId": "trust_host_key",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrustHostKey"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostKeyTrusted"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}/test": {
+      "post": {
+        "tags": [
+          "servers"
+        ],
+        "summary": "Test server SSH connection. Always 200: `success` says how it went, and a failure carries\nthe error's `code` and `details` (the fingerprint to confirm, on first contact).",
+        "operationId": "test_connection",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionTest"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions": {
       "get": {
         "tags": [
@@ -1727,6 +2232,81 @@
           }
         }
       },
+      "AuthorizeKey": {
+        "type": "object",
+        "description": "`POST /servers/{id}/authorize-key`: install a key credential's public half with one-time\naccess, verify it, and switch the server to it",
+        "required": [
+          "credential_id"
+        ],
+        "properties": {
+          "credential_id": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The `ssh_key` credential to install"
+          },
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One-time bootstrap: the account's password (never stored) …"
+          },
+          "bootstrap_credential_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "… or a credential that already works on the server"
+          }
+        }
+      },
+      "ConnectionTest": {
+        "type": "object",
+        "description": "`POST /servers/{id}/test`. Always 200: `success` says how it went.",
+        "required": [
+          "success",
+          "message",
+          "server_id",
+          "hostname",
+          "port",
+          "latency_ms"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "On failure only: `HOST_KEY_UNCONFIRMED`, `HOST_KEY_MISMATCH` or `BAD_REQUEST`"
+          },
+          "details": {
+            "description": "On failure only (null when there are none): what a client can act on, such as the\n`fingerprint` to confirm"
+          },
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "CredentialChanges": {
         "type": "object",
         "description": "`PUT /credentials/{id}`: only the fields given change",
@@ -2046,6 +2626,104 @@
           }
         }
       },
+      "HostKey": {
+        "type": "object",
+        "description": "A host key recorded for a server (no key material).",
+        "required": [
+          "id",
+          "key_type",
+          "fingerprint",
+          "first_seen_at",
+          "last_seen_at",
+          "trusted"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "key_type": {
+            "type": "string",
+            "description": "e.g. `ssh-ed25519`"
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "`SHA256:…`, as `ssh-keygen -lf` prints it"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "trusted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Null for the key seen on first contact, waiting for confirmation"
+          },
+          "trusted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "HostKeyList": {
+        "type": "object",
+        "required": [
+          "server_id",
+          "host_keys"
+        ],
+        "properties": {
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "host_keys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HostKey"
+            }
+          }
+        }
+      },
+      "HostKeyTrusted": {
+        "type": "object",
+        "required": [
+          "server_id",
+          "host_key"
+        ],
+        "properties": {
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "host_key": {
+            "$ref": "#/components/schemas/HostKey"
+          }
+        }
+      },
+      "HostKeysForgotten": {
+        "type": "object",
+        "required": [
+          "server_id",
+          "removed"
+        ],
+        "properties": {
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "removed": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "IdMessage": {
         "type": "object",
         "description": "`{ \"id\": 3, \"message\": \"…\" }`: what a create, update or delete of a numbered row answers.",
@@ -2055,6 +2733,123 @@
         ],
         "properties": {
           "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "ImportResult": {
+        "type": "object",
+        "required": [
+          "created",
+          "skipped",
+          "notes"
+        ],
+        "properties": {
+          "created": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportedServer"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportSkipped"
+            }
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Jump hosts set, and ones that could not be"
+          }
+        }
+      },
+      "ImportServers": {
+        "type": "object",
+        "description": "`POST /servers/import`",
+        "required": [
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "type": "string",
+            "description": "The pasted `ssh_config` (at most 256 KiB)"
+          },
+          "credential_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Given to every created server"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Given to every created server"
+          }
+        }
+      },
+      "ImportSkipped": {
+        "type": "object",
+        "required": [
+          "name",
+          "reason"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        }
+      },
+      "ImportedServer": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "hostname"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          }
+        }
+      },
+      "KeyAuthorized": {
+        "type": "object",
+        "required": [
+          "success",
+          "server_id",
+          "credential_id",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "credential_id": {
             "type": "integer",
             "format": "int64"
           },
@@ -2177,6 +2972,80 @@
               "null"
             ],
             "format": "int32"
+          }
+        }
+      },
+      "NewServer": {
+        "type": "object",
+        "description": "`POST /servers`",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Default 22"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "credential_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "via_server_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Reach this server through another server's SSH connection (jump host)"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "startup_command": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One line typed into every new shell, e.g. `tmux new -A -s main`"
+          },
+          "record_sessions": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "is_local": {
+            "type": "boolean",
+            "description": "Retired with command mode; `true` is refused"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Default true"
           }
         }
       },
@@ -2653,6 +3522,217 @@
           }
         }
       },
+      "Server": {
+        "type": "object",
+        "description": "An SSH target.",
+        "required": [
+          "id",
+          "name",
+          "hostname",
+          "port",
+          "tags",
+          "record_sessions",
+          "enabled",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string",
+            "description": "Hostname or IP address"
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "SSH user; null means the credential's user, else `root`"
+          },
+          "credential_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "via_server_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Reached through this server's SSH connection (a jump host)"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Labels for filtering: trimmed, unique ignoring case, sorted"
+          },
+          "startup_command": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Typed into every new shell right after it starts (one line)"
+          },
+          "record_sessions": {
+            "type": "boolean",
+            "description": "Shells opened here are recorded for the user who opens them"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "last_seen_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The last successful contact"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the last attempt failed"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ServerChanges": {
+        "type": "object",
+        "description": "`PUT /servers/{id}`: only the fields given change",
+        "properties": {
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hostname": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "port": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "credential_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Absent keeps the credential, `null` unassigns it, a number sets it"
+          },
+          "via_server_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Absent keeps it, `null` makes the server direct again"
+          },
+          "tags": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "description": "Replaces the whole list"
+          },
+          "startup_command": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An empty string clears it"
+          },
+          "record_sessions": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        }
+      },
+      "ServerList": {
+        "type": "object",
+        "required": [
+          "servers"
+        ],
+        "properties": {
+          "servers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Server"
+            }
+          }
+        }
+      },
+      "ServerOne": {
+        "type": "object",
+        "required": [
+          "server"
+        ],
+        "properties": {
+          "server": {
+            "$ref": "#/components/schemas/Server"
+          }
+        }
+      },
       "SessionClosed": {
         "type": "object",
         "description": "`DELETE /sessions/{id}`",
@@ -2894,6 +3974,19 @@
             "type": "integer",
             "description": "How many servers are configured",
             "minimum": 0
+          }
+        }
+      },
+      "TrustHostKey": {
+        "type": "object",
+        "description": "`POST /servers/{id}/host-keys/trust`",
+        "required": [
+          "fingerprint"
+        ],
+        "properties": {
+          "fingerprint": {
+            "type": "string",
+            "description": "The fingerprint you compared with `ssh-keygen -lf` on the host"
           }
         }
       },

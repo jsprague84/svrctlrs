@@ -29,7 +29,7 @@ pub mod tokens;
 pub mod users;
 
 use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use tracing::{debug, instrument};
 
@@ -37,16 +37,7 @@ use crate::state::AppState;
 use svrctlrs_api::system::{Health, Status, StatusResources};
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-/// Deserialize an optional field so that *absent* and *null* are distinguishable:
-/// `None` when the key is missing, `Some(None)` for `null`, `Some(Some(v))` for a value.
-/// Use with `#[serde(default, deserialize_with = "double_option")]`.
-pub fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
-where
-    T: Deserialize<'de>,
-    D: Deserializer<'de>,
-{
-    Deserialize::deserialize(de).map(Some)
-}
+pub use svrctlrs_api::double_option;
 
 /// The API's error: a status code plus the `{ success: false, error: { code, message } }`
 /// envelope every client expects. Handlers return `Result<_, ApiError>` and use `?` on query

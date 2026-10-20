@@ -52,3 +52,14 @@ impl IdMessage {
         }
     }
 }
+
+/// Deserialize an optional field so that *absent* and *null* are distinguishable:
+/// `None` when the key is missing, `Some(None)` for `null`, `Some(Some(v))` for a value.
+/// Use with `#[serde(default, deserialize_with = "double_option")]`.
+pub fn double_option<'de, T, D>(de: D) -> Result<Option<Option<T>>, D::Error>
+where
+    T: Deserialize<'de>,
+    D: serde::Deserializer<'de>,
+{
+    Deserialize::deserialize(de).map(Some)
+}

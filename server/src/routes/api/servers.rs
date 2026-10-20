@@ -5,12 +5,15 @@
 use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
-    response::IntoResponse,
-    routing::{get, post},
     Json,
 };
-use serde::Deserialize;
 use serde_json::json;
+use svrctlrs_api::servers::{
+    AuthorizeKey, ConnectionTest, HostKey, HostKeyList, HostKeyTrusted, HostKeysForgotten,
+    ImportResult, ImportServers, ImportSkipped, ImportedServer, KeyAuthorized, NewServer, Server,
+    ServerChanges, ServerList, ServerOne, TrustHostKey,
+};
+use svrctlrs_api::{ErrorBody, IdMessage};
 use svrctlrs_database::{
     models::{CreateServer, NewAuditEntry, UpdateServer},
     queries::servers,
@@ -21,36 +24,40 @@ use tracing::{error, info, instrument, warn};
 
 use super::ApiError;
 use crate::state::AppState;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 /// Create servers router
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
-        .route("/", get(list_servers).post(create_server))
-        .route("/import", post(import_servers))
-        .route(
-            "/{id}",
-            get(get_server).put(update_server).delete(delete_server),
-        )
-        .route("/{id}/test", post(test_connection))
-        .route(
-            "/{id}/host-keys",
-            get(list_host_keys).delete(forget_host_keys),
-        )
-        .route("/{id}/host-keys/trust", post(trust_host_key))
-        .route("/{id}/authorize-key", post(authorize_key))
+        .routes(routes!(list_servers, create_server))
+        .routes(routes!(import_servers))
+        .routes(routes!(get_server, update_server, delete_server))
+        .routes(routes!(test_connection))
+        .routes(routes!(list_host_keys, forget_host_keys))
+        .routes(routes!(trust_host_key))
+        .routes(routes!(authorize_key))
 }
 
-/// Authorize-key input: which key to install, and how to get in once to install it.
-#[derive(Debug, Deserialize)]
-struct AuthorizeKeyInput {
-    credential_id: i64,
-    /// One-time bootstrap: the account's password (never stored) ...
-    #[serde(default)]
-    password: Option<String>,
-    /// ... or an existing credential that already works on the server.
-    #[serde(default)]
-    bootstrap_credential_id: Option<i64>,
+/// A stored server as the API shows it.
+pub(crate) fn server_view(s: svrctlrs_database::models::Server) -> Server {
+    Server {
+        id: s.id,
+        name: s.name,
+        hostname: s.hostname,
+        port: s.port,
+        username: s.username,
+        credential_id: s.credential_id,
+        via_server_id: s.via_server_id,
+        tags: s.tags.0,
+        startup_command: s.startup_command,
+        record_sessions: s.record_sessions,
+        description: s.description,
+        enabled: s.enabled,
+        last_seen_at: s.last_seen_at,
+        last_error: s.last_error,
+        created_at: s.created_at,
+        updated_at: s.updated_at,
+    }
 }
 
 /// What `ssh-copy-id` does: append the public key to `~/.ssh/authorized_keys` with sane
@@ -66,14 +73,23 @@ fn authorized_keys_install_command(public_key: &str) -> String {
 
 /// Install a key credential's public half on the server using one-time bootstrap access,
 /// verify that the key now logs in, and make it the server's credential.
+#[utoipa::path(post, path = "/{id}/authorize-key", tag = "servers", params(("id" = i64, Path)),
+    request_body = AuthorizeKey,
+    responses(
+        (status = 200, body = KeyAuthorized),
+        (status = 400, description = "Bootstrap failed, or the key does not log in", body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 409, description = "Host key mismatch", body = ErrorBody),
+        (status = 428, description = "Host key not confirmed yet", body = ErrorBody),
+    ))]
 #[instrument(skip(state, input))]
 async fn authorize_key(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-    Json(input): Json<AuthorizeKeyInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<AuthorizeKey>,
+) -> Result<Json<KeyAuthorized>, ApiError> {
     use svrctlrs_database::models::{Credential, CredentialType};
     use svrctlrs_database::queries::credentials;
 
@@ -193,12 +209,15 @@ async fn authorize_key(
             .target("server", id, &server.name)
             .details(json!({ "credential_id": key_cred.id, "credential": key_cred.name })),
     );
-    Ok(Json(json!({
-        "success": true,
-        "server_id": id,
-        "credential_id": key_cred.id,
-        "message": format!("Key '{}' authorized on {}; the server now uses it", key_cred.name, server.name)
-    })))
+    Ok(Json(KeyAuthorized {
+        success: true,
+        server_id: id,
+        credential_id: key_cred.id,
+        message: format!(
+            "Key '{}' authorized on {}; the server now uses it",
+            key_cred.name, server.name
+        ),
+    }))
 }
 
 #[cfg(test)]
@@ -214,50 +233,51 @@ mod tests {
     }
 }
 
-fn host_key_json(k: &svrctlrs_database::models::ServerHostKey) -> serde_json::Value {
-    json!({
-        "id": k.id,
-        "key_type": k.key_type,
-        "fingerprint": crate::host_keys::fingerprint(&k.public_key),
-        "first_seen_at": k.first_seen_at,
-        "last_seen_at": k.last_seen_at,
-        "trusted_at": k.trusted_at,
-        "trusted": k.is_trusted(),
-    })
+fn host_key_view(k: &svrctlrs_database::models::ServerHostKey) -> HostKey {
+    HostKey {
+        id: k.id,
+        key_type: k.key_type.clone(),
+        fingerprint: crate::host_keys::fingerprint(&k.public_key),
+        first_seen_at: k.first_seen_at,
+        last_seen_at: k.last_seen_at,
+        trusted_at: k.trusted_at,
+        trusted: k.is_trusted(),
+    }
 }
 
 /// SSH host keys recorded for a server, with OpenSSH-style fingerprints (no key material):
 /// the trusted ones, and the unconfirmed one from a first contact, if any.
+#[utoipa::path(get, path = "/{id}/host-keys", tag = "servers", params(("id" = i64, Path)),
+    responses((status = 200, body = HostKeyList), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state))]
 async fn list_host_keys(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<HostKeyList>, ApiError> {
     use svrctlrs_database::queries::server_host_keys;
 
     servers::get_server(&state.pool, id).await?;
     let keys = server_host_keys::list_host_keys_for_server(&state.pool, id).await?;
-    let keys: Vec<_> = keys.iter().map(host_key_json).collect();
-    Ok(Json(json!({ "server_id": id, "host_keys": keys })))
+    Ok(Json(HostKeyList {
+        server_id: id,
+        host_keys: keys.iter().map(host_key_view).collect(),
+    }))
 }
 
-#[derive(Debug, Deserialize)]
-struct TrustHostKeyInput {
-    /// The fingerprint the user compared, so a key that changed between showing and
-    /// confirming is not trusted by accident.
-    fingerprint: String,
-}
-
-/// Trust the host key recorded on first contact, identified by the fingerprint the user saw.
-/// 404 when no unconfirmed key with that fingerprint is waiting (connect once to record it).
+/// Trust the host key recorded on first contact, identified by the fingerprint the user saw
+/// (so a key that changed between showing and confirming is not trusted by accident). 404 when
+/// no unconfirmed key with that fingerprint is waiting (connect once to record it).
+#[utoipa::path(post, path = "/{id}/host-keys/trust", tag = "servers", params(("id" = i64, Path)),
+    request_body = TrustHostKey,
+    responses((status = 200, body = HostKeyTrusted), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state, input))]
 async fn trust_host_key(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-    Json(input): Json<TrustHostKeyInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<TrustHostKey>,
+) -> Result<Json<HostKeyTrusted>, ApiError> {
     use svrctlrs_database::queries::server_host_keys;
 
     let server = servers::get_server(&state.pool, id).await?;
@@ -286,20 +306,27 @@ async fn trust_host_key(
             .target("server", id, &server.name)
             .details(json!({ "key_type": trusted.key_type, "fingerprint": wanted })),
     );
-    Ok(Json(
-        json!({ "server_id": id, "host_key": host_key_json(&trusted) }),
-    ))
+    Ok(Json(HostKeyTrusted {
+        server_id: id,
+        host_key: host_key_view(&trusted),
+    }))
 }
 
 /// Forget every host key recorded for a server. The next connection records the key it sees
 /// and asks for confirmation again; do this after the server's key legitimately changed.
+#[utoipa::path(delete, path = "/{id}/host-keys", tag = "servers", params(("id" = i64, Path)),
+    responses(
+        (status = 200, body = HostKeysForgotten),
+        (status = 202, description = "Held for the owner's approval (a token set to ask first)"),
+        (status = 404, body = ErrorBody),
+    ))]
 #[instrument(skip(state))]
 async fn forget_host_keys(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<HostKeysForgotten>, ApiError> {
     use svrctlrs_database::queries::server_host_keys;
 
     let server = servers::get_server(&state.pool, id).await?;
@@ -317,78 +344,52 @@ async fn forget_host_keys(
             .target("server", id, &server.name)
             .details(json!({ "removed": removed })),
     );
-    Ok(Json(json!({ "server_id": id, "removed": removed })))
+    Ok(Json(HostKeysForgotten {
+        server_id: id,
+        removed,
+    }))
 }
 
 /// List all servers
+#[utoipa::path(get, path = "/", tag = "servers", responses((status = 200, body = ServerList)))]
 #[instrument(skip(state))]
-async fn list_servers(State(state): State<AppState>) -> Result<impl IntoResponse, ApiError> {
-    let servers_list = servers::list_servers(&state.pool).await?;
-
-    Ok(Json(json!({ "servers": servers_list })))
+async fn list_servers(State(state): State<AppState>) -> Result<Json<ServerList>, ApiError> {
+    let servers = servers::list_servers(&state.pool)
+        .await?
+        .into_iter()
+        .map(server_view)
+        .collect();
+    Ok(Json(ServerList { servers }))
 }
 
 /// Get server by ID
+#[utoipa::path(get, path = "/{id}", tag = "servers", params(("id" = i64, Path)),
+    responses((status = 200, body = ServerOne), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state))]
 async fn get_server(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<ServerOne>, ApiError> {
     let server = servers::get_server(&state.pool, id).await?;
-
-    Ok(Json(json!({
-        "server": server
-    })))
-}
-
-/// Create server input
-#[derive(Debug, Deserialize)]
-struct CreateServerInput {
-    name: String,
-    #[serde(default)]
-    hostname: Option<String>,
-    #[serde(default = "default_port")]
-    port: i32,
-    #[serde(default)]
-    username: Option<String>,
-    #[serde(default)]
-    credential_id: Option<i64>,
-    /// Reach this server through another server's SSH connection (jump host)
-    #[serde(default)]
-    via_server_id: Option<i64>,
-    #[serde(default)]
-    tags: Vec<String>,
-    /// Typed into every new shell right after it starts; one line, e.g. `tmux new -A -s main`
-    #[serde(default)]
-    startup_command: Option<String>,
-    /// Record the shells opened on this server (for the user who opens each)
-    #[serde(default)]
-    record_sessions: bool,
-    #[serde(default)]
-    description: Option<String>,
-    /// Retired with command mode; `true` is refused so old clients get a clear answer.
-    #[serde(default)]
-    is_local: bool,
-    #[serde(default = "default_enabled")]
-    enabled: bool,
-}
-
-fn default_port() -> i32 {
-    22
-}
-
-fn default_enabled() -> bool {
-    true
+    Ok(Json(ServerOne {
+        server: server_view(server),
+    }))
 }
 
 /// Create a new server
+#[utoipa::path(post, path = "/", tag = "servers", request_body = NewServer,
+    responses(
+        (status = 201, body = IdMessage),
+        (status = 400, body = ErrorBody),
+        (status = 409, description = "The name is taken", body = ErrorBody),
+    ))]
 #[instrument(skip(state, input))]
 async fn create_server(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
-    Json(input): Json<CreateServerInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<NewServer>,
+) -> Result<(StatusCode, Json<IdMessage>), ApiError> {
     info!(name = %input.name, "Creating server");
     if input.is_local {
         return Err(ApiError::bad_request(
@@ -432,42 +433,8 @@ async fn create_server(
 
     Ok((
         StatusCode::CREATED,
-        Json(json!({
-            "id": id,
-            "message": "Server created successfully"
-        })),
+        Json(IdMessage::new(id, "Server created successfully")),
     ))
-}
-
-/// Update server input
-#[derive(Debug, Deserialize)]
-struct UpdateServerInput {
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    hostname: Option<String>,
-    #[serde(default)]
-    port: Option<i32>,
-    #[serde(default)]
-    username: Option<String>,
-    /// Absent keeps the credential, `null` unassigns it, a number sets it
-    #[serde(default, deserialize_with = "super::double_option")]
-    credential_id: Option<Option<i64>>,
-    /// Same shape: `null` makes the server direct again
-    #[serde(default, deserialize_with = "super::double_option")]
-    via_server_id: Option<Option<i64>>,
-    /// Replaces the whole list
-    #[serde(default)]
-    tags: Option<Vec<String>>,
-    /// An empty string clears it
-    #[serde(default)]
-    startup_command: Option<String>,
-    #[serde(default)]
-    record_sessions: Option<bool>,
-    #[serde(default)]
-    description: Option<String>,
-    #[serde(default)]
-    enabled: Option<bool>,
 }
 
 /// A jump host must exist, must not be the server itself, and must not lead back to it.
@@ -510,18 +477,26 @@ async fn check_jump_host(
 }
 
 /// Update an existing server
+#[utoipa::path(put, path = "/{id}", tag = "servers", params(("id" = i64, Path)),
+    request_body = ServerChanges,
+    responses(
+        (status = 200, body = IdMessage),
+        (status = 400, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 409, description = "The name is taken", body = ErrorBody),
+    ))]
 #[instrument(skip(state, input))]
 async fn update_server(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-    Json(input): Json<UpdateServerInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<ServerChanges>,
+) -> Result<Json<IdMessage>, ApiError> {
     info!(id = id, "Updating server");
 
     // Verify server exists
-    servers::get_server(&state.pool, id).await?;
+    let before = servers::get_server(&state.pool, id).await?;
 
     let update = UpdateServer {
         name: input.name,
@@ -550,27 +525,30 @@ async fn update_server(
     let mut entry = NewAuditEntry::new("server.updated")
         .user(me)
         .client_ip(Some(client_ip(&headers)))
-        .target("server", id, "");
+        .target("server", id, update.name.as_deref().unwrap_or(&before.name));
     if let Some(record) = update.record_sessions {
         // Turning recording on or off is worth seeing in the log
         entry = entry.details(json!({ "record_sessions": record }));
     }
     crate::audit::record(&state.pool, entry);
 
-    Ok(Json(json!({
-        "id": id,
-        "message": "Server updated successfully"
-    })))
+    Ok(Json(IdMessage::new(id, "Server updated successfully")))
 }
 
 /// Delete a server
+#[utoipa::path(delete, path = "/{id}", tag = "servers", params(("id" = i64, Path)),
+    responses(
+        (status = 200, body = IdMessage),
+        (status = 202, description = "Held for the owner's approval (a token set to ask first)"),
+        (status = 404, body = ErrorBody),
+    ))]
 #[instrument(skip(state))]
 async fn delete_server(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<IdMessage>, ApiError> {
     info!(id = id, "Deleting server");
 
     let name = servers::delete_server(&state.pool, id).await?;
@@ -584,32 +562,21 @@ async fn delete_server(
             .target("server", id, &name),
     );
 
-    Ok(Json(json!({
-        "id": id,
-        "message": "Server deleted successfully"
-    })))
-}
-
-/// Import input: a pasted `ssh_config`, and what every created server gets.
-#[derive(Debug, Deserialize)]
-struct ImportInput {
-    config: String,
-    #[serde(default)]
-    credential_id: Option<i64>,
-    #[serde(default)]
-    tags: Vec<String>,
+    Ok(Json(IdMessage::new(id, "Server deleted successfully")))
 }
 
 /// Create servers from the `Host` blocks of an `ssh_config`. Names that already exist are
 /// skipped; `ProxyJump` becomes `via_server_id` when its first hop names a created or existing
 /// server (by name, else by hostname). Nothing is connected to.
+#[utoipa::path(post, path = "/import", tag = "servers", request_body = ImportServers,
+    responses((status = 200, body = ImportResult), (status = 400, body = ErrorBody)))]
 #[instrument(skip(state, input))]
 async fn import_servers(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
-    Json(input): Json<ImportInput>,
-) -> Result<impl IntoResponse, ApiError> {
+    Json(input): Json<ImportServers>,
+) -> Result<Json<ImportResult>, ApiError> {
     if input.config.len() > 256 * 1024 {
         return Err(ApiError::bad_request(
             "That is more than 256 KiB of ssh_config",
@@ -633,11 +600,14 @@ async fn import_servers(
     }
 
     let mut existing = servers::list_servers(&state.pool).await?;
-    let mut created: Vec<serde_json::Value> = Vec::new();
-    let mut skipped: Vec<serde_json::Value> = parsed
+    let mut created: Vec<ImportedServer> = Vec::new();
+    let mut skipped: Vec<ImportSkipped> = parsed
         .skipped
         .iter()
-        .map(|(what, why)| json!({ "name": what, "reason": why }))
+        .map(|(what, why)| ImportSkipped {
+            name: what.to_string(),
+            reason: why.to_string(),
+        })
         .collect();
     let mut notes: Vec<String> = Vec::new();
     // (new server id, ProxyJump hop) to resolve once everything exists
@@ -645,7 +615,10 @@ async fn import_servers(
 
     for host in &parsed.hosts {
         if existing.iter().any(|s| s.name == host.alias) {
-            skipped.push(json!({ "name": host.alias, "reason": "a server with that name exists" }));
+            skipped.push(ImportSkipped {
+                name: host.alias.clone(),
+                reason: "a server with that name exists".to_string(),
+            });
             continue;
         }
         let create = CreateServer {
@@ -663,13 +636,20 @@ async fn import_servers(
         };
         match servers::create_server(&state.pool, &create).await {
             Ok(id) => {
-                created.push(json!({ "id": id, "name": host.alias, "hostname": host.hostname }));
+                created.push(ImportedServer {
+                    id,
+                    name: host.alias.clone(),
+                    hostname: host.hostname.clone(),
+                });
                 if let Some(hop) = &host.proxy_jump {
                     jumps.push((id, host.alias.clone(), hop.clone()));
                 }
                 existing.push(servers::get_server(&state.pool, id).await?);
             }
-            Err(e) => skipped.push(json!({ "name": host.alias, "reason": e.to_string() })),
+            Err(e) => skipped.push(ImportSkipped {
+                name: host.alias.clone(),
+                reason: e.to_string(),
+            }),
         }
     }
 
@@ -705,21 +685,26 @@ async fn import_servers(
             .user(me)
             .client_ip(Some(client_ip(&headers)))
             .details(json!({
-                "created": created.iter().filter_map(|c| c["name"].as_str()).collect::<Vec<_>>(),
+                "created": created.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
                 "skipped": skipped.len(),
             })),
     );
-    Ok(Json(
-        json!({ "created": created, "skipped": skipped, "notes": notes }),
-    ))
+    Ok(Json(ImportResult {
+        created,
+        skipped,
+        notes,
+    }))
 }
 
-/// Test server SSH connection
+/// Test server SSH connection. Always 200: `success` says how it went, and a failure carries
+/// the error's `code` and `details` (the fingerprint to confirm, on first contact).
+#[utoipa::path(post, path = "/{id}/test", tag = "servers", params(("id" = i64, Path)),
+    responses((status = 200, body = ConnectionTest), (status = 404, body = ErrorBody)))]
 #[instrument(skip(state))]
 async fn test_connection(
     State(state): State<AppState>,
     Path(id): Path<i64>,
-) -> Result<impl IntoResponse, ApiError> {
+) -> Result<Json<ConnectionTest>, ApiError> {
     info!(id = id, "Testing server connection");
 
     let server = servers::get_server(&state.pool, id).await?;
@@ -774,14 +759,16 @@ async fn test_connection(
                 warn!(id, error = %e, "Failed to record test result");
             }
 
-            Ok(Json(json!({
-                "success": true,
-                "message": output,
-                "server_id": id,
-                "hostname": server.hostname,
-                "port": server.port,
-                "latency_ms": elapsed.as_millis()
-            })))
+            Ok(Json(ConnectionTest {
+                success: true,
+                message: output,
+                code: None,
+                details: None,
+                server_id: id,
+                hostname: server.hostname,
+                port: server.port,
+                latency_ms: elapsed.as_millis() as u64,
+            }))
         }
         Err(e) => {
             let elapsed = started.elapsed();
@@ -815,16 +802,16 @@ async fn test_connection(
                 warn!(id, error = %db, "Failed to record test failure");
             }
 
-            Ok(Json(json!({
-                "success": false,
-                "message": api_err.message,
-                "code": api_err.code,
-                "details": api_err.details,
-                "server_id": id,
-                "hostname": server.hostname,
-                "port": server.port,
-                "latency_ms": elapsed.as_millis()
-            })))
+            Ok(Json(ConnectionTest {
+                success: false,
+                message: api_err.message,
+                code: Some(api_err.code.to_string()),
+                details: Some(api_err.details),
+                server_id: id,
+                hostname: server.hostname,
+                port: server.port,
+                latency_ms: elapsed.as_millis() as u64,
+            }))
         }
     }
 }
