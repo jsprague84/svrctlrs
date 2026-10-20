@@ -32,8 +32,8 @@ unreachable. Servers and credentials are named by id or name. `svrctl <cmd> --he
      machine (Docker NAT), not from you: "works from my laptop" proves nothing. Fix the
      server entry (`svrctl server edit X --host … --port …`) or the host.
    - `host_key` first contact: get the real fingerprint **over a path you trust** (your own
-     SSH to the host: `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`), compare with the one
-     in `fix`, and only if equal: `svrctl trust X --fingerprint SHA256:…`.
+     access to the host: the SHA256 fingerprint of its /etc/ssh/ssh_host_ed25519_key.pub),
+     compare with the one in `fix`, and only if equal: `svrctl trust X --fingerprint SHA256:…`.
    - `host_key` mismatch: stop. Find out why the key changed (reinstall?) and tell the owner;
      only then `svrctl forget-keys X` and trust the new key.
    - `login`: the credential is wrong or the key is not installed. Install a stored key with
@@ -49,7 +49,7 @@ svrctl onboard --name lab-02 --host 10.0.0.12 --credential "lab password" [--use
 #   stops (exit 3) with the host key fingerprint: compare it yourself, then repeat with
 #   --fingerprint SHA256:… ; it then switches the server to a key generated on svrctlrs
 svrctl rotate-key X --dry-run                 # then without --dry-run
-svrctl import ~/.ssh/config --tag imported    # or - for stdin; --credential "<cred>" for all
+svrctl import hosts.ssh_config --tag imported # a file the owner gave you, or - for stdin
 svrctl tag prod web-01 web-02                 # add; --remove to take off
 svrctl server add --name N --host H [--user U] [--credential C] [--via JUMP]
 svrctl server edit X --credential "<cred>"    # --via none, --tags a,b, --disable …

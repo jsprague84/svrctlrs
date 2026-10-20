@@ -41,7 +41,7 @@ Examples:
   svrctl onboard --name lab-02 --host 10.0.0.12 --credential 'lab password'
   svrctl onboard --name lab-02 --host 10.0.0.12 --credential 'lab password' --fingerprint SHA256:…
   svrctl rotate-key web-01 --dry-run
-  svrctl import ~/.ssh/config --tag imported
+  svrctl import hosts.ssh_config --tag imported
   svrctl tag prod web-01 web-02                   # --remove to take it off
   svrctl server rm old-box --wait                 # waits for the owner's approval if needed
 
