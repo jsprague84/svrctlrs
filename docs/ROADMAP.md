@@ -14,6 +14,9 @@ the in-process SSH test server, session recording, predictive echo and preferenc
 account (items 7–12). **3.3.0 released 2026-10-19**: quick-command variables, `svrctl
 reset-password`, `linux/arm64` images (items 13–14), and agent access: tokens with presets and
 approvals for the deletes that cannot be undone (items 15–16).
+**3.4.0 released 2026-10-19**: the OpenAPI document and typed responses, diagnose, exec,
+onboard and rotate-key, and `svrctl` as the agent CLI with its skill and a Hermes eval
+(items 17–19): agent access is done.
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an

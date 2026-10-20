@@ -5,6 +5,18 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-10-19
+
+The "agents, part two" release: your agents can now find out why a server cannot be reached
+and fix it. **Diagnose** (on the Servers page, and for agents) walks the connection step by
+step from where svrctlrs runs — name lookup, TCP or the jump host's tunnel, handshake, host
+key, login — and says what to do about the step that fails. **Rotate key** replaces a
+server's key in one go. `svrctl` becomes a command line made for agents (JSON when piped,
+stable exit codes, hints in errors, `onboard`, `exec`, `--wait` for approvals), with a skill
+file Hermes and Claude Code load; both Hermes profiles passed a five-task eval with it. The
+API is described by an OpenAPI document generated from the code. Upgrading needs nothing from
+you: no migrations.
+
 ### Added
 - **The API's OpenAPI 3.1 document**: `GET /api/v1/openapi.json` (any signed-in user or
   token) and `docs/openapi.json`, generated from the handlers, so it lists every route with

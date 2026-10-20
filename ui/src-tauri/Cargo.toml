@@ -1,6 +1,6 @@
 [package]
 name = "svrctlrs-desktop"
-version = "3.3.0"
+version = "3.4.0"
 description = "SvrCtlRS Desktop — Terminal/SSH management tool"
 authors = ["Johnathon Sprague"]
 license = "MIT"
