@@ -1,31 +1,38 @@
 //! Notification API endpoints
 
-use axum::{extract::State, response::IntoResponse, routing::post, Json};
-use serde_json::json;
+use axum::{extract::State, Json};
+use svrctlrs_api::notifications::{ApprovalChannelTest, NotificationTest};
+use svrctlrs_api::{ErrorBody, Message};
 use svrctlrs_core::notifications::NotificationClient;
 use svrctlrs_database::queries::settings;
 use tracing::{info, instrument};
 
 use super::ApiError;
 use crate::state::AppState;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 /// Create notifications router
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
-        .route("/test", post(test_notification))
-        .route("/test-approval", post(test_approval_channel))
+        .routes(routes!(test_notification))
+        .routes(routes!(test_approval_channel))
 }
 
 /// Send a sample approval request through the approval channel, as saved or as the form has
 /// it (an empty secret means the saved one).
+#[utoipa::path(post, path = "/test-approval", tag = "notifications",
+    request_body(content = Option<ApprovalChannelTest>),
+    responses(
+        (status = 200, body = Message),
+        (status = 400, description = "Not configured, or the channel refused", body = ErrorBody),
+    ))]
 #[instrument(skip(state, headers, body))]
 async fn test_approval_channel(
     State(state): State<AppState>,
     crate::routes::ui::auth::CurrentUser(me): crate::routes::ui::auth::CurrentUser,
     headers: axum::http::HeaderMap,
-    body: Option<Json<crate::approvals::ChannelOverride>>,
-) -> Result<impl IntoResponse, ApiError> {
+    body: Option<Json<ApprovalChannelTest>>,
+) -> Result<Json<Message>, ApiError> {
     let now = chrono::Utc::now();
     let sample = svrctlrs_database::models::Approval {
         id: "test".into(),
@@ -56,28 +63,25 @@ async fn test_approval_channel(
         Ok("none") => Err(ApiError::bad_request(
             "The approval channel is None: requests are only in the caller's answer",
         )),
-        Ok(channel) => Ok(Json(
-            json!({ "message": format!("Test request sent via {channel}") }),
-        )),
+        Ok(channel) => Ok(Json(Message::new(format!(
+            "Test request sent via {channel}"
+        )))),
         Err(e) => Err(ApiError::bad_request(e.to_string())),
     }
 }
 
-/// Optional unsaved values to test with (`POST /notifications/test`)
-#[derive(Debug, Default, serde::Deserialize)]
-struct TestInput {
-    provider: Option<String>,
-    url: Option<String>,
-    token: Option<String>,
-    topic: Option<String>,
-}
-
 /// Send a test notification to verify configuration
+#[utoipa::path(post, path = "/test", tag = "notifications",
+    request_body(content = Option<NotificationTest>),
+    responses(
+        (status = 200, body = Message),
+        (status = 400, description = "Not configured", body = ErrorBody),
+    ))]
 #[instrument(skip(state))]
 async fn test_notification(
     State(state): State<AppState>,
-    body: Option<Json<TestInput>>,
-) -> Result<impl IntoResponse, ApiError> {
+    body: Option<Json<NotificationTest>>,
+) -> Result<Json<Message>, ApiError> {
     info!("Sending test notification");
 
     let mut config = settings::get_notification_config(&state.pool).await?;
@@ -109,7 +113,5 @@ async fn test_notification(
     let client = NotificationClient::new(config);
     client.send_test().await?;
 
-    Ok(Json(json!({
-        "message": "Test notification sent successfully"
-    })))
+    Ok(Json(Message::new("Test notification sent successfully")))
 }

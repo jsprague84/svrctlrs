@@ -22,3 +22,33 @@ pub struct ErrorDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<serde_json::Value>,
 }
+
+/// `{ "message": "…" }`
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct Message {
+    pub message: String,
+}
+
+impl Message {
+    pub fn new(message: impl Into<String>) -> Self {
+        Self {
+            message: message.into(),
+        }
+    }
+}
+
+/// `{ "id": 3, "message": "…" }`: what a create, update or delete of a numbered row answers.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct IdMessage {
+    pub id: i64,
+    pub message: String,
+}
+
+impl IdMessage {
+    pub fn new(id: i64, message: impl Into<String>) -> Self {
+        Self {
+            id,
+            message: message.into(),
+        }
+    }
+}

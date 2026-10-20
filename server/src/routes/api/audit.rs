@@ -2,46 +2,46 @@
 
 use axum::{
     extract::{Query, State},
-    response::IntoResponse,
-    routing::get,
     Json,
 };
-use serde::Deserialize;
-use serde_json::json;
+use svrctlrs_api::audit::{AuditEntry, AuditPage, AuditQuery};
 use svrctlrs_database::queries::audit;
 use tracing::instrument;
 
 use super::ApiError;
 use crate::state::AppState;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 pub fn routes() -> OpenApiRouter<AppState> {
-    OpenApiRouter::new().route("/", get(list_audit))
+    OpenApiRouter::new().routes(routes!(list_audit))
 }
 
-#[derive(Debug, Deserialize)]
-struct AuditQuery {
-    #[serde(default = "default_limit")]
-    limit: i64,
-    before: Option<i64>,
-    /// Comma-separated action prefixes, e.g. `login,session.`
-    action: Option<String>,
-    user_id: Option<i64>,
-    /// Free-text search over action, target, details, user and address
-    q: Option<String>,
+fn entry(e: svrctlrs_database::models::AuditEntry) -> AuditEntry {
+    AuditEntry {
+        id: e.id,
+        at: e.at,
+        user_id: e.user_id,
+        username: e.username,
+        client_ip: e.client_ip,
+        action: e.action,
+        target_type: e.target_type,
+        target_id: e.target_id,
+        target_name: e.target_name,
+        details: e.details,
+        token_id: e.token_id,
+        token_name: e.token_name,
+    }
 }
 
-fn default_limit() -> i64 {
-    100
-}
-
-/// Newest first; `next_before` is the cursor for the following page, absent on the last one.
+/// Newest first; `next_before` is the cursor for the following page, null on the last one.
+#[utoipa::path(get, path = "/", tag = "audit", params(AuditQuery),
+    responses((status = 200, body = AuditPage)))]
 #[instrument(skip(state))]
 async fn list_audit(
     State(state): State<AppState>,
     Query(q): Query<AuditQuery>,
-) -> Result<impl IntoResponse, ApiError> {
-    let limit = q.limit.clamp(1, 500);
+) -> Result<Json<AuditPage>, ApiError> {
+    let limit = q.limit.unwrap_or(100).clamp(1, 500);
     let filter = audit::AuditFilter {
         action_prefixes: q
             .action
@@ -57,7 +57,8 @@ async fn list_audit(
     } else {
         None
     };
-    Ok(Json(
-        json!({ "entries": entries, "next_before": next_before }),
-    ))
+    Ok(Json(AuditPage {
+        entries: entries.into_iter().map(entry).collect(),
+        next_before,
+    }))
 }

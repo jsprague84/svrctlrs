@@ -254,14 +254,7 @@ fn escape_html(s: &str) -> String {
 }
 
 /// Channel settings, saved or (for a test) as the form has them.
-#[derive(Debug, Default, Clone, serde::Deserialize)]
-pub struct ChannelOverride {
-    pub channel: Option<String>,
-    pub webhook_url: Option<String>,
-    pub matrix_homeserver: Option<String>,
-    pub matrix_room: Option<String>,
-    pub matrix_token: Option<String>,
-}
+pub type ChannelOverride = svrctlrs_api::notifications::ApprovalChannelTest;
 
 /// Send the request's link through the configured channel. `overrides` replace saved values
 /// (for a test from the settings form); an empty secret means "the saved one".

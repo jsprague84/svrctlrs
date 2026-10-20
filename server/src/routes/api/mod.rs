@@ -28,13 +28,14 @@ pub mod settings;
 pub mod tokens;
 pub mod users;
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::json;
 use tracing::{debug, instrument};
 
 use crate::state::AppState;
-use utoipa_axum::router::OpenApiRouter;
+use svrctlrs_api::system::{Health, Status, StatusResources};
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 /// Deserialize an optional field so that *absent* and *null* are distinguishable:
 /// `None` when the key is missing, `Some(None)` for `null`, `Some(Some(v))` for a value.
@@ -204,9 +205,9 @@ impl From<anyhow::Error> for ApiError {
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         // System endpoints
-        .route("/health", get(health_check))
-        .route("/status", get(server_status))
-        .route("/openapi.json", get(openapi_document))
+        .routes(routes!(health_check))
+        .routes(routes!(server_status))
+        .routes(routes!(openapi_document))
         // Resource endpoints
         .nest("/servers", servers::routes())
         .nest("/credentials", credentials::routes())
@@ -224,6 +225,8 @@ pub fn routes() -> OpenApiRouter<AppState> {
 
 /// The OpenAPI document of this server's API (the same as `docs/openapi.json` in its
 /// source).
+#[utoipa::path(get, path = "/openapi.json", tag = "system",
+    responses((status = 200, description = "This document")))]
 async fn openapi_document() -> Json<serde_json::Value> {
     static DOC: std::sync::OnceLock<serde_json::Value> = std::sync::OnceLock::new();
     Json(
@@ -235,8 +238,13 @@ async fn openapi_document() -> Json<serde_json::Value> {
 /// Health check endpoint. Unauthenticated, so it reveals only version and revision; it does
 /// touch the database, so a broken volume turns the container unhealthy (503) and the deploy
 /// script and compose healthcheck notice.
+#[utoipa::path(get, path = "/health", tag = "system", security(()),
+    responses(
+        (status = 200, description = "Up, database reachable", body = Health),
+        (status = 503, description = "The database is unreachable", body = Health),
+    ))]
 #[instrument(skip(state))]
-async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
+async fn health_check(State(state): State<AppState>) -> (StatusCode, Json<Health>) {
     debug!("Health check requested");
     let database = match svrctlrs_database::sqlx::query("SELECT 1")
         .execute(&state.pool)
@@ -255,20 +263,22 @@ async fn health_check(State(state): State<AppState>) -> impl IntoResponse {
     };
     (
         status,
-        Json(json!({
-            "status": if database == "ok" { "ok" } else { "degraded" },
-            "database": database,
-            "service": "svrctlrs",
-            "version": env!("CARGO_PKG_VERSION"),
+        Json(Health {
+            status: if database == "ok" { "ok" } else { "degraded" }.to_string(),
+            database: database.to_string(),
+            service: "svrctlrs".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
             // Baked into the container image by CI; lets a deploy prove which commit is running.
-            "revision": std::env::var("SVRCTLRS_REVISION").unwrap_or_else(|_| "unknown".to_string())
-        })),
+            revision: std::env::var("SVRCTLRS_REVISION").unwrap_or_else(|_| "unknown".to_string()),
+        }),
     )
 }
 
 /// Server status endpoint
+#[utoipa::path(get, path = "/status", tag = "system",
+    responses((status = 200, body = Status)))]
 #[instrument(skip(state))]
-async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
+async fn server_status(State(state): State<AppState>) -> Json<Status> {
     use svrctlrs_database::queries;
 
     let server_count = queries::servers::list_servers(&state.pool)
@@ -276,13 +286,13 @@ async fn server_status(State(state): State<AppState>) -> impl IntoResponse {
         .map(|s| s.len())
         .unwrap_or(0);
 
-    Json(json!({
-        "status": "running",
-        "version": env!("CARGO_PKG_VERSION"),
-        "resources": {
-            "servers": server_count
-        }
-    }))
+    Json(Status {
+        status: "running".to_string(),
+        version: env!("CARGO_PKG_VERSION").to_string(),
+        resources: StatusResources {
+            servers: server_count,
+        },
+    })
 }
 
 #[cfg(test)]

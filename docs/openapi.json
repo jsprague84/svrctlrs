@@ -11,9 +11,443 @@
     },
     "version": "3.3.0"
   },
-  "paths": {},
+  "paths": {
+    "/api/v1/audit": {
+      "get": {
+        "tags": [
+          "audit"
+        ],
+        "summary": "Newest first; `next_before` is the cursor for the following page, null on the last one.",
+        "operationId": "list_audit",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "1–500, default 100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "description": "The `next_before` of the previous page",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "description": "Comma-separated action prefixes, e.g. `login,session.`",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "description": "Case-insensitive text in the action, target, details, user, address or token name",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Health check endpoint. Unauthenticated, so it reveals only version and revision; it does\ntouch the database, so a broken volume turns the container unhealthy (503) and the deploy\nscript and compose healthcheck notice.",
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "description": "Up, database reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database is unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/api/v1/notifications/test": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Send a test notification to verify configuration",
+        "operationId": "test_notification",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/NotificationTest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/test-approval": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Send a sample approval request through the approval channel, as saved or as the form has\nit (an empty secret means the saved one).",
+        "operationId": "test_approval_channel",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/ApprovalChannelTest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Not configured, or the channel refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/openapi.json": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "The OpenAPI document of this server's API (the same as `docs/openapi.json` in its\nsource).",
+        "operationId": "openapi_document",
+        "responses": {
+          "200": {
+            "description": "This document"
+          }
+        }
+      }
+    },
+    "/api/v1/sessions": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "The caller's live shells, attached or waiting to be resumed.",
+        "operationId": "list_sessions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{id}": {
+      "delete": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "End the shell behind a session, attached or not.",
+        "operationId": "close_session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Session id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionClosed"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/status": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Server status endpoint",
+        "operationId": "server_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "components": {
     "schemas": {
+      "ApprovalChannelTest": {
+        "type": "object",
+        "description": "`POST /notifications/test-approval`: where approval requests would go, unsaved; an empty\nsecret is the saved one.",
+        "properties": {
+          "channel": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`push`, `webhook`, `matrix` or `none`"
+          },
+          "webhook_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "matrix_homeserver": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "matrix_room": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "matrix_token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "AuditEntry": {
+        "type": "object",
+        "description": "One thing someone did. Entries never hold secrets and outlive deleted users.",
+        "required": [
+          "id",
+          "at",
+          "action"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "user_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The account's current name while it exists, else the name at the time"
+          },
+          "client_ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "action": {
+            "type": "string",
+            "description": "`login`, `server.created`, `session.pty_opened`, `token.created`, …"
+          },
+          "target_type": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "target_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "target_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "details": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A JSON object, as a string"
+          },
+          "token_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "The API token the request came in with"
+          },
+          "token_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "That token's name at the time"
+          }
+        }
+      },
+      "AuditPage": {
+        "type": "object",
+        "description": "One page of the log, newest first.",
+        "required": [
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditEntry"
+            }
+          },
+          "next_before": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Pass as `before` for the next page; null on the last one"
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "description": "Every error: `{ \"success\": false, \"error\": { \"code\", \"message\", \"details\"? } }`.",
@@ -47,6 +481,197 @@
           },
           "details": {
             "description": "Extras a client can act on (for example the fingerprint of an unconfirmed host key)"
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "description": "`GET /health`: unauthenticated; 503 with `status: degraded` when the database is down.",
+        "required": [
+          "status",
+          "database",
+          "service",
+          "version",
+          "revision"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "`ok` or `degraded`"
+          },
+          "database": {
+            "type": "string",
+            "description": "`ok` or `error`"
+          },
+          "service": {
+            "type": "string",
+            "description": "Always `svrctlrs`"
+          },
+          "version": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string",
+            "description": "The git commit the image was built from; `unknown` outside CI builds"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "description": "`{ \"message\": \"…\" }`",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "NotificationTest": {
+        "type": "object",
+        "description": "`POST /notifications/test`: values from the form, unsaved; absent ones are the saved\nsettings, and an empty token is the saved token.",
+        "properties": {
+          "provider": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`gotify` or `ntfy`"
+          },
+          "url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "topic": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "SessionClosed": {
+        "type": "object",
+        "description": "`DELETE /sessions/{id}`",
+        "required": [
+          "id",
+          "message"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "SessionList": {
+        "type": "object",
+        "description": "`GET /sessions`",
+        "required": [
+          "sessions",
+          "detach_ttl_secs"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SessionSummary"
+            }
+          },
+          "detach_ttl_secs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How long a shell with nobody attached is kept",
+            "minimum": 0
+          }
+        }
+      },
+      "SessionSummary": {
+        "type": "object",
+        "description": "A shell the server holds for the caller, attached or not.",
+        "required": [
+          "id",
+          "server_id",
+          "server_name",
+          "created_at",
+          "attachments",
+          "latest_seq",
+          "recorded"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "server_name": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "attachments": {
+            "type": "integer",
+            "description": "Sockets showing it now",
+            "minimum": 0
+          },
+          "latest_seq": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The newest output sequence number",
+            "minimum": 0
+          },
+          "recorded": {
+            "type": "boolean",
+            "description": "Its output is being recorded"
+          }
+        }
+      },
+      "Status": {
+        "type": "object",
+        "description": "`GET /status`",
+        "required": [
+          "status",
+          "version",
+          "resources"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Always `running`"
+          },
+          "version": {
+            "type": "string"
+          },
+          "resources": {
+            "$ref": "#/components/schemas/StatusResources"
+          }
+        }
+      },
+      "StatusResources": {
+        "type": "object",
+        "required": [
+          "servers"
+        ],
+        "properties": {
+          "servers": {
+            "type": "integer",
+            "description": "How many servers are configured",
+            "minimum": 0
           }
         }
       }
