@@ -44,6 +44,7 @@ FROM base AS planner
 
 # Copy entire workspace to analyze dependencies
 COPY Cargo.toml Cargo.lock ./
+COPY api ./api
 COPY core ./core
 COPY server ./server
 COPY database ./database
@@ -93,6 +94,7 @@ RUN --mount=type=cache,id=cargo-registry-$TARGETARCH,target=/usr/local/cargo/reg
 
 # Copy source code (invalidates cache only when source changes)
 COPY Cargo.toml Cargo.lock ./
+COPY api ./api
 COPY core ./core
 COPY server ./server
 COPY database ./database
