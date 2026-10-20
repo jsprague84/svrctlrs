@@ -1398,6 +1398,363 @@
         }
       }
     },
+    "/api/v1/servers/{id}/files": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "List a directory on the server",
+        "operationId": "list",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Listing"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Host key not confirmed yet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Delete a file, or an empty directory. Nothing recursive: that belongs in the shell.",
+        "operationId": "remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Deleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The directory is not empty",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}/files/content": {
+      "get": {
+        "tags": [
+          "files"
+        ],
+        "summary": "The file's bytes, streamed, as a download.",
+        "operationId": "download",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Create or overwrite a file with the request body, streamed.",
+        "operationId": "upload",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/octet-stream": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "format": "int32",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Uploaded"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}/files/mkdir": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Make a folder",
+        "operationId": "mkdir",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewFolder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FolderCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/servers/{id}/files/rename": {
+      "post": {
+        "tags": [
+          "files"
+        ],
+        "summary": "Rename or move; an existing destination is a 409",
+        "operationId": "rename",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Rename"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Renamed"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The destination exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/servers/{id}/host-keys": {
       "get": {
         "tags": [
@@ -2512,6 +2869,73 @@
           }
         }
       },
+      "Deleted": {
+        "type": "object",
+        "required": [
+          "path",
+          "kind",
+          "message"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`file` or `dir`"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "Entry": {
+        "type": "object",
+        "description": "One directory entry.",
+        "required": [
+          "name",
+          "kind",
+          "size",
+          "mode"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "description": "`dir`, `file`, `symlink` or `other`"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "modified": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "RFC 3339, when the server reported a modification time"
+          },
+          "mode": {
+            "type": "string",
+            "description": "`rwxr-xr-x`"
+          },
+          "owner": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "ErrorBody": {
         "type": "object",
         "description": "Every error: `{ \"success\": false, \"error\": { \"code\", \"message\", \"details\"? } }`.",
@@ -2545,6 +2969,21 @@
           },
           "details": {
             "description": "Extras a client can act on (for example the fingerprint of an unconfirmed host key)"
+          }
+        }
+      },
+      "FolderCreated": {
+        "type": "object",
+        "required": [
+          "path",
+          "message"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
           }
         }
       },
@@ -2858,6 +3297,38 @@
           }
         }
       },
+      "Listing": {
+        "type": "object",
+        "description": "`GET /servers/{id}/files`: directories first, then names ignoring case.",
+        "required": [
+          "server_id",
+          "path",
+          "entries"
+        ],
+        "properties": {
+          "server_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "path": {
+            "type": "string",
+            "description": "The directory listed, resolved (home is shown as its real path)"
+          },
+          "parent": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Null at `/`"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Entry"
+            }
+          }
+        }
+      },
       "Message": {
         "type": "object",
         "description": "`{ \"message\": \"…\" }`",
@@ -2908,6 +3379,18 @@
               "null"
             ],
             "description": "Passphrase of an encrypted SSH key"
+          }
+        }
+      },
+      "NewFolder": {
+        "type": "object",
+        "description": "`POST /servers/{id}/files/mkdir`",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
           }
         }
       },
@@ -3522,6 +4005,41 @@
           }
         }
       },
+      "Rename": {
+        "type": "object",
+        "description": "`POST /servers/{id}/files/rename`; never overwrites",
+        "required": [
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        }
+      },
+      "Renamed": {
+        "type": "object",
+        "required": [
+          "from",
+          "to",
+          "message"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "Server": {
         "type": "object",
         "description": "An SSH target.",
@@ -3987,6 +4505,27 @@
           "fingerprint": {
             "type": "string",
             "description": "The fingerprint you compared with `ssh-keygen -lf` on the host"
+          }
+        }
+      },
+      "Uploaded": {
+        "type": "object",
+        "required": [
+          "path",
+          "bytes",
+          "message"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "message": {
+            "type": "string"
           }
         }
       },

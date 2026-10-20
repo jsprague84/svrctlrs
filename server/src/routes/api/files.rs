@@ -13,14 +13,17 @@ use axum::{
     body::Body,
     extract::{DefaultBodyLimit, Path, Query, State},
     http::{header, HeaderMap, HeaderValue},
-    response::{IntoResponse, Response},
-    routing::{get, post},
+    response::Response,
     Json,
 };
 use russh_sftp::client::SftpSession;
 use russh_sftp::protocol::{FileType, StatusCode as SftpStatus};
-use serde::{Deserialize, Serialize};
 use serde_json::json;
+pub use svrctlrs_api::files::Entry;
+use svrctlrs_api::files::{
+    Deleted, FolderCreated, Listing, NewFolder, PathQuery, Rename, Renamed, Uploaded,
+};
+use svrctlrs_api::ErrorBody;
 use svrctlrs_database::models::{NewAuditEntry, Server};
 use svrctlrs_database::queries;
 use tokio_util::io::{ReaderStream, StreamReader};
@@ -29,7 +32,7 @@ use tracing::{info, instrument, warn};
 use super::ApiError;
 use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
-use utoipa_axum::router::OpenApiRouter;
+use utoipa_axum::{router::OpenApiRouter, routes};
 
 type ApiResult<T> = Result<T, ApiError>;
 
@@ -39,35 +42,11 @@ const MAX_UPLOAD_BYTES: usize = 4 * 1024 * 1024 * 1024;
 /// Full paths: this router is merged beside the API router, outside its request timeout.
 pub fn routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
-        .route("/api/v1/servers/{id}/files", get(list).delete(remove))
-        .route(
-            "/api/v1/servers/{id}/files/content",
-            get(download).put(upload),
-        )
-        .route("/api/v1/servers/{id}/files/mkdir", post(mkdir))
-        .route("/api/v1/servers/{id}/files/rename", post(rename))
+        .routes(routes!(list, remove))
+        .routes(routes!(download, upload))
+        .routes(routes!(mkdir))
+        .routes(routes!(rename))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_BYTES))
-}
-
-#[derive(Debug, Deserialize)]
-struct PathQuery {
-    /// Absolute remote path; empty or missing means the login's home directory
-    #[serde(default)]
-    path: String,
-}
-
-#[derive(Debug, Serialize, PartialEq, Eq)]
-pub struct Entry {
-    pub name: String,
-    /// `dir`, `file`, `symlink` or `other`
-    pub kind: &'static str,
-    pub size: u64,
-    /// RFC 3339, when the server reported a modification time
-    pub modified: Option<String>,
-    /// `rwxr-xr-x`
-    pub mode: String,
-    pub owner: Option<String>,
-    pub group: Option<String>,
 }
 
 /// Reject what the SFTP server would mishandle before any connection is made: relative
@@ -253,13 +232,22 @@ fn audit(
     );
 }
 
+/// List a directory on the server
+#[utoipa::path(get, path = "/api/v1/servers/{id}/files", tag = "files",
+    params(("id" = i64, Path), PathQuery),
+    responses(
+        (status = 200, body = Listing),
+        (status = 400, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+        (status = 428, description = "Host key not confirmed yet", body = ErrorBody),
+    ))]
 #[instrument(skip(state))]
 async fn list(
     State(state): State<AppState>,
     CurrentUser(_me): CurrentUser,
     Path(id): Path<i64>,
     Query(q): Query<PathQuery>,
-) -> ApiResult<impl IntoResponse> {
+) -> ApiResult<Json<Listing>> {
     let sftp = open(&state, id).await?;
     let result = async {
         let path = resolve(&sftp, &q.path).await?;
@@ -274,7 +262,7 @@ async fn list(
                 let meta = e.metadata();
                 Entry {
                     name: e.file_name(),
-                    kind: kind_of(e.file_type()),
+                    kind: kind_of(e.file_type()).to_string(),
                     size: meta.size.unwrap_or(0),
                     modified: rfc3339(meta.mtime),
                     mode: mode_string(meta.permissions),
@@ -284,12 +272,12 @@ async fn list(
             })
             .collect();
         sort_entries(&mut entries);
-        Ok::<_, ApiError>(json!({
-            "server_id": id,
-            "path": path,
-            "parent": parent_of(&path),
-            "entries": entries,
-        }))
+        Ok::<_, ApiError>(Listing {
+            server_id: id,
+            parent: parent_of(&path),
+            path,
+            entries,
+        })
     }
     .await;
     sftp.finish().await;
@@ -297,6 +285,13 @@ async fn list(
 }
 
 /// The file's bytes, streamed, as a download.
+#[utoipa::path(get, path = "/api/v1/servers/{id}/files/content", tag = "files",
+    params(("id" = i64, Path), PathQuery),
+    responses(
+        (status = 200, description = "The file", content_type = "application/octet-stream", body = Vec<u8>),
+        (status = 400, body = ErrorBody),
+        (status = 404, body = ErrorBody),
+    ))]
 #[instrument(skip(state))]
 async fn download(
     State(state): State<AppState>,
@@ -387,6 +382,10 @@ pub fn percent_encode(name: &str) -> String {
 }
 
 /// Create or overwrite a file with the request body, streamed.
+#[utoipa::path(put, path = "/api/v1/servers/{id}/files/content", tag = "files",
+    params(("id" = i64, Path), PathQuery),
+    request_body(content = Vec<u8>, content_type = "application/octet-stream"),
+    responses((status = 200, body = Uploaded), (status = 400, body = ErrorBody)))]
 #[instrument(skip(state, body))]
 async fn upload(
     State(state): State<AppState>,
@@ -395,7 +394,7 @@ async fn upload(
     Path(id): Path<i64>,
     Query(q): Query<PathQuery>,
     body: Body,
-) -> ApiResult<impl IntoResponse> {
+) -> ApiResult<Json<Uploaded>> {
     if q.path.is_empty() {
         return Err(ApiError::bad_request("A destination file path is required"));
     }
@@ -432,9 +431,11 @@ async fn upload(
                 json!({ "path": q.path, "bytes": bytes }),
             );
             info!(server = %sftp.server.name, path = %q.path, bytes, "File uploaded");
-            Ok(Json(
-                json!({ "path": q.path, "bytes": bytes, "message": "Uploaded" }),
-            ))
+            Ok(Json(Uploaded {
+                path: q.path.clone(),
+                bytes,
+                message: "Uploaded".to_string(),
+            }))
         }
         Err(e) => Err(e),
     };
@@ -442,19 +443,18 @@ async fn upload(
     outcome
 }
 
-#[derive(Debug, Deserialize)]
-struct MkdirInput {
-    path: String,
-}
-
+/// Make a folder
+#[utoipa::path(post, path = "/api/v1/servers/{id}/files/mkdir", tag = "files",
+    params(("id" = i64, Path)), request_body = NewFolder,
+    responses((status = 200, body = FolderCreated), (status = 400, body = ErrorBody)))]
 #[instrument(skip(state))]
 async fn mkdir(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-    Json(input): Json<MkdirInput>,
-) -> ApiResult<impl IntoResponse> {
+    Json(input): Json<NewFolder>,
+) -> ApiResult<Json<FolderCreated>> {
     check_path(&input.path).map_err(ApiError::bad_request)?;
     if input.path.is_empty() {
         return Err(ApiError::bad_request("A folder path is required"));
@@ -476,23 +476,30 @@ async fn mkdir(
         );
     }
     sftp.finish().await;
-    result.map(|_| Json(json!({ "path": input.path, "message": "Folder created" })))
+    result.map(|_| {
+        Json(FolderCreated {
+            path: input.path,
+            message: "Folder created".to_string(),
+        })
+    })
 }
 
-#[derive(Debug, Deserialize)]
-struct RenameInput {
-    from: String,
-    to: String,
-}
-
+/// Rename or move; an existing destination is a 409
+#[utoipa::path(post, path = "/api/v1/servers/{id}/files/rename", tag = "files",
+    params(("id" = i64, Path)), request_body = Rename,
+    responses(
+        (status = 200, body = Renamed),
+        (status = 400, body = ErrorBody),
+        (status = 409, description = "The destination exists", body = ErrorBody),
+    ))]
 #[instrument(skip(state))]
 async fn rename(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Path(id): Path<i64>,
-    Json(input): Json<RenameInput>,
-) -> ApiResult<impl IntoResponse> {
+    Json(input): Json<Rename>,
+) -> ApiResult<Json<Renamed>> {
     for p in [&input.from, &input.to] {
         check_path(p).map_err(ApiError::bad_request)?;
         if p.is_empty() {
@@ -522,10 +529,23 @@ async fn rename(
         );
     }
     sftp.finish().await;
-    result.map(|_| Json(json!({ "from": input.from, "to": input.to, "message": "Renamed" })))
+    result.map(|_| {
+        Json(Renamed {
+            from: input.from,
+            to: input.to,
+            message: "Renamed".to_string(),
+        })
+    })
 }
 
 /// Delete a file, or an empty directory. Nothing recursive: that belongs in the shell.
+#[utoipa::path(delete, path = "/api/v1/servers/{id}/files", tag = "files",
+    params(("id" = i64, Path), PathQuery),
+    responses(
+        (status = 200, body = Deleted),
+        (status = 400, body = ErrorBody),
+        (status = 409, description = "The directory is not empty", body = ErrorBody),
+    ))]
 #[instrument(skip(state))]
 async fn remove(
     State(state): State<AppState>,
@@ -533,7 +553,7 @@ async fn remove(
     headers: HeaderMap,
     Path(id): Path<i64>,
     Query(q): Query<PathQuery>,
-) -> ApiResult<impl IntoResponse> {
+) -> ApiResult<Json<Deleted>> {
     if q.path.is_empty() {
         return Err(ApiError::bad_request("A path is required"));
     }
@@ -575,7 +595,13 @@ async fn remove(
         warn!(server = %sftp.server.name, path = %q.path, kind, "Remote path deleted");
     }
     sftp.finish().await;
-    result.map(|kind| Json(json!({ "path": q.path, "kind": kind, "message": "Deleted" })))
+    result.map(|kind| {
+        Json(Deleted {
+            path: q.path,
+            kind: kind.to_string(),
+            message: "Deleted".to_string(),
+        })
+    })
 }
 
 #[cfg(test)]
@@ -612,7 +638,7 @@ mod tests {
     fn entry(name: &str, kind: &'static str) -> Entry {
         Entry {
             name: name.into(),
-            kind,
+            kind: kind.to_string(),
             size: 0,
             modified: None,
             mode: String::new(),
