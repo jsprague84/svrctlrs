@@ -47,8 +47,9 @@ cd ui && npm run check && npm run lint && npm run test && npm run build && npm a
 (JS + typescript-eslint + eslint-plugin-svelte, Prettier-compatible) plus a Prettier check.
 Unit tests are Vitest files next to the code (`*.test.ts`); keep them for pure modules.
 
-Tests today: about 120 Rust tests across `core`, `database` and `server` (auth middleware,
-host keys, limiter, tickets, session registry and replay ring, `ssh_config` import, svrctl
+Tests today: about 175 Rust tests across `core`, `database` and `server` (auth middleware,
+API tokens and their presets, approvals, host keys, limiter, tickets, session registry and
+replay ring, `ssh_config` import, the API's response shapes and OpenAPI document, svrctl
 backup) and 167 Vitest tests in the UI, most of them for the terminal session protocol
 (`ui/src/lib/terminal/ptySession.test.ts`: attach and replay, keep-alive watchdog, reconnect
 backoff, host-key challenge, persistence, predictive echo) driven with a fake socket and fake
@@ -66,7 +67,28 @@ key and helpers to add servers and credentials and to trust recorded host keys. 
 and a jump host with a loop; `routes/terminal_pty.rs` drives the PTY driver (`open_shell`,
 `spawn_pty_driver`) through a session: startup command, input, resize, exit status, close, a
 shell through a jump host and a 300 kB burst. They take under a second and need no network
-beyond 127.0.0.1.
+beyond 127.0.0.1. The loopback server also answers exec requests (`echo X`, `exit N`), so the
+connection test's success path runs too.
+
+**API types and the OpenAPI document.** Handlers return types from the `svrctlrs-api` crate
+(`api/src/*.rs`, `Serialize + ToSchema`) and are registered with
+`OpenApiRouter::routes(routes!(…))` plus `#[utoipa::path(…)]`, so a route is routed and
+documented by the same line (`server/src/routes.rs::openapi()` assembles the document). Two
+tests guard the contract:
+
+- `server/testdata/api-shapes.json` records the JSON shape (keys and value types) of about 90
+  responses, produced through the real router (`server/src/api_shapes.rs`). A change to any
+  key or type fails the test; after a deliberate change run
+  `UPDATE_API_SHAPES=1 cargo test -p server api_shapes` and review the diff (the web UI reads
+  these responses).
+- `docs/openapi.json` must equal the generated document; regenerate with
+  `UPDATE_OPENAPI=1 cargo test -p server openapi_document`. A third test checks that every
+  route a token preset allows is in the document.
+
+A new endpoint: types in `api/src/<module>.rs`, `#[utoipa::path]` on the handler,
+`routes!(handler)` in the module's `routes()`, a line in the preset table in
+`server/src/api_tokens.rs` (or none: tokens are refused by default), a case in
+`api_shapes.rs`, then both regenerations.
 
 `scripts/dev/pty-session-e2e.py` drives the SSH and session paths end to end against a locally
 running server and a real SSH target: first-contact host-key confirmation, the connection
@@ -184,7 +206,8 @@ docker push git.js-node.cc/jsprague/<name>:latest
 1. Pick the version. 3.x is this product; 1.x/2.x tags belong to the retired platform.
 2. Set it in `Cargo.toml` (workspace), `ui/package.json` (`npm version X.Y.Z --no-git-tag-version`
    in `ui/`), `ui/src-tauri/tauri.conf.json` and `ui/src-tauri/Cargo.toml`; run
-   `cargo update --workspace` so `Cargo.lock` follows.
+   `cargo update --workspace` so `Cargo.lock` follows, and regenerate `docs/openapi.json`
+   (`UPDATE_OPENAPI=1 cargo test -p server openapi_document`), which carries the version.
 3. Add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md`; the release job uses it as notes.
 4. Commit, make sure CI is green, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
 5. The tag publishes the image, the APK and the desktop packages to the Forgejo release. The

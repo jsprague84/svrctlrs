@@ -2,6 +2,13 @@
 
 Base URL: `https://<host>/api/v1`. All bodies are JSON. Timestamps are RFC 3339 UTC.
 
+**The machine-readable reference is the OpenAPI 3.1 document**: `GET /api/v1/openapi.json`
+on a running server (any signed-in user or token) and `docs/openapi.json` in the repository,
+which a test keeps equal to what the code generates. Every route and its request and response
+types come from the handlers themselves (utoipa), and the types live in the `svrctlrs-api`
+crate (`api/`), which `svrctl` uses too. This page is the guide: what the calls are for and
+the rules around them. The terminal WebSocket is only described here.
+
 ## Authentication
 
 Every endpoint except `POST /api/v1/auth/login`, `GET /api/v1/health` and the HTML login

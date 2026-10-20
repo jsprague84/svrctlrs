@@ -31,7 +31,8 @@ Android app; those talk to a remote server over the same API.
 
 | Crate | Purpose | Key files |
 |---|---|---|
-| `core` | AES-256-GCM credential encryption, error type, notification senders | `src/encryption.rs`, `src/error.rs` |
+| `api` (`svrctlrs-api`) | the REST API's request and response types with their OpenAPI schemas; used by the server's handlers and by `svrctl` | `src/*.rs` (one module per resource) |
+| `core` | AES-256-GCM credential encryption, error type, notification senders, webhook and Matrix posting | `src/encryption.rs`, `src/error.rs`, `src/notifications.rs` |
 | `database` | sqlx models, query modules, embedded migrations | `src/models/*.rs`, `src/queries/*.rs`, `migrations/` |
 | `server` | Axum application and the `svrctl` CLI; `src/test_support/` (tests only) holds a loopback SSH server and database fixtures | `src/main.rs`, `src/routes/**`, `src/bin/svrctl.rs` |
 
@@ -60,7 +61,10 @@ does not pull in Tauri's GTK/WebKit dependencies.
    browser requests redirect to `/auth/login`; API requests get 401. The whole stack is built
    by `server/src/app.rs::router`, which `main` serves and the end-to-end tests drive.
 3. **API handlers** (`server/src/routes/api/*.rs`) validate input, call `database` queries,
-   and return JSON. Errors use the `ApiError` envelope (see `API.md`): `ApiError` implements
+   and return `svrctlrs-api` types as JSON. Each module's router is a utoipa
+   `OpenApiRouter`; `routes!(handler)` routes and documents a handler at once, and
+   `routes::openapi()` assembles the document served at `GET /api/v1/openapi.json` (and kept
+   in `docs/openapi.json`). Errors use the `ApiError` envelope (see `API.md`): `ApiError` implements
    `IntoResponse` and converts from `svrctlrs_core::Error` by kind (`NotFound` → 404,
    `Conflict` → 409, `InvalidInput` → 400, anything else a logged 500), so handlers use `?`.
 4. **The terminal WebSocket** carries a small JSON protocol (`API.md`, "WebSocket protocol");

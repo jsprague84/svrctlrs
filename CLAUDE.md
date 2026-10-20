@@ -19,6 +19,7 @@ schedulers, jobs, HTMX or Askama, it is describing the retired product.
 ## Layout
 
 ```
+api/         svrctlrs-api: the REST API's request/response types (+ OpenAPI schemas)
 core/        encryption (AES-256-GCM), error type, notification senders
 database/    sqlx models, queries, embedded migrations (migrations/ current, migrations-legacy/ frozen)
 server/      Axum app: main.rs, app.rs (the router stack), ssh.rs (the one SSH client),
@@ -54,7 +55,10 @@ CI's clippy may be older or newer than yours; green locally is not proof.
 - **Rust**: queries return `svrctlrs_core::Result` with the typed variants (`NotFound`,
   `Conflict`, `InvalidInput`, `Database(anyhow)` with `.context(..)`); API handlers return
   `Result<_, ApiError>` and use `?` on them — `ApiError` (`server/src/routes/api/mod.rs`) maps
-  the kind to 404/409/400 and logs anything else as a 500. Use its constructors
+  the kind to 404/409/400 and logs anything else as a 500. Responses and request bodies are
+  `svrctlrs-api` types (`api/src/`), never `json!`; a handler carries `#[utoipa::path]` and is
+  registered with `routes!(…)`; regenerate `docs/openapi.json` and, for a deliberate shape
+  change, `server/testdata/api-shapes.json` (DEVELOPMENT.md, "API types"). Use its constructors
   (`bad_request`, `not_found`, …) only for checks the handler makes itself;
   `#[instrument]` on handlers and queries (skip inputs that hold secrets). Register new API
   routes in `server/src/routes/api/mod.rs::routes()`, never in `main.rs`. Use

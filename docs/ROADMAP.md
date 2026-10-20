@@ -164,10 +164,17 @@ compact screens for everything below.
     self-approval refused, waiter woken, delete done and audited under the token, deny, a
     revoked token (410, nothing runs), webhook and Matrix delivery against a local listener.
     Found on the way: deleting a missing server answered 200 (now 404).
-17. **Typed responses and the OpenAPI document (utoipa).** Every handler's response becomes a
-    `Serialize + ToSchema` struct that produces exactly today's JSON (the UI depends on it),
-    one module per commit; `GET /api/v1/openapi.json` behind auth; `docs/openapi.json`
-    committed with a drift test. `svrctl` reuses the same types.
+17. ~~**Typed responses and the OpenAPI document (utoipa).**~~ Done 2026-10-19: every
+    handler returns a `svrctlrs-api` type (`api/`, `Serialize + ToSchema`; one module per
+    commit) and is registered with `routes!()` on a utoipa `OpenApiRouter`, so routing and
+    documentation are one line; `GET /api/v1/openapi.json` (every preset may read it) and
+    `docs/openapi.json` with a drift test; 67 operations. Exact JSON compatibility is checked,
+    not hoped for: `server/testdata/api-shapes.json` holds the keys and types of ~90 responses
+    recorded from the old handlers through the real router, and stayed unchanged through every
+    module. A test ties the token presets to the document. Found on the way: settings took
+    `value_type: number`, which the table refuses (now `integer`); deleting a missing
+    credential answered 200 (now 404); several audit rows had empty target names; the loopback
+    SSH test server learned `exec`. `svrctl` adopts the types with item 19.
 18. **Task-level operations.** `diagnose` (DNS → TCP → SSH handshake → host key → login, and
     the jump host, run from svrctlrs itself — the same container, address, DNS and
     credentials that fail — with a verdict and a fix per step), `exec` (one command on one

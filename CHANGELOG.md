@@ -5,6 +5,13 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Added
+- **The API's OpenAPI 3.1 document**: `GET /api/v1/openapi.json` (any signed-in user or
+  token) and `docs/openapi.json`, generated from the handlers, so it lists every route with
+  its request and response types (67 operations). The types are a crate of their own,
+  `svrctlrs-api`, shared with `svrctl`. Responses are byte-for-byte the JSON they were; a test
+  records the shape of ~90 of them and fails on any change.
+
 ### Fixed
 - `POST /api/v1/settings` accepted `value_type: number`, which the settings table refuses
   (a 500), and refused `integer`, which it accepts. It now takes `string`, `integer`,
