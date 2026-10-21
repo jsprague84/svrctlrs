@@ -276,6 +276,9 @@ enum Command {
     Restore {
         /// The copy, e.g. data/backups/svrctlrs-20261022-030000Z.db
         file: PathBuf,
+        /// Only check the copy; stage nothing (safe to run against a live server any time)
+        #[arg(long)]
+        check: bool,
         #[arg(long, env = "DATABASE_URL", default_value = "sqlite:data/svrctlrs.db")]
         database_url: String,
     },
@@ -419,9 +422,14 @@ async fn main() -> ExitCode {
                 local::handle_backup(&database_url, &dir, keep, with_key).await,
             )
         }
-        Command::Restore { file, database_url } => {
-            local_result(&out, local::handle_restore(&database_url, &file).await)
-        }
+        Command::Restore {
+            file,
+            check,
+            database_url,
+        } => local_result(
+            &out,
+            local::handle_restore(&database_url, &file, check).await,
+        ),
         Command::ResetPassword {
             username,
             password_stdin,

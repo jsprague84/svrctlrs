@@ -208,7 +208,10 @@ current key — and refuses with the reason (a different `ENCRYPTION_KEY` is the
 Then it stages the copy beside the database as `svrctlrs.db.restore`. At the next start the
 server moves the current database (with its `-wal`/`-shm`) into `before-restore-<time>/` next
 to it, puts the copy in its place, runs migrations forward and writes `backup.restored` to the
-audit log. Delete `before-restore-*` once you are happy with the result. A copy from another
+audit log. Delete `before-restore-*` once you are happy with the result.
+`svrctl restore --check FILE` runs only the checks and stages nothing; it is safe against a
+running server, so it is the way to prove now and then that a copy and the key you hold still
+go together. A copy from another
 machine: `docker cp` it into the container first. Restoring a copy whose key you no longer have
 is not possible; that is the point of the key.
 

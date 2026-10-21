@@ -424,6 +424,12 @@ async fn backup_then_restore_brings_the_data_back() {
     let (code, _) = s.local(&test_key(), &["restore", junk.to_str().unwrap()]);
     assert_ne!(code, 0);
 
+    // --check only looks
+    let (code, out) = s.local(&test_key(), &["restore", "--check", &file]);
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(out["restorable"], true);
+    assert!(!s.path().join("t.db.restore").exists());
+
     // The right key stages it; the running server is untouched until it restarts
     let (code, out) = s.local(&test_key(), &["restore", &file]);
     assert_eq!(code, 0, "{out}");

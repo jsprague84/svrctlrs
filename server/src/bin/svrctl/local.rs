@@ -127,9 +127,14 @@ pub async fn handle_backup(
     Ok(())
 }
 
-/// Check a copy and stage it for the next start (`svrctlrs_database::backup`). The running
-/// server is not touched: it swaps the copy in when it restarts.
-pub async fn handle_restore(database_url: &str, file: &Path) -> anyhow::Result<()> {
+/// Check a copy and, unless `check_only`, stage it for the next start
+/// (`svrctlrs_database::backup`). The running server is not touched: it swaps the copy in
+/// when it restarts.
+pub async fn handle_restore(
+    database_url: &str,
+    file: &Path,
+    check_only: bool,
+) -> anyhow::Result<()> {
     let key_file = key_file_for(database_url)
         .ok_or_else(|| anyhow::anyhow!("{database_url} is not a database file"))?;
     svrctlrs_core::encryption::init_existing_key(&key_file)
@@ -137,6 +142,20 @@ pub async fn handle_restore(database_url: &str, file: &Path) -> anyhow::Result<(
     let found = backup::inspect(file)
         .await
         .map_err(|e| anyhow::anyhow!(e.detail()))?;
+    if check_only {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&json!({
+                "checked": file,
+                "restorable": true,
+                "schema_version": found.schema_version,
+                "users": found.users,
+                "servers": found.servers,
+                "credentials_checked": found.credentials,
+            }))?
+        );
+        return Ok(());
+    }
     let db = backup::db_path(database_url)
         .ok_or_else(|| anyhow::anyhow!("{database_url} is not a database file"))?;
     let replaced = backup::staged_path(&db).exists();
