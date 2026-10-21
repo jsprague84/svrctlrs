@@ -9,7 +9,7 @@ PYTHON="${PYTHON:-python3}"
 WORK="$(mktemp -d)"
 trap 'kill "$SPID" 2>/dev/null; wait "$SPID" 2>/dev/null; rm -rf "$WORK"' EXIT
 
-DATABASE_URL="sqlite:$WORK/screens.db" ADMIN_USERNAME=admin ADMIN_PASSWORD=e2e-password-123456 \
+BACKUP_DIR="$WORK/backups" DATABASE_URL="sqlite:$WORK/screens.db" ADMIN_USERNAME=admin ADMIN_PASSWORD=e2e-password-123456 \
 ENCRYPTION_KEY="$($PYTHON -c 'import secrets; print(secrets.token_hex(32))')" \
 SESSION_SECURE=false SPA_DIR=ui/build RUST_LOG=warn \
 target/debug/server --addr 127.0.0.1:18082 > "$WORK/server.log" 2>&1 &

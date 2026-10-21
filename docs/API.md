@@ -207,7 +207,22 @@ Seeded keys: `notification.enabled`, `notification.provider` (`gotify` \| `ntfy`
 `notification.url`, `notification.token`, `notification.topic`,
 `notification.health_check_enabled`, `notification.health_check_interval_seconds`,
 `app.default_profile_id`, `recording.retention_days` (whole days, 0–3650, default 30; `0`
-keeps recordings until deleted; anything else is refused with 400).
+keeps recordings until deleted; anything else is refused with 400), `backup.keep` (copies kept,
+0–365, default 14; `0` turns nightly backups off) and `backup.hour` (0–23, UTC, default 3).
+
+## Backups
+
+Copies of the database the server makes every night (DEPLOYMENT.md, "Backups"). Server-wide:
+the database is one file for every account.
+
+| Method | Path | Response |
+|---|---|---|
+| GET | `/backups` | `dir` (`BACKUP_DIR`), `keep`, `hour`, `next_run` (null when nightly copies are off), `key_source` (`environment` \| `file`; copies never hold the key), `running`, `last_run` and `last_success` (attempt objects or null), `files` (`name, size_bytes, created_at`, newest first). Any token preset |
+| POST | `/backups` | writes a copy now → 201 `{file, removed}` (older copies retention removed); audited as `backup.created`. Signed in, or a full-admin token |
+
+Attempt object: `id, trigger` (`nightly` \| `manual` \| `svrctl`)`, started_at, finished_at,
+file_name, size_bytes, removed, error` (null when it wrote a copy). There is no download or
+restore over the API; `svrctl restore` does that beside the database.
 
 ## Recordings (per user)
 

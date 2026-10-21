@@ -158,6 +158,44 @@
     },
     "status": 200
   },
+  "GET /backups": {
+    "body": {
+      "dir": "string",
+      "files": [
+        {
+          "created_at": "string",
+          "name": "string",
+          "size_bytes": "integer"
+        }
+      ],
+      "hour": "integer",
+      "keep": "integer",
+      "key_source": "string",
+      "last_run": {
+        "error": "null",
+        "file_name": "string",
+        "finished_at": "string",
+        "id": "integer",
+        "removed": "integer",
+        "size_bytes": "integer",
+        "started_at": "string",
+        "trigger": "string"
+      },
+      "last_success": {
+        "error": "null",
+        "file_name": "string",
+        "finished_at": "string",
+        "id": "integer",
+        "removed": "integer",
+        "size_bytes": "integer",
+        "started_at": "string",
+        "trigger": "string"
+      },
+      "next_run": "string",
+      "running": "boolean"
+    },
+    "status": 200
+  },
   "GET /credentials": {
     "body": {
       "credentials": [
@@ -486,6 +524,17 @@
             "value_type": "string"
           }
         ],
+        "backup": [
+          {
+            "description": "string",
+            "is_set": "boolean",
+            "key": "string",
+            "secret": "boolean",
+            "updated_at": "string",
+            "value": "string",
+            "value_type": "string"
+          }
+        ],
         "notification": [
           {
             "description": "string",
@@ -648,6 +697,17 @@
       "ticket": "string"
     },
     "status": 200
+  },
+  "POST /backups": {
+    "body": {
+      "file": {
+        "created_at": "string",
+        "name": "string",
+        "size_bytes": "integer"
+      },
+      "removed": "integer"
+    },
+    "status": 201
   },
   "POST /credentials": {
     "body": {

@@ -16,6 +16,7 @@
 
 pub mod approvals;
 pub mod audit;
+pub mod backups;
 pub mod credentials;
 pub mod files;
 pub mod notifications;
@@ -212,6 +213,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .nest("/recordings", recordings::routes())
         .nest("/tokens", tokens::routes())
         .nest("/approvals", approvals::routes())
+        .nest("/backups", backups::routes())
 }
 
 /// The OpenAPI document of this server's API (the same as `docs/openapi.json` in its

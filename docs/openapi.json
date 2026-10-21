@@ -399,6 +399,53 @@
         }
       }
     },
+    "/api/v1/backups": {
+      "get": {
+        "tags": [
+          "backups"
+        ],
+        "summary": "Where copies go, when the next one runs, the last attempt and the copies that exist.",
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupStatus"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "backups"
+        ],
+        "summary": "Write a copy of the database now. Older copies beyond `backup.keep` go once it is in\nplace.",
+        "operationId": "create",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupCreated"
+                }
+              }
+            }
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/credentials": {
       "get": {
         "tags": [
@@ -3915,6 +3962,174 @@
             ],
             "format": "int64",
             "description": "… or a credential that already works on the server"
+          }
+        }
+      },
+      "BackupCreated": {
+        "type": "object",
+        "description": "`POST /backups`: the copy just written.",
+        "required": [
+          "file",
+          "removed"
+        ],
+        "properties": {
+          "file": {
+            "$ref": "#/components/schemas/BackupFile"
+          },
+          "removed": {
+            "type": "integer",
+            "description": "Older copies removed to stay within `keep`",
+            "minimum": 0
+          }
+        }
+      },
+      "BackupFile": {
+        "type": "object",
+        "description": "A copy in the backup folder.",
+        "required": [
+          "name",
+          "size_bytes",
+          "created_at"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BackupRun": {
+        "type": "object",
+        "description": "One attempt at a copy.",
+        "required": [
+          "id",
+          "trigger",
+          "started_at",
+          "finished_at",
+          "removed"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "trigger": {
+            "type": "string",
+            "description": "`nightly`, `manual` or `svrctl`"
+          },
+          "started_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "finished_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "file_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "removed": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Older copies retention removed after this one"
+          },
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why it failed; null when it wrote a copy"
+          }
+        }
+      },
+      "BackupStatus": {
+        "type": "object",
+        "description": "`GET /backups`: where copies go, when the next one runs, what happened last, and the\ncopies that exist.",
+        "required": [
+          "dir",
+          "keep",
+          "hour",
+          "key_source",
+          "running",
+          "files"
+        ],
+        "properties": {
+          "dir": {
+            "type": "string",
+            "description": "The folder on the server (`BACKUP_DIR`)"
+          },
+          "keep": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Copies kept (`backup.keep`); 0 means nightly backups are off"
+          },
+          "hour": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Hour of the day, UTC, the nightly copy runs (`backup.hour`)"
+          },
+          "next_run": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the next nightly copy is due; null when they are off"
+          },
+          "key_source": {
+            "type": "string",
+            "description": "Where the encryption key comes from: `environment` or `file`. Backups never hold it."
+          },
+          "running": {
+            "type": "boolean",
+            "description": "A copy is being written right now"
+          },
+          "last_run": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BackupRun",
+                "description": "The latest attempt, whatever its outcome"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_success": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/BackupRun",
+                "description": "The latest attempt that wrote a copy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BackupFile"
+            },
+            "description": "The copies in the folder, newest first"
           }
         }
       },

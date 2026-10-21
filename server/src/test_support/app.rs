@@ -34,6 +34,7 @@ impl AppHarness {
         let database = svrctlrs_database::Database::new(&url).await.unwrap();
         database.migrate().await.unwrap();
         let mut state = AppState::new(database, vec![]).await.unwrap();
+        state.backups = crate::backups::Backups::new(dir.path().join("backups"));
         let password_login = sign_in.password_login;
         state.sign_in = std::sync::Arc::new(sign_in);
         let store = SqliteStore::new(state.pool.clone());

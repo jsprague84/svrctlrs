@@ -1,101 +1,159 @@
 //! The commands that run next to the database, without the network: `backup` (a consistent
-//! copy) and `reset-password` (lockout recovery). Meant for `docker exec`.
+//! copy), `restore` (stage a copy for the next start) and `reset-password` (lockout recovery).
+//! Meant for `docker exec`.
 
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
+use svrctlrs_database::models::{NewAuditEntry, NewBackupRun};
 use svrctlrs_database::sqlx::{sqlite::SqlitePoolOptions, Pool, Sqlite};
-use svrctlrs_database::{models::NewAuditEntry, queries};
+use svrctlrs_database::{backup, queries};
 use tower_sessions::{session::Id, SessionStore};
 use tower_sessions_sqlx_store::SqliteStore;
 
 /// Where the server keeps its generated key file: next to the database.
 fn key_file_for(database_url: &str) -> Option<PathBuf> {
-    let path = database_url
-        .strip_prefix("sqlite:")?
-        .trim_start_matches("//");
-    if path.is_empty() || path == ":memory:" {
-        return None;
-    }
+    let db = backup::db_path(database_url)?;
     Some(
-        Path::new(path)
-            .parent()
+        db.parent()
+            .filter(|p| !p.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."))
             .join("encryption.key"),
     )
 }
 
-/// `VACUUM INTO` a fresh file: a consistent snapshot while the server keeps running.
-async fn backup_database(database_url: &str, target: &Path) -> anyhow::Result<()> {
-    let pool = SqlitePoolOptions::new()
+fn key_in_environment() -> bool {
+    std::env::var("ENCRYPTION_KEY").is_ok_and(|k| !k.trim().is_empty())
+}
+
+async fn connect(database_url: &str) -> anyhow::Result<Pool<Sqlite>> {
+    Ok(SqlitePoolOptions::new()
         .max_connections(1)
         .connect(database_url)
-        .await?;
-    let target_str = target
-        .to_str()
-        .ok_or_else(|| anyhow::anyhow!("backup path is not valid UTF-8"))?
-        .replace('\'', "''");
-    svrctlrs_database::sqlx::query(&format!("VACUUM INTO '{target_str}'"))
-        .execute(&pool)
-        .await?;
-    pool.close().await;
-    Ok(())
+        .await?)
 }
 
-/// Backups beyond `keep`, oldest first, by file name (names carry the timestamp).
-fn prunable(mut backups: Vec<PathBuf>, keep: usize) -> Vec<PathBuf> {
-    backups.sort();
-    if backups.len() <= keep {
-        return Vec::new();
-    }
-    let excess = backups.len() - keep;
-    backups.into_iter().take(excess).collect()
+/// The folder backups go to: `--out`, else `BACKUP_DIR`, else `data/backups` (the server's
+/// own default, beside the database).
+pub fn backup_dir(out: Option<PathBuf>) -> PathBuf {
+    out.or_else(|| {
+        std::env::var("BACKUP_DIR")
+            .ok()
+            .map(|d| d.trim().to_string())
+            .filter(|d| !d.is_empty())
+            .map(PathBuf::from)
+    })
+    .unwrap_or_else(|| PathBuf::from("data/backups"))
 }
 
-pub async fn handle_backup(database_url: &str, out: &Path, keep: usize) -> anyhow::Result<()> {
-    std::fs::create_dir_all(out)?;
-    let stamp = chrono::Utc::now().format("%Y%m%d-%H%M%SZ");
-    let target = out.join(format!("svrctlrs-{stamp}.db"));
-    backup_database(database_url, &target).await?;
-    let size = std::fs::metadata(&target)?.len();
-
-    // The key: without it the backup's credentials are unreadable.
-    let key = if std::env::var("ENCRYPTION_KEY").is_ok_and(|k| !k.trim().is_empty()) {
-        "in ENCRYPTION_KEY — back up the environment (.env) with this file"
-    } else if let Some(key_file) = key_file_for(database_url).filter(|p| p.exists()) {
-        let dest = out.join("encryption.key");
-        std::fs::copy(&key_file, &dest)?;
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o600))?;
-        }
-        "copied to encryption.key"
-    } else {
-        "not found — credentials in this backup cannot be decrypted without it"
+/// The same copy the server makes every night (`svrctlrs_database::backup`), recorded in the
+/// run history as `svrctl`. `keep` defaults to the `backup.keep` setting; 0 keeps all.
+pub async fn handle_backup(
+    database_url: &str,
+    out: &Path,
+    keep: Option<usize>,
+    with_key: bool,
+) -> anyhow::Result<()> {
+    let pool = connect(database_url).await?;
+    let keep = match keep {
+        Some(k) => k,
+        None => queries::settings::get_setting_value_or(&pool, "backup.keep", "14")
+            .await
+            .ok()
+            .and_then(|v| v.trim().parse().ok())
+            .unwrap_or(14),
     };
+    let started_at = chrono::Utc::now();
+    let result = backup::create(&pool, out, keep).await;
+    let (file_name, size, removed, error) = match &result {
+        Ok(c) => (
+            Some(c.file.name.as_str()),
+            Some(c.file.bytes as i64),
+            c.removed as i64,
+            None,
+        ),
+        Err(e) => (None, None, 0, Some(e.detail())),
+    };
+    // A database from before migration 111 has no history table; the copy is what matters
+    let _ = queries::backup_runs::record(
+        &pool,
+        &NewBackupRun {
+            trigger: "svrctl",
+            started_at,
+            file_name,
+            size_bytes: size,
+            removed,
+            error: error.as_deref(),
+        },
+    )
+    .await;
+    pool.close().await;
+    let created = result.map_err(|e| anyhow::anyhow!(e.detail()))?;
 
-    let existing: Vec<PathBuf> = std::fs::read_dir(out)?
-        .filter_map(|e| e.ok().map(|e| e.path()))
-        .filter(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(|n| n.starts_with("svrctlrs-") && n.ends_with(".db"))
-        })
-        .collect();
-    let kept = existing.len().min(keep.max(1));
-    let removed = prunable(existing, keep.max(1));
-    for old in &removed {
-        std::fs::remove_file(old)?;
-    }
+    // The key: without it the backup's credentials are unreadable. It is copied only when
+    // asked: a key in the same folder as the copies defeats the encryption once that folder
+    // is shipped somewhere.
+    let key = if key_in_environment() {
+        "in ENCRYPTION_KEY — back up the environment (.env) separately".to_string()
+    } else if let Some(key_file) = key_file_for(database_url).filter(|p| p.exists()) {
+        if with_key {
+            let dest = out.join("encryption.key");
+            std::fs::copy(&key_file, &dest)?;
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&dest, std::fs::Permissions::from_mode(0o600))?;
+            }
+            "copied to encryption.key".to_string()
+        } else {
+            format!(
+                "in {} — not copied (pass --with-key, or back it up separately)",
+                key_file.display()
+            )
+        }
+    } else {
+        "not found — credentials in this backup cannot be decrypted without it".to_string()
+    };
 
     println!(
         "{}",
         serde_json::to_string_pretty(&json!({
-            "backup": target,
-            "bytes": size,
+            "backup": created.file.path,
+            "bytes": created.file.bytes,
             "key": key,
-            "kept": kept,
-            "removed": removed.len(),
+            "kept": backup::list(out).map(|l| l.len()).unwrap_or(0),
+            "removed": created.removed,
+        }))?
+    );
+    Ok(())
+}
+
+/// Check a copy and stage it for the next start (`svrctlrs_database::backup`). The running
+/// server is not touched: it swaps the copy in when it restarts.
+pub async fn handle_restore(database_url: &str, file: &Path) -> anyhow::Result<()> {
+    let key_file = key_file_for(database_url)
+        .ok_or_else(|| anyhow::anyhow!("{database_url} is not a database file"))?;
+    svrctlrs_core::encryption::init_existing_key(&key_file)
+        .map_err(|e| anyhow::anyhow!(e.detail()))?;
+    let found = backup::inspect(file)
+        .await
+        .map_err(|e| anyhow::anyhow!(e.detail()))?;
+    let db = backup::db_path(database_url)
+        .ok_or_else(|| anyhow::anyhow!("{database_url} is not a database file"))?;
+    let replaced = backup::staged_path(&db).exists();
+    let staged =
+        backup::stage_restore(database_url, file).map_err(|e| anyhow::anyhow!(e.detail()))?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&json!({
+            "staged": staged,
+            "from": file,
+            "replaced_staged": replaced,
+            "schema_version": found.schema_version,
+            "users": found.users,
+            "servers": found.servers,
+            "credentials_checked": found.credentials,
+            "next": "restart the server (docker restart svrctlrs): it moves the current database \
+                     into before-restore-<time>/ and starts on the copy; everyone signs in again",
         }))?
     );
     Ok(())
@@ -244,51 +302,6 @@ mod tests {
         );
         assert_eq!(key_file_for("sqlite::memory:"), None);
         assert_eq!(key_file_for("postgres://x"), None);
-    }
-
-    #[test]
-    fn prunes_oldest_beyond_keep() {
-        let files: Vec<PathBuf> = [
-            "svrctlrs-20260103-000000Z.db",
-            "svrctlrs-20260101-000000Z.db",
-            "svrctlrs-20260102-000000Z.db",
-        ]
-        .iter()
-        .map(PathBuf::from)
-        .collect();
-        let gone = prunable(files.clone(), 2);
-        assert_eq!(gone, vec![PathBuf::from("svrctlrs-20260101-000000Z.db")]);
-        assert!(prunable(files, 3).is_empty());
-    }
-
-    #[tokio::test]
-    async fn backup_is_a_consistent_copy() {
-        let dir = tempfile::tempdir().unwrap();
-        let db = dir.path().join("live.db");
-        let url = format!("sqlite:{}?mode=rwc", db.display());
-        let pool = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect(&url)
-            .await
-            .unwrap();
-        svrctlrs_database::sqlx::query("CREATE TABLE t (v TEXT); INSERT INTO t VALUES ('hello')")
-            .execute(&pool)
-            .await
-            .unwrap();
-
-        let target = dir.path().join("copy.db");
-        backup_database(&url, &target).await.unwrap();
-
-        let copy = SqlitePoolOptions::new()
-            .max_connections(1)
-            .connect(&format!("sqlite:{}", target.display()))
-            .await
-            .unwrap();
-        let (v,): (String,) = svrctlrs_database::sqlx::query_as("SELECT v FROM t")
-            .fetch_one(&copy)
-            .await
-            .unwrap();
-        assert_eq!(v, "hello");
     }
 
     async fn database() -> (Pool<Sqlite>, SqliteStore) {

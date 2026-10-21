@@ -22,12 +22,14 @@ Android app; those talk to a remote server over the same API.
  │ sessions.rs             server-owned PTY sessions, replay ring, TTL      │
 │ persistent_shells.rs    shells kept in tmux across a restart             │
  │ recordings.rs           opt-in asciicast recording, encrypted, per user  │
+ │ backups.rs              nightly VACUUM INTO copies into BACKUP_DIR       │
  │ health_monitor.rs       periodic checks → notifications (rstify/Gotify) │
  │ ServeDir(SPA_DIR) fallback → index.html                                  │
  └────────────┬──────────────────────────────┬─────────────────────────────┘
               │ sqlx                          │ SSH
         SQLite (data/svrctlrs.db)        your servers (TOFU host keys)
         + data/recordings/<user>/*.cast.enc
+        + data/backups/svrctlrs-<time>.db
 ```
 
 ## Workspace crates
@@ -36,8 +38,8 @@ Android app; those talk to a remote server over the same API.
 |---|---|---|
 | `api` (`svrctlrs-api`) | the REST API's request and response types with their OpenAPI schemas; used by the server's handlers and by `svrctl` | `src/*.rs` (one module per resource) |
 | `core` | AES-256-GCM credential encryption, error type, notification senders, webhook and Matrix posting | `src/encryption.rs`, `src/error.rs`, `src/notifications.rs` |
-| `database` | sqlx models, query modules, embedded migrations | `src/models/*.rs`, `src/queries/*.rs`, `migrations/` |
-| `server` | Axum application and the `svrctl` CLI (`src/bin/svrctl/`: the agent CLI over the API with `svrctlrs-api` types, plus the local `backup` and `reset-password`); `src/test_support/` (tests only) holds a loopback SSH server, database fixtures and the full app on a temporary database; `tests/svrctl.rs` runs both binaries | `src/main.rs`, `src/routes/**`, `src/bin/svrctl/` |
+| `database` | sqlx models, query modules, embedded migrations, and `backup.rs` (the backup copy, retention, checking and staging a restore; shared by the server and `svrctl`) | `src/models/*.rs`, `src/queries/*.rs`, `migrations/` |
+| `server` | Axum application and the `svrctl` CLI (`src/bin/svrctl/`: the agent CLI over the API with `svrctlrs-api` types, plus the local `backup`, `restore` and `reset-password`); `src/test_support/` (tests only) holds a loopback SSH server, database fixtures and the full app on a temporary database; `tests/svrctl.rs` runs both binaries | `src/main.rs`, `src/routes/**`, `src/bin/svrctl/` |
 
 `ui/src-tauri` is a separate Cargo project (excluded from the workspace) so the server build
 does not pull in Tauri's GTK/WebKit dependencies.
@@ -94,7 +96,10 @@ does not pull in Tauri's GTK/WebKit dependencies.
    (`persistent_shells.rs`): a restart or a lost connection *releases* the session (clients
    reconnect), and an `attach` for a session that is not live opens a new connection to the
    same tmux session; housekeeping ends kept shells nobody reattaches to. Hourly housekeeping applies `recording.retention_days` and removes files
-   no row knows. Every SSH connection
+   no row knows. `backups.rs` copies the database into `BACKUP_DIR` once a night
+   (`backup.hour`, `backup.keep`; one attempt per daily slot, made up after downtime) and
+   records every attempt in `backup_runs`; a restore staged by `svrctl restore` is put in
+   place by `main.rs` before the database is opened. Every SSH connection
    — the shell, the connection test, SFTP, "Authorize key" — goes through `ssh.rs`: russh,
    host key verified during the handshake (first contact recorded and refused until the user
    confirms the fingerprint, mismatch refused, fail closed), password or key
@@ -140,6 +145,7 @@ does not pull in Tauri's GTK/WebKit dependencies.
 | `api_tokens` | a user's named API tokens: SHA-256 `token_hash` (unique), display `prefix`, `preset`, `expires_at` (NULL = never), `last_used_at`/`last_used_ip`, `revoked_at`, `require_approval`; name unique per user (`ON DELETE CASCADE`) |
 | `approvals` | held token calls: random `id` (in the link), `user_id` (`ON DELETE CASCADE`), `token_id` (`ON DELETE SET NULL`) and `token_name`, `action`, `method`, `path`, target, `url`, `status` (`pending`/`approved`/`denied`), `expires_at`, the decision, and the approved call's `result_status` and `result` |
 | `audit_log` | who did what: user, client address, action, target, JSON details, and the API token behind it (`token_id`, `token_name`, no foreign key so the name outlives the token); pruned after 180 days |
+| `backup_runs` | backup attempts (`nightly`, `manual`, `svrctl`): start and finish, the copy's `file_name` and `size_bytes`, copies `removed` by retention, `error`; the newest 100 kept |
 | `session_recordings` | one recorded shell: owner `user_id` (`ON DELETE CASCADE`), `server_id` (`ON DELETE SET NULL`) and `server_name`, `session_id`, the encrypted file's name, start size, times, plaintext `size_bytes`, `status`, `end_reason` |
 
 Two migration chains are embedded (`database/src/lib.rs::run_migrations`). A fresh database

@@ -3,6 +3,7 @@
 pub mod api_tokens;
 pub mod approvals;
 pub mod audit;
+pub mod backup_runs;
 pub mod credentials;
 pub mod login_failures;
 pub mod persistent_shells;

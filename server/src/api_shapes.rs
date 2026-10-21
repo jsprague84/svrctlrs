@@ -405,6 +405,10 @@ async fn api_shapes_are_unchanged() {
         "/api/v1/sessions/nope"
     );
 
+    // ── Backups
+    owner!("POST /backups", "POST", "/api/v1/backups");
+    owner!("GET /backups", "GET", "/api/v1/backups");
+
     // ── Tokens and approvals
     let made = owner!(
         "POST /tokens",

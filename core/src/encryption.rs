@@ -45,6 +45,40 @@ pub fn init_with_hex_key(hex_key: &str) -> Result<()> {
     Ok(())
 }
 
+/// Where [`init_existing_key`] found the key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KeySource {
+    Environment,
+    File,
+}
+
+/// Initialize the global key from `ENCRYPTION_KEY` or `key_file`, never generating one: for
+/// tools that read data written under an existing key (`svrctl restore`), where a fresh key
+/// would only make everything unreadable.
+pub fn init_existing_key(key_file: &Path) -> Result<KeySource> {
+    let (key, source) = match std::env::var("ENCRYPTION_KEY") {
+        Ok(hex_key) if !hex_key.trim().is_empty() => {
+            (parse_hex_key(&hex_key)?, KeySource::Environment)
+        }
+        _ if key_file.is_file() => {
+            let contents = std::fs::read_to_string(key_file).map_err(|e| {
+                Error::Config(format!("Failed to read {}: {e}", key_file.display()))
+            })?;
+            (parse_hex_key(contents.trim())?, KeySource::File)
+        }
+        _ => {
+            return Err(Error::Config(format!(
+                "no encryption key: ENCRYPTION_KEY is not set and {} does not exist",
+                key_file.display()
+            )))
+        }
+    };
+    ENCRYPTION_KEY
+        .set(key)
+        .map_err(|_| Error::Config("Encryption key already initialized".to_string()))?;
+    Ok(source)
+}
+
 /// Check if the encryption key has been initialized
 pub fn is_initialized() -> bool {
     ENCRYPTION_KEY.get().is_some()

@@ -19,7 +19,7 @@ KEY="$($PYTHON -c 'import secrets; print(secrets.token_hex(32))')"
 
 # Started again on the same database and key for the kept-shell pass's restart
 start_server() {
-  DATABASE_URL="sqlite:$WORK/e2e.db" ADMIN_USERNAME=admin ADMIN_PASSWORD=e2e-password-123456 \
+  BACKUP_DIR="$WORK/backups" DATABASE_URL="sqlite:$WORK/e2e.db" ADMIN_USERNAME=admin ADMIN_PASSWORD=e2e-password-123456 \
   ENCRYPTION_KEY="$KEY" SESSION_SECURE=false SESSION_DETACH_TTL_SECS=3 SPA_DIR=ui/build RUST_LOG=info \
   target/debug/server --addr 127.0.0.1:18080 >> "$WORK/server.log" 2>&1 &
   SPID=$!

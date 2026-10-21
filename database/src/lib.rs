@@ -6,6 +6,7 @@ use sqlx::{sqlite::SqlitePool, Pool, Sqlite};
 use svrctlrs_core::{Error, Result};
 use tracing::info;
 
+pub mod backup;
 pub mod models;
 pub mod queries;
 

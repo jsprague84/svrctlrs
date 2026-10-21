@@ -9,6 +9,7 @@
 pub mod approvals;
 pub mod audit;
 pub mod auth;
+pub mod backups;
 pub mod common;
 pub mod credentials;
 pub mod files;

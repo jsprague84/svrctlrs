@@ -51,6 +51,7 @@ the rest is the same.
 | `SESSION_MAX_PER_USER` | no | `16` | live interactive sessions per user; the 17th `shell` request fails with `quota` |
 | `SSH_KEEPALIVE_SECS` | no | `15` | seconds of silence before the SSH client sends a keepalive to the target; three unanswered close the connection. `0` disables keepalives |
 | `RECORDINGS_DIR` | no | `data/recordings` (in the data volume) | where session recordings are written, one directory per user. Keep it on the data volume: the files are encrypted with `ENCRYPTION_KEY` and need the database rows to be found |
+| `BACKUP_DIR` | no | `data/backups` (in the data volume) | where the nightly database backups go (Backups, below). Only the environment sets it |
 | `RECORDING_MAX_MB` | no | `100` | asciicast size at which a recording stops (the shell goes on, unrecorded) |
 | `SPA_DIR` | no | `/app/ui/build` | where the built SPA lives |
 | `RUST_LOG` | no | `info` | tracing filter |
@@ -156,27 +157,60 @@ around a Wayland crash), so on a Wayland compositor without Xwayland (niri witho
 
 ## Backups
 
-A backup is the database **and the encryption key**; one without the other is useless.
+The server backs its database up by itself, every night: a consistent `VACUUM INTO` copy in
+`BACKUP_DIR` (default `data/backups`, on the data volume), named
+`svrctlrs-<YYYYMMDD-HHMMSS>Z.db`, folder 0700 and file 0600. It keeps the newest 14 and runs
+at 03:00 UTC; Settings → General → Backups changes both (`backup.keep`, 0 turns nightly copies
+off; `backup.hour`, UTC). Settings → About shows the last copy, the last error, the next run
+and **Back up now**. A server that was down at that hour makes the copy a few minutes after it
+starts; a failed night is notified once (Gotify/ntfy, when notifications are on). Older copies
+are deleted only after a new one is in place.
+
+**What a copy holds:** the whole database (servers, credentials, host keys, accounts with
+their password hashes, tokens as hashes, audit log, settings) **without the sign-ins**: browser
+and desktop app sessions are removed, so after a restore everyone signs in again; agent tokens
+keep working. **What it does not hold:**
+
+- **The encryption key.** Credentials, two-factor secrets and recordings in a copy are
+  encrypted with it and useless without it. In the compose setup it is `ENCRYPTION_KEY` in
+  `.env`: back `.env` up separately (About says where the key comes from). With a generated
+  key it is `data/encryption.key` beside the database.
+- **The recordings directory** (`RECORDINGS_DIR`), which has its own retention. A restored
+  database may list recordings whose files are gone.
+- Plain-text settings secrets *are* in it (the notification token, the Matrix token, the
+  webhook URL), so treat a copy like the database itself.
+
+**Off the host.** The copies sit on the data volume, so a backup of the volume or of the VM
+(the reference deployment's nightly Proxmox Backup Server snapshot) carries them: a snapshot
+of a live SQLite file is only a crash copy, a snapshot of a finished copy is a good one. To
+pull them elsewhere: `docker cp svrctlrs:/app/data/backups ./svrctlrs-backups`.
+
+**By hand.** `svrctl backup` writes the same copy and counts toward the same retention:
 
 ```bash
-# consistent snapshot while the server runs; keeps the newest 14 copies in the volume
-docker exec svrctlrs /app/svrctl backup --out /app/data/backups --keep 14
-# copy the newest one (and the key) off the host
-docker cp svrctlrs:/app/data/backups ./svrctlrs-backups
+docker exec svrctlrs /app/svrctl backup              # into BACKUP_DIR, keeps backup.keep copies
+docker exec svrctlrs /app/svrctl backup --out /app/data/elsewhere --keep 0 --with-key
 ```
 
-`svrctl backup` uses SQLite's `VACUUM INTO`, so the copy is consistent without stopping
-anything. It copies `data/encryption.key` next to the copies when the key comes from that
-file; when the key is in `ENCRYPTION_KEY` (the compose setup) it says so — back up `.env`
-alongside, it holds the only copy. A cron line on the host, nightly:
+`--with-key` also copies `data/encryption.key` into the folder (only for a generated key; a
+key in the environment is never written anywhere).
 
-```
-15 3 * * * docker exec svrctlrs /app/svrctl backup --out /app/data/backups --keep 14 >/dev/null && docker cp svrctlrs:/app/data/backups /srv/backups/svrctlrs
+**Restore.** Two commands; the database is never swapped under a running server:
+
+```bash
+docker exec svrctlrs /app/svrctl restore /app/data/backups/svrctlrs-20261022-030000Z.db
+docker restart svrctlrs
 ```
 
-Restore: stop the container, put the copy back as `svrctlrs.db` in the volume (owned by uid
-1000; remove stale `-wal`/`-shm` files), make sure `.env` has the matching `ENCRYPTION_KEY`,
-start again — migrations run forward if the backup predates the image.
+`svrctl restore` checks the copy first — SQLite's integrity check, a schema no newer than the
+running version, and every encrypted credential and two-factor secret readable with the
+current key — and refuses with the reason (a different `ENCRYPTION_KEY` is the usual one).
+Then it stages the copy beside the database as `svrctlrs.db.restore`. At the next start the
+server moves the current database (with its `-wal`/`-shm`) into `before-restore-<time>/` next
+to it, puts the copy in its place, runs migrations forward and writes `backup.restored` to the
+audit log. Delete `before-restore-*` once you are happy with the result. A copy from another
+machine: `docker cp` it into the container first. Restoring a copy whose key you no longer have
+is not possible; that is the point of the key.
 
 ## Upgrades
 

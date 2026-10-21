@@ -152,13 +152,14 @@ Named credentials the owner creates under Settings → Access → Agent tokens
   handler runs, **deny by default**: anything a preset does not name is `403 TOKEN_SCOPE`.
   - *Read-only*: `GET` on the inventory and configuration (servers, host keys, credentials
     with values redacted, settings with secrets blanked, profiles, quick commands, users,
-    audit, sessions, recording metadata). No changes, no terminals, no files, no recording
+    audit, sessions, recording metadata, backup status). No changes, no terminals, no files, no recording
     content.
   - *Servers & keys*: read-only plus creating, changing and deleting servers and
     credentials, importing, testing, trusting and forgetting host keys, generating and
     authorizing keys. No terminals or files.
   - *Full admin*: everything the owner can do, terminals (`/ws/terminal/pty` through a
-    ticket), the SFTP file browser and `exec` (one command on a server) included.
+    ticket), the SFTP file browser, `exec` (one command on a server) and "Back up now"
+    included.
   - *Servers & keys* also runs the operations that manage access without a shell:
     `diagnose`, `onboard` (which trusts a host key only with the fingerprint the caller
     compared) and `rotate-key`. These run on svrctlrs with the stored credentials; no
@@ -270,6 +271,29 @@ Every account is an administrator (weakness 8 below), so any user can switch rec
 a server and thereby have the shells other users open there recorded. Those recordings belong
 to the users who opened the shells, not to whoever switched recording on, and the terminal
 tells them.
+
+## Backups
+
+The server copies its database every night into `BACKUP_DIR` (`server/src/backups.rs` over
+`database/src/backup.rs`; DEPLOYMENT.md, "Backups"):
+
+- **A copy is as sensitive as the database**: password hashes (argon2), API token hashes,
+  encrypted credentials and two-factor secrets, and the settings secrets stored in plain text
+  (notification token, Matrix token, webhook URL). Folder 0700, file 0600.
+- **No sign-ins in a copy.** `tower_sessions` is emptied in the copy (and the copy vacuumed, so
+  the rows are not left in free pages): a copy that leaked would otherwise hold live session
+  ids, browser and desktop app alike. Tested on the file's bytes.
+- **No key in a copy.** The in-app backup never writes the encryption key; `svrctl backup
+  --with-key` copies a generated key file only when asked. A copy without its key gives an
+  attacker no credentials.
+- **Where, from the environment only.** `BACKUP_DIR` cannot be set through the API, so no
+  token or session can make the server write a copy somewhere else. Nothing serves a copy over
+  HTTP and nothing restores one over HTTP: `GET /backups` (any preset) shows names, sizes and
+  times; `POST /backups` (signed in, or a full-admin token) makes a copy, audited as
+  `backup.created`.
+- **Restore needs a shell on the host** (`svrctl restore`, then a restart), refuses a copy
+  whose credentials do not decrypt with the running key, keeps the replaced database in
+  `before-restore-<time>/` and is audited as `backup.restored`.
 
 ## Kept shells (tmux)
 

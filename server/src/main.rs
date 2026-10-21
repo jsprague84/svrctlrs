@@ -6,6 +6,7 @@ mod api_tokens;
 mod app;
 mod approvals;
 mod audit;
+mod backups;
 mod diagnose;
 mod health_monitor;
 mod host_keys;
@@ -80,8 +81,26 @@ async fn main() -> anyhow::Result<()> {
         std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:data/svrctlrs.db".to_string());
     info!(url = %database_url, "Connecting to database");
 
+    // A restore staged by `svrctl restore` goes in place before the database is opened; the
+    // database it replaces moves into before-restore-<time>/ beside it.
+    let restored = svrctlrs_database::backup::apply_staged_restore(&database_url).map_err(|e| {
+        anyhow::anyhow!(
+            "could not put the staged restore in place ({}) — refusing to start",
+            e.detail()
+        )
+    })?;
+
     let database = svrctlrs_database::Database::new(&database_url).await?;
     database.migrate().await?;
+    if let Some(applied) = &restored {
+        tracing::warn!(previous = %applied.previous.display(), "Started on a restored backup");
+        svrctlrs_database::queries::audit::record(
+            database.pool(),
+            &svrctlrs_database::models::NewAuditEntry::new("backup.restored")
+                .details(serde_json::json!({ "previous": applied.previous.display().to_string() })),
+        )
+        .await?;
+    }
 
     // A database that lived through a start without a key (the pre-3.0 fallback) holds
     // plaintext rows; encrypt them now that a key is guaranteed.
@@ -198,6 +217,8 @@ async fn main() -> anyhow::Result<()> {
     health_monitor::start_health_monitor(state.clone());
     // Recordings: mark the ones a stopped server left running, then retention every hour
     recordings::start_housekeeping(state.pool.clone(), state.recordings.clone());
+    // Nightly backups into BACKUP_DIR (backup.hour, backup.keep)
+    backups::start_schedule(state.pool.clone(), state.backups.clone());
     // Kept shells (tmux) from before this start end after their owner's keep time unless
     // reattached
     persistent_shells::start_housekeeping(state.clone());

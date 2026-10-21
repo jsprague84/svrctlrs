@@ -3584,6 +3584,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "svrctlrs-core",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tracing",

@@ -31,3 +31,6 @@ argon2 = "0.5"
 
 # Core
 svrctlrs-core = { workspace = true }
+
+[dev-dependencies]
+tempfile = "3.23.0"

@@ -3,6 +3,7 @@
 pub mod api_token;
 pub mod approval;
 pub mod audit;
+pub mod backup_run;
 pub mod credential;
 pub mod persistent_shell;
 pub mod quick_command;
@@ -19,6 +20,7 @@ pub mod user_setting;
 pub use api_token::*;
 pub use approval::*;
 pub use audit::*;
+pub use backup_run::*;
 pub use credential::*;
 pub use persistent_shell::*;
 pub use quick_command::*;

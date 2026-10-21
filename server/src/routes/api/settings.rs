@@ -39,6 +39,19 @@ fn check_value(key: &str, value: &str) -> Result<(), ApiError> {
             "Keep recordings for 0 to 3650 days (0 keeps them until you delete them)",
         ));
     }
+    if key == "backup.keep"
+        && !value
+            .trim()
+            .parse::<i64>()
+            .is_ok_and(|k| (0..=crate::backups::MAX_KEEP).contains(&k))
+    {
+        return Err(ApiError::bad_request(
+            "Keep 0 to 365 backups (0 turns nightly backups off)",
+        ));
+    }
+    if key == "backup.hour" && !value.trim().parse::<u32>().is_ok_and(|h| h < 24) {
+        return Err(ApiError::bad_request("The backup hour is 0 to 23 (UTC)"));
+    }
     if key == "approval.channel" && !matches!(value, "push" | "webhook" | "matrix" | "none") {
         return Err(ApiError::bad_request(
             "The approval channel is push, webhook, matrix or none",

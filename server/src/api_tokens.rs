@@ -103,6 +103,7 @@ const READ: &[&str] = &[
     "/api/v1/sessions",
     "/api/v1/recordings",
     "/api/v1/recordings/*",
+    "/api/v1/backups",
     // A token waits on its own approval request here
     "/api/v1/approvals/*",
 ];
@@ -130,6 +131,7 @@ const SERVERS_KEYS: &[(&str, &str)] = &[
 /// recordings, sessions, and the app's own settings, profiles and quick commands.
 const FULL_ADMIN: &[(&str, &str)] = &[
     ("POST", "/api/v1/auth/ws-ticket"),
+    ("POST", "/api/v1/backups"),
     ("GET", "/ws/terminal/pty"),
     ("POST", "/api/v1/servers/*/exec"),
     ("GET", "/api/v1/servers/*/files"),

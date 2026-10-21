@@ -1,6 +1,7 @@
 //! `svrctl` against a real `server` process on a temporary database: JSON on a pipe, exit
 //! codes, errors with hints, token presets, and a delete held for approval that `--wait`
-//! sees through once the owner approves.
+//! sees through once the owner approves. And the local commands: a backup, changed data, a
+//! restore staged with `svrctl restore` and put in place by the next start.
 
 use std::process::{Child, Command, Stdio};
 use std::time::Duration;
@@ -11,7 +12,14 @@ struct Server {
     child: Child,
     url: String,
     session: String,
-    _dir: tempfile::TempDir,
+    dir: Option<tempfile::TempDir>,
+}
+
+/// The test servers' credential key.
+fn test_key() -> String {
+    (0..32)
+        .map(|i| format!("{:02x}", (i * 7 + 3) as u8))
+        .collect()
 }
 
 impl Drop for Server {
@@ -30,12 +38,14 @@ fn free_port() -> u16 {
 }
 
 async fn start() -> Server {
-    let dir = tempfile::tempdir().unwrap();
+    start_in(tempfile::tempdir().unwrap()).await
+}
+
+/// A server on the database in `dir` (a fresh one, or one a stopped server left).
+async fn start_in(dir: tempfile::TempDir) -> Server {
     let port = free_port();
     let url = format!("http://127.0.0.1:{port}");
-    let key: String = (0..32)
-        .map(|i| format!("{:02x}", (i * 7 + 3) as u8))
-        .collect();
+    let key = test_key();
     let child = Command::new(env!("CARGO_BIN_EXE_server"))
         .args(["--addr", &format!("127.0.0.1:{port}")])
         .env(
@@ -43,6 +53,7 @@ async fn start() -> Server {
             format!("sqlite:{}", dir.path().join("t.db").display()),
         )
         .env("ENCRYPTION_KEY", key)
+        .env("BACKUP_DIR", dir.path().join("backups"))
         .env("ADMIN_USERNAME", "admin")
         .env("ADMIN_PASSWORD", "svrctl-test-password")
         .env("SESSION_SECURE", "false")
@@ -80,11 +91,43 @@ async fn start() -> Server {
         child,
         url,
         session: login["session_id"].as_str().unwrap().to_string(),
-        _dir: dir,
+        dir: Some(dir),
     }
 }
 
 impl Server {
+    fn path(&self) -> &std::path::Path {
+        self.dir.as_ref().unwrap().path()
+    }
+
+    /// Stop the server and hand back its folder, database included.
+    fn stop(mut self) -> tempfile::TempDir {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+        self.dir.take().unwrap()
+    }
+
+    /// Run a local svrctl command (backup, restore) next to this server's database with
+    /// `key` as ENCRYPTION_KEY; (exit code, parsed stdout)
+    fn local(&self, key: &str, args: &[&str]) -> (i32, Value) {
+        let output = Command::new(env!("CARGO_BIN_EXE_svrctl"))
+            .args(args)
+            .env(
+                "DATABASE_URL",
+                format!("sqlite:{}", self.path().join("t.db").display()),
+            )
+            .env("ENCRYPTION_KEY", key)
+            .env("BACKUP_DIR", self.path().join("backups"))
+            .env_remove("SVRCTLRS_TOKEN")
+            .output()
+            .unwrap();
+        let text = String::from_utf8_lossy(&output.stdout).into_owned();
+        (
+            output.status.code().unwrap_or(-1),
+            serde_json::from_str(&text).unwrap_or(Value::Null),
+        )
+    }
+
     async fn owner(&self, method: reqwest::Method, path: &str, body: Value) -> Value {
         reqwest::Client::new()
             .request(method, format!("{}/api/v1{path}", self.url))
@@ -322,4 +365,96 @@ async fn svrctl_speaks_json_with_stable_exit_codes() {
     let (code, out, _) = s.svrctl(Some(&admin), &["openapi"], None);
     assert_eq!(code, 0);
     assert!(out["paths"]["/api/v1/servers/{id}/diagnose"].is_object());
+}
+
+#[tokio::test]
+async fn backup_then_restore_brings_the_data_back() {
+    let s = start().await;
+    let made = s
+        .owner(
+            reqwest::Method::POST,
+            "/credentials",
+            json!({ "name": "restore me", "credential_type": "password", "value": "s3cret value",
+                    "username": "root" }),
+        )
+        .await;
+    let cred_id = made["id"]
+        .as_i64()
+        .or_else(|| made["data"]["id"].as_i64())
+        .unwrap();
+
+    // The same copy the server makes at night, from the command line
+    let (code, out) = s.local(&test_key(), &["backup"]);
+    assert_eq!(code, 0, "{out}");
+    let file = out["backup"].as_str().unwrap().to_string();
+    assert!(file.contains("/backups/svrctlrs-"), "{file}");
+    assert!(out["key"].as_str().unwrap().contains("ENCRYPTION_KEY"));
+    // It is in the server's list and history
+    let status = s.owner(reqwest::Method::GET, "/backups", Value::Null).await;
+    assert_eq!(status["files"].as_array().unwrap().len(), 1, "{status}");
+    assert_eq!(status["last_run"]["trigger"], "svrctl");
+
+    // Then the data changes
+    s.owner(
+        reqwest::Method::DELETE,
+        &format!("/credentials/{cred_id}"),
+        Value::Null,
+    )
+    .await;
+    let creds = s
+        .owner(reqwest::Method::GET, "/credentials", Value::Null)
+        .await;
+    assert!(!creds.to_string().contains("restore me"));
+
+    // A key that is not the one the copy was made with is refused, and nothing is staged
+    let wrong: String = "ab".repeat(32);
+    let (code, out) = s.local(&wrong, &["restore", &file]);
+    assert_ne!(code, 0);
+    assert!(
+        out["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("another encryption key"),
+        "{out}"
+    );
+    assert!(!s.path().join("t.db.restore").exists());
+    // As is something that is not a copy
+    let junk = s.path().join("junk.db");
+    std::fs::write(&junk, b"not a database").unwrap();
+    let (code, _) = s.local(&test_key(), &["restore", junk.to_str().unwrap()]);
+    assert_ne!(code, 0);
+
+    // The right key stages it; the running server is untouched until it restarts
+    let (code, out) = s.local(&test_key(), &["restore", &file]);
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(out["credentials_checked"], 1);
+    assert!(s.path().join("t.db.restore").is_file());
+    let old_session = s.session.clone();
+
+    let dir = s.stop();
+    let s = start_in(dir).await;
+    assert!(!s.path().join("t.db.restore").exists());
+    let kept_aside = std::fs::read_dir(s.path()).unwrap().flatten().any(|e| {
+        e.file_name()
+            .to_string_lossy()
+            .starts_with("before-restore-")
+    });
+    assert!(kept_aside, "the replaced database is kept");
+
+    let creds = s
+        .owner(reqwest::Method::GET, "/credentials", Value::Null)
+        .await;
+    assert!(creds.to_string().contains("restore me"), "{creds}");
+    // Sign-ins do not travel in a backup: the session from before is gone
+    let status = reqwest::Client::new()
+        .get(format!("{}/api/v1/credentials", s.url))
+        .bearer_auth(&old_session)
+        .send()
+        .await
+        .unwrap()
+        .status();
+    assert_eq!(status, reqwest::StatusCode::UNAUTHORIZED);
+    // And the restore is in the audit log
+    let audit = s.owner(reqwest::Method::GET, "/audit", Value::Null).await;
+    assert!(audit.to_string().contains("backup.restored"), "{audit}");
 }

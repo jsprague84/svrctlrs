@@ -19,6 +19,15 @@ the release workflow uses the matching section as the release notes.
   allowance of 10 attempts per 15 minutes; if the count cannot be read, the attempt is refused.
 
 ### Added
+- **Backups inside the app.** The server copies its database every night (03:00 UTC) into
+  `BACKUP_DIR` (default `data/backups`, on the data volume) and keeps the newest 14; both are
+  settings under General → Backups (`backup.hour`, `backup.keep`; 0 turns it off). About shows
+  the last copy, the last error and the next run, with **Back up now** (`GET`/`POST
+  /api/v1/backups`). A night missed while the server was down is made up minutes after it
+  starts, and a failed night is notified once. Copies leave the sign-ins out and never hold
+  the encryption key (back `.env` up separately). **`svrctl restore FILE`** checks a copy
+  (integrity, schema, every credential readable with the running key) and stages it; the next
+  start puts it in place and keeps the old database in `before-restore-<time>/` (migration 111).
 - **Shells that outlive a restart: Keep shells in tmux** (per server, off by default). New
   shells on such a server run inside tmux there; when SvrCtlRS restarts (every deploy did end
   every shell) or the connection to the server drops, the pane reconnects to the same shell.
@@ -62,6 +71,9 @@ the release workflow uses the matching section as the release notes.
   desktop app uses one-time tickets.
 
 ### Changed
+- `svrctl backup` writes the same copy as the nightly backup (no sign-ins, file 0600), into
+  `BACKUP_DIR` by default and keeping `backup.keep` copies unless `--out`/`--keep` say
+  otherwise. It no longer copies `data/encryption.key` unless `--with-key`.
 - `ALLOWED_ORIGINS` no longer switches the browser's session cookie to `SameSite=None`; it
   only lets the desktop app's requests through CORS and the WebSocket origin check.
 - After signing in, the browser returns to the page it asked for.

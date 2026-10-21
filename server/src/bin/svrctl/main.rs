@@ -3,8 +3,8 @@
 //! Remote commands talk to a running server with an API token (`SVRCTLRS_URL`,
 //! `SVRCTLRS_TOKEN`): servers, credentials, host keys, diagnose, exec, onboard, rotate-key,
 //! approvals. They never prompt, answer one JSON document when stdout is not a terminal (or
-//! with `--json`), and exit with codes an agent can branch on (see `out::code`). `backup` and
-//! `reset-password` run next to the database instead (`docker exec`); `health` needs no token
+//! with `--json`), and exit with codes an agent can branch on (see `out::code`). `backup`,
+//! `restore` and `reset-password` run next to the database instead (`docker exec`); `health` needs no token
 //! and is the container's healthcheck.
 
 mod api;
@@ -254,13 +254,28 @@ enum Command {
     /// Print the API's OpenAPI document
     Openapi,
 
-    /// [local] Write a consistent copy of the database (and the key file, when the key is
-    /// not in the environment) into a directory, keeping only the newest copies
+    /// [local] Write a consistent copy of the database into the backup folder (the same copy
+    /// the server makes every night: no sign-ins, file 0600), then keep only the newest
+    /// copies. Does not copy the encryption key unless --with-key
     Backup {
-        #[arg(long, default_value = "data/backups")]
-        out: PathBuf,
-        #[arg(long, default_value_t = 7)]
-        keep: usize,
+        /// Folder for the copies (default BACKUP_DIR, else data/backups)
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Copies to keep (default the backup.keep setting; 0 keeps all)
+        #[arg(long)]
+        keep: Option<usize>,
+        /// Also copy data/encryption.key into the folder (when the key is not in ENCRYPTION_KEY)
+        #[arg(long)]
+        with_key: bool,
+        #[arg(long, env = "DATABASE_URL", default_value = "sqlite:data/svrctlrs.db")]
+        database_url: String,
+    },
+    /// [local] Check a backup (integrity, schema, every credential readable with this key)
+    /// and stage it; the server puts it in place at its next start, keeping the current
+    /// database in before-restore-<time>/. Then: docker restart svrctlrs
+    Restore {
+        /// The copy, e.g. data/backups/svrctlrs-20261022-030000Z.db
+        file: PathBuf,
         #[arg(long, env = "DATABASE_URL", default_value = "sqlite:data/svrctlrs.db")]
         database_url: String,
     },
@@ -395,8 +410,18 @@ async fn main() -> ExitCode {
         Command::Backup {
             out: dir,
             keep,
+            with_key,
             database_url,
-        } => local_result(&out, local::handle_backup(&database_url, &dir, keep).await),
+        } => {
+            let dir = local::backup_dir(dir);
+            local_result(
+                &out,
+                local::handle_backup(&database_url, &dir, keep, with_key).await,
+            )
+        }
+        Command::Restore { file, database_url } => {
+            local_result(&out, local::handle_restore(&database_url, &file).await)
+        }
         Command::ResetPassword {
             username,
             password_stdin,
@@ -824,7 +849,9 @@ async fn run(api: &Api, out: &Out, command: Command) -> Result<u8, Failure> {
             println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
             Ok(code::OK)
         }
-        Command::Backup { .. } | Command::ResetPassword { .. } => unreachable!("handled in main"),
+        Command::Backup { .. } | Command::Restore { .. } | Command::ResetPassword { .. } => {
+            unreachable!("handled in main")
+        }
     }
 }
 
