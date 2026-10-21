@@ -52,7 +52,7 @@ jobs:
           buildkitd-config-inline: |
             [worker.oci]
               gc = true
-              gckeepstorage = 20000
+              gckeepstorage = "20GB"
 
       - name: Log in to the Forgejo container registry
         uses: https://github.com/docker/login-action@v3
