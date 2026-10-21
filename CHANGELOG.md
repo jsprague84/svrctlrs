@@ -19,6 +19,12 @@ the release workflow uses the matching section as the release notes.
   allowance of 10 attempts per 15 minutes; if the count cannot be read, the attempt is refused.
 
 ### Added
+- **Safe edits of small files over the API.** `GET /files/content` gives a file of at most
+  256 KiB an `ETag` (its SHA-256); `PUT /files/content` with `If-Match` writes only if the
+  file still has that tag (412 `CHANGED` otherwise) and returns the new tag. Writes stay in
+  place, so owner, mode and links are kept. Audit tells `files.view`, `files.download` and
+  `files.edit` apart. The loopback test server now speaks SFTP, so the file routes are tested
+  in CI.
 - **Backups inside the app.** The server copies its database every night (03:00 UTC) into
   `BACKUP_DIR` (default `data/backups`, on the data volume) and keeps the newest 14; both are
   settings under General → Backups (`backup.hour`, `backup.keep`; 0 turns it off). About shows

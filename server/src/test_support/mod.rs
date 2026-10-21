@@ -4,6 +4,7 @@
 
 pub mod app;
 pub mod oidc_provider;
+pub mod sftp_server;
 pub mod ssh_server;
 
 use svrctlrs_database::models::{CreateCredential, CreateServer, CredentialType};

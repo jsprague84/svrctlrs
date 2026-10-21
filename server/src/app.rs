@@ -60,9 +60,11 @@ pub fn router(state: AppState, session_store: SqliteStore, session_secure: bool)
                 axum::http::header::AUTHORIZATION,
                 axum::http::header::COOKIE,
                 axum::http::header::ACCEPT,
+                // The file editor's "unchanged since I read it" (files.rs)
+                axum::http::header::IF_MATCH,
                 axum::http::HeaderName::from_static("x-user-id"),
             ])
-            .expose_headers([axum::http::header::SET_COOKIE])
+            .expose_headers([axum::http::header::SET_COOKIE, axum::http::header::ETAG])
             .allow_credentials(true)
     } else {
         info!("CORS configured for same-origin only (set ALLOWED_ORIGINS to allow cross-origin)");

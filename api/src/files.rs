@@ -11,6 +11,17 @@ pub struct PathQuery {
     pub path: String,
 }
 
+/// `GET /servers/{id}/files/content`: the file, and whether it is opened to be looked at
+/// (the viewer) rather than saved (a download); only the audit tells them apart.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct ContentQuery {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub view: bool,
+}
+
 /// One directory entry.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct Entry {
@@ -41,6 +52,9 @@ pub struct Listing {
 pub struct Uploaded {
     pub path: String,
     pub bytes: u64,
+    /// The entity tag of what was written (its SHA-256, quoted), to send as `If-Match` with
+    /// the next change so that one is refused if the file changed in between
+    pub etag: String,
     pub message: String,
 }
 

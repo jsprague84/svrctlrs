@@ -2077,7 +2077,7 @@
         "tags": [
           "files"
         ],
-        "summary": "The file's bytes, streamed, as a download.",
+        "summary": "The file's bytes, streamed, as a download. A file of at most [`TAGGED_MAX_BYTES`] comes\nwith an `ETag` (its SHA-256), which an upload can send back as `If-Match`.",
         "operationId": "download",
         "parameters": [
           {
@@ -2096,11 +2096,19 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "The file",
+            "description": "The file; `ETag` set when it is small enough to edit",
             "content": {
               "application/octet-stream": {
                 "schema": {
@@ -2138,7 +2146,7 @@
         "tags": [
           "files"
         ],
-        "summary": "Create or overwrite a file with the request body, streamed.",
+        "summary": "Create or overwrite a file with the request body, streamed. The file is written in place\n(truncated, then written), so its owner, mode, links and the folder's permissions stay as\nthey were. With `If-Match` (the `ETag` a download gave) the file must exist and be\nunchanged since then, or nothing is written and the answer is 412.",
         "operationId": "upload",
         "parameters": [
           {
@@ -2156,6 +2164,18 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "description": "The file's `ETag` when it was read",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
             }
           }
         ],
@@ -2185,6 +2205,25 @@
             }
           },
           "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "The file changed since that `ETag`",
             "content": {
               "application/json": {
                 "schema": {
@@ -6812,6 +6851,7 @@
         "required": [
           "path",
           "bytes",
+          "etag",
           "message"
         ],
         "properties": {
@@ -6822,6 +6862,10 @@
             "type": "integer",
             "format": "int64",
             "minimum": 0
+          },
+          "etag": {
+            "type": "string",
+            "description": "The entity tag of what was written (its SHA-256, quoted), to send as `If-Match` with\nthe next change so that one is refused if the file changed in between"
           },
           "message": {
             "type": "string"

@@ -165,16 +165,21 @@ routes are not subject to the 30 s request timeout, so an upload may take as lon
 | Method | Path | Query / body | Response |
 |---|---|---|---|
 | GET | `/files` | `path?` | `path` (canonical), `parent` (null at `/`), `entries[]`: `name`, `kind` (`dir`, `file`, `symlink`, `other`), `size`, `modified` (RFC 3339 or null), `mode` (`rwxr-xr-x`), `owner`, `group` — directories first, then by name |
-| GET | `/files/content` | `path` | the file's bytes, `Content-Disposition: attachment`, streamed; 400 for a directory |
-| PUT | `/files/content` | `path`, raw body | creates or overwrites the file with the body, streamed; `{path, bytes}` |
+| GET | `/files/content` | `path`, `view?` | the file's bytes, `Content-Type: application/octet-stream` and `Content-Disposition: attachment` always, streamed; a file of at most 256 KiB also has an `ETag` (its quoted SHA-256); `view=true` only changes the audit action; 400 for a directory |
+| PUT | `/files/content` | `path`, raw body, `If-Match?` | creates or overwrites the file with the body, streamed, written in place (owner, mode and links stay); `{path, bytes, etag}`. With `If-Match` (an `ETag` from the GET, or `*`) the file must exist and still have that tag, otherwise 412 `CHANGED` and nothing is written |
 | POST | `/files/mkdir` | `{path}` | creates one directory |
 | POST | `/files/rename` | `{from, to}` | 409 when `to` exists |
 | DELETE | `/files` | `path` | deletes a file or an *empty* directory (409 otherwise; recursion belongs in the shell); `{path, kind}` |
 
 Errors: 400 for a relative path or a NUL byte (`Path must be absolute`), 404 when the remote
 path does not exist, 403 when the login lacks permission, otherwise 400 carrying the SFTP
-server's message. Audit actions: `files.download`, `files.upload` (`bytes`), `files.mkdir`,
-`files.rename`, `files.delete` (`kind`); listings are not audited.
+server's message. Audit actions: `files.view`, `files.download`, `files.upload` (`bytes`),
+`files.edit` (an upload with `If-Match`; `bytes`), `files.mkdir`, `files.rename`,
+`files.delete` (`kind`); listings are not audited.
+
+Editing a small file safely: `GET /files/content`, keep the `ETag`, change the bytes, `PUT`
+them with `If-Match: <etag>`. The check re-reads the file over SFTP just before writing, so
+only a change in the moment between that read and the write can slip past it.
 
 ## Credentials
 

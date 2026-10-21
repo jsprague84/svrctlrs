@@ -72,6 +72,12 @@ connection test's success path runs too, and it applies the `authorized_keys` in
 removal commands of `key_ops.rs` to its accepted keys, so authorize-key, onboard and
 rotate-key are tested end to end (`routes/api/ops.rs`): a new key really logs in afterwards
 and a removed one really does not.
+With `Options::with_sftp(dir)` it serves a directory as `/` over the `sftp` subsystem
+(`test_support/sftp_server.rs`; a file without its owner-write bit refuses writes even as
+root), and `routes/api/files.rs` (`loopback`) drives the file routes through the whole app:
+listing, download, upload, folders, rename, delete, and the editor's tagged save (`ETag` and
+`If-Match`: a change behind its back, a deleted file, a large file, a symlink, a read-only
+file).
 
 `server/tests/svrctl.rs` starts the real `server` binary on a temporary database and drives
 the real `svrctl` binary against it: JSON on a pipe, exit codes, errors with hints, token

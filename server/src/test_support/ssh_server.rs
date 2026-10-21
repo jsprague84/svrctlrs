@@ -7,7 +7,12 @@
 //! `exit N` ends the session with exit status N, `big N` prints N bytes, anything else prints
 //! `ran: <line>` and a new prompt. An exec request runs one such command: `echo X` prints X,
 //! `exit N` exits N, anything else prints `ran: <command>`; then the channel closes.
+//!
+//! With [`Options::with_sftp`] the `sftp` subsystem serves a directory as `/`
+//! ([`super::sftp_server`]).
 
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -30,6 +35,7 @@ pub enum Event {
     Resize { cols: u32, rows: u32 },
     Input(Vec<u8>),
     DirectTcpip { host: String, port: u32 },
+    Subsystem(String),
 }
 
 /// Who may log in, and how.
@@ -38,6 +44,8 @@ pub struct Options {
     pub user: String,
     pub password: Option<String>,
     pub authorized_keys: Vec<PublicKey>,
+    /// The directory the `sftp` subsystem serves as `/`; none refuses SFTP
+    pub sftp_root: Option<PathBuf>,
 }
 
 impl Options {
@@ -46,6 +54,7 @@ impl Options {
             user: user.to_string(),
             password: Some(password.to_string()),
             authorized_keys: Vec::new(),
+            sftp_root: None,
         }
     }
 
@@ -54,7 +63,14 @@ impl Options {
             user: user.to_string(),
             password: None,
             authorized_keys: vec![key],
+            sftp_root: None,
         }
+    }
+
+    /// Serve `root` as `/` over SFTP
+    pub fn with_sftp(mut self, root: &std::path::Path) -> Self {
+        self.sftp_root = Some(root.to_path_buf());
+        self
     }
 }
 
@@ -129,6 +145,7 @@ impl TestSshServer {
                     shared: accept_shared.clone(),
                     shells: Vec::new(),
                     line: Vec::new(),
+                    unclaimed: HashMap::new(),
                 };
                 let config = config.clone();
                 tokio::spawn(async move {
@@ -186,6 +203,9 @@ struct Connection {
     shells: Vec<ChannelId>,
     /// The shell's current input line
     line: Vec<u8>,
+    /// Session channels not yet given a shell, a command or a subsystem, kept only when SFTP
+    /// is served (the subsystem needs the channel's stream); dropped at the first other request
+    unclaimed: HashMap<ChannelId, Channel<Msg>>,
 }
 
 impl Connection {
@@ -253,11 +273,35 @@ impl server::Handler for Connection {
 
     async fn channel_open_session(
         &mut self,
-        _channel: Channel<Msg>,
+        channel: Channel<Msg>,
         reply: server::ChannelOpenHandle,
         _session: &mut Session,
     ) -> Result<(), Self::Error> {
+        if self.shared.options.sftp_root.is_some() {
+            self.unclaimed.insert(channel.id(), channel);
+        }
         reply.accept().await;
+        Ok(())
+    }
+
+    async fn subsystem_request(
+        &mut self,
+        channel: ChannelId,
+        name: &str,
+        session: &mut Session,
+    ) -> Result<(), Self::Error> {
+        self.record(Event::Subsystem(name.to_string())).await;
+        let open = self.unclaimed.remove(&channel);
+        match (name, open, &self.shared.options.sftp_root) {
+            ("sftp", Some(open), Some(root)) => {
+                let _ = session.channel_success(channel);
+                russh_sftp::server::run(open.into_stream(), super::sftp_server::SftpFs::new(root))
+                    .await;
+            }
+            _ => {
+                let _ = session.channel_failure(channel);
+            }
+        }
         Ok(())
     }
 
@@ -295,7 +339,7 @@ impl server::Handler for Connection {
 
     async fn pty_request(
         &mut self,
-        _channel: ChannelId,
+        channel: ChannelId,
         term: &str,
         col_width: u32,
         row_height: u32,
@@ -304,6 +348,7 @@ impl server::Handler for Connection {
         _modes: &[(russh::Pty, u32)],
         _session: &mut Session,
     ) -> Result<(), Self::Error> {
+        self.unclaimed.remove(&channel);
         self.record(Event::Pty {
             term: term.to_string(),
             cols: col_width,
@@ -333,6 +378,7 @@ impl server::Handler for Connection {
         channel: ChannelId,
         session: &mut Session,
     ) -> Result<(), Self::Error> {
+        self.unclaimed.remove(&channel);
         self.record(Event::Shell).await;
         self.shells.push(channel);
         let _ = session.data(channel, &b"$ "[..]);
@@ -345,6 +391,7 @@ impl server::Handler for Connection {
         data: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
+        self.unclaimed.remove(&channel);
         let command = String::from_utf8_lossy(data).into_owned();
         self.record(Event::Exec(command.clone())).await;
         let _ = session.channel_success(channel);

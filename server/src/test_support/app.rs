@@ -91,6 +91,34 @@ impl AppHarness {
         call(&self.app, method, uri, Some(&self.session), body).await
     }
 
+    /// A call as the owner with a raw body and extra headers; the response's status,
+    /// headers and bytes (for the file routes, which stream bytes both ways)
+    pub async fn raw(
+        &self,
+        method: &str,
+        uri: &str,
+        headers: &[(&str, &str)],
+        body: Vec<u8>,
+    ) -> (StatusCode, axum::http::HeaderMap, Vec<u8>) {
+        let mut request = Request::builder()
+            .method(method)
+            .uri(uri)
+            .header(header::AUTHORIZATION, format!("Bearer {}", self.session));
+        for (name, value) in headers {
+            request = request.header(*name, *value);
+        }
+        let response = self
+            .app
+            .clone()
+            .oneshot(request.body(Body::from(body)).unwrap())
+            .await
+            .unwrap();
+        let status = response.status();
+        let headers = response.headers().clone();
+        let bytes = to_bytes(response.into_body(), 64 << 20).await.unwrap();
+        (status, headers, bytes.to_vec())
+    }
+
     /// A call with a token (or any Bearer value)
     pub async fn with(
         &self,
