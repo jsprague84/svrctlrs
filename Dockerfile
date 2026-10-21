@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1
 # Multi-stage build for the SvrCtlRS server image: SvelteKit SPA + Rust server + svrctl CLI.
-# Built by .forgejo/workflows/docker.yaml on the epyc-ai `build` runner; cargo-chef and sccache
-# keep rebuilds short once BuildKit's cache mounts are warm.
+# Built by .forgejo/workflows/docker.yaml on the epyc-ai `build` runner. Each run gets a fresh
+# builder, so the layers are cached in the registry (`:buildcache`): the tools, the npm install
+# and cargo-chef's dependency build are reused until their inputs change.
 #
 # linux/amd64 and linux/arm64 (Raspberry Pi 4/5 and other 64-bit ARM hosts). Every stage that
 # runs a command runs on the build machine's own platform ($BUILDPLATFORM): the SPA is
@@ -107,7 +108,11 @@ RUN --mount=type=cache,id=cargo-registry-$TARGETARCH,target=/usr/local/cargo/reg
     cargo build --release --target "$(cat /rust-target)" --package server --bins --features server \
     && mkdir -p /out \
     && cp "target/$(cat /rust-target)/release/server" /out/svrctlrs-server \
-    && cp "target/$(cat /rust-target)/release/svrctl" /out/svrctl
+    && cp "target/$(cat /rust-target)/release/svrctl" /out/svrctl \
+    && rm -rf target
+# `rm -rf target` in the same step keeps this layer to the two binaries: the CI exports every
+# layer to the registry cache, and the dependency layer above (cached until Cargo.lock
+# changes) must not be re-uploaded with a fresh copy of target/ on every push.
 
 # Show sccache statistics for debugging
 RUN SCCACHE_SERVER_PORT="$(cat /sccache-port)" sccache --show-stats || true

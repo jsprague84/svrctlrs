@@ -76,6 +76,11 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.title=SvrCtlRS
           tags: ${{ steps.tag.outputs.tags }}
+          # Every run gets a fresh builder, so without this each push recompiled cargo-chef,
+          # sccache and every dependency (~5 of 8 minutes). The cache lives beside the image;
+          # a cache that cannot be written never fails the build.
+          cache-from: type=registry,ref=${{ env.IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE }}:buildcache,mode=max,image-manifest=true,oci-mediatypes=true,ignore-error=true
 
   release:
     name: Forgejo release
