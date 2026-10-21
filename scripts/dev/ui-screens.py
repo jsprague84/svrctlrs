@@ -364,7 +364,8 @@ with sync_playwright() as p:
                     shot("terminal-files")
                     # A tap on a file opens the viewer; Escape closes it and leaves the panel
                     files = page.get_by_role("dialog", name="Files")
-                    files.get_by_title("Open etc").click()
+                    # The row's icon opens it too, not only its name
+                    files.get_by_title("Open etc").locator("svg").first.click()
                     files.get_by_title("Open hostname").wait_for(timeout=8000)
                     files.get_by_title("Open hostname").click()
                     viewer = page.get_by_role("dialog", name="hostname")

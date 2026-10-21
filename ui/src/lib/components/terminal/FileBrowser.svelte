@@ -181,6 +181,16 @@
 		'w-11 h-11 md:w-7 md:h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised active:bg-surface-raised disabled:opacity-40';
 </script>
 
+{#snippet kindIcon(entry: RemoteEntry)}
+	{#if entry.kind === 'dir'}
+		<Folder class="w-4 h-4 text-accent flex-shrink-0" />
+	{:else if entry.kind === 'symlink'}
+		<Link2 class="w-4 h-4 text-text-muted flex-shrink-0" />
+	{:else}
+		<FileIcon class="w-4 h-4 text-text-muted flex-shrink-0" />
+	{/if}
+{/snippet}
+
 <div
 	class="relative flex flex-col h-full min-h-0 text-sm"
 	role="region"
@@ -316,15 +326,8 @@
 					<li
 						class="group flex items-center gap-2 px-2 h-11 md:h-9 border-b border-border/50 hover:bg-surface-raised/50"
 					>
-						{#if entry.kind === 'dir'}
-							<Folder class="w-4 h-4 text-accent flex-shrink-0" />
-						{:else if entry.kind === 'symlink'}
-							<Link2 class="w-4 h-4 text-text-muted flex-shrink-0" />
-						{:else}
-							<FileIcon class="w-4 h-4 text-text-muted flex-shrink-0" />
-						{/if}
-
 						{#if renaming === entry.name}
+							{@render kindIcon(entry)}
 							<!-- svelte-ignore a11y_autofocus -->
 							<input
 								type="text"
@@ -351,14 +354,16 @@
 								aria-label="Cancel"><X class="w-4 h-4" /></button
 							>
 						{:else}
+							<!-- The icon is part of the target: the whole row up to its actions opens it -->
 							<button
 								type="button"
-								class="flex-1 min-w-0 flex items-center gap-3 text-left h-full"
+								class="flex-1 min-w-0 flex items-center gap-3 text-left h-full -ml-2 pl-2"
 								onclick={() => openEntry(entry)}
 								title="Open {entry.name}"
 							>
+								{@render kindIcon(entry)}
 								<span
-									class="flex-1 min-w-0 truncate {entry.kind === 'dir'
+									class="flex-1 min-w-0 -ml-1 truncate {entry.kind === 'dir'
 										? 'text-text-primary'
 										: 'text-text-secondary'}"
 								>
