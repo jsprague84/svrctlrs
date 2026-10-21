@@ -86,18 +86,33 @@ other web pages the operator visits (see CSWSH below).
 - **No API token reaches any of this.** No preset names `/api/v1/users/me/sign-in`,
   `/users/me/totp…` or `/users/me/identities/…` (tested for every preset).
 - **Sessions** — tower-sessions, SQLite store, `HttpOnly`, `Secure` unless
-  `SESSION_SECURE=false`, `SameSite=Strict` by default; `SameSite=None` only when
-  `ALLOWED_ORIGINS` is set for the native clients. Expiry: 24 h of inactivity. Logout flushes
-  the session.
-- **Token auth for native clients** — `POST /api/v1/auth/login` returns the session id; the
-  Tauri apps send it as `Authorization: Bearer`. For WebSockets (no headers on a handshake)
-  they first obtain a one-time ticket from `POST /api/v1/auth/ws-ticket` and pass `?ticket=`.
-  The user is always read from the session record, never from the client. Behind a passkey
-  edge like the reference one these apps cannot sign in (they cannot complete the passkey
-  redirect); signing in through the system browser is ROADMAP item 22.
+  `SESSION_SECURE=false`, always `SameSite=Strict` (since ROADMAP 22 `ALLOWED_ORIGINS` no
+  longer relaxes it: the desktop app uses a Bearer token, not cookies). Expiry: 24 h of
+  inactivity. Logout flushes the session. A signed-out page load is remembered in the session
+  (local paths only, never `/api/`, `/ws/` or another `/auth/` page except `/auth/app`) and the
+  browser returns there after signing in, also through the provider, whose flow carries it.
+- **The desktop app signs in through the system browser** (`routes/ui/app_sign_in.rs`,
+  `sign_in/app_codes.rs`; RFC 8252 shape with svrctlrs as the authority). The app listens on a
+  random `127.0.0.1` port and opens `/auth/app` with `state` and a PKCE S256 challenge; the
+  browser signs in however the server allows and shows "sign in the desktop app as <user>?";
+  approving is a same-origin POST that mints a one-time code (random, a minute, one use, bound
+  to the user and the challenge) and redirects to the app's port. The app checks `state` and
+  trades code and verifier at `POST /api/v1/auth/app-token` for a session of its own (30 days,
+  no sliding expiry), which it keeps in the OS keyring (Secret Service on Linux, Keychain,
+  Credential Manager), never in `localStorage`. Another program on the machine that catches the
+  redirect has a code without the verifier, worth nothing; a wrong verifier uses the code up,
+  and failed exchanges count against the login limiter by address. Audit: `app.sign_in_approved`
+  (the browser) and `login` with `method: app` (the exchange). The app signs out with its token
+  (`POST /auth/logout` with `Authorization: Bearer`), which deletes that session only.
+- **Token auth for the desktop app** — it sends its session id as `Authorization: Bearer`.
+  For WebSockets (no headers on a handshake) it first obtains a one-time ticket from
+  `POST /api/v1/auth/ws-ticket` and passes `?ticket=`. A token in a URL (`?token=`) is refused
+  (`401 TOKEN_IN_URL`). The user is always read from the session record, never from the
+  client.
 - **API tokens** (agents and scripts: `svrctl`, Hermes, Claude Code) — see "API tokens" below.
 - **Exempt routes** — `/auth/login`, `/auth/login/totp`, `/auth/oidc/start`,
-  `/auth/oidc/callback`, `/auth/logout`, `/api/v1/auth/login`, `/api/v1/health`,
+  `/auth/oidc/callback`, `/auth/logout`, `/api/v1/auth/login`, `/api/v1/auth/app-token`,
+  `/api/v1/health`,
   the static app shell (`/_app/*`, `/icons/*`, `/fonts/*`, `/favicon.svg`,
   `/service-worker.js`), `/manifest.webmanifest` and `OPTIONS` preflights. `/api/v1/health`
   reveals only version and revision. The manifest is served by the server
@@ -316,12 +331,12 @@ Ordered by impact. Each has a ROADMAP entry.
 3. ~~**Token in URLs**~~ — fixed after 3.0.0: native apps exchange their token for a one-time
    ticket (`POST /api/v1/auth/ws-ticket`, 30 s, consumed on first use) and put only that in
    the WebSocket URL; the request span logs a redacted URI (`token`, `ticket` and `user_id`
-   query values are replaced). `?token=` is still accepted for
-   older app builds and is deprecated; remove it once the 3.x APK is on every device.
+   query values are replaced). The deprecated `?token=` was removed with ROADMAP 22: a token
+   in a URL is refused.
 4. ~~**Token in `localStorage`**~~ — fixed after 3.0.0 for the browser: the web UI no longer
    stores the session id (the HttpOnly cookie is the only credential) and nothing sends a
-   user id. The Tauri apps still keep their token in `localStorage`; moving it to the
-   platform keystore is a P1 item.
+   user id. Since ROADMAP 22 the desktop app keeps its token in the OS keyring and memory; an
+   older build's `localStorage` copy is moved there and deleted at the first start.
 5. ~~**Host-key check is per key type**~~ — fixed after 3.0.0: one shared decision
    (`server/src/host_keys.rs`) compares the presented key against *every* key stored for the
    server; an unseen key type with keys on file is a mismatch, not a first contact. Both

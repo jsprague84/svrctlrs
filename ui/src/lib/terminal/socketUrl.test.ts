@@ -34,13 +34,14 @@ describe('ptySocketUrl', () => {
 		expect(url).toBe('wss://box.lan:8443/ws/terminal/pty?ticket=tick%2Fet');
 	});
 
-	it('falls back to the token for a server without tickets', async () => {
-		const url = await ptySocketUrl({
-			serverUrl: 'http://box.lan',
-			location: page,
-			token: 'a b',
-			fetchTicket: () => Promise.reject(new Error('404'))
-		});
-		expect(url).toBe('ws://box.lan/ws/terminal/pty?token=a%20b');
+	it('never puts the token in the URL, even when the ticket call fails', async () => {
+		await expect(
+			ptySocketUrl({
+				serverUrl: 'http://box.lan',
+				location: page,
+				token: 'a b',
+				fetchTicket: () => Promise.reject(new Error('404'))
+			})
+		).rejects.toThrow('404');
 	});
 });

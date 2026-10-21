@@ -2,6 +2,7 @@
 //! provider (`oidc`, with `jwt` for its signatures), and how this server lets people sign in
 //! at all ([`SignInConfig`], from the environment).
 
+pub mod app_codes;
 pub mod jwt;
 pub mod oidc;
 pub mod totp;

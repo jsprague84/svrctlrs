@@ -91,7 +91,8 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
         || path_lower == "/auth/login/totp"
         || path_lower == "/auth/oidc/start"
         || path_lower == "/auth/oidc/callback"
-        || path_lower == "/api/v1/auth/login";
+        || path_lower == "/api/v1/auth/login"
+        || path_lower == "/api/v1/auth/app-token";
     if is_login && request.headers().contains_key(header::AUTHORIZATION) {
         return ApiError::bad_request(
             "A login request carries no Authorization header; agents use their API token instead",
@@ -161,18 +162,17 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
         }
     }
 
-    // Session token: Authorization header first, then the query string (older native
-    // clients; deprecated in favour of tickets). API tokens never travel in a URL.
-    let query_token = query_param(request.uri(), "token").filter(|t| !t.is_empty());
-    if query_token.as_deref().is_some_and(api_tokens::is_api_token) {
+    // Session token (the native apps: `Authorization: Bearer <session id>`). Never in a URL:
+    // the deprecated `?token=` is gone, and an API token there gets a clear refusal.
+    if query_param(request.uri(), "token").is_some_and(|t| !t.is_empty()) {
         return token_error(
             StatusCode::UNAUTHORIZED,
             "TOKEN_IN_URL",
-            "API tokens go in the Authorization header, never in a URL; WebSockets take a \
-             ticket from POST /api/v1/auth/ws-ticket",
+            "Tokens go in the Authorization header, never in a URL; WebSockets take a ticket \
+             from POST /api/v1/auth/ws-ticket",
         );
     }
-    let token = bearer_token(request.headers()).or(query_token);
+    let token = bearer_token(request.headers());
 
     if let (Some(token), Some(pool)) = (token, pool) {
         if let Some(user_id) = user_id_for_token(&SqliteStore::new(pool), &token).await {
@@ -197,7 +197,19 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
             .into_response();
     }
 
-    // Browser requests redirect to login
+    // Browser requests redirect to login, which comes back to the page (the desktop app's
+    // `/auth/app` above all) once signed in
+    if request.method() == axum::http::Method::GET {
+        if let Some(target) = request
+            .uri()
+            .path_and_query()
+            .map(|p| p.as_str().to_string())
+        {
+            if is_local_target(&target) {
+                let _ = session.insert(AFTER_LOGIN_KEY, target).await;
+            }
+        }
+    }
     Redirect::to("/auth/login").into_response()
 }
 
@@ -455,12 +467,14 @@ pub fn routes() -> Router<AppState> {
         .route("/auth/login/totp", post(login_totp))
         .route("/auth/logout", post(logout))
         .merge(super::oidc::routes())
+        .merge(super::app_sign_in::routes())
 }
 
 /// The JSON auth routes, which the OpenAPI document describes.
 pub fn api_routes() -> utoipa_axum::router::OpenApiRouter<AppState> {
     utoipa_axum::router::OpenApiRouter::new()
         .routes(utoipa_axum::routes!(login_json))
+        .routes(utoipa_axum::routes!(super::app_sign_in::app_token))
         .routes(utoipa_axum::routes!(ws_ticket))
 }
 
@@ -480,6 +494,34 @@ struct CodeForm {
 /// Session key of the authentication method of the signed-in session (`password`,
 /// `password+totp`, `password+recovery_code`, `oidc`), for the session list to come.
 pub(crate) const AUTH_METHOD_KEY: &str = "auth_method";
+/// Session key of the page a signed-out browser asked for, to return to after signing in
+pub(crate) const AFTER_LOGIN_KEY: &str = "after_login";
+
+/// A path on this server to send the browser back to: absolute, not protocol-relative, and not
+/// an API or socket route.
+pub(crate) fn is_local_target(target: &str) -> bool {
+    if target.starts_with("/auth/app?") {
+        return true;
+    }
+    target.starts_with('/')
+        && !target.starts_with("//")
+        && !target.contains('\\')
+        && !["/api/", "/ws/", "/auth/"]
+            .iter()
+            .any(|prefix| target.starts_with(prefix))
+}
+
+/// Where a browser goes after signing in: the page it asked for, once, or the app.
+pub(crate) async fn take_after_login(session: &Session) -> String {
+    session
+        .remove::<String>(AFTER_LOGIN_KEY)
+        .await
+        .ok()
+        .flatten()
+        .filter(|t| is_local_target(t))
+        .unwrap_or_else(|| "/".to_string())
+}
+
 /// Session key of a password sign-in waiting for its second factor
 const PENDING_LOGIN_KEY: &str = "pending_login";
 /// How long the second step may take, and how many wrong codes it allows, before the
@@ -900,7 +942,7 @@ async fn login(
     match check_password(&state, &ip, &creds).await {
         Ok((user, false)) => {
             match start_session(&state, &session, user.id, &user.username, &ip, "password").await {
-                Ok(()) => Redirect::to("/").into_response(),
+                Ok(()) => Redirect::to(&take_after_login(&session).await).into_response(),
                 Err(_) => internal_page(&state),
             }
         }
@@ -965,7 +1007,7 @@ async fn login_totp(
             )
             .await
             {
-                Ok(()) => Redirect::to("/").into_response(),
+                Ok(()) => Redirect::to(&take_after_login(&session).await).into_response(),
                 Err(_) => internal_page(&state),
             }
         }
@@ -1116,7 +1158,31 @@ async fn logout(
     State(state): State<AppState>,
     headers: HeaderMap,
     session: Session,
-) -> Result<Redirect, StatusCode> {
+) -> Result<Response, StatusCode> {
+    // The desktop app signs out with its own session token: that session ends (the browser's
+    // cookie session is a different one). No cross-site check is needed, since a page cannot
+    // send an Authorization header to another site without a CORS preflight it would fail.
+    if let Some(token) = bearer_token(&headers).filter(|t| !api_tokens::is_api_token(t)) {
+        let store = SqliteStore::new(state.pool.clone());
+        if let Ok(id) = token.parse::<Id>() {
+            if let Ok(Some(record)) = store.load(&id).await {
+                if let Some(user_id) = record.data.get(USER_ID_KEY).and_then(|v| v.as_i64()) {
+                    crate::audit::record(
+                        &state.pool,
+                        NewAuditEntry::new("logout")
+                            .user(user_id)
+                            .client_ip(Some(client_ip(&headers))),
+                    );
+                }
+                store
+                    .delete(&id)
+                    .await
+                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            }
+        }
+        return Ok(StatusCode::NO_CONTENT.into_response());
+    }
+
     if !is_same_origin_request(&headers) {
         return Err(StatusCode::FORBIDDEN);
     }
@@ -1135,7 +1201,7 @@ async fn logout(
 
     tracing::info!("User logged out");
     // Not straight back to the provider, whose own session would sign you in again
-    Ok(Redirect::to("/auth/login?signed_out=1"))
+    Ok(Redirect::to("/auth/login?signed_out=1").into_response())
 }
 
 #[cfg(test)]
@@ -1340,20 +1406,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn query_token_works_for_websocket_style_requests() {
+    async fn a_session_token_in_the_url_is_refused() {
+        // `?token=` was the native apps' old way onto a WebSocket; tickets replaced it and a
+        // durable credential in a URL ends up in proxy and access logs.
         let (app, store, _) = app_with_store().await;
         let token = session_token(&store, 7, time::Duration::hours(1)).await;
-
-        let resp = app
-            .oneshot(
-                Request::get(format!("/api/v1/whoami?token={token}&user_id=999"))
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(resp.status(), StatusCode::OK);
-        assert_eq!(body_text(resp).await, "7");
+        for uri in [
+            format!("/api/v1/whoami?token={token}"),
+            format!("/ws/terminal/pty?token={token}"),
+        ] {
+            let resp = app
+                .clone()
+                .oneshot(Request::get(&uri).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(resp.status(), StatusCode::UNAUTHORIZED, "{uri}");
+            assert!(body_text(resp).await.contains("TOKEN_IN_URL"), "{uri}");
+        }
     }
 
     #[tokio::test]

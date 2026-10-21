@@ -4,10 +4,12 @@
 
 Open the server URL and sign in with your SvrCtlRS username and password. Behind the dev-space
 edge you first pass the Pocket ID passkey prompt; when that sign-in runs out (after 15 days
-there) the app reloads and the prompt comes back. On the desktop or Android app the first
+there) the app reloads and the prompt comes back. In the desktop app the first
 screen asks for the server URL (`https://…`); the app checks it can reach the server, then
-shows the same login. Behind the dev-space edge the desktop app cannot sign in yet, because
-it cannot pass the passkey prompt; use the browser or the installed web app.
+**Sign in with your browser** opens your browser, where you sign in as usual and approve the
+app. The app stays signed in for 30 days (its session is in the system keyring) and signs
+out on its own with Logout. In the app, Ctrl+W goes to the terminal (vim's window commands),
+which a browser tab keeps for itself.
 
 ## Setting up a new server (the short way)
 

@@ -30,17 +30,14 @@ pub fn router(state: AppState, session_store: SqliteStore, session_secure: bool)
     // Build the terminal WebSocket router
     let terminal_pty_router = routes::terminal_pty::routes().with_state(state.clone());
 
-    // When cross-origin clients are configured, use SameSite::None so cookies work across
-    // origins. Otherwise keep the library default (Strict).
-    let mut session_layer = SessionManagerLayer::new(session_store)
+    // The session cookie stays SameSite=Strict whatever ALLOWED_ORIGINS says: the native apps
+    // authenticate with a Bearer token (they cannot keep cross-origin cookies anyway), so
+    // relaxing the browser's cookie for them only weakened the browser.
+    let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(session_secure)
         .with_expiry(tower_sessions::Expiry::OnInactivity(time::Duration::hours(
             24,
         )));
-    if !allowed_origins.is_empty() {
-        session_layer = session_layer.with_same_site(tower_sessions::cookie::SameSite::None);
-        info!("Session cookie SameSite=None for cross-origin access");
-    }
 
     // Build CORS layer
     let cors_layer = if !allowed_origins.is_empty() {

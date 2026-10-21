@@ -491,7 +491,17 @@ export class PtySession {
 		// exactly as it did, prompt and cursor included.
 		this.setNote(this.sessionId ? 'Resuming session…' : 'Connecting…');
 
-		const wsUrl = await this.opts.socketUrl();
+		let wsUrl: string;
+		try {
+			wsUrl = await this.opts.socketUrl();
+		} catch {
+			// The desktop app's ticket request failed (server unreachable, or signed out: the API
+			// client has already sent a signed-out app to its login page). Try again like a
+			// dropped socket would; the token never goes into the URL instead.
+			if (this.disposed || this.intentionalDisconnect || gen !== this.connectGen) return;
+			this.attemptReconnect();
+			return;
+		}
 		// The ticket request yields; the tab may have been closed or reconnected meanwhile.
 		if (this.disposed || this.intentionalDisconnect || gen !== this.connectGen) return;
 

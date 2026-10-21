@@ -1,80 +1,57 @@
 <script lang="ts">
-	import { isTauri } from '#lib/platform/index.js';
+	// The desktop app's sign-in. (The browser never sees this page: it loads the server's own
+	// login page, which offers the identity provider, a password and two-factor.)
+	import { onDestroy } from 'svelte';
+	import { ExternalLink } from '@lucide/svelte';
 	import { getServerUrl } from '#lib/platform/index.js';
+	import { signInWithBrowser } from '#lib/platform/appToken.js';
 	import Button from '#lib/components/ui/Button.svelte';
-	import Input from '#lib/components/ui/Input.svelte';
-	import * as toast from '#lib/state/toast.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
 
-	let username = $state('');
-	let password = $state('');
-	let loading = $state(false);
+	let waiting = $state(false);
+	let error = $state<string | null>(null);
+	let left = true;
+	onDestroy(() => (left = false));
 
-	async function handleLogin() {
-		if (!username.trim() || !password.trim()) return;
-		loading = true;
-
+	async function signIn() {
+		waiting = true;
+		error = null;
 		try {
-			const serverUrl = getServerUrl();
-			const res = await fetch(`${serverUrl}/api/v1/auth/login`, {
-				method: 'POST',
-				credentials: 'include',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ username, password })
-			});
-
-			if (res.ok) {
-				const data = await res.json().catch(() => ({}));
-				// Only the native apps keep a token: WebKitGTK does not send cross-origin cookies.
-				// In the browser the session cookie (HttpOnly) is the credential; a copy in
-				// localStorage would only widen what an injected script could steal.
-				if (isTauri() && data.session_id) {
-					localStorage.setItem('svrctlrs-session-token', data.session_id);
-				}
-				localStorage.removeItem('svrctlrs-user-id');
-				// Full reload so every state module starts from the authenticated session
-				window.location.href = '/';
-			} else {
-				const data = await res.json().catch(() => ({ error: 'Login failed' }));
-				toast.error(data.error || 'Login failed');
-			}
+			await signInWithBrowser();
+			// Full reload so every state module starts from the signed-in session
+			if (left) window.location.href = '/';
 		} catch (e) {
-			toast.error(extractErrorMessage(e, 'Connection failed'));
+			error = extractErrorMessage(e, 'Sign-in did not finish');
 		} finally {
-			loading = false;
+			waiting = false;
 		}
 	}
 </script>
 
 <div class="min-h-screen flex items-center justify-center bg-background px-4">
 	<div class="w-full max-w-sm bg-surface border border-border rounded-lg p-6 shadow-lg">
-		<h1 class="text-lg font-semibold text-text-primary mb-1">Sign In</h1>
-		<p class="text-sm text-text-muted mb-4">Enter your SvrCtlRS credentials</p>
+		<h1 class="text-lg font-semibold text-text-primary mb-1">Sign in</h1>
+		<p class="text-sm text-text-muted mb-4 break-all">{getServerUrl()}</p>
 
-		<form
-			class="flex flex-col gap-3"
-			onsubmit={(e) => {
-				e.preventDefault();
-				handleLogin();
-			}}
-		>
-			<Input label="Username" bind:value={username} required />
-			<div>
-				<label for="login-password" class="block text-xs font-medium text-text-secondary mb-1"
-					>Password</label
-				>
-				<input
-					id="login-password"
-					type="password"
-					autocomplete="current-password"
-					bind:value={password}
-					required
-					class="w-full px-3 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
-				/>
-			</div>
-			<Button type="submit" disabled={loading || !username.trim() || !password.trim()}>
-				{loading ? 'Signing in...' : 'Sign In'}
-			</Button>
-		</form>
+		{#if waiting}
+			<p class="text-sm text-text-secondary mb-4" role="status">
+				Finish signing in in your browser, then come back here. The browser asks you to approve this
+				app.
+			</p>
+		{:else}
+			<p class="text-sm text-text-secondary mb-4">
+				SvrCtlRS opens your browser, where you sign in as usual (with your identity provider, or a
+				password and code) and approve this app.
+			</p>
+		{/if}
+
+		{#if error}
+			<p class="text-sm text-error mb-4" role="alert">{error}</p>
+		{/if}
+
+		<Button onclick={signIn} disabled={waiting}>
+			<ExternalLink class="w-4 h-4" />
+			{waiting ? 'Waiting for the browser…' : 'Sign in with your browser'}
+		</Button>
 	</div>
 </div>

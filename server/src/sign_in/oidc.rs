@@ -61,13 +61,12 @@ impl std::fmt::Debug for OidcConfig {
 }
 
 /// What a sign-in is for
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Purpose {
-    Login,
+    /// Sign in, then go to `next` (a local path)
+    Login { next: String },
     /// Link the identity to this (signed-in) account
-    Link {
-        user_id: i64,
-    },
+    Link { user_id: i64 },
 }
 
 /// A sign-in in progress
@@ -581,7 +580,7 @@ mod tests {
             binding: "b-1".into(),
             nonce: "n".into(),
             verifier: "v".into(),
-            purpose: Purpose::Login,
+            purpose: Purpose::Login { next: "/".into() },
             created: Instant::now(),
         };
         provider

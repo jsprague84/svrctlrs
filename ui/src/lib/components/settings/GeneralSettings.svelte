@@ -4,6 +4,7 @@
 	import Select from '#lib/components/ui/Select.svelte';
 	import SettingsSection from '#lib/components/ui/SettingsSection.svelte';
 	import { isTauri, getServerUrl } from '#lib/platform/index.js';
+	import { forgetAppToken } from '#lib/platform/appToken.js';
 	import * as themeState from '#lib/state/theme.svelte.js';
 	import * as profilesState from '#lib/state/profiles.svelte.js';
 	import * as settingsState from '#lib/state/settings.svelte.js';
@@ -76,6 +77,7 @@
 			confirmLabel: 'Change server'
 		});
 		if (!ok) return;
+		await forgetAppToken();
 		localStorage.removeItem('svrctlrs-server-url');
 		window.location.reload();
 	}

@@ -1,15 +1,15 @@
 import { getServerUrl } from '#lib/platform/index.js';
+import { forgetAppToken, getAppToken } from '#lib/platform/appToken.js';
 
 function getApiBase(): string {
 	return `${getServerUrl()}/api/v1`;
 }
 
-/** Auth headers for the native apps: a Bearer token (the session id) stored at login.
+/** Auth headers for the desktop app: its session token (from the OS keyring, held in memory).
  * The browser has no token and authenticates with the session cookie instead.
  * The server derives the user from the session; nothing else identifies the caller. */
 function getAuthHeaders(): Record<string, string> {
-	if (typeof localStorage === 'undefined') return {};
-	const token = localStorage.getItem('svrctlrs-session-token');
+	const token = getAppToken();
 	return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
@@ -153,7 +153,7 @@ export async function logout(): Promise<void> {
 	} catch (e) {
 		console.warn('Logout request failed:', e);
 	}
-	localStorage.removeItem('svrctlrs-session-token');
+	await forgetAppToken();
 	localStorage.removeItem('svrctlrs-user-id');
 	await toLogin(true);
 }

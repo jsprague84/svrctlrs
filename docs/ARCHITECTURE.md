@@ -106,8 +106,8 @@ does not pull in Tauri's GTK/WebKit dependencies.
 - Users: `users` table, argon2 password hashes. The first start seeds an admin from
   `ADMIN_USERNAME`/`ADMIN_PASSWORD` if the table is empty.
 - Sessions: tower-sessions with the SQLite store, 24 h inactivity expiry, `Secure` unless
-  `SESSION_SECURE=false`, `SameSite=None` only when `ALLOWED_ORIGINS` is configured for
-  non-browser clients.
+  `SESSION_SECURE=false`, always `SameSite=Strict`. The desktop app's sessions come from
+  `POST /api/v1/auth/app-token` (`routes/ui/app_sign_in.rs`), 30 days.
 - Credentials: `value` encrypted with AES-256-GCM (`core/src/encryption.rs`). The key comes
   from `ENCRYPTION_KEY` (64 hex chars), else `data/encryption.key`, else is generated.
 - API tokens: `api_tokens` table, SHA-256 of the secret only; presets enforced by
@@ -171,8 +171,10 @@ Migrations are checksummed, so never edit one that has shipped.
   `{{word:default}}` (plain identifiers only, Go template keywords reserved), fills the
   built-ins from the tab's server and lists the rest; `TerminalView.runQuickCommand` types the
   result or opens `SnippetVarsDialog` to ask first.
-- **API client**: `ui/src/lib/api/client.ts` adds `Authorization: Bearer` when a token is
-  stored (the native apps; the browser uses its cookie), redirects to login on 401.
+- **API client**: `ui/src/lib/api/client.ts` adds `Authorization: Bearer` with the desktop
+  app's token (`platform/appToken.ts`: OS keyring through Tauri commands, held in memory; the
+  browser uses its cookie). On 401 the browser loads the server's login page, the app its own
+  "Sign in with your browser" page.
 - **Terminal session**: `ui/src/lib/terminal/ptySession.ts` is the WebSocket side of one pane,
   plain TypeScript with no xterm or Svelte in it: `shell` or `attach`, binary output frames and
   their `seq`, replay, the ping/pong watchdog, reconnect backoff, the host-key challenge, and
@@ -212,11 +214,13 @@ Migrations are checksummed, so never edit one that has shipped.
 ## Tauri apps (`ui/src-tauri/`)
 
 One Tauri project; the Linux desktop build (`.deb`, `.rpm`, AppImage) registers a tray icon and
-hides to tray on close. The app identifier is `cc.jsnode.svrctlrs`. The Android target is
+hides to tray on close. `src-tauri/src/auth.rs` signs it in through the system browser (a
+`127.0.0.1` listener, PKCE, `tauri-plugin-opener`) and keeps the token with `keyring`. The app identifier is `cc.jsnode.svrctlrs`. The Android target is
 parked (`.forgejo/workflows-parked/`); the phone uses the web app.
 
 ## Build and delivery
 
-`Dockerfile` builds the SPA (node 22), then the server and `svrctl` (cargo-chef + sccache),
+`Dockerfile` builds the SPA (node 22), then the server and `svrctl` (cargo-chef + sccache, kept
+warm by a persistent buildx builder in CI),
 into a `debian:bookworm-slim` image running as uid 1000 with a `svrctl health` healthcheck.
 CI (`.forgejo/workflows/`) is described in `DEVELOPMENT.md`.

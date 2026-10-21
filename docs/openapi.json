@@ -250,6 +250,60 @@
         }
       }
     },
+    "/api/v1/auth/app-token": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Trade the one-time code from the browser, and the PKCE verifier only the app holds, for a\nsession token (`Authorization: Bearer <session_id>`, 30 days). The token is the app's; the\nbrowser's session is not touched.",
+        "operationId": "app_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Signed in; `session_id` is the app's Bearer token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoggedIn"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Unknown, used or expired code, or the wrong verifier (`APP_CODE_INVALID`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRefused"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many failures from this address",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRefused"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
     "/api/v1/auth/login": {
       "post": {
         "tags": [
@@ -3515,6 +3569,22 @@
           "require_approval": {
             "type": "boolean",
             "description": "Deleting a server or credential, or forgetting host keys, waits for the owner's yes"
+          }
+        }
+      },
+      "AppTokenRequest": {
+        "type": "object",
+        "description": "`POST /auth/app-token`: the desktop app trades the one-time code its loopback port received\nfrom the browser, and the PKCE verifier only it holds, for a session token.",
+        "required": [
+          "code",
+          "code_verifier"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "code_verifier": {
+            "type": "string"
           }
         }
       },

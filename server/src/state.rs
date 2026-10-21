@@ -27,6 +27,8 @@ pub struct AppState {
     pub sign_in: Arc<crate::sign_in::SignInConfig>,
     /// One-time tickets that authenticate WebSocket upgrades from native clients.
     pub ws_tickets: Arc<WsTickets>,
+    /// One-time codes that hand a browser sign-in to the desktop app.
+    pub app_codes: Arc<crate::sign_in::app_codes::AppCodes>,
     /// Live interactive sessions; they outlive the sockets that use them.
     pub sessions: Arc<SessionRegistry>,
     /// Where session recordings are written, and the recorders still writing.
@@ -53,6 +55,7 @@ impl AppState {
             login_limiter,
             sign_in: Arc::new(crate::sign_in::SignInConfig::default()),
             ws_tickets: Arc::new(WsTickets::default()),
+            app_codes: Arc::default(),
             sessions: SessionRegistry::from_env(),
             recordings: RecordingStore::from_env(),
             token_revocations: tokio::sync::broadcast::channel(64).0,

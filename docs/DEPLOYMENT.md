@@ -127,17 +127,22 @@ router for that time.
 
 API tokens never go through any of this: agents keep working whatever the sign-in settings.
 
-## Native clients against this server
+## The desktop app against this server
 
-Behind a passkey edge like the reference one the desktop and Android apps cannot sign in:
-they cannot complete the passkey redirect. That returns with sign-in through the system
-browser (ROADMAP items 21–22). Without such an edge:
+1. Add the app's origin to `ALLOWED_ORIGINS` and restart: `tauri://localhost` on Linux and
+   macOS, `http://tauri.localhost` on Windows. It only allows the app's requests across
+   origins (CORS and the WebSocket origin check); the browser's session cookie stays
+   `SameSite=Strict`.
+2. In the app, enter `https://<host>` on first launch. The app checks `/api/v1/health`, then
+   offers **Sign in with your browser**: your browser opens `<host>/auth/app`, you sign in
+   there as usual (Pocket ID, or password and code) and approve the app, and the browser hands
+   the app a one-time code on a `127.0.0.1` port.
+3. The app keeps its session (30 days) in the OS keyring: on Linux the Secret Service
+   (GNOME Keyring, KeePassXC, KWallet with its Secret Service bridge). Without one, the app
+   works but asks you to sign in at every start.
 
-1. Add the app origins to `ALLOWED_ORIGINS` and restart.
-2. In the desktop or Android app, enter `https://<host>` on first launch. The app checks
-   `/api/v1/health`, then shows the login form. Release Android builds refuse plain `http://`.
-3. The apps authenticate with a Bearer token (the session id) rather than cookies; the token
-   is stored on the device.
+It needs nothing at the edge: the reference router passes the app's requests to the server,
+which judges its token like any other.
 
 ## Backups
 
@@ -216,4 +221,3 @@ pass `--database-url sqlite:/path/to/svrctlrs.db`.
   Servers → Keys → **Forget all keys** clears the stored keys.
 - Interactive sessions survive a client disconnect but not a server restart: `docker compose
   up -d` after a pull ends every open shell (the terminal shows "Server shutting down").
-- `Session cookie SameSite=None` in the start-up log means `ALLOWED_ORIGINS` is set.

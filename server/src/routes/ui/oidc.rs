@@ -128,8 +128,11 @@ async fn begin(state: &AppState, headers: &HeaderMap, purpose: Purpose) -> Respo
     }
 }
 
-async fn start(State(state): State<AppState>, headers: HeaderMap) -> Response {
-    begin(&state, &headers, Purpose::Login).await
+async fn start(State(state): State<AppState>, headers: HeaderMap, session: Session) -> Response {
+    // The page a signed-out browser asked for (kept by require_auth): the provider's redirect
+    // back is cross-site, so the session cookie does not come along and the flow carries it.
+    let next = super::auth::take_after_login(&session).await;
+    begin(&state, &headers, Purpose::Login { next }).await
 }
 
 /// Linking is started from the app (Settings → Access → Sign-in), never from another site.
@@ -249,7 +252,7 @@ async fn callback(
 
     match flow.purpose {
         Purpose::Link { user_id } => link_identity(&state, &headers, user_id, identity).await,
-        Purpose::Login => login_identity(&state, &session, &ip, identity).await,
+        Purpose::Login { next } => login_identity(&state, &session, &ip, identity, &next).await,
     }
 }
 
@@ -309,6 +312,7 @@ async fn login_identity(
     session: &Session,
     ip: &str,
     identity: crate::sign_in::oidc::Identity,
+    next: &str,
 ) -> Response {
     let found = match user_identities::find(&state.pool, &identity.issuer, &identity.subject).await
     {
@@ -376,7 +380,7 @@ async fn login_identity(
             "Internal server error",
         );
     }
-    let mut response = continue_page("/");
+    let mut response = continue_page(next);
     if let Ok(v) = flow_cookie(state, "", 0).parse() {
         response.headers_mut().insert(header::SET_COOKIE, v);
     }

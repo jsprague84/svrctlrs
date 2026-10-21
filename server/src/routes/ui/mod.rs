@@ -5,6 +5,7 @@ use tower_http::services::{ServeDir, ServeFile};
 
 use crate::state::AppState;
 
+pub mod app_sign_in;
 pub mod auth;
 pub mod manifest;
 pub mod oidc;

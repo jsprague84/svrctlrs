@@ -26,3 +26,12 @@ tauri-plugin-log = "2"
 tauri-plugin-biometric = "2"
 tauri-plugin-http = "2"
 tauri-plugin-os = "2"
+# Sign-in through the system browser (ROADMAP 22): open it, listen on 127.0.0.1, PKCE
+tauri-plugin-opener = "2"
+tokio = { version = "1", features = ["net", "io-util", "time"] }
+url = "2"
+rand = "0.8"
+sha2 = "0.10"
+base64 = "0.22"
+# The session token in the OS keyring instead of localStorage
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }

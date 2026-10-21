@@ -30,6 +30,14 @@ pub struct LoginRefused {
     pub code: Option<String>,
 }
 
+/// `POST /auth/app-token`: the desktop app trades the one-time code its loopback port received
+/// from the browser, and the PKCE verifier only it holds, for a session token.
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct AppTokenRequest {
+    pub code: String,
+    pub code_verifier: String,
+}
+
 /// `POST /auth/ws-ticket`: one use, on a WebSocket upgrade only (`?ticket=`).
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct WsTicket {

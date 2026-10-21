@@ -9,6 +9,7 @@
 	import * as profilesState from '#lib/state/profiles.svelte.js';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import { isTauri, hasServerUrl } from '#lib/platform/index.js';
+	import { loadAppToken } from '#lib/platform/appToken.js';
 	import ServerUrlSetup from '#lib/components/ui/ServerUrlSetup.svelte';
 	import ProfileEditModal from '#lib/components/terminal/ProfileEditModal.svelte';
 	import * as terminalState from '#lib/state/terminal.svelte.js';
@@ -31,6 +32,8 @@
 	let sidebarCollapsed = $state(false);
 	let mobileOpen = $state(false);
 	let needsServerSetup = $state(false);
+	// The desktop app renders nothing that calls the API until its token is out of the keyring
+	let tokenReady = $state(!isTauri());
 	let editingProfile = $state<TerminalProfile | null>(null);
 
 	let servers = $derived(serversState.getServers());
@@ -61,9 +64,13 @@
 			if (isTauri() && !hasServerUrl()) {
 				needsServerSetup = true;
 			} else {
-				serversState.loadServers();
-				profilesState.loadProfiles();
-				terminalPrefs.syncPrefs();
+				// The desktop app's token comes from the OS keyring before the first API call
+				loadAppToken().finally(() => {
+					tokenReady = true;
+					serversState.loadServers();
+					profilesState.loadProfiles();
+					terminalPrefs.syncPrefs();
+				});
 			}
 		}
 
@@ -157,6 +164,8 @@
 			terminalPrefs.syncPrefs();
 		}}
 	/>
+{:else if !tokenReady && !isAuthPage}
+	<div class="h-dvh bg-background" aria-busy="true"></div>
 {:else if isAuthPage}
 	<!-- Auth pages render without sidebar/chrome -->
 	{@render children()}

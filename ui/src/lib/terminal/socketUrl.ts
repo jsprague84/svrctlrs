@@ -1,5 +1,6 @@
 import { post } from '#lib/api/client.js';
 import { getServerUrl } from '#lib/platform/index.js';
+import { getAppToken } from '#lib/platform/appToken.js';
 
 export const PTY_PATH = '/ws/terminal/pty';
 
@@ -7,16 +8,17 @@ export interface SocketUrlInputs {
 	/** The configured backend for the native apps; '' means same origin */
 	serverUrl: string;
 	location: { protocol: string; host: string };
-	/** The native apps' session token; the browser has none and uses its cookie */
+	/** The desktop app's session token; the browser has none and uses its cookie */
 	token: string | null;
 	/** `POST /auth/ws-ticket` */
 	fetchTicket: () => Promise<string>;
 }
 
 /**
- * The PTY WebSocket URL. The browser relies on the session cookie. Native apps cannot set
- * headers on a WebSocket handshake, so they exchange their token for a one-time ticket that is
- * bound to them and expires in seconds — nothing durable ends up in the URL.
+ * The PTY WebSocket URL. The browser relies on the session cookie. The desktop app cannot set
+ * headers on a WebSocket handshake, so it exchanges its token for a one-time ticket that is
+ * bound to it and expires in seconds — nothing durable ends up in the URL (the server refuses
+ * a token there).
  */
 export async function ptySocketUrl(inputs: SocketUrlInputs): Promise<string> {
 	let url: string;
@@ -27,13 +29,8 @@ export async function ptySocketUrl(inputs: SocketUrlInputs): Promise<string> {
 		url = `${protocol}//${inputs.location.host}${PTY_PATH}`;
 	}
 	if (inputs.token) {
-		try {
-			const ticket = await inputs.fetchTicket();
-			url += `?ticket=${encodeURIComponent(ticket)}`;
-		} catch {
-			// Server without ticket support: fall back to the token (deprecated).
-			url += `?token=${encodeURIComponent(inputs.token)}`;
-		}
+		const ticket = await inputs.fetchTicket();
+		url += `?ticket=${encodeURIComponent(ticket)}`;
 	}
 	return url;
 }
@@ -43,7 +40,7 @@ export function browserPtySocketUrl(): Promise<string> {
 	return ptySocketUrl({
 		serverUrl: getServerUrl(),
 		location: window.location,
-		token: localStorage.getItem('svrctlrs-session-token'),
+		token: getAppToken(),
 		fetchTicket: async () => (await post<{ ticket: string }>('/auth/ws-ticket')).ticket
 	});
 }

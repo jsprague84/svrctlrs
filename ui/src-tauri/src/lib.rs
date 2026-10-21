@@ -1,3 +1,5 @@
+mod auth;
+
 #[cfg(desktop)]
 use tauri::{
     menu::{Menu, MenuItem},
@@ -25,6 +27,7 @@ pub fn run() {
             // Register plugins
             app.handle().plugin(tauri_plugin_os::init())?;
             app.handle().plugin(tauri_plugin_http::init())?;
+            app.handle().plugin(tauri_plugin_opener::init())?;
             #[cfg(mobile)]
             app.handle().plugin(tauri_plugin_biometric::init())?;
 
@@ -90,6 +93,12 @@ pub fn run() {
                 }
             }
         })
+        .invoke_handler(tauri::generate_handler![
+            auth::sign_in_with_browser,
+            auth::stored_token,
+            auth::store_token,
+            auth::forget_token
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

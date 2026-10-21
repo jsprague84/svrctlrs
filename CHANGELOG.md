@@ -19,6 +19,13 @@ the release workflow uses the matching section as the release notes.
   allowance of 10 attempts per 15 minutes; if the count cannot be read, the attempt is refused.
 
 ### Added
+- **The desktop app signs in through your browser.** "Sign in with your browser" opens
+  `/auth/app`, where you sign in however the server allows (Pocket ID, or password and code)
+  and approve the app; the browser hands it a one-time code on a `127.0.0.1` port, which only
+  the app can redeem (PKCE). The app's session lasts 30 days and lives in the OS keyring, not
+  `localStorage` (an older build's token moves there at the first start). It works behind the
+  reference edge, and Ctrl+W reaches vim in the terminal. Set `ALLOWED_ORIGINS` to the app's
+  origin (`tauri://localhost` on Linux).
 - **Sign in with your identity provider (OpenID Connect)**, built into the server: set
   `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `PUBLIC_URL`, link your account
   under Settings → Access → Sign-in, and the login page offers "Sign in with …". Any provider
@@ -32,7 +39,14 @@ the release workflow uses the matching section as the release notes.
   second page; the JSON login takes it as `totp`. Wrong codes count like wrong passwords.
   `svrctl reset-password <user> --clear-totp` turns it off from the host if the phone is gone.
 
+### Removed
+- `?token=` on WebSocket upgrades (deprecated since 3.0): a token in a URL is now refused. The
+  desktop app uses one-time tickets.
+
 ### Changed
+- `ALLOWED_ORIGINS` no longer switches the browser's session cookie to `SameSite=None`; it
+  only lets the desktop app's requests through CORS and the WebSocket origin check.
+- After signing in, the browser returns to the page it asked for.
 - **The reference deployment signs in with Pocket ID in the app** and takes no passwords
   (`PASSWORD_LOGIN=off`, the compose default now), so its three Traefik routers became one
   with security headers only, and tinyauth no longer sits in front of SvrCtlRS: one passkey

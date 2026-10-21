@@ -18,12 +18,12 @@ routes requires one of:
 |---|---|---|
 | Session cookie | set by either login route | browser (also on WebSocket upgrades) |
 | API token | `Authorization: Bearer svr_…` (never in a URL) | agents, scripts, `svrctl` |
-| Bearer token | `Authorization: Bearer <session_id>` | Tauri desktop/Android |
-| One-time ticket | `?ticket=<ticket>` on WebSocket upgrades, from `POST /auth/ws-ticket` | Tauri desktop/Android; agents without header support |
-| Query token | `?token=<session_id>` on WebSocket upgrades | older native builds; deprecated |
+| Bearer token | `Authorization: Bearer <session_id>` | the desktop app |
+| One-time ticket | `?ticket=<ticket>` on WebSocket upgrades, from `POST /auth/ws-ticket` | the desktop app; agents without header support |
 
-The token *is* the session id returned by the JSON login. It expires after 24 hours of
-inactivity. The user is always taken from the session record; `X-User-Id` and `user_id`
+A token in a URL (`?token=…`) is refused with `401 TOKEN_IN_URL`. The Bearer token *is* a
+session id: from `POST /api/v1/auth/app-token` (the desktop app's sign-in through the browser,
+30 days) or the JSON login (24 hours of inactivity). The user is always taken from the session record; `X-User-Id` and `user_id`
 parameters are ignored. Unauthenticated API calls get `401`; unauthenticated page loads
 redirect to `/auth/login`. Ten failed logins per 15 minutes, per client address or per
 username, answer `429` with `Retry-After`. A request carrying an API token is judged by that
@@ -69,6 +69,22 @@ Content-Type: application/json
 401 {"error": "…", "code": "TOTP_INVALID"}
 403 {"error": "…", "code": "PASSWORD_LOGIN_OFF"}
 ```
+
+The desktop app signs in through the browser instead (DEPLOYMENT.md, "The desktop app against
+this server"): `GET /auth/app?port=&state=&code_challenge=&code_challenge_method=S256` in the
+browser, then
+
+```http
+POST /api/v1/auth/app-token
+Content-Type: application/json
+
+{"code": "<from the 127.0.0.1 redirect>", "code_verifier": "<the PKCE verifier>"}
+
+200 {"success": true, "user_id": 1, "session_id": "…"}
+400 {"error": "…", "code": "APP_CODE_INVALID"}   unknown, used, expired, or the wrong verifier
+```
+
+`POST /auth/logout` with `Authorization: Bearer <session_id>` ends that session (204).
 
 `"totp"` takes the six-digit code or a recovery code. `POST /auth/login` (form fields
 `username`, `password`) is the HTML fallback and redirects to `/`, or shows the code page
