@@ -39,8 +39,20 @@ jobs:
       - name: Checkout
         uses: https://code.forgejo.org/actions/checkout@v4
 
-      - name: Set up Docker Buildx
+      # A named builder that outlives the job. The default (a new builder-<uuid> per run, removed
+      # afterwards) threw BuildKit's cache away every time, so cargo-chef and sccache never had
+      # a warm cache. The builder lives in the shared forgejo-dind daemon; created once, later
+      # runs find its container and state volume (buildx_buildkit_svrctlrs0) and reuse them.
+      # Its cache is capped (garbage collection at 20 GB) because epyc-ai's disk is shared.
+      - name: Set up Docker Buildx (persistent builder)
         uses: https://github.com/docker/setup-buildx-action@v3
+        with:
+          name: svrctlrs
+          cleanup: false
+          buildkitd-config-inline: |
+            [worker.oci]
+              gc = true
+              gckeepstorage = 20000
 
       - name: Log in to the Forgejo container registry
         uses: https://github.com/docker/login-action@v3
