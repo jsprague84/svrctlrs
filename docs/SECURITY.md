@@ -28,7 +28,9 @@ other web pages the operator visits (see CSWSH below).
 - **Users** — `users` table, argon2 (default parameters). The first start seeds one admin from
   `ADMIN_USERNAME`/`ADMIN_PASSWORD` when the table is empty; later starts never overwrite.
   Passwords must be at least 12 characters. Failed logins are limited to 10 per 15 minutes
-  per client address and per username (429 with `Retry-After`). Accounts are managed under
+  per client address and per username (429 with `Retry-After`); the failures are kept in the
+  database (`login_failures`), so a restart or a deploy does not reset the count, and an
+  attempt is refused when the limiter cannot be read. Accounts are managed under
   Settings → Users (`/api/v1/users`); a password change requires the current password. Every
   account is an administrator, so put the whole app behind the edge passkey login as well
   ("Deployment guidance"). Lockout
@@ -287,7 +289,8 @@ Ordered by impact. Each has a ROADMAP entry.
    roles, TOTP/passkeys and OIDC are "maybe later" in `ROADMAP.md`, required before the app is
    offered to other people). Login attempts are
    rate limited (10 failures per 15 minutes per client address *and* per username, 429 with
-   `Retry-After`; in-memory, so a restart resets it), new passwords must be at least 12
+   `Retry-After`; kept in the database since migration 109, so a restart does not reset
+   it), new passwords must be at least 12
    characters, and an **audit log** (Settings → Audit, `/api/v1/audit`) records logins,
    sessions, commands and changes with the client address, kept 180 days.
 9. ~~**`credentials.metadata` is plaintext**~~ — fixed after 3.0.0: metadata (the SSH key

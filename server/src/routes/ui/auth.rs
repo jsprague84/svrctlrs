@@ -552,16 +552,21 @@ async fn authenticate(
 
     let ip = client_ip(headers);
     let keys = crate::login_limiter::LoginLimiter::keys(&ip, &creds.username);
-    for key in &keys {
-        if let Err(retry_after) = state.login_limiter.check(key) {
-            tracing::warn!(key = %key, retry_after_secs = retry_after.as_secs(), "Login rate limited");
+    match state.login_limiter.check(&keys).await {
+        Ok(None) => {}
+        Ok(Some(limited)) => {
+            tracing::warn!(key = %limited.key, retry_after_secs = limited.retry_after.as_secs(), "Login rate limited");
             crate::audit::record(
                 &state.pool,
                 NewAuditEntry::new("login.rate_limited")
                     .username(&creds.username)
                     .client_ip(Some(ip.clone())),
             );
-            return Err(LoginFailure::RateLimited(retry_after));
+            return Err(LoginFailure::RateLimited(limited.retry_after));
+        }
+        Err(e) => {
+            tracing::error!(error = %e, "Login limiter unavailable; refusing the attempt");
+            return Err(LoginFailure::Internal);
         }
     }
 
@@ -581,8 +586,8 @@ async fn authenticate(
     };
 
     let Some(user) = user.filter(|_| valid) else {
-        for key in &keys {
-            state.login_limiter.record_failure(key);
+        if let Err(e) = state.login_limiter.record_failure(&keys).await {
+            tracing::error!(error = %e, "Failed to record a login failure");
         }
         tracing::warn!(username = %creds.username, "Login failed");
         crate::audit::record(
@@ -594,8 +599,8 @@ async fn authenticate(
         return Err(LoginFailure::InvalidCredentials);
     };
 
-    for key in &keys {
-        state.login_limiter.clear(key);
+    if let Err(e) = state.login_limiter.clear(&keys).await {
+        tracing::error!(error = %e, "Failed to clear login failures");
     }
     crate::audit::record(
         &state.pool,

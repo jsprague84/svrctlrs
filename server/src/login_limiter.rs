@@ -1,35 +1,45 @@
-//! Brute-force protection for the login endpoints.
+//! Brute-force protection for every sign-in step: the password, a TOTP or recovery code, and
+//! a provider callback that fails its checks.
 //!
 //! A sliding window of recent failures per key. Two keys are checked for every attempt: the
 //! client address and the lowercased username, so an attacker cannot escape the limit by
 //! rotating addresses against one account, nor lock everyone out by failing against many
-//! accounts from one address. State is in memory; a restart clears it, which is acceptable
-//! for a single-process server whose other control is the edge passkey login.
+//! accounts from one address. The failures live in the database (`login_failures`), so a
+//! restart — every deploy is one — does not hand out a fresh allowance.
 
-use std::collections::{HashMap, VecDeque};
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use svrctlrs_core::Result;
+use svrctlrs_database::queries::login_failures;
+use svrctlrs_database::{SqlxPool, SqlxSqlite};
 
 pub struct LoginLimiter {
+    pool: SqlxPool<SqlxSqlite>,
     max_failures: usize,
     window: Duration,
-    failures: Mutex<HashMap<String, VecDeque<Instant>>>,
+}
+
+/// The first of an attempt's keys that has reached the limit, and how long until it is free.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Limited {
+    pub key: String,
+    pub retry_after: Duration,
 }
 
 impl LoginLimiter {
     pub const DEFAULT_MAX_FAILURES: usize = 10;
     pub const DEFAULT_WINDOW: Duration = Duration::from_secs(15 * 60);
 
-    pub fn new(max_failures: usize, window: Duration) -> Self {
+    pub fn new(pool: SqlxPool<SqlxSqlite>, max_failures: usize, window: Duration) -> Self {
         Self {
-            max_failures,
+            pool,
+            max_failures: max_failures.max(1),
             window,
-            failures: Mutex::new(HashMap::new()),
         }
     }
 
-    pub fn with_defaults() -> Self {
-        Self::new(Self::DEFAULT_MAX_FAILURES, Self::DEFAULT_WINDOW)
+    pub fn with_defaults(pool: SqlxPool<SqlxSqlite>) -> Self {
+        Self::new(pool, Self::DEFAULT_MAX_FAILURES, Self::DEFAULT_WINDOW)
     }
 
     /// The two keys an attempt is judged by.
@@ -40,104 +50,151 @@ impl LoginLimiter {
         ]
     }
 
-    /// `Err(retry_after)` when `key` has reached the failure limit inside the window.
-    pub fn check(&self, key: &str) -> Result<(), Duration> {
-        self.check_at(key, Instant::now())
+    /// `Ok(Some(..))` when one of `keys` has reached the failure limit inside the window. A
+    /// database error is an error: the caller refuses the attempt rather than skip the limit.
+    pub async fn check(&self, keys: &[String]) -> Result<Option<Limited>> {
+        self.check_at(keys, now()).await
     }
 
-    pub fn record_failure(&self, key: &str) {
-        self.record_failure_at(key, Instant::now());
+    pub async fn record_failure(&self, keys: &[String]) -> Result<()> {
+        self.record_failure_at(keys, now()).await
     }
 
-    /// A successful login forgets the key's history.
-    pub fn clear(&self, key: &str) {
-        self.lock().remove(key);
-    }
-
-    fn check_at(&self, key: &str, now: Instant) -> Result<(), Duration> {
-        let mut map = self.lock();
-        let Some(times) = map.get_mut(key) else {
-            return Ok(());
-        };
-        while times
-            .front()
-            .is_some_and(|t| now.duration_since(*t) >= self.window)
-        {
-            times.pop_front();
-        }
-        if times.is_empty() {
-            map.remove(key);
-            return Ok(());
-        }
-        if times.len() >= self.max_failures {
-            let oldest = times[0];
-            return Err(self.window.saturating_sub(now.duration_since(oldest)));
+    /// A successful sign-in forgets the keys' history.
+    pub async fn clear(&self, keys: &[String]) -> Result<()> {
+        for key in keys {
+            login_failures::clear(&self.pool, key).await?;
         }
         Ok(())
     }
 
-    fn record_failure_at(&self, key: &str, now: Instant) {
-        self.lock()
-            .entry(key.to_string())
-            .or_default()
-            .push_back(now);
+    fn window_secs(&self) -> i64 {
+        i64::try_from(self.window.as_secs()).unwrap_or(i64::MAX)
     }
 
-    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, VecDeque<Instant>>> {
-        // A poisoned lock only means another thread panicked mid-update; the map is still
-        // a valid map and refusing to limit would be the worse failure.
-        self.failures
-            .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    async fn check_at(&self, keys: &[String], now: i64) -> Result<Option<Limited>> {
+        let window = self.window_secs();
+        for key in keys {
+            let times = login_failures::failures_since(&self.pool, key, now - window).await?;
+            if times.len() >= self.max_failures {
+                // The attempt is allowed again once enough of the oldest failures have left
+                // the window to bring the count below the limit.
+                let freeing = times[times.len() - self.max_failures];
+                let secs = (freeing + window - now).max(1);
+                return Ok(Some(Limited {
+                    key: key.clone(),
+                    retry_after: Duration::from_secs(secs.unsigned_abs()),
+                }));
+            }
+        }
+        Ok(None)
     }
+
+    async fn record_failure_at(&self, keys: &[String], now: i64) -> Result<()> {
+        login_failures::record(&self.pool, keys, now, now - self.window_secs()).await
+    }
+}
+
+fn now() -> i64 {
+    chrono::Utc::now().timestamp()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn allows_until_the_limit_then_refuses_with_retry_after() {
-        let limiter = LoginLimiter::new(3, Duration::from_secs(60));
-        let t0 = Instant::now();
+    async fn limiter(max: usize, window_secs: u64) -> LoginLimiter {
+        LoginLimiter::new(
+            crate::test_support::database().await,
+            max,
+            Duration::from_secs(window_secs),
+        )
+    }
+
+    fn keys(k: &[&str]) -> Vec<String> {
+        k.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[tokio::test]
+    async fn allows_until_the_limit_then_refuses_with_retry_after() {
+        let limiter = limiter(3, 60).await;
+        let ip = keys(&["ip:1.2.3.4"]);
+        let t0 = 1_000_000;
         for i in 0..3 {
-            assert!(limiter.check_at("ip:1.2.3.4", t0).is_ok(), "attempt {i}");
-            limiter.record_failure_at("ip:1.2.3.4", t0 + Duration::from_secs(i));
+            assert_eq!(
+                limiter.check_at(&ip, t0 + i).await.unwrap(),
+                None,
+                "attempt {i}"
+            );
+            limiter.record_failure_at(&ip, t0 + i).await.unwrap();
         }
-        let retry = limiter
-            .check_at("ip:1.2.3.4", t0 + Duration::from_secs(10))
-            .unwrap_err();
-        assert_eq!(retry, Duration::from_secs(50));
+        let limited = limiter.check_at(&ip, t0 + 10).await.unwrap().unwrap();
+        assert_eq!(limited.key, "ip:1.2.3.4");
+        assert_eq!(limited.retry_after, Duration::from_secs(50));
     }
 
-    #[test]
-    fn failures_expire_with_the_window() {
-        let limiter = LoginLimiter::new(2, Duration::from_secs(60));
-        let t0 = Instant::now();
-        limiter.record_failure_at("user:admin", t0);
-        limiter.record_failure_at("user:admin", t0 + Duration::from_secs(1));
-        assert!(limiter
-            .check_at("user:admin", t0 + Duration::from_secs(30))
-            .is_err());
-        // The first failure falls out of the window; one slot opens.
-        assert!(limiter
-            .check_at("user:admin", t0 + Duration::from_secs(60))
-            .is_ok());
-        // Both gone: the key is dropped from the map entirely.
-        assert!(limiter
-            .check_at("user:admin", t0 + Duration::from_secs(61))
-            .is_ok());
-        assert!(limiter.lock().is_empty());
+    #[tokio::test]
+    async fn failures_expire_with_the_window_and_are_pruned() {
+        let limiter = limiter(2, 60).await;
+        let user = keys(&["user:admin"]);
+        let t0 = 1_000_000;
+        limiter.record_failure_at(&user, t0).await.unwrap();
+        limiter.record_failure_at(&user, t0 + 1).await.unwrap();
+        assert!(limiter.check_at(&user, t0 + 30).await.unwrap().is_some());
+        // The first failure leaves the window; one slot opens.
+        assert_eq!(limiter.check_at(&user, t0 + 60).await.unwrap(), None);
+        // A later failure elsewhere prunes rows the window has passed.
+        limiter
+            .record_failure_at(&keys(&["ip:9.9.9.9"]), t0 + 120)
+            .await
+            .unwrap();
+        let rows: i64 =
+            svrctlrs_database::sqlx::query_scalar("SELECT COUNT(*) FROM login_failures")
+                .fetch_one(&limiter.pool)
+                .await
+                .unwrap();
+        assert_eq!(rows, 1);
     }
 
-    #[test]
-    fn success_clears_only_that_key() {
-        let limiter = LoginLimiter::new(1, Duration::from_secs(60));
-        limiter.record_failure("ip:1.2.3.4");
-        limiter.record_failure("user:admin");
-        limiter.clear("user:admin");
-        assert!(limiter.check("user:admin").is_ok());
-        assert!(limiter.check("ip:1.2.3.4").is_err());
+    #[tokio::test]
+    async fn retry_after_counts_from_the_failure_that_frees_a_slot() {
+        // Five failures against a limit of three: the third-oldest must expire first.
+        let limiter = limiter(3, 100).await;
+        let ip = keys(&["ip:1.2.3.4"]);
+        for t in [0, 10, 20, 30, 40] {
+            limiter.record_failure_at(&ip, 1_000 + t).await.unwrap();
+        }
+        let limited = limiter.check_at(&ip, 1_050).await.unwrap().unwrap();
+        assert_eq!(limited.retry_after, Duration::from_secs(70));
+    }
+
+    #[tokio::test]
+    async fn success_clears_only_those_keys() {
+        let limiter = limiter(1, 60).await;
+        limiter
+            .record_failure(&keys(&["ip:1.2.3.4", "user:admin"]))
+            .await
+            .unwrap();
+        limiter.clear(&keys(&["user:admin"])).await.unwrap();
+        assert_eq!(limiter.check(&keys(&["user:admin"])).await.unwrap(), None);
+        assert!(limiter
+            .check(&keys(&["ip:1.2.3.4"]))
+            .await
+            .unwrap()
+            .is_some());
+    }
+
+    #[tokio::test]
+    async fn the_state_survives_a_new_limiter_on_the_same_database() {
+        // What a restart looks like: the same file, a new process.
+        let pool = crate::test_support::database().await;
+        let user = keys(&["user:admin"]);
+        let first = LoginLimiter::new(pool.clone(), 2, Duration::from_secs(900));
+        first.record_failure(&user).await.unwrap();
+        first.record_failure(&user).await.unwrap();
+        drop(first);
+        let second = LoginLimiter::new(pool, 2, Duration::from_secs(900));
+        assert!(second.check(&user).await.unwrap().is_some());
     }
 
     #[test]

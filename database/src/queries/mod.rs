@@ -4,6 +4,7 @@ pub mod api_tokens;
 pub mod approvals;
 pub mod audit;
 pub mod credentials;
+pub mod login_failures;
 pub mod quick_commands;
 pub mod recordings;
 pub mod server_host_keys;

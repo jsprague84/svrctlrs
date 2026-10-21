@@ -42,12 +42,13 @@ impl AppState {
     /// Create new application state
     pub async fn new(database: Database, allowed_origins: Vec<String>) -> Result<Self> {
         let pool = database.pool().clone();
+        let login_limiter = Arc::new(LoginLimiter::with_defaults(pool.clone()));
 
         Ok(Self {
             pool,
             database: Arc::new(RwLock::new(database)),
             allowed_origins: Arc::new(allowed_origins),
-            login_limiter: Arc::new(LoginLimiter::with_defaults()),
+            login_limiter,
             ws_tickets: Arc::new(WsTickets::default()),
             sessions: SessionRegistry::from_env(),
             recordings: RecordingStore::from_env(),

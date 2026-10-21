@@ -14,6 +14,10 @@ the release workflow uses the matching section as the release notes.
   by the token alone (a session cookie sent with it no longer counts), refuses two
   `Authorization` headers, and refuses a login that carries one.
 
+- **The login limiter survives a restart.** Failed sign-ins are counted in the database
+  (migration 109) instead of in memory, so a deploy no longer hands an attacker a fresh
+  allowance of 10 attempts per 15 minutes; if the count cannot be read, the attempt is refused.
+
 ### Changed
 - The web app reloads the page when an API call comes back as a redirect to the edge's
   sign-in (the passkey sign-in ran out), and a terminal that cannot connect asks the server
