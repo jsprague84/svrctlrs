@@ -282,11 +282,29 @@ The same table is in Settings → About.
 
 The folder button in the toolbar (phone: *Files on this server* in the tab sheet; palette:
 *Browse Files*) opens the active tab's server over SFTP, starting in the login's home
-directory. Tap a folder to enter it, the breadcrumb or the up arrow to go back, a file to
-download it. The toolbar makes a folder or uploads files into the current one; each row can be
-renamed or deleted (a folder only when empty — use the shell for anything recursive). The
-browser follows the active tab, and remembers where you were on each server. Downloads,
-uploads, renames and deletions are recorded in the audit log.
+directory. Tap a folder to enter it, the breadcrumb or the up arrow to go back. The toolbar
+makes a folder or uploads files into the current one (on the desktop you can also drop files
+from your file manager onto the panel); each row can be downloaded, renamed or deleted (a
+folder only when empty — use the shell for anything recursive). The browser follows the
+active tab, and remembers where you were on each server.
+
+**Tap a file to open it**, not to download it. The viewer shows text files up to 1 MB and
+images (PNG, JPEG, GIF, WebP, AVIF, BMP, ICO, SVG) up to 10 MB; anything else, or anything
+larger, offers its buttons only:
+
+- **Edit** (text files up to 256 KB, UTF-8, one kind of line ending): a plain editor that
+  suits a phone. Save writes the file back with its own line endings (CRLF stays CRLF) and
+  byte-order mark, in place, so its owner and permissions do not change. If the file changed
+  on the server since you opened it, nothing is saved: your text stays in the editor so you
+  can copy it, and **Reload** shows the file as it is now. A file you may not write is
+  refused when you save.
+- **Edit in terminal** opens a new tab on that server with the file in your own editor:
+  `$VISUAL`, else `$EDITOR`, else `vi`, from your shell's settings, so vim keeps your config.
+  Quitting the editor leaves you at the prompt. Use this for large files, other encodings,
+  or anything that needs `sudoedit`.
+- **Download** saves the file.
+
+Downloads, views, edits, uploads, renames and deletions are recorded in the audit log.
 
 ## Session recordings
 

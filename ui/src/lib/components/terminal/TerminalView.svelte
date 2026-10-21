@@ -18,6 +18,7 @@
 	import TerminalPrefsPanel from './TerminalPrefsPanel.svelte';
 	import SessionsPanel from './SessionsPanel.svelte';
 	import FilesPanel from './FilesPanel.svelte';
+	import FileViewer from './FileViewer.svelte';
 	import CommandPalette from './CommandPalette.svelte';
 	import SnippetVarsDialog from './SnippetVarsDialog.svelte';
 	import {
@@ -123,6 +124,17 @@
 			sessionsOpen = false;
 			filesOpen = true;
 		}
+	}
+
+	/** "Edit in terminal": a new tab on that server opens the file in its own editor */
+	function editInTerminal(serverId: number, serverName: string | null, path: string) {
+		const id = terminalState.openToEdit(serverId, serverName ?? `Server ${serverId}`, path);
+		if (!id) {
+			toast.error('Tab limit reached — close a terminal first');
+			return;
+		}
+		sheetOpen = false;
+		filesOpen = false;
 	}
 
 	// The panel follows the active tab: switching tabs switches servers
@@ -1020,6 +1032,7 @@
 		{/if}
 
 		<TerminalPrefsPanel open={prefsOpen} onClose={() => (prefsOpen = false)} />
+		<FileViewer onEditInTerminal={editInTerminal} />
 		{#if !isMobile()}
 			<FilesPanel open={filesOpen} onClose={() => (filesOpen = false)} />
 			<SessionsPanel

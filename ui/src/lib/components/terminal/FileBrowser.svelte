@@ -1,7 +1,8 @@
 <script lang="ts">
 	/**
-	 * Remote files of one server over SFTP: breadcrumb, listing, download, upload, new folder,
-	 * rename, delete. Shared by the desktop side panel and the phone sheet; the state module
+	 * Remote files of one server over SFTP: breadcrumb, listing, upload, new folder, rename,
+	 * delete. A tap on a file opens it in the viewer (FileViewer); downloading is the row's
+	 * own button. Shared by the desktop side panel and the phone sheet; the state module
 	 * holds the directory, so switching between the two keeps the place.
 	 */
 	import {
@@ -23,7 +24,7 @@
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { confirmDialog } from '#lib/state/confirm.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
-	import { breadcrumbs, formatSize, validName } from '#lib/utils/files.js';
+	import { breadcrumbs, formatSize, joinPath, validName } from '#lib/utils/files.js';
 	import { timeAgo } from '#lib/utils/timeAgo.js';
 	import type { RemoteEntry } from '#lib/api/files.js';
 
@@ -48,18 +49,18 @@
 		files.browse(serverId, serverName, path);
 	}
 
-	function openEntry(entry: RemoteEntry) {
-		if (!listing) return;
+	async function openEntry(entry: RemoteEntry) {
+		if (!listing || serverId === null) return;
 		if (entry.kind === 'dir' || entry.kind === 'symlink') {
-			// A symlink is followed; the server canonicalises and a file target errors cleanly
-			go(
-				listing.path.endsWith('/')
-					? `${listing.path}${entry.name}`
-					: `${listing.path}/${entry.name}`
-			);
-		} else {
-			run(() => files.download(entry), `Downloading ${entry.name}`);
+			// A symlink is followed as a folder; one that leads to a file opens in the viewer
+			const target = joinPath(listing.path, entry.name);
+			newFolderOpen = false;
+			renaming = null;
+			const listed = await files.browse(serverId, serverName, target);
+			if (listed || entry.kind === 'dir') return;
+			files.clearError();
 		}
+		await run(() => files.view(entry), `Opening ${entry.name}`);
 	}
 
 	async function run(work: () => Promise<void>, what: string) {
@@ -117,6 +118,46 @@
 		const input = e.currentTarget as HTMLInputElement;
 		const picked = Array.from(input.files ?? []);
 		input.value = '';
+		await uploadAll(picked);
+	}
+
+	/** Files dragged in from the desktop upload into the folder shown */
+	let dropping = $state(false);
+	const carriesFiles = (e: DragEvent) => e.dataTransfer?.types.includes('Files') ?? false;
+
+	function onDragOver(e: DragEvent) {
+		if (!listing || busy || !carriesFiles(e)) return;
+		e.preventDefault();
+		if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+		dropping = true;
+	}
+
+	function onDragLeave(e: DragEvent) {
+		// Leaving for a child is not leaving
+		const to = e.relatedTarget as Node | null;
+		if (!to || !(e.currentTarget as HTMLElement).contains(to)) dropping = false;
+	}
+
+	async function onDrop(e: DragEvent) {
+		if (!carriesFiles(e)) return;
+		e.preventDefault();
+		dropping = false;
+		if (!listing || busy) return;
+		// Folders arrive too and cannot be read as files; skip them
+		const dropped: File[] = [];
+		for (const item of Array.from(e.dataTransfer?.items ?? [])) {
+			if (item.kind !== 'file' || item.webkitGetAsEntry?.()?.isDirectory) continue;
+			const f = item.getAsFile();
+			if (f) dropped.push(f);
+		}
+		if (dropped.length === 0) {
+			toast.warning('Only files can be dropped here; upload a folder from the terminal');
+			return;
+		}
+		await uploadAll(dropped);
+	}
+
+	async function uploadAll(picked: File[]) {
 		for (const f of picked) {
 			await run(() => files.upload(f), `Uploading ${f.name}`);
 		}
@@ -140,7 +181,21 @@
 		'w-11 h-11 md:w-7 md:h-7 flex items-center justify-center rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised active:bg-surface-raised disabled:opacity-40';
 </script>
 
-<div class="flex flex-col h-full min-h-0 text-sm">
+<div
+	class="relative flex flex-col h-full min-h-0 text-sm"
+	role="region"
+	aria-label="Files"
+	ondragover={onDragOver}
+	ondragleave={onDragLeave}
+	ondrop={onDrop}
+>
+	{#if dropping && listing}
+		<div
+			class="absolute inset-1 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-accent bg-surface/85 text-sm text-text-primary pointer-events-none"
+		>
+			Drop to upload to <span class="ml-1 font-mono">{listing.path}</span>
+		</div>
+	{/if}
 	<!-- Toolbar -->
 	<div class="flex items-center gap-1 px-2 py-1.5 border-b border-border">
 		<button
@@ -300,7 +355,7 @@
 								type="button"
 								class="flex-1 min-w-0 flex items-center gap-3 text-left h-full"
 								onclick={() => openEntry(entry)}
-								title={entry.kind === 'file' ? `Download ${entry.name}` : `Open ${entry.name}`}
+								title="Open {entry.name}"
 							>
 								<span
 									class="flex-1 min-w-0 truncate {entry.kind === 'dir'

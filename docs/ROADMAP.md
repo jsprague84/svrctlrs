@@ -18,8 +18,8 @@ approvals for the deletes that cannot be undone (items 15–16).
 onboard and rotate-key, and `svrctl` as the agent CLI with its skill and a Hermes eval
 (items 17–19): agent access is done. **After 3.4.0** (2026-10-19): the password login closed
 to the internet (item 20), sign-in with OIDC and TOTP in the binary (item 21), the desktop app signing in through the
-browser (item 22), shells kept across a restart (item 23) and backups inside the app (item
-24); items 25–26 follow in the owner's order.
+browser (item 22), shells kept across a restart (item 23), backups inside the app (item
+24) and a file browser that opens files before it downloads them (item 25); item 26 is next.
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an
@@ -264,12 +264,17 @@ beside the binary, and what an identity provider does stays optional.
     looks. Tested end to end with both binaries (backup, change, wrong key refused, restore,
     restart, data back, old session gone). Production's first copy ran two minutes after the
     deploy, and `restore --check` on it read all six credentials with the production key.
-25. **File browser: open before download, and edit small files.** A tap on a file downloads
-    it today, which the owner keeps doing by accident. Selecting a file shows it (text and
-    images in a viewer; download becomes an explicit action); small text files open in a plain
-    in-app editor that suits a phone (size cap, refuses a file changed since it was opened);
-    "Edit in terminal" opens a tab on that server with `${EDITOR:-vi}` on the file, so vim
-    keeps the owner's own config. No editor library in the bundle.
+25. ~~**File browser: open before download, and edit small files.**~~ Done 2026-10-21: a tap
+    opens the viewer (text up to 1 MiB, images up to 10 MiB through a `blob:` URL; Download
+    is a button); text up to 256 KiB, UTF-8, one kind of line ending opens in a plain
+    textarea that keeps CRLF and a BOM. No new routes: `GET /files/content` tags small files
+    with their SHA-256 (`ETag`), `PUT` with `If-Match` re-reads and refuses a changed file
+    (412), writing in place. **Edit in terminal** sends `edit` with the tab's first `shell`
+    request; the server types `sh -c '${VISUAL:-${EDITOR:-vi}} "$1"' edit '<path>'`, quoted
+    for sh and fish (tested through both). Desktop drag and drop uploads. The loopback SSH
+    server now speaks SFTP, so every file route is tested in CI; the e2e opens vim on hermes
+    through `edit`; the phone check edits, conflicts, views an image and edits in a terminal
+    tab (it caught the CSP blocking `blob:` images).
 26. **Signed-in devices.** The account's browser and app sessions (device, address, last use)
     with sign-out per device, so a lost phone does not need a password reset that ends every
     session.

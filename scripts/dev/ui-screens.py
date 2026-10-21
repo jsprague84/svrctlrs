@@ -362,6 +362,20 @@ with sync_playwright() as p:
                     page.get_by_role("dialog", name="Files").locator("nav button").first.click()
                     page.wait_for_timeout(2000)
                     shot("terminal-files")
+                    # A tap on a file opens the viewer; Escape closes it and leaves the panel
+                    files = page.get_by_role("dialog", name="Files")
+                    files.get_by_title("Open etc").click()
+                    files.get_by_title("Open hostname").wait_for(timeout=8000)
+                    files.get_by_title("Open hostname").click()
+                    viewer = page.get_by_role("dialog", name="hostname")
+                    viewer.wait_for(timeout=8000)
+                    page.wait_for_timeout(1500)
+                    check("the viewer shows the file", "UTF-8" in viewer.inner_text(), viewer.inner_text()[:120])
+                    shot("file-viewer")
+                    page.keyboard.press("Escape")
+                    page.wait_for_timeout(300)
+                    check("Escape closes the viewer, not the panel",
+                          viewer.count() == 0 and files.is_visible())
                     page.keyboard.press("Escape")
                     page.wait_for_timeout(300)
                     # The Sessions panel, with the keep-time choice saved for the account

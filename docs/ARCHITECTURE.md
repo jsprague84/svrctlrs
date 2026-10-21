@@ -214,7 +214,10 @@ Migrations are checksummed, so never edit one that has shipped.
   in sessionStorage — `utils/sessionRecord.ts` — is what ties a tab to a session, so resuming a
   lost one is "write the record, open the tab, let the pane attach"), `FilesPanel` +
   `FileBrowser` (SFTP browser for the active tab's server; `state/files.svelte.ts` keeps the
-  last directory per server).
+  last directory per server and the open file), `FileViewer` (text, images and the small-file
+  editor; `utils/fileView.ts` decodes and re-encodes text, keeping its line endings and BOM;
+  saves send the read's `ETag` as `If-Match`). "Edit in terminal" opens a tab whose first
+  `shell` request carries `edit`, and the server types the editor line.
 - **Mobile**: `MobileStatusBar`, `TabDots`, `ExtraKeysRow`, swipe between tabs, visual-viewport
   keyboard detection (`platform/keyboard.svelte.ts`).
 - **Platform**: `platform/index.ts` detects Tauri and stores the server URL; in the browser the

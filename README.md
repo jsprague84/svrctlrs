@@ -17,8 +17,10 @@ file.
   vertical, quad), up to 10 sessions, output search, session restore across page navigation.
 - **Servers and credentials** — server profiles (host, port, user, credential), password and
   SSH-key credentials encrypted at rest with AES-256-GCM; both kinds work for the shell.
-- **Files** — browse a server over SFTP beside the terminal: download, upload, new folder,
-  rename, delete. Same connection rules as the shell, every write in the audit log.
+- **Files** — browse a server over SFTP beside the terminal: view text and images, edit small
+  files (a change made on the server meanwhile is never overwritten) or open them in the
+  server's own `$EDITOR` in a new tab, download, upload (drag and drop on the desktop), new
+  folder, rename, delete. Same connection rules as the shell, every write in the audit log.
 - **Host-key verification** — the first connection shows the server's fingerprint for you to
   confirm; a changed key blocks the connection.
 - **Jump hosts, tags, `ssh_config` import** — reach a server through another one, filter the

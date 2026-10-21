@@ -336,9 +336,19 @@ withdrawn. Set Preferences → Behavior → Predictive Echo to **Off** to rule i
 ## Transport and headers
 
 The server sets `Content-Security-Policy` (`default-src 'self'`, with `'unsafe-inline'`
-scripts for the SvelteKit bootstrap and `wasm-unsafe-eval` for the xterm image addon),
-`Referrer-Policy`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`. HTTP requests
-time out after 30 s; WebSockets do not. TLS is the proxy's job.
+scripts for the SvelteKit bootstrap, `wasm-unsafe-eval` for the xterm image addon, and
+`blob:` images for the file viewer), `Referrer-Policy`, `X-Frame-Options: DENY`,
+`X-Content-Type-Options: nosniff`. HTTP requests time out after 30 s; WebSockets do not. TLS
+is the proxy's job.
+
+**Remote files in the browser.** A file read from a server is never served as a page of this
+app: `/files/content` answers `application/octet-stream` with `Content-Disposition:
+attachment` and `nosniff`, so a server's HTML or SVG opened by URL is saved, not rendered on
+this origin. The viewer fetches the bytes and shows images through a `blob:` URL in an
+`<img>`, where an SVG's scripts do not run; text goes into a `<pre>` or a `<textarea>` as
+text. An edit is written only with the `ETag` it was read with (`If-Match`; 412 when the file
+changed), in place, so owner, mode and links stay; files are full-admin only for tokens, as
+before.
 
 ## Deployment guidance
 

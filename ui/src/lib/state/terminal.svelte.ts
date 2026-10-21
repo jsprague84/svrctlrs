@@ -1,6 +1,7 @@
 import type { TerminalTab, ConnectionStatus, LayoutMode } from '#lib/types/index.js';
 import { isMobile } from '#lib/state/mobile.svelte.js';
 import { heldSessionIds, saveSessionRecord } from '#lib/utils/sessionRecord.js';
+import { baseName } from '#lib/utils/files.js';
 
 const tabs = $state<TerminalTab[]>([]);
 let activeTabId = $state<string | null>(null);
@@ -128,6 +129,30 @@ export function connectToServer(serverId: number, serverName: string): string | 
 	if (!tab) return null;
 	pendingAutoConnect = tab.id;
 	return tab.id;
+}
+
+/**
+ * Open a new tab on a server whose shell starts by opening `path` in the server's own editor
+ * (`$VISUAL`, `$EDITOR`, vi). Named after the file until the shell sets a title. Returns the
+ * tab id, or null at the tab limit.
+ */
+export function openToEdit(serverId: number, serverName: string, path: string): string | null {
+	const tab = createTab(serverId, serverName);
+	if (!tab) return null;
+	tab.label = baseName(path);
+	tab.edit = path;
+	pendingAutoConnect = tab.id;
+	return tab.id;
+}
+
+/** The file a tab's next new shell opens in the editor, if it has not opened yet */
+export function pendingEdit(tabId: string): string | null {
+	return tabs.find((t) => t.id === tabId)?.edit ?? null;
+}
+
+export function clearEdit(tabId: string) {
+	const tab = tabs.find((t) => t.id === tabId);
+	if (tab?.edit) tab.edit = null;
 }
 
 /**

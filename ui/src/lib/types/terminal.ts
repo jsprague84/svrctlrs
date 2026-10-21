@@ -15,6 +15,8 @@ export interface PtyRequest {
 	 *  bytes) instead of JSON `output` text, so a multibyte character split across two SSH
 	 *  reads reaches xterm intact */
 	binary?: boolean;
+	/** `shell`: open this file (absolute path) in the server's own editor in the new shell */
+	edit?: string;
 }
 
 export interface PtyResponse {
@@ -104,4 +106,6 @@ export interface TerminalTab {
 	bell?: boolean;
 	/** Slot index when visible in split view (0-3), null if hidden */
 	slot: number | null;
+	/** A file to open in the server's editor when this tab's shell starts; cleared once it has */
+	edit?: string | null;
 }

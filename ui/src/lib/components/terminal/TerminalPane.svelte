@@ -490,6 +490,8 @@
 			},
 			socketUrl: browserPtySocketUrl,
 			trustHostKey: serversApi.trustHostKey,
+			edit: () => terminalState.pendingEdit(tabId),
+			onShellStarted: () => terminalState.clearEdit(tabId),
 			echo: {
 				screen: echoScreenFor(term),
 				mode: () => terminalPrefs.getPrefs().predictiveEcho

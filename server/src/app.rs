@@ -140,7 +140,7 @@ pub fn router(state: AppState, session_store: SqliteStore, session_secure: bool)
         .layer(SetResponseHeaderLayer::overriding(
             axum::http::HeaderName::from_static("content-security-policy"),
             HeaderValue::from_static(
-                "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss:; img-src 'self' data:; font-src 'self'; frame-ancestors 'none'"
+                "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' wss:; img-src 'self' data: blob:; font-src 'self'; frame-ancestors 'none'"
             ),
         ))
         .layer(cors_layer);

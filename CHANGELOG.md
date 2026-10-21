@@ -19,6 +19,12 @@ the release workflow uses the matching section as the release notes.
   allowance of 10 attempts per 15 minutes; if the count cannot be read, the attempt is refused.
 
 ### Added
+- **The file browser opens a file instead of downloading it.** A tap shows text (up to 1 MB)
+  and images (up to 10 MB) in a viewer; Download is a button. Text files up to 256 KB open in
+  a plain editor that suits a phone and keeps the file's line endings and BOM; a save is
+  refused when the file changed since it was opened. **Edit in terminal** opens a new tab on
+  that server with the file in `$VISUAL`/`$EDITOR`/vi. Files dragged onto the desktop panel
+  upload into the folder shown. The page's CSP now allows `blob:` images (the viewer's).
 - **A shell that opens a file in the server's own editor.** The terminal socket's `shell`
   message takes `edit` (an absolute path): the new shell gets
   `sh -c '${VISUAL:-${EDITOR:-vi}} "$1"' edit '<path>'` typed after the startup command, so

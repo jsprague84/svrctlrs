@@ -92,6 +92,10 @@ export interface PtySessionOptions {
 	socketUrl: () => Promise<string>;
 	/** `POST /servers/{id}/host-keys/trust` */
 	trustHostKey: (serverId: number, fingerprint: string) => Promise<unknown>;
+	/** A file the next new shell opens in the server's editor ("Edit in terminal") */
+	edit?: () => string | null;
+	/** A new shell came up; the edit (if any) has been typed and must not be sent again */
+	onShellStarted?: () => void;
 	/** Every status change, as it happens (also repeated values) */
 	onStatus?: (status: ConnectionStatus) => void;
 	/** The view changed; called with a fresh object */
@@ -145,6 +149,23 @@ export class PtySession {
 
 	private socket: SocketLike | null = null;
 	private disposed = false;
+	/** A `shell` request is out and its `connected` has not come back yet */
+	private awaitingShell = false;
+
+	/** A request for a new shell; carries the tab's file to edit until a shell has started. */
+	private shellRequest(serverId: number, cols: number, rows: number): PtyRequest {
+		this.awaitingShell = true;
+		const edit = this.opts.edit?.();
+		return {
+			type: 'shell',
+			server_id: serverId,
+			cols,
+			rows,
+			binary: true,
+			...(edit ? { edit } : {})
+		};
+	}
+
 	/** Bumped by every connect(); handlers of an older socket ignore their events. */
 	private connectGen = 0;
 	/** The current socket has opened and input/resize may be sent through it */
@@ -535,7 +556,7 @@ export class PtySession {
 						rows,
 						binary: true
 					}
-				: { type: 'shell', server_id: serverId, cols, rows, binary: true };
+				: this.shellRequest(serverId, cols, rows);
 			ws.send(JSON.stringify(req));
 			this.wired = true;
 			this.term.focus();
@@ -613,6 +634,10 @@ export class PtySession {
 			case 'connected':
 				this.setStatus('connected');
 				this.update({ recording: res.recording === true });
+				if (this.awaitingShell) {
+					this.awaitingShell = false;
+					this.opts.onShellStarted?.();
+				}
 				if (res.session_id) {
 					this.sessionId = res.session_id;
 					this.sessionServerId = serverId;
@@ -662,7 +687,7 @@ export class PtySession {
 					this.setNote('Previous session ended — starting a new shell');
 					this.term.writeln('\x1b[33m[Previous session has ended — starting a new shell]\x1b[0m');
 					const { cols, rows } = this.term;
-					const req: PtyRequest = { type: 'shell', server_id: serverId, cols, rows, binary: true };
+					const req = this.shellRequest(serverId, cols, rows);
 					ws.send(JSON.stringify(req));
 				} else if (res.code === 'resume_failed') {
 					// A kept shell (tmux) could not be reconnected (server down?). It is still

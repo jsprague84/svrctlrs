@@ -13,10 +13,13 @@ drawn ahead of the echo and cleared after it, nothing drawn at a `read -s` promp
 resume with the screen intact, the home-screen shortcut (manifest lists the server,
 `/?connect=<id>` shows its tab), terminal preferences following the account (a change on
 the phone is on the server and in a fresh desktop browser), and quick-command variables
-(`{{name}}` from the server, `{{what:hello}}` asked for in a dialog with a live preview).
+(`{{name}}` from the server, `{{what:hello}}` asked for in a dialog with a live preview),
+and the file browser's viewer: a tap opens a file instead of downloading it, text and an image
+shown, a small CRLF file edited and saved with its line endings, a save refused after the file
+changed behind the editor, and "Edit in terminal" opening vi on it in a new tab.
 Screenshots land in E2E_OUT (default: a temp dir).
 """
-import json, os, sys, tempfile, time, urllib.request, http.cookiejar
+import json, os, struct, sys, tempfile, time, urllib.parse, urllib.request, http.cookiejar, zlib
 from playwright.sync_api import sync_playwright
 
 BASE = os.environ.get("E2E_URL", "http://127.0.0.1:18081")
@@ -47,8 +50,37 @@ cred = api("POST", "/api/v1/credentials", {"name": f"phone key {RUN}", "credenti
     "value": open(SSH_KEY).read(), "username": SSH_USER})
 cid = cred.get("id") or cred["data"]["id"]
 # Host key left unconfirmed on purpose: the pane must show the first-contact dialog
-api("POST", "/api/v1/servers", {"name": NAME, "hostname": SSH_HOST, "port": 22,
+srv = api("POST", "/api/v1/servers", {"name": NAME, "hostname": SSH_HOST, "port": 22,
     "username": SSH_USER, "credential_id": cid})
+SID = srv.get("id") or srv["data"]["id"]
+
+
+def file_uri(path, view=False):
+    return (f"/api/v1/servers/{SID}/files/content?path=" + urllib.parse.quote(path, safe="")
+            + ("&view=true" if view else ""))
+
+
+def put_file(path, data):
+    req = urllib.request.Request(BASE + file_uri(path), data=data, method="PUT",
+        headers={"Content-Type": "application/octet-stream", "Origin": BASE})
+    with opener.open(req) as r:
+        return json.loads(r.read())
+
+
+def get_file(path):
+    req = urllib.request.Request(BASE + file_uri(path), headers={"Origin": BASE})
+    with opener.open(req) as r:
+        return r.read()
+
+
+def tiny_png():
+    """A 2×2 red PNG, built by hand"""
+    def chunk(kind, data):
+        c = kind + data
+        return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c))
+    raw = b"".join(b"\x00" + b"\xff\x00\x00" * 2 for _ in range(2))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
 
 failures = []
 
@@ -307,7 +339,96 @@ with sync_playwright() as p:
     check("no horizontal scroll with the dialog's text", page.evaluate(
         "document.documentElement.scrollWidth <= window.innerWidth"))
 
-    errors = [l for l in logs if l.startswith(("error", "pageerror"))]
+    # ── Files: a tap opens the viewer; downloads only on the Download button ──────────────
+    downloads = []
+    page.on("download", lambda d: downloads.append(d.suggested_filename))
+    home = api("GET", f"/api/v1/servers/{SID}/files")["path"]
+    folder = f"{home}/svrctlrs-phone-{RUN}"
+    api("POST", f"/api/v1/servers/{SID}/files/mkdir", {"path": folder})
+    notes = f"{folder}/notes.txt"
+    put_file(notes, b"phone-notes-first\r\nsecond line\r\n")
+    put_file(f"{folder}/pic.png", tiny_png())
+
+    page.get_by_role("button", name="Command palette").click()
+    page.get_by_placeholder("Type a command or action...").fill("Browse Files")
+    page.wait_for_timeout(300)
+    page.keyboard.press("Enter")
+    page.get_by_title(f"Open svrctlrs-phone-{RUN}").first.wait_for(timeout=15000)
+    page.get_by_title(f"Open svrctlrs-phone-{RUN}").first.tap()
+    page.get_by_title("Open notes.txt").wait_for(timeout=15000)
+    page.get_by_title("Open notes.txt").tap()
+    viewer = page.get_by_role("dialog", name="notes.txt")
+    viewer.wait_for(timeout=15000)
+    page.wait_for_function("() => document.querySelector('pre')?.textContent.includes('phone-notes-first')", timeout=15000)
+    page.wait_for_timeout(500)
+    check("a tap on a file opens the viewer, not a download", not downloads, str(downloads))
+    check("the viewer says what the file is", "CRLF" in viewer.inner_text(), viewer.inner_text()[-200:])
+    check("the viewer fits the phone", page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"))
+    page.screenshot(path=f"{OUT}/viewer-text.png")
+
+    viewer.get_by_role("button", name="Edit here").tap()
+    editor = viewer.get_by_label("Contents of notes.txt")
+    editor.wait_for(timeout=5000)
+    editor.fill("phone-notes-first\nedited on the phone\n")
+    page.screenshot(path=f"{OUT}/viewer-edit.png")
+    viewer.get_by_role("button", name="Save").tap()
+    page.wait_for_timeout(2500)
+    check("a saved edit keeps the file's CRLF line endings",
+          get_file(notes) == b"phone-notes-first\r\nedited on the phone\r\n", repr(get_file(notes)))
+
+    # Changed behind the editor's back: the save is refused and nothing is overwritten
+    viewer.get_by_role("button", name="Edit here").tap()
+    editor.fill("mine\n")
+    put_file(notes, b"changed-elsewhere\r\n")
+    viewer.get_by_role("button", name="Save").tap()
+    page.wait_for_timeout(2500)
+    check("a save after the file changed is refused",
+          "changed on the server" in viewer.inner_text() and get_file(notes) == b"changed-elsewhere\r\n",
+          viewer.inner_text()[:300])
+    page.screenshot(path=f"{OUT}/viewer-conflict.png")
+    viewer.get_by_role("button", name="Reload the file").tap()
+    page.get_by_role("dialog", name="Reload and lose your edits?").get_by_role("button", name="Reload").tap()
+    page.wait_for_function("() => document.querySelector('pre')?.textContent.includes('changed-elsewhere')", timeout=15000)
+    check("reload shows the file as it is now", True)
+
+    viewer.get_by_role("button", name="Close notes.txt").tap()
+    page.get_by_title("Open pic.png").tap()
+    img = page.get_by_role("dialog", name="pic.png").get_by_role("img", name="pic.png")
+    img.wait_for(timeout=15000)
+    page.wait_for_timeout(500)
+    check("an image shows in the viewer", page.evaluate(
+        "() => document.querySelector('img[alt=\"pic.png\"]')?.naturalWidth === 2"))
+    page.screenshot(path=f"{OUT}/viewer-image.png")
+    page.get_by_role("dialog", name="pic.png").get_by_role("button", name="Download pic.png").tap()
+    page.wait_for_timeout(1500)
+    check("Download in the viewer saves the file", downloads == ["pic.png"], str(downloads))
+    page.get_by_role("dialog", name="pic.png").get_by_role("button", name="Close pic.png").tap()
+
+    # Edit in terminal: a new tab on the server runs its editor (vi here) on the file
+    tabs_before = len(page.evaluate("JSON.parse(sessionStorage.getItem('svrctlrs-terminal-tabs')).tabs"))
+    page.get_by_title("Open notes.txt").tap()
+    viewer.wait_for(timeout=15000)
+    viewer.get_by_role("button", name="Edit in terminal").tap()
+    page.wait_for_timeout(1000)
+    saved_tabs = page.evaluate("JSON.parse(sessionStorage.getItem('svrctlrs-terminal-tabs'))")
+    active = next(t for t in saved_tabs["tabs"] if t["id"] == saved_tabs["activeTabId"])
+    check("Edit in terminal opens a new tab named after the file",
+          len(saved_tabs["tabs"]) == tabs_before + 1 and active["label"] == "notes.txt", str(active))
+    check("the editor shows the file in the new tab", wait_screen("changed-elsewhere", 20), screen()[-300:])
+    page.screenshot(path=f"{OUT}/edit-in-terminal.png")
+    page.keyboard.type(":q!")
+    page.keyboard.press("Enter")
+    page.keyboard.type("echo after-editor-$((40+2))")
+    page.keyboard.press("Enter")
+    check("quitting the editor leaves the shell", wait_screen("\nafter-editor-42"), screen()[-300:])
+    shell_sent = [json.loads(f) for f in sent if '"type":"shell"' in f.replace(" ", "")]
+    check("the edit went with that one shell request only",
+          sum(1 for m in shell_sent if m.get("edit") == notes) == 1, str(shell_sent)[-300:])
+    for path in (notes, f"{folder}/pic.png", folder):
+        api("DELETE", f"/api/v1/servers/{SID}/files?path=" + urllib.parse.quote(path, safe=""))
+
+    # The refused save's 412 is logged by the browser as a failed load; it was meant
+    errors = [l for l in logs if l.startswith(("error", "pageerror")) and "status of 412" not in l]
     check("no console errors", not errors, "\n".join(errors[:5]))
     browser.close()
 

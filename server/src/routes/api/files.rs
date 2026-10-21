@@ -948,6 +948,14 @@ mod loopback {
             .to_str()
             .unwrap()
             .starts_with("attachment"));
+        // Never rendered as a page of this app: bytes, not sniffed; images only via blob:
+        assert_eq!(headers["content-type"], "application/octet-stream");
+        assert_eq!(headers["x-content-type-options"], "nosniff");
+        let csp = headers["content-security-policy"].to_str().unwrap();
+        assert!(csp.contains("img-src 'self' data: blob:"), "{csp}");
+        assert!(csp.contains("frame-ancestors 'none'"), "{csp}");
+        let scripts = csp.split(';').find(|d| d.contains("script-src")).unwrap();
+        assert!(!scripts.contains("blob:"), "{csp}");
         let (status, _, _) =
             r.h.raw("GET", &r.uri("/content", "/missing"), &[], vec![])
                 .await;

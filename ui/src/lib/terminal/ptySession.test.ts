@@ -148,13 +148,16 @@ interface Harness {
 	echoMode: { value: EchoMode };
 	/** How often a socket closed before it ever opened */
 	refused: { count: number };
+	/** The tab's file to edit, cleared when a shell starts (as the tab state does) */
+	pendingEdit: { path: string | null };
 	/** The newest socket */
 	ws(): FakeSocket;
 }
 
 function harness(
-	opts: { serverId?: number | null; trustFails?: boolean; echo?: boolean } = {}
+	opts: { serverId?: number | null; trustFails?: boolean; echo?: boolean; edit?: string } = {}
 ): Harness {
+	const pendingEdit = { path: opts.edit ?? null };
 	const term = new FakeTerminal();
 	const screen = new FakeEchoScreen();
 	const echoMode = { value: 'always' as EchoMode };
@@ -175,6 +178,8 @@ function harness(
 		terminal: term,
 		socketUrl: async () => 'ws://test/ws/terminal/pty',
 		trustHostKey: trust,
+		edit: () => pendingEdit.path,
+		onShellStarted: () => (pendingEdit.path = null),
 		onStatus: (s) => statuses.push(s),
 		onView: (v) => views.push(v),
 		onRefused: () => refused.count++,
@@ -206,6 +211,7 @@ function harness(
 		screen,
 		echoMode,
 		refused,
+		pendingEdit,
 		ws: () => sockets[sockets.length - 1]
 	};
 }
@@ -271,6 +277,43 @@ describe('a new shell', () => {
 		expect(r.session.currentView.recording).toBe(true);
 		r.ws().reply({ type: 'closed', data: 'Shell exited with status 0' });
 		expect(r.session.currentView.recording).toBe(false);
+	});
+
+	it("opens the tab's file in the editor once, even when the first try is refused", async () => {
+		const h = harness({ edit: "/etc/it's.conf" });
+		await h.session.connect();
+		h.ws().open();
+		expect(h.ws().sent[0]).toMatchObject({ type: 'shell', edit: "/etc/it's.conf" });
+		// The host key waits for confirmation: no shell yet, so the edit is still owed
+		h.ws().reply({
+			type: 'error',
+			code: 'host_key_unconfirmed',
+			data: '',
+			details: {
+				server_id: 7,
+				server_name: 'web',
+				key_type: 'ssh-ed25519',
+				fingerprint: 'SHA256:x'
+			}
+		});
+		expect(h.pendingEdit.path).toBe("/etc/it's.conf");
+		await h.session.trustHostKey();
+		h.ws().open();
+		expect(h.ws().sent[0]).toMatchObject({ type: 'shell', edit: "/etc/it's.conf" });
+		h.ws().reply({ type: 'connected', session_id: 'sess-1', data: '' });
+		expect(h.pendingEdit.path).toBeNull();
+
+		// The shell exits; Reconnect starts a plain shell
+		h.ws().reply({ type: 'closed', data: 'Shell exited' });
+		await h.session.connect();
+		h.ws().open();
+		expect(h.ws().sent[0]).toEqual({
+			type: 'shell',
+			server_id: 7,
+			cols: 80,
+			rows: 24,
+			binary: true
+		});
 	});
 
 	it('does nothing without a server', async () => {
