@@ -19,6 +19,11 @@ the release workflow uses the matching section as the release notes.
   allowance of 10 attempts per 15 minutes; if the count cannot be read, the attempt is refused.
 
 ### Added
+- **A shell that opens a file in the server's own editor.** The terminal socket's `shell`
+  message takes `edit` (an absolute path): the new shell gets
+  `sh -c '${VISUAL:-${EDITOR:-vi}} "$1"' edit '<path>'` typed after the startup command, so
+  the file opens in the user's editor with their own config, and quitting it leaves the
+  shell. The path is quoted for sh and fish alike; control characters are refused.
 - **Safe edits of small files over the API.** `GET /files/content` gives a file of at most
   256 KiB an `ETag` (its SHA-256); `PUT /files/content` with `If-Match` writes only if the
   file still has that tag (412 `CHANGED` otherwise) and returns the new tag. Writes stay in

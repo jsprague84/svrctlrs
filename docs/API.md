@@ -421,7 +421,7 @@ Client → server:
 
 | `type` | Fields | Meaning |
 |---|---|---|
-| `shell` | `server_id`, `cols`, `rows`, `binary?` | open a PTY on the server; answered with `connected` carrying a `session_id` |
+| `shell` | `server_id`, `cols`, `rows`, `binary?`, `edit?` | open a PTY on the server; answered with `connected` carrying a `session_id`. `edit` (an absolute path without control characters, else an `error`) types `sh -c '${VISUAL:-${EDITOR:-vi}} "$1"' edit '<path>'` into the new shell after the startup command, so the file opens in the user's own editor and quitting it leaves the shell; the path is quoted for sh and fish alike |
 | `attach` | `session_id`, `last_seq`, `cols?`, `rows?`, `binary?` | resume a session this user owns; the server replays output after `last_seq`. A kept shell (tmux) that is not live — SvrCtlRS restarted, or its connection dropped — is reconnected: a new SSH connection attaches to the same tmux session, and its output is numbered after `last_seq` |
 | `input` | `data` | keystrokes |
 | `resize` | `cols`, `rows` | terminal resized |

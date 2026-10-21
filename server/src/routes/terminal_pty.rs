@@ -45,6 +45,9 @@ struct PtyRequest {
     /// PTY bytes) instead of JSON `output` text. Clients that do not ask get JSON.
     #[serde(default)]
     binary: bool,
+    /// `shell`: open this file (an absolute path) in the server's own editor, typed into the
+    /// new shell after the startup command; never resent on a reattach
+    edit: Option<String>,
 }
 
 /// Interactive terminal response to frontend
@@ -225,6 +228,13 @@ async fn handle_pty_socket(
                             "\x1b[1;36m╔════════════════════════════════════════════════════╗\x1b[0m\r\n\
                              \x1b[1;36m║\x1b[0m    \x1b[1mSvrCtlRS Interactive Terminal (PTY)\x1b[0m             \x1b[1;36m║\x1b[0m\r\n\
                              \x1b[1;36m╚════════════════════════════════════════════════════╝\x1b[0m\r\n\r\n")).await;
+                        let edit = match req.edit.as_deref().map(edit_command).transpose() {
+                            Ok(edit) => edit,
+                            Err(e) => {
+                                send(&ws_sender, PtyResponse::plain("error", e)).await;
+                                continue;
+                            }
+                        };
                         let cols = req.cols.unwrap_or(80);
                         let rows = req.rows.unwrap_or(24);
                         match start_pty_session(
@@ -233,7 +243,9 @@ async fn handle_pty_socket(
                             &client_ip,
                             server_id,
                             (cols, rows),
-                            Launch::New,
+                            Launch::New {
+                                edit: edit.as_deref(),
+                            },
                         )
                         .await
                         {
@@ -595,8 +607,9 @@ async fn recording_note(state: &AppState, live: &Arc<LiveSession>, cols: u32, ro
 
 /// What [`start_pty_session`] starts.
 pub(crate) enum Launch<'a> {
-    /// A new shell: in tmux when the server keeps its shells, else the login shell
-    New,
+    /// A new shell: in tmux when the server keeps its shells, else the login shell; `edit`
+    /// is a line from [`edit_command`] typed after the startup command
+    New { edit: Option<&'a str> },
     /// A kept shell again, after a restart or a lost connection; output is numbered after
     /// `last_seq`, the last frame the reattaching client saw
     Revive {
@@ -633,12 +646,12 @@ pub(crate) async fn start_pty_session(
     // instead of the login shell, and whether it is a reattach
     let kept = match &launch {
         Launch::Revive { shell, .. } => Some((shell.id.clone(), shell.tmux_name.clone(), true)),
-        Launch::New if server.persistent_shell => {
+        Launch::New { .. } if server.persistent_shell => {
             let id = crate::sessions::new_session_id();
             let name = tmux_name(&id);
             Some((id, name, false))
         }
-        Launch::New => None,
+        Launch::New { .. } => None,
     };
 
     let conn = crate::ssh::connect(&state.pool, &server, credential.as_ref()).await?;
@@ -659,12 +672,13 @@ pub(crate) async fn start_pty_session(
     let program = kept
         .as_ref()
         .map(|(_, name, revived)| shell_command(name, *revived));
-    // The startup command belongs to a new shell; a reattached one already ran it
-    let startup = match launch {
-        Launch::New => server.startup_command.as_deref(),
+    // The startup command (and a file to edit) belong to a new shell; a reattached one
+    // already ran them
+    let typed = match launch {
+        Launch::New { edit } => first_lines(server.startup_command.as_deref(), edit),
         Launch::Revive { .. } => None,
     };
-    let channel = open_shell(&conn, program.as_deref(), startup, cols, rows).await?;
+    let channel = open_shell(&conn, program.as_deref(), typed.as_deref(), cols, rows).await?;
 
     // The session owns the PTY from here on; sockets attach to it.
     let (command_tx, command_rx) = mpsc::channel::<PtyCommand>(256);
@@ -676,7 +690,7 @@ pub(crate) async fn start_pty_session(
         Some((id, name, revived)) => {
             let (created_at, seq_base) = match launch {
                 Launch::Revive { shell, last_seq } => (shell.created_at, last_seq),
-                Launch::New => (chrono::Utc::now(), 0),
+                Launch::New { .. } => (chrono::Utc::now(), 0),
             };
             if !revived {
                 if let Err(e) =
@@ -722,6 +736,51 @@ pub(crate) async fn start_pty_session(
 pub(crate) struct Keep {
     pub state: AppState,
     pub tmux_name: String,
+}
+
+/// The editor the user would get from `git commit` or `crontab -e` on that server: `$VISUAL`,
+/// else `$EDITOR`, else vi, from the environment of their own shell (the line is typed into
+/// it, so their rc files have run). Through `sh -c` so it means the same under fish; the
+/// variable is left unquoted there so `EDITOR="nvim -u …"` works as git runs it. The path
+/// must be absolute (so it never reads as an option) and free of control characters.
+pub(crate) fn edit_command(path: &str) -> Result<String, String> {
+    if !path.starts_with('/') {
+        return Err("The file to edit needs an absolute path".to_string());
+    }
+    if path.len() > 4096 || path.chars().any(char::is_control) {
+        return Err("The file to edit has control characters in its path".to_string());
+    }
+    Ok(format!(
+        "sh -c '${{VISUAL:-${{EDITOR:-vi}}}} \"$1\"' edit {}",
+        shell_quote(path)
+    ))
+}
+
+/// One word for a POSIX shell and for fish alike: single quotes, with `'` and `\` written
+/// outside them (fish reads `\\` and `\'` inside single quotes as escapes; sh does not).
+pub(crate) fn shell_quote(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('\'');
+    for c in s.chars() {
+        match c {
+            '\'' => out.push_str("'\\''"),
+            '\\' => out.push_str("'\\\\'"),
+            c => out.push(c),
+        }
+    }
+    out.push('\'');
+    out
+}
+
+/// What a new shell gets typed first: the server's startup command, then the editor line.
+fn first_lines(startup: Option<&str>, edit: Option<&str>) -> Option<String> {
+    let lines: Vec<&str> = startup
+        .map(str::trim)
+        .into_iter()
+        .chain(edit)
+        .filter(|l| !l.is_empty())
+        .collect();
+    (!lines.is_empty()).then(|| lines.join("\n"))
 }
 
 /// Open an interactive shell on an authenticated connection: a session channel, a PTY of the
@@ -926,6 +985,150 @@ mod tests {
     use svrctlrs_database::queries;
     use svrctlrs_database::sqlx::{Pool, Sqlite};
     use tokio::sync::broadcast;
+
+    /// What `sh -c <line>` prints, with this environment
+    fn run_sh(line: &str, env: &[(&str, &str)]) -> String {
+        let mut cmd = std::process::Command::new("/bin/sh");
+        cmd.arg("-c")
+            .arg(line)
+            .env_remove("VISUAL")
+            .env_remove("EDITOR");
+        for (k, v) in env {
+            cmd.env(k, v);
+        }
+        let out = cmd.output().expect("sh");
+        assert!(out.status.success(), "{line}: {out:?}");
+        String::from_utf8(out.stdout).unwrap()
+    }
+
+    const NASTY: &[&str] = &[
+        "/etc/nginx/nginx.conf",
+        "/tmp/it's here",
+        "/tmp/a\\b\\\\c",
+        "/tmp/$(touch /tmp/pwned-svrctlrs)",
+        "/tmp/`id`;rm -rf ~",
+        "/tmp/\"double\" and 'single'",
+        "/tmp/  spaces  ",
+        "/tmp/ünïcödé ✓",
+        "/tmp/*?[x]{a,b}~",
+        "/tmp/-dash",
+    ];
+
+    #[test]
+    fn quoted_paths_reach_sh_and_fish_unchanged() {
+        for path in NASTY {
+            let line = format!("printf %s {}", shell_quote(path));
+            assert_eq!(run_sh(&line, &[]), *path, "{line}");
+        }
+        assert!(!std::path::Path::new("/tmp/pwned-svrctlrs").exists());
+        // fish reads backslashes inside single quotes; the quoting keeps them outside
+        if let Ok(fish) = which_fish() {
+            for path in NASTY {
+                let line = format!("printf %s {}", shell_quote(path));
+                let out = std::process::Command::new(&fish)
+                    .args(["--no-config", "-c", &line])
+                    .output()
+                    .unwrap();
+                assert_eq!(String::from_utf8_lossy(&out.stdout), *path, "fish: {line}");
+                // The whole editor line, typed into fish
+                let line = edit_command(path).unwrap();
+                let out = std::process::Command::new(&fish)
+                    .args(["--no-config", "-c", &line])
+                    .env_remove("VISUAL")
+                    .env("EDITOR", "printf [%s]")
+                    .output()
+                    .unwrap();
+                assert_eq!(String::from_utf8_lossy(&out.stdout), format!("[{path}]"));
+            }
+        }
+    }
+
+    fn which_fish() -> Result<std::path::PathBuf, ()> {
+        std::env::var_os("PATH")
+            .into_iter()
+            .flat_map(|p| std::env::split_paths(&p).collect::<Vec<_>>())
+            .map(|d| d.join("fish"))
+            .find(|f| f.is_file())
+            .ok_or(())
+    }
+
+    #[test]
+    fn the_edit_line_opens_visual_then_editor_then_vi_on_the_exact_path() {
+        for path in NASTY {
+            let line = edit_command(path).unwrap();
+            // $EDITOR with arguments works, as git runs it
+            assert_eq!(
+                run_sh(&line, &[("EDITOR", "printf [%s]")]),
+                format!("[{path}]"),
+                "{line}"
+            );
+            assert_eq!(
+                run_sh(
+                    &line,
+                    &[("EDITOR", "printf [%s]"), ("VISUAL", "printf <%s>")]
+                ),
+                format!("<{path}>")
+            );
+        }
+        assert!(edit_command("/etc/hosts")
+            .unwrap()
+            .starts_with("sh -c '${VISUAL:-${EDITOR:-vi}} \"$1\"' edit "));
+        assert!(edit_command("etc/hosts").is_err());
+        assert!(edit_command("").is_err());
+        assert!(edit_command("/tmp/a\nrm -rf ~").is_err());
+        assert!(edit_command("/tmp/a\rb").is_err());
+        assert!(edit_command("/tmp/\x1b[31m").is_err());
+        assert!(edit_command(&format!("/{}", "a".repeat(5000))).is_err());
+    }
+
+    #[test]
+    fn a_new_shell_types_the_startup_command_then_the_edit_line() {
+        assert_eq!(first_lines(None, None), None);
+        assert_eq!(first_lines(Some("  "), None), None);
+        assert_eq!(
+            first_lines(Some(" cd /srv "), None).as_deref(),
+            Some("cd /srv")
+        );
+        assert_eq!(first_lines(None, Some("vi x")).as_deref(), Some("vi x"));
+        assert_eq!(
+            first_lines(Some("cd /srv"), Some("vi x")).as_deref(),
+            Some("cd /srv\nvi x")
+        );
+    }
+
+    #[tokio::test]
+    async fn a_shell_opened_to_edit_a_file_types_the_editor_line() {
+        let h = crate::test_support::app::AppHarness::new().await;
+        let pool = h.state.pool.clone();
+        let ssh = TestSshServer::start(Options::password("alice", "pw")).await;
+        let pw = add_credential(&pool, "pw", CredentialType::Password, "pw").await;
+        let sid = add_server(&pool, "edit", ssh.port, "alice", Some(pw), None).await;
+        let line = edit_command("/etc/it's.conf").unwrap();
+        let launch = || Launch::New {
+            edit: Some(line.as_str()),
+        };
+        // First contact waits for the host key, as any shell does
+        let first = start_pty_session(&h.state, 1, "127.0.0.1", sid, (80, 24), launch()).await;
+        assert!(matches!(
+            first,
+            Err(ConnectError::HostKeyUnconfirmed { .. })
+        ));
+        trust_recorded_keys(&pool, sid).await;
+        let (live, _) = start_pty_session(&h.state, 1, "127.0.0.1", sid, (80, 24), launch())
+            .await
+            .map_err(|e| e.to_string())
+            .unwrap();
+        assert!(ssh.wait_for(|e| matches!(e, Event::Input(_))).await);
+        let typed = ssh.events().await.into_iter().find_map(|e| match e {
+            Event::Input(bytes) => Some(String::from_utf8(bytes).unwrap()),
+            _ => None,
+        });
+        assert_eq!(
+            typed.as_deref(),
+            Some("sh -c '${VISUAL:-${EDITOR:-vi}} \"$1\"' edit '/etc/it'\\''s.conf'\n")
+        );
+        live.close().await;
+    }
 
     /// A trusted, authenticated connection to the loopback server (through `via` if given)
     async fn connected(

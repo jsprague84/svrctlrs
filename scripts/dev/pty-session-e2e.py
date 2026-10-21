@@ -236,6 +236,27 @@ except urllib.error.HTTPError as e:
     assert e.code == 400, e.code
 print("sftp mkdir/upload/download/rename/delete ok")
 
+# The editor's tagged save on real OpenSSH: ETag on a small file, If-Match writes, a stale tag
+# is refused. The file has a quote and a space in its name for the editor tab below.
+edit_path = f"{home['path']}/svrctlrs e2e it's-{RUN}.txt"
+edit_marker = f"E2E-EDIT-{RUN}"
+st, body, _ = api_raw("PUT", f"/api/v1/servers/{sid}/files/content{qp(edit_path)}", b"draft\r\n", {"Content-Type": "application/octet-stream"})
+assert st == 200, st
+st, body, hdrs = api_raw("GET", f"/api/v1/servers/{sid}/files/content{qp(edit_path)}&view=true")
+tag = hdrs.get("etag")
+assert body == b"draft\r\n" and tag and tag.startswith('"'), (body, hdrs)
+st, body, _ = api_raw("PUT", f"/api/v1/servers/{sid}/files/content{qp(edit_path)}", f"{edit_marker}\r\n".encode(), {"Content-Type": "application/octet-stream", "If-Match": tag})
+saved = json.loads(body)
+assert saved["message"] == "Saved" and saved["etag"] != tag, saved
+try:
+    api_raw("PUT", f"/api/v1/servers/{sid}/files/content{qp(edit_path)}", b"stale", {"Content-Type": "application/octet-stream", "If-Match": tag})
+    raise AssertionError("stale If-Match accepted")
+except urllib.error.HTTPError as e:
+    assert e.code == 412, e.code
+st, body, _ = api_raw("GET", f"/api/v1/servers/{sid}/files/content{qp(edit_path)}")
+assert body == f"{edit_marker}\r\n".encode(), body
+print("sftp ETag / If-Match save ok")
+
 # Local servers can no longer be created
 try:
     api("POST", "/api/v1/servers", {"name": f"e2e local {RUN}", "is_local": True, "port": 22})
@@ -294,6 +315,27 @@ async def main():
         await ws.send(json.dumps({"type": "input", "data": "exit\n"}))
         await recv_until(ws, lambda m: m["type"] == "closed", 15)
         print("shell through jump host ok")
+
+    # 0c. "Edit in terminal": the server's own editor on that file, after the startup command
+    async with websockets.connect(WS, additional_headers=hdrs) as ws:
+        await ws.send(json.dumps({"type": "shell", "server_id": sid, "cols": 100, "rows": 30, "binary": BINARY, "edit": edit_path}))
+        fr = await recv_until(ws, lambda m: m["type"] in ("connected", "error"), 30)
+        assert fr[-1]["type"] == "connected", fr
+        fr = await recv_until(ws, lambda m: m["type"] == "output" and edit_marker in m["data"] and "printf" not in m["data"], 20)
+        assert fr and edit_marker in fr[-1]["data"], "the editor did not show the file"
+        await asyncio.sleep(0.5)
+        await ws.send(json.dumps({"type": "input", "data": ":q!\r"}))
+        await ws.send(json.dumps({"type": "input", "data": "echo BACK-$((20+3))\n"}))
+        fr = await recv_until(ws, lambda m: m["type"] == "output" and "BACK-23" in m["data"] and "echo" not in m["data"], 15)
+        assert fr, "no shell after quitting the editor"
+        await ws.send(json.dumps({"type": "input", "data": "exit\n"}))
+        await recv_until(ws, lambda m: m["type"] == "closed", 15)
+        # A relative path is refused, and no shell opens
+        await ws.send(json.dumps({"type": "shell", "server_id": sid, "cols": 80, "rows": 24, "binary": BINARY, "edit": "relative.txt"}))
+        fr = await recv_until(ws, lambda m: m["type"] in ("connected", "error"), 15)
+        assert fr[-1]["type"] == "error", fr
+    api("DELETE", f"/api/v1/servers/{sid}/files{qp(edit_path)}")
+    print("edit in terminal ok")
 
     # 1. open a shell, run a marker command, note the last seq, then drop the socket (no close)
     async with websockets.connect(WS, additional_headers=hdrs) as ws:
