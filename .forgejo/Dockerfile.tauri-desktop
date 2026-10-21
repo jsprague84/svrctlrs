@@ -14,6 +14,8 @@ FROM git.js-node.cc/jsprague/svrctlrs-ci:latest
 RUN apt-get update -qq && apt-get install -y --no-install-recommends \
     # WebKitGTK (Tauri WebView)
     libwebkit2gtk-4.1-dev \
+    # xdg-open, which the AppImage bundles for tauri-plugin-opener
+    xdg-utils \
     # GTK and GLib
     libgtk-3-dev \
     libglib2.0-dev \

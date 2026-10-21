@@ -38,9 +38,16 @@ jobs:
       - name: Build .deb and .rpm
         run: cd ui && npm run tauri build -- --bundles deb,rpm
 
+      # tauri-plugin-opener (the app opens the system browser to sign in) makes the AppImage
+      # bundler copy /usr/bin/xdg-open into the image; the CI image gains xdg-utils at its next
+      # rebuild (.forgejo/Dockerfile.tauri-desktop), this covers the one in use until then.
       - name: Build AppImage
         continue-on-error: true
-        run: cd ui && npm run tauri build -- --bundles appimage
+        run: |
+          command -v xdg-open >/dev/null || {
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends xdg-utils
+          }
+          cd ui && npm run tauri build -- --bundles appimage
 
       - name: List packages
         run: |
