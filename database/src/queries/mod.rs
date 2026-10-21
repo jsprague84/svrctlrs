@@ -11,7 +11,9 @@ pub mod server_host_keys;
 pub mod servers;
 pub mod settings;
 pub mod terminal_profiles;
+pub mod user_identities;
 pub mod user_settings;
+pub mod user_totp;
 pub mod users;
 
 use svrctlrs_core::Error;

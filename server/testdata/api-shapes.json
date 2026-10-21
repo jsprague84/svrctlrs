@@ -584,6 +584,20 @@
     },
     "status": 200
   },
+  "GET /users/me/sign-in": {
+    "body": {
+      "identities": [
+        "empty"
+      ],
+      "password_login": "boolean",
+      "provider": "null",
+      "totp": {
+        "enabled": "boolean",
+        "recovery_codes_left": "integer"
+      }
+    },
+    "status": 200
+  },
   "POST /approvals/{id}/approve": {
     "body": {
       "action": "string",
@@ -890,7 +904,7 @@
       },
       "success": "boolean"
     },
-    "status": 401
+    "status": 403
   },
   "PUT /users/me/preferences/terminal": {
     "body": {

@@ -38,6 +38,26 @@ other web pages the operator visits (see CSWSH below).
   it needs `docker exec`, never the network): it ends that account's sessions (browser and
   native app) and is audited as `user.password_reset`. API tokens are separate credentials and
   survive it, as they survive a password change; revoke them under Settings → Access.
+- **Two-factor sign-in (TOTP)** — optional per account (Settings → Access → Sign-in):
+  RFC 6238, HMAC-SHA1, 6 digits, 30 s, one step of clock drift either way. Turning it on
+  takes the current password, shows the secret (and a QR code) once, and takes effect only
+  when a code from the app is confirmed; that answer carries ten one-time recovery codes
+  (60 random bits each, stored as SHA-256 hashes). The secret is stored encrypted with
+  `ENCRYPTION_KEY`, like a credential. With it on, a right password only starts a five-minute
+  second step (`/auth/login/totp`) in a fresh session that signs nobody in; a code is accepted
+  once (the last accepted time step is kept, and claimed atomically), five wrong codes end the
+  step, and every wrong code counts against the login limiter like a wrong password. The JSON
+  login takes the code as `totp` and answers `401 TOTP_REQUIRED` / `TOTP_INVALID`. Turning it
+  off and new recovery codes take the password too. The audit records how each sign-in was
+  made (`login` with `method`: `password`, `password+totp`, `password+recovery_code`),
+  `login.code_failed`, `user.totp_enabled` / `user.totp_disabled` and
+  `user.recovery_codes_renewed`. A lost authenticator without recovery codes:
+  `svrctl reset-password <user> --clear-totp` on the host.
+- **Re-entering the password** (changing it, two-factor changes) is checked against the
+  login limiter, and a wrong one answers `403 PASSWORD_INCORRECT`, so a hijacked session cannot
+  guess it at leisure and the web app does not mistake the answer for "signed out".
+- **No API token reaches any of this.** No preset names `/api/v1/users/me/sign-in`,
+  `/users/me/totp…` or `/users/me/identities/…` (tested for every preset).
 - **Sessions** — tower-sessions, SQLite store, `HttpOnly`, `Secure` unless
   `SESSION_SECURE=false`, `SameSite=Strict` by default; `SameSite=None` only when
   `ALLOWED_ORIGINS` is set for the native clients. Expiry: 24 h of inactivity. Logout flushes
@@ -285,9 +305,9 @@ Ordered by impact. Each has a ROADMAP entry.
    the only path that executed anything locally, is gone. `POST /servers` refuses
    `is_local: true` (400); since the migration baseline (2026-10-18) the model has no local
    flag at all, and legacy local rows are disabled with `hostname = 'localhost'`.
-8. **No roles, no 2FA** — every user is equal and can manage accounts (single-user today;
-   roles, TOTP/passkeys and OIDC are "maybe later" in `ROADMAP.md`, required before the app is
-   offered to other people). Login attempts are
+8. **No roles** — every user is equal and can manage accounts (single-user today; roles are
+   "maybe later" in `ROADMAP.md`, required before the app is offered to other people).
+   Two-factor sign-in (TOTP) is optional per account since ROADMAP 21. Login attempts are
    rate limited (10 failures per 15 minutes per client address *and* per username, 429 with
    `Retry-After`; kept in the database since migration 109, so a restart does not reset
    it), new passwords must be at least 12

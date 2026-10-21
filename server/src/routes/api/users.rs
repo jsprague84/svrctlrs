@@ -151,22 +151,17 @@ async fn delete_user(
     responses(
         (status = 200, body = Message),
         (status = 400, description = "The new password is too short", body = ErrorBody),
-        (status = 401, description = "The current password is wrong", body = ErrorBody),
+        (status = 403, description = "The current password is wrong (`PASSWORD_INCORRECT`)", body = ErrorBody),
+        (status = 429, description = "Too many wrong passwords", body = ErrorBody),
     ))]
-#[instrument(skip(state, input))]
+#[instrument(skip(state, headers, input))]
 async fn change_password(
     State(state): State<AppState>,
     CurrentUser(me): CurrentUser,
     headers: HeaderMap,
     Json(input): Json<PasswordChange>,
 ) -> Result<Json<Message>, ApiError> {
-    let user = users::get_user(&state.pool, me)
-        .await?
-        .ok_or_else(|| ApiError::not_found("User"))?;
-    let valid = users::verify_password(&input.current_password, &user.password_hash)?;
-    if !valid {
-        return Err(ApiError::unauthorized("current password is incorrect"));
-    }
+    super::sign_in::confirm_password(&state, me, &input.current_password, &headers).await?;
     users::update_password(&state.pool, me, &input.new_password).await?;
     info!(user_id = me, "Password changed");
     crate::audit::record(

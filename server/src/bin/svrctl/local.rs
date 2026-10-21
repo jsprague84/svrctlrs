@@ -140,6 +140,7 @@ fn new_password(password_stdin: bool, generate: bool) -> anyhow::Result<(String,
 struct ResetOutcome {
     user_id: i64,
     sessions_ended: usize,
+    totp_cleared: bool,
 }
 
 /// Set `username`'s password and, with `end_sessions`, delete every session record of that
@@ -150,6 +151,7 @@ async fn reset_password(
     username: &str,
     password: &str,
     end_sessions: bool,
+    clear_totp: bool,
 ) -> anyhow::Result<ResetOutcome> {
     let user = queries::users::get_user_by_username(pool, username)
         .await?
@@ -177,16 +179,24 @@ async fn reset_password(
         }
     }
 
+    // Removing the enrolment needs no key: it deletes the (encrypted) secret
+    let totp_cleared = clear_totp && queries::user_totp::disable(pool, user.id).await?;
+
     queries::audit::record(
         pool,
         &NewAuditEntry::new("user.password_reset")
             .target("user", user.id, &user.username)
-            .details(json!({ "via": "svrctl", "sessions_ended": sessions_ended })),
+            .details(json!({
+                "via": "svrctl",
+                "sessions_ended": sessions_ended,
+                "totp_cleared": totp_cleared,
+            })),
     )
     .await?;
     Ok(ResetOutcome {
         user_id: user.id,
         sessions_ended,
+        totp_cleared,
     })
 }
 
@@ -196,18 +206,20 @@ pub async fn handle_reset_password(
     password_stdin: bool,
     generate: bool,
     end_sessions: bool,
+    clear_totp: bool,
 ) -> anyhow::Result<()> {
     let (password, generated) = new_password(password_stdin, generate)?;
     let pool = SqlitePoolOptions::new()
         .max_connections(1)
         .connect(database_url)
         .await?;
-    let outcome = reset_password(&pool, username, &password, end_sessions).await?;
+    let outcome = reset_password(&pool, username, &password, end_sessions, clear_totp).await?;
     pool.close().await;
     let mut report = json!({
         "user": username,
         "password": "changed",
         "sessions_ended": outcome.sessions_ended,
+        "two_factor": if outcome.totp_cleared { "removed" } else if clear_totp { "was off" } else { "unchanged" },
     });
     if generated {
         report["new_password"] = json!(password);
@@ -323,7 +335,7 @@ mod tests {
         let a2 = signed_in(&store, admin.id).await;
         let bob = signed_in(&store, admin.id + 1).await;
 
-        let outcome = reset_password(&pool, "admin", "a-brand-new-password", true)
+        let outcome = reset_password(&pool, "admin", "a-brand-new-password", true, false)
             .await
             .unwrap();
         assert_eq!(outcome.sessions_ended, 2);
@@ -354,20 +366,54 @@ mod tests {
         let (pool, store) = database().await;
         let s = signed_in(&store, 1).await;
         assert!(
-            reset_password(&pool, "nobody", "a-brand-new-password", true)
+            reset_password(&pool, "nobody", "a-brand-new-password", true, false)
                 .await
                 .is_err()
         );
-        assert!(reset_password(&pool, "admin", "short", true).await.is_err());
+        assert!(reset_password(&pool, "admin", "short", true, false)
+            .await
+            .is_err());
         assert!(
             store.load(&s).await.unwrap().is_some(),
             "nothing ended on a refusal"
         );
-        let kept = reset_password(&pool, "admin", "a-brand-new-password", false)
+        let kept = reset_password(&pool, "admin", "a-brand-new-password", false, false)
             .await
             .unwrap();
         assert_eq!(kept.sessions_ended, 0);
         assert!(store.load(&s).await.unwrap().is_some());
+    }
+
+    #[tokio::test]
+    async fn clear_totp_turns_two_factor_off_and_only_when_asked() {
+        let (pool, _store) = database().await;
+        let admin = queries::users::get_user_by_username(&pool, "admin")
+            .await
+            .unwrap()
+            .unwrap();
+        // An enrolment as the server writes it (the secret is opaque here; nothing decrypts it)
+        svrctlrs_database::sqlx::query(
+            "INSERT INTO user_totp (user_id, secret, confirmed_at) VALUES (?, 'x', CURRENT_TIMESTAMP)",
+        )
+        .bind(admin.id)
+        .execute(&pool)
+        .await
+        .unwrap();
+        let kept = reset_password(&pool, "admin", "a-brand-new-password", false, false)
+            .await
+            .unwrap();
+        assert!(!kept.totp_cleared);
+        assert!(queries::user_totp::is_enabled(&pool, admin.id)
+            .await
+            .unwrap());
+
+        let cleared = reset_password(&pool, "admin", "a-brand-new-password", false, true)
+            .await
+            .unwrap();
+        assert!(cleared.totp_cleared);
+        assert!(!queries::user_totp::is_enabled(&pool, admin.id)
+            .await
+            .unwrap());
     }
 
     #[test]

@@ -21,8 +21,10 @@ pub struct AppState {
     /// Origins of non-browser clients (`ALLOWED_ORIGINS`); used for CORS and to admit their
     /// WebSocket upgrades, whose `Origin` is not this server's host.
     pub allowed_origins: Arc<Vec<String>>,
-    /// Failed-login tracking for both login endpoints.
+    /// Failed-login tracking for every sign-in step.
     pub login_limiter: Arc<LoginLimiter>,
+    /// How people may sign in (password, provider); fixed at start-up.
+    pub sign_in: Arc<crate::sign_in::SignInConfig>,
     /// One-time tickets that authenticate WebSocket upgrades from native clients.
     pub ws_tickets: Arc<WsTickets>,
     /// Live interactive sessions; they outlive the sockets that use them.
@@ -49,6 +51,7 @@ impl AppState {
             database: Arc::new(RwLock::new(database)),
             allowed_origins: Arc::new(allowed_origins),
             login_limiter,
+            sign_in: Arc::new(crate::sign_in::SignInConfig::default()),
             ws_tickets: Arc::new(WsTickets::default()),
             sessions: SessionRegistry::from_env(),
             recordings: RecordingStore::from_env(),

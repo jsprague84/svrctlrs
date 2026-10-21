@@ -15,6 +15,7 @@ mod recordings;
 mod request_id;
 mod routes;
 mod sessions;
+mod sign_in;
 mod ssh;
 mod ssh_config;
 mod ssh_keys;

@@ -2384,6 +2384,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+
+[[package]]
 name = "quinn"
 version = "0.11.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3048,8 +3054,11 @@ dependencies = [
  "base64",
  "chrono",
  "clap",
+ "data-encoding",
  "dotenvy",
  "futures-util",
+ "hmac 0.13.0",
+ "qrcode",
  "rand 0.8.5",
  "reqwest",
  "rpassword",
@@ -3057,6 +3066,7 @@ dependencies = [
  "russh-sftp",
  "serde",
  "serde_json",
+ "sha1 0.11.0",
  "sha2 0.10.9",
  "svrctlrs-api",
  "svrctlrs-core",

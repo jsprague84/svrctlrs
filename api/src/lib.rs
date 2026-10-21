@@ -20,6 +20,7 @@ pub mod recordings;
 pub mod servers;
 pub mod sessions;
 pub mod settings;
+pub mod sign_in;
 pub mod system;
 pub mod tokens;
 pub mod users;

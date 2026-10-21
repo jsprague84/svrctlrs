@@ -8,6 +8,9 @@ use utoipa::ToSchema;
 pub struct Login {
     pub username: String,
     pub password: String,
+    /// A TOTP code or a recovery code, for an account with two-factor sign-in on
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub totp: Option<String>,
 }
 
 /// A successful login: the session id doubles as a Bearer token for native apps.
@@ -22,6 +25,9 @@ pub struct LoggedIn {
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct LoginRefused {
     pub error: String,
+    /// `TOTP_REQUIRED` (send `totp` too) or `TOTP_INVALID`; absent for other refusals
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
 }
 
 /// `POST /auth/ws-ticket`: one use, on a WebSocket upgrade only (`?ticket=`).

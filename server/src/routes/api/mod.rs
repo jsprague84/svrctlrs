@@ -26,6 +26,7 @@ pub mod recordings;
 pub mod servers;
 pub mod sessions;
 pub mod settings;
+pub mod sign_in;
 pub mod tokens;
 pub mod users;
 
@@ -205,7 +206,7 @@ pub fn routes() -> OpenApiRouter<AppState> {
         .nest("/profiles", profiles::routes())
         .nest("/quick-commands", quick_commands::routes())
         .nest("/notifications", notifications::routes())
-        .nest("/users", users::routes())
+        .nest("/users", users::routes().merge(sign_in::routes()))
         .nest("/audit", audit::routes())
         .nest("/sessions", sessions::routes())
         .nest("/recordings", recordings::routes())

@@ -49,8 +49,9 @@ does not pull in Tauri's GTK/WebKit dependencies.
    method and a redacted URI) → session manager → `require_auth`.
    HTTP routes also sit behind a 30 s `TimeoutLayer`; the WebSocket and the SFTP file routes
    (`routes/api/files.rs`, streamed transfers) do not.
-2. **`require_auth`** (`server/src/routes/ui/auth.rs`) exempts `/auth/login`, `/auth/logout`,
-   `/api/v1/auth/login`, `/api/v1/health`, the static app shell, `/manifest.webmanifest` and
+2. **`require_auth`** (`server/src/routes/ui/auth.rs`) exempts `/auth/login`,
+   `/auth/login/totp` (a password sign-in's second step, `server/src/sign_in/totp.rs`),
+   `/auth/logout`, `/api/v1/auth/login`, `/api/v1/health`, the static app shell, `/manifest.webmanifest` and
    `OPTIONS` (list in `SECURITY.md`). Everything else needs a session cookie, an API token
    (`Bearer svr_…`, `server/src/api_tokens.rs`: hashed lookup, then the token's access preset
    decides by method and path, 403 for anything it does not name), a session Bearer token (the
@@ -124,6 +125,10 @@ does not pull in Tauri's GTK/WebKit dependencies.
 | `quick_commands` | per-user snippets: name, command, optional `server_id`, category, sort order |
 | `settings` | key/value with `value_type`; `notification.*` and `app.default_profile_id` are seeded |
 | `user_settings` | a user's own preference documents: (`user_id`, `key`) → JSON `value`; only `terminal` today (`ON DELETE CASCADE`) |
+| `login_failures` | the login limiter's failed attempts: `key` (`ip:…` / `user:…`), `failed_at` (Unix seconds); pruned past the 15-minute window |
+| `user_totp` | one TOTP enrolment per user: encrypted base32 `secret`, `confirmed_at` (NULL while pending), `last_step` (no code twice) |
+| `user_recovery_codes` | SHA-256 of each one-time recovery code, `used_at` |
+| `user_identities` | an account's OpenID Connect identities: `issuer` + `subject` (unique), `email`/`display_name` as last seen, `last_used_at` |
 | `api_tokens` | a user's named API tokens: SHA-256 `token_hash` (unique), display `prefix`, `preset`, `expires_at` (NULL = never), `last_used_at`/`last_used_ip`, `revoked_at`, `require_approval`; name unique per user (`ON DELETE CASCADE`) |
 | `approvals` | held token calls: random `id` (in the link), `user_id` (`ON DELETE CASCADE`), `token_id` (`ON DELETE SET NULL`) and `token_name`, `action`, `method`, `path`, target, `url`, `status` (`pending`/`approved`/`denied`), `expires_at`, the decision, and the approved call's `result_status` and `result` |
 | `audit_log` | who did what: user, client address, action, target, JSON details, and the API token behind it (`token_id`, `token_name`, no foreign key so the name outlives the token); pruned after 180 days |

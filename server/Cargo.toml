@@ -73,6 +73,12 @@ base64 = "0.22"
 rpassword = "7"
 # OpenSSH-style SHA256 host key fingerprints
 sha2 = "0.10"
+# TOTP (RFC 6238): HMAC-SHA1 and base32 secrets; the same versions russh already builds
+hmac = "0.13"
+sha1 = "0.11"
+data-encoding = "2"
+# The TOTP enrolment QR code as SVG (no image or other dependencies)
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 russh-sftp = { workspace = true, optional = true }
 tokio-util = { workspace = true, optional = true }
 

@@ -151,7 +151,9 @@ echo "$NEW" | docker exec -i svrctlrs /app/svrctl reset-password admin --passwor
 It needs no running server and no credentials: whoever can `docker exec` into the container
 already owns the data. The account is signed out everywhere (its browser sessions and app
 tokens end; other accounts are untouched; `--keep-sessions` skips that), and the audit log
-records `user.password_reset`. The 12-character minimum still applies. Outside a container,
+records `user.password_reset`. The 12-character minimum still applies. A lost authenticator
+app with no recovery codes left: add `--clear-totp`, which also turns the account's two-factor
+sign-in off (turn it on again under Settings → Access → Sign-in). Outside a container,
 pass `--database-url sqlite:/path/to/svrctlrs.db`.
 
 ## Health and troubleshooting

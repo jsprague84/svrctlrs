@@ -255,7 +255,7 @@
         "tags": [
           "auth"
         ],
-        "summary": "JSON login handler for Tauri/SPA clients (no redirect, returns JSON)",
+        "summary": "JSON login handler for Tauri/SPA clients (no redirect, returns JSON). An account with\ntwo-factor sign-in on also needs `totp` (a code or a recovery code); without it the answer\nis 401 with `code: TOTP_REQUIRED`.",
         "operationId": "login_json",
         "requestBody": {
           "content": {
@@ -279,6 +279,7 @@
             }
           },
           "401": {
+            "description": "Wrong password, or a code is required (`TOTP_REQUIRED`) or wrong (`TOTP_INVALID`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2950,6 +2951,56 @@
         }
       }
     },
+    "/api/v1/users/me/identities/{id}": {
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Unlink one of the caller's provider identities. With password sign-in off, the last one\nstays (it is the only way in).",
+        "operationId": "unlink_identity",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The last way to sign in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/me/password": {
       "put": {
         "tags": [
@@ -2987,8 +3038,18 @@
               }
             }
           },
-          "401": {
-            "description": "The current password is wrong",
+          "403": {
+            "description": "The current password is wrong (`PASSWORD_INCORRECT`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many wrong passwords",
             "content": {
               "application/json": {
                 "schema": {
@@ -3086,6 +3147,243 @@
             }
           },
           "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/sign-in": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "How the caller can sign in, and how this server lets anyone sign in",
+        "operationId": "sign_in_methods",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInMethods"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/totp": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Start turning on two-factor sign-in: a new secret for the authenticator app. Nothing\nchanges for sign-in until a code from it is confirmed.",
+        "operationId": "begin_totp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordConfirmation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpEnrolment"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Wrong password (`PASSWORD_INCORRECT`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Already on",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/totp/confirm": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Finish turning on two-factor sign-in with a code from the app; answers the recovery codes,\nonce.",
+        "operationId": "confirm_totp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TotpCode"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The code did not work (`TOTP_INVALID`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No enrolment was started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/totp/disable": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Turn two-factor sign-in off (the recovery codes go with it)",
+        "operationId": "disable_totp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordConfirmation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Message"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Wrong password (`PASSWORD_INCORRECT`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/totp/recovery-codes": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Ten new recovery codes in place of the old ones",
+        "operationId": "renew_recovery_codes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordConfirmation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Wrong password (`PASSWORD_INCORRECT`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Two-factor sign-in is off",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "429": {
             "content": {
               "application/json": {
                 "schema": {
@@ -4390,6 +4688,47 @@
           }
         }
       },
+      "LinkedIdentity": {
+        "type": "object",
+        "required": [
+          "id",
+          "issuer",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the provider said at the last sign-in"
+          },
+          "display_name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_used_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
       "Listing": {
         "type": "object",
         "description": "`GET /servers/{id}/files`: directories first, then names ignoring case.",
@@ -4456,6 +4795,13 @@
           },
           "password": {
             "type": "string"
+          },
+          "totp": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A TOTP code or a recovery code, for an account with two-factor sign-in on"
           }
         }
       },
@@ -4468,6 +4814,13 @@
         "properties": {
           "error": {
             "type": "string"
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`TOTP_REQUIRED` (send `totp` too) or `TOTP_INVALID`; absent for other refusals"
           }
         }
       },
@@ -4926,6 +5279,18 @@
           }
         }
       },
+      "PasswordConfirmation": {
+        "type": "object",
+        "description": "The caller's current password, for changes that could lock them out",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          }
+        }
+      },
       "Preference": {
         "type": "object",
         "description": "One of the caller's preference documents (`terminal`); `value` is null until saved.",
@@ -5304,6 +5669,21 @@
         "properties": {
           "recording": {
             "$ref": "#/components/schemas/Recording"
+          }
+        }
+      },
+      "RecoveryCodes": {
+        "type": "object",
+        "description": "Ten one-time recovery codes. Shown once; only their hashes are kept.",
+        "required": [
+          "codes"
+        ],
+        "properties": {
+          "codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -5826,6 +6206,58 @@
           }
         }
       },
+      "SignInMethods": {
+        "type": "object",
+        "description": "`GET /users/me/sign-in`",
+        "required": [
+          "password_login",
+          "totp",
+          "identities"
+        ],
+        "properties": {
+          "password_login": {
+            "type": "boolean",
+            "description": "Whether this server accepts a password at all (`PASSWORD_LOGIN`)"
+          },
+          "totp": {
+            "$ref": "#/components/schemas/TotpStatus"
+          },
+          "provider": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SignInProvider",
+                "description": "The OpenID Connect provider this server signs in with, if one is configured"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "identities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LinkedIdentity"
+            },
+            "description": "The caller's identities at that provider (or at one configured before)"
+          }
+        }
+      },
+      "SignInProvider": {
+        "type": "object",
+        "required": [
+          "name",
+          "issuer"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "What the sign-in button says (`OIDC_NAME`)"
+          },
+          "issuer": {
+            "type": "string"
+          }
+        }
+      },
       "Status": {
         "type": "object",
         "description": "`GET /status`",
@@ -5894,6 +6326,58 @@
         "properties": {
           "token": {
             "$ref": "#/components/schemas/ApiToken"
+          }
+        }
+      },
+      "TotpCode": {
+        "type": "object",
+        "description": "`POST /users/me/totp/confirm`",
+        "required": [
+          "code"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        }
+      },
+      "TotpEnrolment": {
+        "type": "object",
+        "description": "`POST /users/me/totp`: what to load into the authenticator app. Shown once; the secret is\nnot readable again.",
+        "required": [
+          "secret",
+          "otpauth_uri",
+          "qr_svg"
+        ],
+        "properties": {
+          "secret": {
+            "type": "string",
+            "description": "Base32, for typing in by hand"
+          },
+          "otpauth_uri": {
+            "type": "string"
+          },
+          "qr_svg": {
+            "type": "string",
+            "description": "The URI as an SVG QR code"
+          }
+        }
+      },
+      "TotpStatus": {
+        "type": "object",
+        "required": [
+          "enabled",
+          "recovery_codes_left"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "A password sign-in also asks for a code"
+          },
+          "recovery_codes_left": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unused recovery codes"
           }
         }
       },

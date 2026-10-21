@@ -352,6 +352,7 @@ async fn api_shapes_are_unchanged() {
         "/api/v1/users/me/preferences/terminal",
         Some(json!({ "value": { "fontSize": 13 } }))
     );
+    owner!("GET /users/me/sign-in", "GET", "/api/v1/users/me/sign-in");
     owner!(
         "PUT /users/me/password (wrong current)",
         "PUT",

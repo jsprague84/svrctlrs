@@ -265,7 +265,9 @@ enum Command {
         database_url: String,
     },
     /// [local] Set a new password for an account when nobody can sign in. Asks twice on a
-    /// terminal unless --password-stdin or --generate, and signs the account out everywhere
+    /// terminal unless --password-stdin or --generate, and signs the account out everywhere.
+    /// --clear-totp also turns two-factor sign-in off (a lost authenticator and no recovery
+    /// codes left)
     ResetPassword {
         username: String,
         #[arg(long, conflicts_with = "generate")]
@@ -276,6 +278,9 @@ enum Command {
         /// are never touched
         #[arg(long)]
         keep_sessions: bool,
+        /// Also turn the account's two-factor sign-in (TOTP and recovery codes) off
+        #[arg(long)]
+        clear_totp: bool,
         #[arg(long, env = "DATABASE_URL", default_value = "sqlite:data/svrctlrs.db")]
         database_url: String,
     },
@@ -391,6 +396,7 @@ async fn main() -> ExitCode {
             password_stdin,
             generate,
             keep_sessions,
+            clear_totp,
             database_url,
         } => local_result(
             &out,
@@ -400,6 +406,7 @@ async fn main() -> ExitCode {
                 password_stdin,
                 generate,
                 !keep_sessions,
+                clear_totp,
             )
             .await,
         ),

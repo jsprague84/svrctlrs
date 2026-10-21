@@ -18,7 +18,17 @@ the release workflow uses the matching section as the release notes.
   (migration 109) instead of in memory, so a deploy no longer hands an attacker a fresh
   allowance of 10 attempts per 15 minutes; if the count cannot be read, the attempt is refused.
 
+### Added
+- **Two-factor sign-in (TOTP)**, optional per account: Settings → Access → Sign-in shows a QR
+  code for any authenticator app, and confirming a code turns it on and gives you ten
+  one-time recovery codes. A password sign-in then asks for a code (or a recovery code) on a
+  second page; the JSON login takes it as `totp`. Wrong codes count like wrong passwords.
+  `svrctl reset-password <user> --clear-totp` turns it off from the host if the phone is gone.
+
 ### Changed
+- A wrong current password (changing the password, two-factor changes) is now
+  `403 PASSWORD_INCORRECT` instead of 401, which sent the web app to the login page, and it
+  counts against the login limiter.
 - The web app reloads the page when an API call comes back as a redirect to the edge's
   sign-in (the passkey sign-in ran out), and a terminal that cannot connect asks the server
   whether you are still signed in, so you get the sign-in instead of endless reconnects.

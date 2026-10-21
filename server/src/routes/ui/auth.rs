@@ -87,7 +87,9 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
 
     // Exempt routes - no auth required (case-insensitive comparison)
     let path_lower = path.to_ascii_lowercase();
-    let is_login = path_lower == "/auth/login" || path_lower == "/api/v1/auth/login";
+    let is_login = path_lower == "/auth/login"
+        || path_lower == "/auth/login/totp"
+        || path_lower == "/api/v1/auth/login";
     if is_login && request.headers().contains_key(header::AUTHORIZATION) {
         return ApiError::bad_request(
             "A login request carries no Authorization header; agents use their API token instead",
@@ -448,6 +450,7 @@ pub fn redacted_uri(uri: &Uri) -> String {
 pub fn routes() -> Router<AppState> {
     Router::from(api_routes())
         .route("/auth/login", get(login_page).post(login))
+        .route("/auth/login/totp", post(login_totp))
         .route("/auth/logout", post(logout))
 }
 
@@ -465,16 +468,59 @@ struct LoginForm {
     password: String,
 }
 
-/// Render minimal standalone login page
-fn render_login_html(error: Option<&str>) -> String {
+/// The second step's form: a TOTP code or a recovery code
+#[derive(Debug, Deserialize)]
+struct CodeForm {
+    code: String,
+}
+
+/// Session key of the authentication method of the signed-in session (`password`,
+/// `password+totp`, `password+recovery_code`, `oidc`), for the session list to come.
+pub(crate) const AUTH_METHOD_KEY: &str = "auth_method";
+/// Session key of a password sign-in waiting for its second factor
+const PENDING_LOGIN_KEY: &str = "pending_login";
+/// How long the second step may take, and how many wrong codes it allows, before the
+/// password has to be entered again.
+const PENDING_LOGIN_SECS: i64 = 5 * 60;
+const PENDING_LOGIN_TRIES: u32 = 5;
+
+/// A password that was right, for an account that also wants a code. Held in the (cycled)
+/// session; it signs nobody in.
+#[derive(Debug, Clone, serde::Serialize, Deserialize)]
+struct PendingLogin {
+    user_id: i64,
+    username: String,
+    started_at: i64,
+    tries: u32,
+}
+
+pub(crate) fn html_escape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// The standalone sign-in page around `body` (the server renders it; the SPA is not loaded
+/// until someone is signed in).
+pub(crate) fn render_auth_page(subtitle: &str, error: Option<&str>, body: &str) -> String {
     let error_block = error
         .map(|msg| {
             format!(
-                r#"<div style="background:#f85149;color:#fff;padding:0.75rem 1rem;border-radius:6px;margin-bottom:1.5rem;font-size:0.875rem;">{}</div>"#,
-                msg
+                r#"<div class="error" role="alert">{}</div>"#,
+                html_escape(msg)
             )
         })
         .unwrap_or_default();
+    let subtitle = html_escape(subtitle);
 
     format!(
         r##"<!DOCTYPE html>
@@ -482,35 +528,61 @@ fn render_login_html(error: Option<&str>) -> String {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SvrCtlRS — Login</title>
+<title>SvrCtlRS — Sign in</title>
 <style>
 *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#1a1b26;color:#c0caf5;display:flex;align-items:center;justify-content:center;min-height:100vh}}
+body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#1a1b26;color:#c0caf5;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem}}
 .card{{background:#24283b;border:1px solid #414868;border-radius:12px;padding:2.5rem;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.3)}}
 h1{{font-size:1.5rem;font-weight:600;margin-bottom:0.25rem;text-align:center}}
-.sub{{color:#565f89;font-size:0.875rem;text-align:center;margin-bottom:2rem}}
+.sub{{color:#787fa0;font-size:0.875rem;text-align:center;margin-bottom:2rem}}
+.error{{background:#f85149;color:#fff;padding:0.75rem 1rem;border-radius:6px;margin-bottom:1.5rem;font-size:0.875rem}}
 label{{display:block;font-size:0.875rem;font-weight:500;color:#a9b1d6;margin-bottom:0.375rem}}
-input{{width:100%;padding:0.625rem 0.75rem;background:#1a1b26;border:1px solid #414868;border-radius:6px;color:#c0caf5;font-size:0.875rem;outline:none;transition:border-color 0.15s}}
+input{{width:100%;padding:0.625rem 0.75rem;background:#1a1b26;border:1px solid #414868;border-radius:6px;color:#c0caf5;font-size:1rem;outline:none;transition:border-color 0.15s}}
 input:focus{{border-color:#7aa2f7}}
 .field{{margin-bottom:1.25rem}}
-button{{width:100%;padding:0.75rem;background:#7aa2f7;color:#1a1b26;border:none;border-radius:6px;font-size:0.875rem;font-weight:600;cursor:pointer;transition:background 0.15s}}
-button:hover{{background:#89b4fa}}
+button,.button{{display:block;width:100%;min-height:44px;padding:0.75rem;background:#7aa2f7;color:#1a1b26;border:none;border-radius:6px;font-size:0.875rem;font-weight:600;cursor:pointer;transition:background 0.15s;text-align:center;text-decoration:none}}
+button:hover,.button:hover{{background:#89b4fa}}
+.secondary{{background:transparent;color:#a9b1d6;border:1px solid #414868}}
+.secondary:hover{{background:#2f3549}}
+.or{{display:flex;align-items:center;gap:0.75rem;color:#787fa0;font-size:0.75rem;margin:1.5rem 0}}
+.or::before,.or::after{{content:"";flex:1;border-top:1px solid #414868}}
+.hint{{color:#787fa0;font-size:0.75rem;margin-top:0.375rem}}
+.links{{margin-top:1.25rem;text-align:center;font-size:0.8125rem}}
+.links a{{color:#7aa2f7}}
 </style>
 </head>
 <body>
 <div class="card">
 <h1>SvrCtlRS</h1>
-<p class="sub">Sign in to continue</p>
+<p class="sub">{subtitle}</p>
 {error_block}
-<form method="post" action="/auth/login">
-<div class="field"><label for="username">Username</label><input id="username" name="username" type="text" autocomplete="username" required autofocus></div>
-<div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
-<button type="submit">Sign in</button>
-</form>
+{body}
 </div>
 </body>
 </html>"##
     )
+}
+
+const PASSWORD_FORM: &str = r#"<form method="post" action="/auth/login">
+<div class="field"><label for="username">Username</label><input id="username" name="username" type="text" autocomplete="username" required autofocus></div>
+<div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>
+<button type="submit">Sign in</button>
+</form>"#;
+
+const CODE_FORM: &str = r#"<form method="post" action="/auth/login/totp">
+<div class="field"><label for="code">Code</label><input id="code" name="code" type="text" autocomplete="one-time-code" autocapitalize="none" spellcheck="false" required autofocus>
+<p class="hint">Six digits from your authenticator app, or one of your recovery codes.</p></div>
+<button type="submit">Continue</button>
+</form>
+<p class="links"><a href="/auth/login">Start over</a></p>"#;
+
+/// Render minimal standalone login page
+fn render_login_html(error: Option<&str>) -> String {
+    render_auth_page("Sign in to continue", error, PASSWORD_FORM)
+}
+
+fn render_code_html(error: Option<&str>) -> String {
+    render_auth_page("Two-factor sign-in", error, CODE_FORM)
 }
 
 /// Login page handler
@@ -518,11 +590,14 @@ async fn login_page() -> Html<String> {
     Html(render_login_html(None))
 }
 
-/// Why a login attempt was refused. Credential and rate-limit failures are told apart only in
+/// Why a sign-in step was refused. Credential and rate-limit failures are told apart only in
 /// the status code; the message never says whether the username exists.
+#[derive(Debug)]
 enum LoginFailure {
     RateLimited(std::time::Duration),
     InvalidCredentials,
+    /// The password was right; the code was not
+    InvalidCode,
     Internal,
 }
 
@@ -540,35 +615,49 @@ pub(crate) fn client_ip(headers: &HeaderMap) -> String {
         .unwrap_or_else(|| "direct".to_string())
 }
 
-/// Shared by both login handlers: rate limit, look up, verify, record the outcome, and
-/// start a fresh session for the user (a new id, so a pre-login session cannot be fixated).
-async fn authenticate(
+/// Refuse the attempt when one of `keys` is over the limit (or the limiter cannot be read).
+async fn check_limit(
     state: &AppState,
-    headers: &HeaderMap,
-    session: &Session,
-    creds: &LoginForm,
-) -> Result<svrctlrs_database::models::User, LoginFailure> {
-    use svrctlrs_database::queries::users;
-
-    let ip = client_ip(headers);
-    let keys = crate::login_limiter::LoginLimiter::keys(&ip, &creds.username);
-    match state.login_limiter.check(&keys).await {
-        Ok(None) => {}
+    keys: &[String],
+    username: &str,
+    ip: &str,
+) -> Result<(), LoginFailure> {
+    match state.login_limiter.check(keys).await {
+        Ok(None) => Ok(()),
         Ok(Some(limited)) => {
             tracing::warn!(key = %limited.key, retry_after_secs = limited.retry_after.as_secs(), "Login rate limited");
             crate::audit::record(
                 &state.pool,
                 NewAuditEntry::new("login.rate_limited")
-                    .username(&creds.username)
-                    .client_ip(Some(ip.clone())),
+                    .username(username)
+                    .client_ip(Some(ip.to_string())),
             );
-            return Err(LoginFailure::RateLimited(limited.retry_after));
+            Err(LoginFailure::RateLimited(limited.retry_after))
         }
         Err(e) => {
             tracing::error!(error = %e, "Login limiter unavailable; refusing the attempt");
-            return Err(LoginFailure::Internal);
+            Err(LoginFailure::Internal)
         }
     }
+}
+
+async fn record_failure(state: &AppState, keys: &[String]) {
+    if let Err(e) = state.login_limiter.record_failure(keys).await {
+        tracing::error!(error = %e, "Failed to record a login failure");
+    }
+}
+
+/// The password step: rate limit, look up, verify, record a failure. On success, the user and
+/// whether the account also wants a TOTP code. Nobody is signed in yet.
+async fn check_password(
+    state: &AppState,
+    ip: &str,
+    creds: &LoginForm,
+) -> Result<(svrctlrs_database::models::User, bool), LoginFailure> {
+    use svrctlrs_database::queries::{user_totp, users};
+
+    let keys = crate::login_limiter::LoginLimiter::keys(ip, &creds.username);
+    check_limit(state, &keys, &creds.username, ip).await?;
 
     let user = users::get_user_by_username(&state.pool, &creds.username)
         .await
@@ -586,45 +675,165 @@ async fn authenticate(
     };
 
     let Some(user) = user.filter(|_| valid) else {
-        if let Err(e) = state.login_limiter.record_failure(&keys).await {
-            tracing::error!(error = %e, "Failed to record a login failure");
-        }
+        record_failure(state, &keys).await;
         tracing::warn!(username = %creds.username, "Login failed");
         crate::audit::record(
             &state.pool,
             NewAuditEntry::new("login.failed")
                 .username(&creds.username)
-                .client_ip(Some(ip.clone())),
+                .client_ip(Some(ip.to_string())),
         );
         return Err(LoginFailure::InvalidCredentials);
     };
 
+    let needs_code = user_totp::is_enabled(&state.pool, user.id)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Could not read the TOTP enrolment");
+            LoginFailure::Internal
+        })?;
+    Ok((user, needs_code))
+}
+
+/// The second step: a TOTP code (each time step once) or an unused recovery code. Failures
+/// count against the same limiter keys as the password. Returns the sign-in method.
+async fn check_code(
+    state: &AppState,
+    ip: &str,
+    user_id: i64,
+    username: &str,
+    code: &str,
+) -> Result<&'static str, LoginFailure> {
+    use crate::sign_in::totp;
+    use svrctlrs_database::queries::user_totp;
+
+    let keys = crate::login_limiter::LoginLimiter::keys(ip, username);
+    check_limit(state, &keys, username, ip).await?;
+    let internal = |e: svrctlrs_core::Error| {
+        tracing::error!(error = %e, "Database error during the second sign-in step");
+        LoginFailure::Internal
+    };
+
+    let enrolment = user_totp::get(&state.pool, user_id)
+        .await
+        .map_err(internal)?;
+    let method = match enrolment.filter(|t| t.is_enabled()) {
+        // The enrolment went away in between (turned off): the password alone is enough now
+        None => Some("password"),
+        Some(t) => {
+            if totp::normalise_code(code).is_some() {
+                let now = chrono::Utc::now().timestamp();
+                match totp::verify(&t.secret, code, now, t.last_step) {
+                    Some(step) => user_totp::accept_step(&state.pool, user_id, step)
+                        .await
+                        .map_err(internal)?
+                        .then_some("password+totp"),
+                    None => None,
+                }
+            } else if let Some(hash) = totp::recovery_hash(code) {
+                user_totp::use_recovery_code(&state.pool, user_id, &hash)
+                    .await
+                    .map_err(internal)?
+                    .then_some("password+recovery_code")
+            } else {
+                None
+            }
+        }
+    };
+
+    if let Some(method) = method {
+        return Ok(method);
+    }
+    record_failure(state, &keys).await;
+    tracing::warn!(username = %username, "Second sign-in step failed");
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("login.code_failed")
+            .user(user_id)
+            .username(username)
+            .client_ip(Some(ip.to_string())),
+    );
+    Err(LoginFailure::InvalidCode)
+}
+
+/// Sign `user` in: forget the limiter's failures, audit, and start a fresh session (a new
+/// id, so a pre-login session cannot be fixated).
+pub(crate) async fn start_session(
+    state: &AppState,
+    session: &Session,
+    user_id: i64,
+    username: &str,
+    ip: &str,
+    method: &str,
+) -> Result<(), String> {
+    let keys = crate::login_limiter::LoginLimiter::keys(ip, username);
     if let Err(e) = state.login_limiter.clear(&keys).await {
         tracing::error!(error = %e, "Failed to clear login failures");
     }
     crate::audit::record(
         &state.pool,
         NewAuditEntry::new("login")
-            .user(user.id)
-            .username(&user.username)
-            .client_ip(Some(ip)),
+            .user(user_id)
+            .username(username)
+            .client_ip(Some(ip.to_string()))
+            .details(serde_json::json!({ "method": method })),
     );
 
     session.cycle_id().await.map_err(|e| {
         tracing::error!(error = %e, "Failed to cycle session id");
-        LoginFailure::Internal
+        "Failed to cycle session id".to_string()
     })?;
-    session.insert(USER_ID_KEY, user.id).await.map_err(|e| {
+    let _ = session.remove::<PendingLogin>(PENDING_LOGIN_KEY).await;
+    session.insert(USER_ID_KEY, user_id).await.map_err(|e| {
         tracing::error!(error = %e, "Failed to store session");
-        LoginFailure::Internal
+        "Failed to store session".to_string()
     })?;
-
-    Ok(user)
+    session
+        .insert(AUTH_METHOD_KEY, method)
+        .await
+        .map_err(|e| e.to_string())?;
+    tracing::info!(username = %username, user_id, method, "User logged in");
+    Ok(())
 }
 
 fn retry_after_message(retry_after: std::time::Duration) -> String {
     let minutes = retry_after.as_secs().div_ceil(60).max(1);
     format!("Too many failed attempts. Try again in {minutes} minute(s).")
+}
+
+fn html_failure(failure: LoginFailure, page: fn(Option<&str>) -> String) -> Response {
+    match failure {
+        LoginFailure::RateLimited(retry_after) => (
+            StatusCode::TOO_MANY_REQUESTS,
+            [(
+                header::RETRY_AFTER,
+                retry_after.as_secs().max(1).to_string(),
+            )],
+            Html(page(Some(&retry_after_message(retry_after)))),
+        )
+            .into_response(),
+        LoginFailure::InvalidCredentials => (
+            StatusCode::OK,
+            Html(page(Some("Invalid username or password"))),
+        )
+            .into_response(),
+        LoginFailure::InvalidCode => {
+            (StatusCode::OK, Html(page(Some("That code did not work")))).into_response()
+        }
+        LoginFailure::Internal => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Html(page(Some("Internal server error"))),
+        )
+            .into_response(),
+    }
+}
+
+fn internal_page() -> Response {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Html(render_login_html(Some("Internal server error"))),
+    )
+        .into_response()
 }
 
 /// Login form submission handler
@@ -641,30 +850,96 @@ async fn login(
         )
             .into_response();
     }
-    match authenticate(&state, &headers, &session, &creds).await {
-        Ok(user) => {
-            tracing::info!(username = %user.username, user_id = user.id, "User logged in");
-            Redirect::to("/").into_response()
+    let ip = client_ip(&headers);
+    match check_password(&state, &ip, &creds).await {
+        Ok((user, false)) => {
+            match start_session(&state, &session, user.id, &user.username, &ip, "password").await {
+                Ok(()) => Redirect::to("/").into_response(),
+                Err(_) => internal_page(),
+            }
         }
-        Err(LoginFailure::RateLimited(retry_after)) => (
-            StatusCode::TOO_MANY_REQUESTS,
-            [(
-                header::RETRY_AFTER,
-                retry_after.as_secs().max(1).to_string(),
-            )],
-            Html(render_login_html(Some(&retry_after_message(retry_after)))),
+        Ok((user, true)) => {
+            // Hold the right password in a fresh session until the code arrives
+            let pending = PendingLogin {
+                user_id: user.id,
+                username: user.username.clone(),
+                started_at: chrono::Utc::now().timestamp(),
+                tries: 0,
+            };
+            if session.cycle_id().await.is_err()
+                || session.insert(PENDING_LOGIN_KEY, &pending).await.is_err()
+            {
+                return internal_page();
+            }
+            Html(render_code_html(None)).into_response()
+        }
+        Err(failure) => html_failure(failure, render_login_html),
+    }
+}
+
+/// The second step of a password sign-in (TOTP or recovery code)
+async fn login_totp(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    session: Session,
+    Form(form): Form<CodeForm>,
+) -> Response {
+    if !is_same_origin_request(&headers) {
+        return (
+            StatusCode::FORBIDDEN,
+            Html(render_login_html(Some("Cross-site login refused"))),
         )
-            .into_response(),
-        Err(LoginFailure::InvalidCredentials) => (
-            StatusCode::OK,
-            Html(render_login_html(Some("Invalid username or password"))),
-        )
-            .into_response(),
-        Err(LoginFailure::Internal) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Html(render_login_html(Some("Internal server error"))),
-        )
-            .into_response(),
+            .into_response();
+    }
+    let Some(mut pending) = session
+        .get::<PendingLogin>(PENDING_LOGIN_KEY)
+        .await
+        .unwrap_or(None)
+    else {
+        return Html(render_login_html(Some("Sign in again"))).into_response();
+    };
+    if chrono::Utc::now().timestamp() - pending.started_at > PENDING_LOGIN_SECS {
+        let _ = session.remove::<PendingLogin>(PENDING_LOGIN_KEY).await;
+        return Html(render_login_html(Some(
+            "That took too long. Sign in again.",
+        )))
+        .into_response();
+    }
+    let ip = client_ip(&headers);
+    match check_code(&state, &ip, pending.user_id, &pending.username, &form.code).await {
+        Ok(method) => {
+            match start_session(
+                &state,
+                &session,
+                pending.user_id,
+                &pending.username,
+                &ip,
+                method,
+            )
+            .await
+            {
+                Ok(()) => Redirect::to("/").into_response(),
+                Err(_) => internal_page(),
+            }
+        }
+        Err(LoginFailure::InvalidCode) => {
+            pending.tries += 1;
+            if pending.tries >= PENDING_LOGIN_TRIES {
+                let _ = session.remove::<PendingLogin>(PENDING_LOGIN_KEY).await;
+                return Html(render_login_html(Some(
+                    "Too many wrong codes. Sign in again.",
+                )))
+                .into_response();
+            }
+            if session.insert(PENDING_LOGIN_KEY, &pending).await.is_err() {
+                return internal_page();
+            }
+            html_failure(LoginFailure::InvalidCode, render_code_html)
+        }
+        Err(failure) => {
+            let _ = session.remove::<PendingLogin>(PENDING_LOGIN_KEY).await;
+            html_failure(failure, render_login_html)
+        }
     }
 }
 
@@ -673,16 +948,61 @@ fn refused(status: StatusCode, message: impl Into<String>) -> (StatusCode, Json<
         status,
         Json(LoginRefused {
             error: message.into(),
+            code: None,
         }),
     )
 }
 
-/// JSON login handler for Tauri/SPA clients (no redirect, returns JSON)
+fn refused_with(
+    status: StatusCode,
+    code: &str,
+    message: impl Into<String>,
+) -> (StatusCode, Json<LoginRefused>) {
+    (
+        status,
+        Json(LoginRefused {
+            error: message.into(),
+            code: Some(code.to_string()),
+        }),
+    )
+}
+
+fn json_failure(failure: LoginFailure) -> Response {
+    match failure {
+        LoginFailure::RateLimited(retry_after) => (
+            [(
+                header::RETRY_AFTER,
+                retry_after.as_secs().max(1).to_string(),
+            )],
+            refused(
+                StatusCode::TOO_MANY_REQUESTS,
+                retry_after_message(retry_after),
+            ),
+        )
+            .into_response(),
+        LoginFailure::InvalidCredentials => {
+            refused(StatusCode::UNAUTHORIZED, "Invalid username or password").into_response()
+        }
+        LoginFailure::InvalidCode => refused_with(
+            StatusCode::UNAUTHORIZED,
+            "TOTP_INVALID",
+            "That code did not work",
+        )
+        .into_response(),
+        LoginFailure::Internal => {
+            refused(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
+        }
+    }
+}
+
+/// JSON login handler for Tauri/SPA clients (no redirect, returns JSON). An account with
+/// two-factor sign-in on also needs `totp` (a code or a recovery code); without it the answer
+/// is 401 with `code: TOTP_REQUIRED`.
 #[utoipa::path(post, path = "/api/v1/auth/login", tag = "auth", security(()),
     request_body = svrctlrs_api::auth::Login,
     responses(
         (status = 200, description = "Signed in; the session cookie is set too", body = LoggedIn),
-        (status = 401, body = LoginRefused),
+        (status = 401, description = "Wrong password, or a code is required (`TOTP_REQUIRED`) or wrong (`TOTP_INVALID`)", body = LoginRefused),
         (status = 429, description = "Too many failures; see Retry-After", body = LoginRefused),
     ))]
 async fn login_json(
@@ -695,30 +1015,33 @@ async fn login_json(
         username: login.username,
         password: login.password,
     };
-    let user = match authenticate(&state, &headers, &session, &creds).await {
-        Ok(user) => user,
-        Err(LoginFailure::RateLimited(retry_after)) => {
-            return (
-                [(
-                    header::RETRY_AFTER,
-                    retry_after.as_secs().max(1).to_string(),
-                )],
-                refused(
-                    StatusCode::TOO_MANY_REQUESTS,
-                    retry_after_message(retry_after),
-                ),
-            )
-                .into_response();
-        }
-        Err(LoginFailure::InvalidCredentials) => {
-            return refused(StatusCode::UNAUTHORIZED, "Invalid username or password")
-                .into_response();
-        }
-        Err(LoginFailure::Internal) => {
-            return refused(StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
-                .into_response();
-        }
+    let ip = client_ip(&headers);
+    let (user, needs_code) = match check_password(&state, &ip, &creds).await {
+        Ok(found) => found,
+        Err(failure) => return json_failure(failure),
     };
+    let method = if needs_code {
+        let Some(code) = login.totp.filter(|c| !c.trim().is_empty()) else {
+            return refused_with(
+                StatusCode::UNAUTHORIZED,
+                "TOTP_REQUIRED",
+                "This account also needs a code from its authenticator app",
+            )
+            .into_response();
+        };
+        match check_code(&state, &ip, user.id, &user.username, &code).await {
+            Ok(method) => method,
+            Err(failure) => return json_failure(failure),
+        }
+    } else {
+        "password"
+    };
+    if start_session(&state, &session, user.id, &user.username, &ip, method)
+        .await
+        .is_err()
+    {
+        return refused(StatusCode::INTERNAL_SERVER_ERROR, "Session error").into_response();
+    }
 
     // Save now so the (cycled) id exists for clients that use it as a Bearer token
     if let Err(e) = session.save().await {
@@ -727,7 +1050,6 @@ async fn login_json(
     }
     let session_id = session.id().map(|id| id.to_string()).unwrap_or_default();
 
-    tracing::info!(username = %user.username, user_id = user.id, "User logged in (JSON)");
     Json(LoggedIn {
         success: true,
         user_id: user.id,
