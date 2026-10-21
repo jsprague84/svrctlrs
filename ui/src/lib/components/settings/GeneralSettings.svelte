@@ -11,11 +11,17 @@
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { confirmDialog } from '#lib/state/confirm.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
+	import { localTimeOf, utcHour, utcHourLabel } from '#lib/api/backups.js';
 
 	let profiles = $derived(profilesState.getProfiles());
 	let defaultProfileId = $state('');
 	let retentionDays = $state(30);
 	let savedRetention = 30;
+	let backupKeep = $state(14);
+	let savedKeep = 14;
+	let backupHour = $state('3');
+	const hours = Array.from({ length: 24 }, (_, h) => h);
+	const backupLocal = $derived(localTimeOf(Number(backupHour)));
 	let loaded = $state(false);
 
 	onMount(async () => {
@@ -23,6 +29,10 @@
 		defaultProfileId = settingsState.getSetting('app.default_profile_id')?.value ?? '';
 		const days = Number(settingsState.getSetting('recording.retention_days')?.value ?? '30');
 		retentionDays = savedRetention = Number.isInteger(days) && days >= 0 ? days : 30;
+		const keep = Number(settingsState.getSetting('backup.keep')?.value ?? '14');
+		backupKeep = savedKeep = Number.isInteger(keep) && keep >= 0 ? keep : 14;
+		const hour = Number(settingsState.getSetting('backup.hour')?.value ?? '3');
+		backupHour = String(Number.isInteger(hour) && hour >= 0 && hour < 24 ? hour : 3);
 		loaded = true;
 	});
 
@@ -57,6 +67,50 @@
 			);
 		} catch (e) {
 			retentionDays = savedRetention;
+			toast.error(extractErrorMessage(e, 'Failed to save'));
+		}
+	}
+
+	async function saveBackupKeep() {
+		const keep = Number(backupKeep);
+		if (!Number.isInteger(keep) || keep < 0 || keep > 365) {
+			toast.error('Keep 0 to 365 backups');
+			backupKeep = savedKeep;
+			return;
+		}
+		if (keep === savedKeep) return;
+		// Fewer copies: the oldest go after the next backup
+		if (keep > 0 && keep < savedKeep) {
+			const ok = await confirmDialog({
+				title: `Keep ${keep} backup${keep === 1 ? '' : 's'}?`,
+				message: `After the next backup, copies beyond the newest ${keep} are deleted.`,
+				confirmLabel: 'Keep fewer',
+				destructive: true
+			});
+			if (!ok) {
+				backupKeep = savedKeep;
+				return;
+			}
+		}
+		try {
+			await settingsState.updateSetting('backup.keep', String(keep));
+			savedKeep = keep;
+			toast.success(
+				keep === 0
+					? 'Nightly backups are off'
+					: `Keeping ${keep} nightly backup${keep === 1 ? '' : 's'}`
+			);
+		} catch (e) {
+			backupKeep = savedKeep;
+			toast.error(extractErrorMessage(e, 'Failed to save'));
+		}
+	}
+
+	async function saveBackupHour() {
+		try {
+			await settingsState.updateSetting('backup.hour', backupHour);
+			toast.success(`Nightly backups run at ${utcHourLabel(Number(backupHour))}`);
+		} catch (e) {
 			toast.error(extractErrorMessage(e, 'Failed to save'));
 		}
 	}
@@ -171,6 +225,51 @@
 					class="w-20 px-3 py-1.5 min-h-11 md:min-h-0 text-base md:text-sm bg-input border border-border rounded-sm text-text-primary"
 				/>
 				<span class="text-sm text-text-secondary">days</span>
+			</div>
+		</div>
+	</SettingsSection>
+
+	<SettingsSection
+		title="Backups"
+		description="A copy of the database every night, on the server's data volume. Settings → About shows the last one."
+	>
+		<div class="flex items-center justify-between gap-4 py-2">
+			<div>
+				<label for="backup-keep" class="text-sm text-text-primary">Copies to keep</label>
+				<p class="text-xs text-text-muted">0 turns nightly backups off.</p>
+			</div>
+			<input
+				id="backup-keep"
+				type="number"
+				inputmode="numeric"
+				min="0"
+				max="365"
+				step="1"
+				bind:value={backupKeep}
+				onchange={saveBackupKeep}
+				disabled={!loaded}
+				class="w-20 px-3 py-1.5 min-h-11 md:min-h-0 text-base md:text-sm bg-input border border-border rounded-sm text-text-primary flex-shrink-0"
+			/>
+		</div>
+		<div class="flex items-center justify-between gap-4 py-2">
+			<div>
+				<label for="backup-hour" class="text-sm text-text-primary">Time</label>
+				<p class="text-xs text-text-muted">
+					{#if backupLocal}{backupLocal} your time.
+					{/if}Missed while the server was down: made up when it starts.
+				</p>
+			</div>
+			<div class="w-36 flex-shrink-0">
+				<Select
+					id="backup-hour"
+					bind:value={backupHour}
+					onchange={saveBackupHour}
+					disabled={!loaded || backupKeep === 0}
+				>
+					{#each hours as h (h)}
+						<option value={String(h)}>{utcHour(h)}</option>
+					{/each}
+				</Select>
 			</div>
 		</div>
 	</SettingsSection>

@@ -5,6 +5,7 @@
 	import { getPlatform } from '#lib/platform/index.js';
 	import { get } from '#lib/api/client.js';
 	import Badge from '#lib/components/ui/Badge.svelte';
+	import BackupsPanel from './BackupsPanel.svelte';
 
 	let serverHealth = $state<{ status: string; version?: string; revision?: string } | null>(null);
 	let healthError = $state<string | null>(null);
@@ -103,6 +104,8 @@
 			</div>
 		{/if}
 	</div>
+
+	<BackupsPanel />
 
 	<!-- Keyboard Shortcuts -->
 	<div>

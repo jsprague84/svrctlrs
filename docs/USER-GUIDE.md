@@ -316,6 +316,20 @@ keeps them until deleted) and stop at 100 MB each (`RECORDING_MAX_MB`; the shell
 unrecorded). They are stored encrypted with the server's encryption key. Downloads and
 deletions appear in the audit log, and the log's *Sessions* filter includes them.
 
+## Backups
+
+The server copies its database every night, at 03:00 UTC unless you change it, and keeps the
+newest 14 copies on its data volume (Settings → General → *Backups*; 0 copies turns nightly
+backups off). Settings → **About** shows the last copy (when, how large), the last error if
+the latest attempt failed, the schedule, and **Back up now**. If the server was down at that
+hour, it makes the copy a few minutes after it starts; with notifications on, a failed night
+sends one notification.
+
+A copy holds everything except the sign-ins and the encryption key. Keep the key yourself:
+it is `ENCRYPTION_KEY` in the server's `.env` (About says so), and without it the
+credentials in a copy cannot be read. Restoring happens on the server's host, not in the app
+(`svrctl restore`; DEPLOYMENT.md, "Backups"); afterwards everyone signs in again.
+
 ## Command palette and quick commands
 
 `Ctrl+K` opens the palette: switch tabs, open servers, change layout, and run **quick

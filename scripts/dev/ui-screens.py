@@ -241,6 +241,13 @@ with sync_playwright() as p:
             for tab in ["general", "notifications", "commands", "access", "audit", "about"]:
                 go(f"/settings?tab={tab}")
                 shot(f"settings-{tab}", full=True)
+            # About → Back up now: a copy is written and the panel shows it
+            go("/settings?tab=about")
+            page.get_by_role("button", name="Back up now").click()
+            page.get_by_text("Backup written").first.wait_for(timeout=10000)
+            row = page.get_by_text("Last backup", exact=True).locator("xpath=..").inner_text()
+            check(f"back up now shows the new copy ({vp_name}-{theme})", "·" in row and "None yet" not in row, row)
+            shot("settings-about-backup", full=True)
             # An agent token: created in the dialog, shown once, works outside the browser,
             # revoked in one tap
             agent = f"agent-{vp_name}-{theme}"
