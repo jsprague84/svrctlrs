@@ -93,7 +93,11 @@ service. It is optional; without `OIDC_ISSUER` nothing changes.
 1. Register a client at the provider: callback URL `https://<host>/auth/oidc/callback`,
    confidential (with a secret) or public with PKCE, scopes `openid profile email` (plus
    `groups` if you use `OIDC_ALLOWED_GROUPS`). Restrict it to the people who should get a
-   shell on your servers — at Pocket ID, a group-restricted client.
+   shell on your servers — at Pocket ID, a group-restricted client. The reference
+   deployment's client is kept in `scripts/deploy/pocket-id-client.sh` (shows the change,
+   `--apply` writes it with a full PUT and reads it back, `--new-secret` prints a new secret
+   to pipe into `.env`); its launch URL, `/auth/oidc/start`, makes Pocket ID's "My Apps"
+   button sign straight in.
 2. Set `PUBLIC_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `OIDC_NAME`
    in `.env`, then `docker compose up -d`. The log says `OpenID Connect sign-in configured`.
    A half-made configuration stops the server with the reason.

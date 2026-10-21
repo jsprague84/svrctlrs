@@ -54,7 +54,8 @@ Refusals use the error envelope:
 
 Presets (`full_admin`, `servers_keys`, `read_only`) and exactly what each allows:
 `SECURITY.md`, "API tokens", and the table in `server/src/api_tokens.rs`. No preset reaches
-`/tokens`, `POST /users`, `DELETE /users/{id}` or `PUT /users/me/password`.
+`/tokens`, `POST /users`, `DELETE /users/{id}`, `PUT /users/me/password` or the caller's
+sign-in methods (`/users/me/sign-in`, `/users/me/totp…`, `/users/me/identities/…`).
 
 ```http
 POST /api/v1/auth/login
@@ -64,10 +65,18 @@ Content-Type: application/json
 
 200 {"success": true, "user_id": 1, "session_id": "…"}
 401 {"error": "Invalid username or password"}
+401 {"error": "…", "code": "TOTP_REQUIRED"}   two-factor is on: send "totp" too
+401 {"error": "…", "code": "TOTP_INVALID"}
+403 {"error": "…", "code": "PASSWORD_LOGIN_OFF"}
 ```
 
-`POST /auth/login` (form fields `username`, `password`) is the HTML fallback and redirects to
-`/`. `POST /auth/logout` flushes the session and redirects to the login page.
+`"totp"` takes the six-digit code or a recovery code. `POST /auth/login` (form fields
+`username`, `password`) is the HTML fallback and redirects to `/`, or shows the code page
+(`POST /auth/login/totp`, field `code`). With an OpenID Connect provider configured,
+`GET /auth/oidc/start` signs in through it (DEPLOYMENT.md). `POST /auth/logout` flushes the
+session and redirects to the login page. A wrong *current* password on the routes that ask
+for it again (`PUT /users/me/password`, the two-factor routes) is
+`403 PASSWORD_INCORRECT`.
 
 ## Envelope
 

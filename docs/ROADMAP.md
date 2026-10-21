@@ -229,8 +229,12 @@ beside the binary, and what an identity provider does stays optional.
     environment flag and `svrctl reset-password`). No new service; prefer crates already in
     the build (`reqwest`, `sha2`, `rsa`/`p256`). Migration `109_…`.
 22. **Keep the desktop app** (owner: vim needs Ctrl+W, which a browser tab keeps for itself).
-    Sign-in through the system browser (RFC 8252: a one-time code handed back on a
-    `127.0.0.1` port, which Pocket ID matches on any port), the session in the OS keyring
+    Sign-in through the system browser (RFC 8252 shape, with svrctlrs as the authority: the
+    app opens `/auth/app` with a PKCE challenge, the browser signs in however the server
+    allows (provider, or password and TOTP; an open session skips it), and after a "sign in
+    the desktop app?" prompt svrctlrs hands a one-time code to the app's `127.0.0.1` port,
+    which the app exchanges with its verifier; no second provider client, and it works
+    without a provider), the session in the OS keyring
     instead of `localStorage` (SECURITY known weakness 4), the deprecated `?token=` removed,
     and a build tried on the owner's desktop with vim (`:split`, Ctrl+W j). Needs 21.
 23. **Shells that outlive a deploy and a pocket.** Every push to `master` restarts the

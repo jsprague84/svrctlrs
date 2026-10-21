@@ -10,10 +10,18 @@ address), since the images are published.
 
     E2E_OUT=/tmp/shots python3 scripts/dev/ui-screens.py
 """
-import json, os, sys, tempfile, time, urllib.request, urllib.error, http.cookiejar
+import base64, hmac, json, os, struct, sys, tempfile, time, urllib.request, urllib.error, http.cookiejar
 from playwright.sync_api import sync_playwright
 
 BASE = os.environ.get("E2E_URL", "http://127.0.0.1:18082")
+def totp_now(secret):
+    """The code an authenticator app shows for this base32 secret (RFC 6238, SHA-1, 6 digits)"""
+    key = base64.b32decode(secret + "=" * (-len(secret) % 8))
+    digest = hmac.new(key, struct.pack(">Q", int(time.time()) // 30), "sha1").digest()
+    offset = digest[-1] & 15
+    return "%06d" % ((struct.unpack(">I", digest[offset:offset + 4])[0] & 0x7FFFFFFF) % 1000000)
+
+
 USER = os.environ.get("E2E_USER", "admin")
 PASSWORD = os.environ.get("E2E_PASSWORD", "e2e-password-123456")
 SSH_HOST = os.environ.get("E2E_SSH_HOST")
@@ -267,6 +275,43 @@ with sync_playwright() as p:
             page.get_by_role("button", name=f"Remove token {agent}").wait_for(timeout=5000)
             check("a revoked token is refused", token_status() == 401)
             shot("settings-access-tokens", full=True)
+            # Two-factor sign-in: on through the dialog (password, QR, a code), ten recovery
+            # codes shown once, then off again so the next context's password login still works
+            signin = page.get_by_test_id("sign-in-totp")
+            signin.get_by_role("button", name="Turn on").click()
+            dialog = page.get_by_role("dialog", name="Turn on two-factor sign-in")
+            dialog.get_by_label("Current password").fill(PASSWORD)
+            page.get_by_role("button", name="Continue").click()
+            qr = dialog.get_by_role("img", name="QR code for the authenticator app")
+            qr.wait_for(timeout=5000)
+            page.wait_for_timeout(300)
+            check("the QR code renders", qr.evaluate("i => i.complete && i.naturalWidth > 0"))
+            key = dialog.locator("code").inner_text().strip()
+            shot("totp-scan")
+            dialog.get_by_label("Code from the app").fill(totp_now(key))
+            page.get_by_role("button", name="Turn on", exact=True).last.click()
+            codes = page.get_by_test_id("recovery-codes")
+            codes.wait_for(timeout=5000)
+            check("ten recovery codes are shown", codes.locator("li").count() == 10)
+            shot("totp-codes")
+            page.get_by_role("button", name="Done").click()
+            page.wait_for_timeout(500)
+            check("two-factor shows on", signin.get_by_text("on", exact=True).count() == 1)
+            r = ctx.request.post(BASE + "/api/v1/auth/login", data={"username": USER, "password": PASSWORD},
+                headers={"Origin": BASE})
+            check("a password alone is no longer enough", r.status == 401 and r.json().get("code") == "TOTP_REQUIRED",
+                  str(r.status))
+            shot("settings-access-signin", full=True)
+            signin.get_by_role("button", name="Turn off").click()
+            dialog = page.get_by_role("dialog", name="Turn off two-factor sign-in")
+            dialog.get_by_label("Current password").fill(PASSWORD)
+            page.get_by_role("button", name="Turn off").last.click()
+            try:
+                signin.get_by_role("button", name="Turn on").wait_for(timeout=5000)
+                off = True
+            except Exception:
+                off = False
+            check("two-factor is off again", off)
             # Approval: a token set to ask first tries to delete a server; the link opens the
             # request, and Deny leaves the server alone
             asker = api("POST", "/api/v1/tokens", {"name": f"asker-{vp_name}-{theme}", "preset": "servers_keys",

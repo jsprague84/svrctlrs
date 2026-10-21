@@ -121,6 +121,25 @@ which key was used, and whether the shell was recorded), recording downloads and
 file transfers, and every change to servers, credentials, accounts and tokens. Anything done
 with an API token shows "via <token name>" under the user. Entries are kept for 180 days.
 
+## Sign-in
+
+Settings → Access → **Sign-in** shows how you can sign in:
+
+- **Pocket ID** (or whatever the server's provider is called), when the server has one:
+  **Link** sends you to the provider and back, and from then on **Sign in with …** on the
+  login page signs you in without a password. Several identities can be linked; unlinking
+  one stops it working. When the server has password sign-in turned off, the login page goes
+  straight to the provider, and your last linked identity cannot be unlinked.
+- **Password**: whether this server takes one at all.
+- **Two-factor (authenticator app)**: **Turn on** asks for your password, shows a QR code
+  (on a phone, a link opens the authenticator app directly) and wants one code from the app.
+  You then get ten recovery codes, once: download or copy them somewhere safe. From then on a
+  password sign-in asks for a code on a second page; a recovery code works there too, once.
+  **New recovery codes** replaces them; **Turn off** asks for the password. Lost the phone and
+  the codes? Whoever runs the server: `svrctl reset-password <you> --clear-totp`.
+
+None of this changes what agent tokens can do: they never sign in.
+
 ## Agent tokens
 
 Settings → Access (`/settings?tab=access`) → **Agent tokens** is where agents and scripts get

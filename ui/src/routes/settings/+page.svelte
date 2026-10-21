@@ -8,6 +8,7 @@
 	import QuickCommandsSettings from '#lib/components/settings/QuickCommandsSettings.svelte';
 	import AboutSettings from '#lib/components/settings/AboutSettings.svelte';
 	import UsersSettings from '#lib/components/settings/UsersSettings.svelte';
+	import SignInSettings from '#lib/components/settings/SignInSettings.svelte';
 	import TokensSettings from '#lib/components/settings/TokensSettings.svelte';
 	import AuditSettings from '#lib/components/settings/AuditSettings.svelte';
 
@@ -102,6 +103,7 @@
 			<QuickCommandsSettings />
 		{:else if activeTab === 'access'}
 			<div class="flex flex-col gap-6 max-w-3xl">
+				<SignInSettings />
 				<TokensSettings />
 				<UsersSettings />
 			</div>
