@@ -45,7 +45,7 @@ the rest is the same.
 | `OIDC_ALLOWED_GROUPS` | no | unset | comma-separated; the ID token's `groups` must name one. A second check beside the provider's own restriction |
 | `PASSWORD_LOGIN` | no | `on` | `off` refuses every password sign-in (form and JSON), leaving the provider as the only way in; needs `OIDC_ISSUER`. API tokens are not affected |
 | `SESSION_SECURE` | no | `true` | set `false` only when serving plain HTTP on a trusted LAN |
-| `ALLOWED_ORIGINS` | for native clients | unset | comma-separated origins of the Tauri apps, e.g. `tauri://localhost,https://tauri.localhost,http://tauri.localhost`. Enables CORS for them and admits their WebSocket upgrades; the session cookie stays `SameSite=Lax` (the desktop app signs in with a token, not the cookie). Leave empty for browser-only use. |
+| `ALLOWED_ORIGINS` | for native clients | unset | comma-separated origins of the Tauri apps, e.g. `tauri://localhost,https://tauri.localhost,http://tauri.localhost`. Enables CORS for them and admits their WebSocket upgrades; the session cookie stays `SameSite=Strict` (the desktop app signs in with a token, not the cookie). Leave empty for browser-only use. |
 | `SESSION_DETACH_TTL_SECS` | no | `900` | how long an interactive shell is kept after its last client disconnects (reload, lost link, phone backgrounded) before it is closed, for accounts that chose no keep time of their own |
 | `SESSION_DETACH_TTL_MAX_SECS` | no | `28800` | the longest keep time an account may choose (15 min, 1 h and 8 h are offered; longer ones are hidden). Also bounds how long a kept shell (tmux) waits for a client after a restart |
 | `SESSION_MAX_PER_USER` | no | `16` | live interactive sessions per user; the 17th `shell` request fails with `quota` |
