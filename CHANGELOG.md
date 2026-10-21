@@ -33,6 +33,14 @@ the release workflow uses the matching section as the release notes.
   `svrctl reset-password <user> --clear-totp` turns it off from the host if the phone is gone.
 
 ### Changed
+- **The reference deployment signs in with Pocket ID in the app** and takes no passwords
+  (`PASSWORD_LOGIN=off`, the compose default now), so its three Traefik routers became one
+  with security headers only, and tinyauth no longer sits in front of SvrCtlRS: one passkey
+  sign-in instead of passkey then password. Agents' API tokens work exactly as before. A
+  deployment without a provider keeps the old layout (docs/DEPLOYMENT.md).
+- Signing out in the browser (and an expired session) now shows the server's login page, the
+  one with "Sign in with …", instead of the app's built-in password-only form; signing out
+  does not bounce you straight back into the provider.
 - A wrong current password (changing the password, two-factor changes) is now
   `403 PASSWORD_INCORRECT` instead of 401, which sent the web app to the login page, and it
   counts against the login limiter.

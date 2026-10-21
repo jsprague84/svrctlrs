@@ -12,7 +12,7 @@ they are not forgotten. Fixes are tracked in `ROADMAP.md` (History, P0 Security)
 
 | Asset | Protected by | Exposed to |
 |---|---|---|
-| Shell access to servers | SvrCtlRS login (argon2 password), edge passkey login when deployed behind tinyauth | anyone who can authenticate or steal a session |
+| Shell access to servers | SvrCtlRS sign-in: an OpenID Connect provider (the reference deployment: Pocket ID passkeys, password sign-in off), or an argon2 password with optional TOTP behind a login proxy | anyone who can authenticate or steal a session |
 | Stored credentials (passwords, key material) | AES-256-GCM with `ENCRYPTION_KEY` | anyone with the DB *and* the key, or with a valid session (the server decrypts on use) |
 | Server inventory, host keys | database file permissions (uid 1000 in the container) | anyone with the volume |
 | Sessions / tokens | SQLite `tower_sessions`, 24 h inactivity expiry | anyone with the DB; the client that holds the token |
@@ -283,13 +283,16 @@ time out after 30 s; WebSockets do not. TLS is the proxy's job.
 
 ## Deployment guidance
 
-- Put every path a browser uses (UI, `/api/`, `/ws/`) behind the edge passkey login
-  (`secure-auth-chain@file` in the reference compose) so a password alone is never enough from
-  the internet. Only two narrow routers skip it: `svrctlrs-token` for requests carrying
-  `Authorization: Bearer svr_…` (never the login path) and `svrctlrs-health` for
-  `/api/v1/health`. Any other bypass of the passkey for `/api/` re-opens the password login
-  to the internet (known weakness 13). See the CSWSH item below for why `ALLOWED_ORIGINS`
-  should stay empty on browser-only deployments.
+- A password alone must never sign in from the internet. The reference deployment does it
+  with the provider as the only way in: the app signs in with Pocket ID (a passkey) over OIDC,
+  `PASSWORD_LOGIN=off`, and one headers-only router in front (DEPLOYMENT.md, "Reverse proxy and
+  edge auth"); the compose defaults to `off` and the server will not start that way without a
+  provider. Without a provider, put every browser path behind a login proxy and let only
+  requests carrying `Authorization: Bearer svr_…` (never the login) and `/api/v1/health` skip
+  it; any other bypass of the proxy for `/api/` re-opens the password login to the internet
+  (known weakness 13). Break-glass (`PASSWORD_LOGIN=on`) opens the password form for as long
+  as it is on: do it from the LAN or with the proxy chain back on the router. See the CSWSH
+  item below for why `ALLOWED_ORIGINS` should stay empty on browser-only deployments.
 - Mount a dedicated key directory, not your `~/.ssh`, if you use key-path credentials.
 - Keep `.env` at mode 0600; it holds `ENCRYPTION_KEY` and the bootstrap password.
 - Prefer `ssh_key` credentials with the key material pasted into the credential (stored

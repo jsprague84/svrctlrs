@@ -58,7 +58,10 @@ docker compose up -d
 
 That serves `http://127.0.0.1:8080` for a reverse proxy (TLS) on the same host; set
 `SVRCTLRS_BIND=8080` to expose it on the LAN, with `SESSION_SECURE=false` on plain HTTP.
-Behind a Traefik edge with a `proxy` network, use `docker-compose.yml` instead. Locked out:
+Behind a Traefik edge with a `proxy` network, use `docker-compose.yml` instead; it expects
+sign-in through an OpenID Connect provider (`OIDC_*` in `.env`, any provider: Pocket ID,
+Authelia, Kanidm, …) and takes no passwords from the internet. Two-factor (TOTP) for password
+sign-in is under Settings → Access → Sign-in. Locked out:
 `docker exec -it svrctlrs /app/svrctl reset-password admin`. The first start creates the admin user from
 `ADMIN_USERNAME`/`ADMIN_PASSWORD`. Full instructions, including the reverse-proxy and
 cross-origin settings the desktop and Android apps need, are in

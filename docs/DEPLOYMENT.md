@@ -64,26 +64,34 @@ the database and are managed from the UI or API; there is no configuration file.
 
 ## Reverse proxy and edge auth
 
-The reference compose uses three Traefik routers on the same host:
+Anyone who signs in gets a shell on every server, so a password alone must never be enough
+from the internet. Two layouts do that:
 
-- `svrctlrs-secure` — every path (UI, `/api/`, `/ws/`), behind `secure-auth-chain@file`
-  (Pocket ID passkey via tinyauth, then the app's own login). The web app's API calls and its
-  terminal socket carry the passkey cookie like any page load. When that sign-in expires, an
-  API call comes back as a redirect to tinyauth; the app reloads the page so tinyauth can ask
-  for the passkey again.
-- `svrctlrs-token` — `/api/` and `/ws/` requests that carry `Authorization: Bearer svr_…`,
-  except the login, behind `secure-chain@file` (headers only). Agents and scripts (`svrctl`,
-  Hermes) cannot do a passkey; the app checks their token and gives the request exactly what
-  the token allows (SECURITY.md, "API tokens").
-- `svrctlrs-health` — `/api/v1/health` (version and revision only), headers only, for
-  monitors and the deploy check.
+**With an identity provider (the reference compose).** The app signs people in with the
+provider itself (OIDC, next section) and `PASSWORD_LOGIN=off` takes no passwords at all, so
+one Traefik router with security headers only (`secure-chain@file`) serves every path: the
+web app, the desktop app, and agents' API tokens. The dev-space edge-auth standard calls this
+"an app with native OIDC skips forward auth": the Pocket ID passkey is asked once, by the app.
+The reference compose defaults `PASSWORD_LOGIN` to `off` and the server does not start that
+way without `OIDC_ISSUER`, so this layout cannot come up with an open password form by mistake.
 
-Do not route the rest of `/api/` around the passkey: that would let a password alone sign in
-from the internet (SECURITY.md, known weakness 13). If you do not run tinyauth or another
-login proxy, use the headers-only chain or drop the middlewares; the app's own login is then
-the only gate, so keep it on a private network or behind a VPN. The server sets its own CSP
-and security headers either way. WebSockets need no special proxy
-configuration with Traefik; with nginx add the usual `Upgrade`/`Connection` headers on `/ws/`.
+**Without a provider.** Keep the app's password sign-in (with TOTP, Settings → Access →
+Sign-in) behind a login proxy for every browser path, as the reference compose did until
+2026-10-21:
+
+- every path behind the proxy's login chain (`secure-auth-chain@file`: Pocket ID via
+  tinyauth). When that sign-in expires, an API call comes back as a redirect to the proxy and
+  the web app reloads the page so the proxy can ask again;
+- a router for requests carrying `Authorization: Bearer svr_…` on `/api/` and `/ws/`, except
+  the login, headers only: agents cannot do a passkey, and the app gives such a request
+  exactly what the token allows (SECURITY.md, "API tokens");
+- a router for `/api/v1/health` only, headers only, for monitors.
+
+Do not route the rest of `/api/` around the proxy in that layout: that would let a password
+alone sign in from the internet (SECURITY.md, known weakness 13). On a private network or
+behind a VPN, the app's own sign-in can be the only gate. The server sets its own CSP and
+security headers either way. WebSockets need no special proxy configuration with Traefik;
+with nginx add the usual `Upgrade`/`Connection` headers on `/ws/`.
 
 ## Signing in with an identity provider (OIDC)
 

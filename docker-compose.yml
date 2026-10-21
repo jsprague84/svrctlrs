@@ -5,10 +5,11 @@
 # TAG is normally a short commit SHA written by scripts/deploy/docker-vm-deploy.sh,
 # or a release tag such as v3.0.0.
 #
-# Edge auth (dev-space standard): everything a browser loads (UI, API and WebSockets) sits
-# behind the Pocket ID passkey login (`secure-auth-chain@file`), then the app's own login.
-# Two narrow routers skip it: requests carrying an API token (`Authorization: Bearer svr_…`,
-# agents and scripts, never a login), and the health check (version and revision only).
+# Edge auth (dev-space standard: an app with native OIDC skips forward auth): SvrCtlRS signs
+# people in with Pocket ID itself (OIDC_* in .env) and takes no passwords (PASSWORD_LOGIN=off),
+# so one router with security headers only serves everything — browsers, the desktop app and
+# agents' API tokens alike. Without a provider, keep password sign-in behind a login proxy
+# instead (docs/DEPLOYMENT.md, "Reverse proxy and edge auth").
 services:
   svrctlrs:
     image: git.js-node.cc/jsprague/svrctlrs:${TAG:-latest}
@@ -33,7 +34,9 @@ services:
       - OIDC_NAME=${OIDC_NAME:-}
       - OIDC_SCOPES=${OIDC_SCOPES:-}
       - OIDC_ALLOWED_GROUPS=${OIDC_ALLOWED_GROUPS:-}
-      - PASSWORD_LOGIN=${PASSWORD_LOGIN:-on}
+      # off by default here: this compose has no login proxy in front, so the provider is the way
+      # in (the server will not start with it off and no OIDC_ISSUER set)
+      - PASSWORD_LOGIN=${PASSWORD_LOGIN:-off}
     volumes:
       - svrctlrs-data:/app/data
       # Optional: SSH keys the server may use for key-path credentials. Mount a dedicated
@@ -52,33 +55,15 @@ services:
       - "traefik.docker.network=proxy"
       - "traefik.http.services.svrctlrs.loadbalancer.server.port=8080"
 
-      # Browsers: passkey login at the edge for every path, then the app's own login.
-      - "traefik.http.routers.svrctlrs-secure.entrypoints=https"
-      - "traefik.http.routers.svrctlrs-secure.rule=Host(`${SVRCTLRS_HOST:-svrctlrs.js-node.app}`)"
-      - "traefik.http.routers.svrctlrs-secure.tls=true"
-      - "traefik.http.routers.svrctlrs-secure.tls.certresolver=cloudflare"
-      - "traefik.http.routers.svrctlrs-secure.service=svrctlrs"
-      - "traefik.http.routers.svrctlrs-secure.middlewares=secure-auth-chain@file"
-
-      # Agents and scripts (svrctl, Hermes): a request carrying an API token is judged by that
-      # token alone in the app, so it needs no passkey. Never the login: the rule leaves it
-      # out, and the app refuses a login that carries an Authorization header anyway.
-      - "traefik.http.routers.svrctlrs-token.entrypoints=https"
-      - "traefik.http.routers.svrctlrs-token.rule=Host(`${SVRCTLRS_HOST:-svrctlrs.js-node.app}`) && (PathPrefix(`/api/`) || PathPrefix(`/ws/`)) && !PathPrefix(`/api/v1/auth/login`) && HeaderRegexp(`Authorization`, `^Bearer svr_`)"
-      - "traefik.http.routers.svrctlrs-token.priority=200"
-      - "traefik.http.routers.svrctlrs-token.tls=true"
-      - "traefik.http.routers.svrctlrs-token.tls.certresolver=cloudflare"
-      - "traefik.http.routers.svrctlrs-token.service=svrctlrs"
-      - "traefik.http.routers.svrctlrs-token.middlewares=secure-chain@file"
-
-      # Health check for monitors and the deploy check: version and revision, nothing else.
-      - "traefik.http.routers.svrctlrs-health.entrypoints=https"
-      - "traefik.http.routers.svrctlrs-health.rule=Host(`${SVRCTLRS_HOST:-svrctlrs.js-node.app}`) && Path(`/api/v1/health`)"
-      - "traefik.http.routers.svrctlrs-health.priority=200"
-      - "traefik.http.routers.svrctlrs-health.tls=true"
-      - "traefik.http.routers.svrctlrs-health.tls.certresolver=cloudflare"
-      - "traefik.http.routers.svrctlrs-health.service=svrctlrs"
-      - "traefik.http.routers.svrctlrs-health.middlewares=secure-chain@file"
+      # One router, headers only: the app is the login (Pocket ID passkey via OIDC; API tokens
+      # for agents). Turning PASSWORD_LOGIN back on for break-glass opens the password form to
+      # the internet: do that from the LAN, or put secure-auth-chain@file here meanwhile.
+      - "traefik.http.routers.svrctlrs.entrypoints=https"
+      - "traefik.http.routers.svrctlrs.rule=Host(`${SVRCTLRS_HOST:-svrctlrs.js-node.app}`)"
+      - "traefik.http.routers.svrctlrs.tls=true"
+      - "traefik.http.routers.svrctlrs.tls.certresolver=cloudflare"
+      - "traefik.http.routers.svrctlrs.service=svrctlrs"
+      - "traefik.http.routers.svrctlrs.middlewares=secure-chain@file"
 
 volumes:
   svrctlrs-data:
