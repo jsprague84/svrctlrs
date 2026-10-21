@@ -2496,7 +2496,7 @@
         "tags": [
           "sessions"
         ],
-        "summary": "The caller's live shells, attached or waiting to be resumed.",
+        "summary": "The caller's live shells, attached or waiting to be resumed, and how long they are kept.\nKept shells (tmux) from before a restart are listed too, as `waiting`: attaching to one\nreconnects it.",
         "operationId": "list_sessions",
         "responses": {
           "200": {
@@ -2511,12 +2511,51 @@
         }
       }
     },
+    "/api/v1/sessions/keep": {
+      "put": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Choose how long your shells are kept with nobody attached: one of `detach_ttl_choices`\nfrom `GET /sessions`, or null for the server's default. Shells already waiting are kept\nthat long from now.",
+        "operationId": "set_keep",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionKeepUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionKeep"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/sessions/{id}": {
       "delete": {
         "tags": [
           "sessions"
         ],
-        "summary": "End the shell behind a session, attached or not.",
+        "summary": "End the shell behind a session, attached or not (a kept shell waiting after a restart\ntoo: its tmux session is ended on the server).",
         "operationId": "close_session",
         "parameters": [
           {
@@ -5091,6 +5130,9 @@
           "record_sessions": {
             "type": "boolean"
           },
+          "persistent_shell": {
+            "type": "boolean"
+          },
           "description": {
             "type": [
               "string",
@@ -5875,6 +5917,7 @@
           "port",
           "tags",
           "record_sessions",
+          "persistent_shell",
           "enabled",
           "created_at",
           "updated_at"
@@ -5934,6 +5977,10 @@
           "record_sessions": {
             "type": "boolean",
             "description": "Shells opened here are recorded for the user who opens them"
+          },
+          "persistent_shell": {
+            "type": "boolean",
+            "description": "New shells run in tmux on the server, so they outlive a restart of SvrCtlRS (a server\nwithout tmux gets a plain shell and a note)"
           },
           "description": {
             "type": [
@@ -6037,6 +6084,12 @@
               "null"
             ]
           },
+          "persistent_shell": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
           "description": {
             "type": [
               "string",
@@ -6092,12 +6145,48 @@
           }
         }
       },
+      "SessionKeep": {
+        "type": "object",
+        "description": "The caller's keep time after a change.",
+        "required": [
+          "detach_ttl_secs",
+          "detach_ttl_chosen"
+        ],
+        "properties": {
+          "detach_ttl_secs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "detach_ttl_chosen": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SessionKeepUpdate": {
+        "type": "object",
+        "description": "`PUT /sessions/keep`: how long the caller's shells are kept with nobody attached.",
+        "properties": {
+          "detach_ttl_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "One of `detach_ttl_choices`, or null for the server's default",
+            "minimum": 0
+          }
+        }
+      },
       "SessionList": {
         "type": "object",
         "description": "`GET /sessions`",
         "required": [
           "sessions",
-          "detach_ttl_secs"
+          "detach_ttl_secs",
+          "detach_ttl_max_secs",
+          "detach_ttl_choices",
+          "detach_ttl_chosen"
         ],
         "properties": {
           "sessions": {
@@ -6109,8 +6198,27 @@
           "detach_ttl_secs": {
             "type": "integer",
             "format": "int64",
-            "description": "How long a shell with nobody attached is kept",
+            "description": "How long the caller's shells are kept with nobody attached",
             "minimum": 0
+          },
+          "detach_ttl_max_secs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "The longest this server allows (`SESSION_DETACH_TTL_MAX_SECS`)",
+            "minimum": 0
+          },
+          "detach_ttl_choices": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            },
+            "description": "The lengths the caller can choose from (`PUT /sessions/keep`), within the maximum"
+          },
+          "detach_ttl_chosen": {
+            "type": "boolean",
+            "description": "The caller chose `detach_ttl_secs`; false means the server's default"
           }
         }
       },
@@ -6124,7 +6232,9 @@
           "created_at",
           "attachments",
           "latest_seq",
-          "recorded"
+          "recorded",
+          "persistent",
+          "waiting"
         ],
         "properties": {
           "id": {
@@ -6155,6 +6265,14 @@
           "recorded": {
             "type": "boolean",
             "description": "Its output is being recorded"
+          },
+          "persistent": {
+            "type": "boolean",
+            "description": "It runs in tmux on the server and outlives a restart of SvrCtlRS"
+          },
+          "waiting": {
+            "type": "boolean",
+            "description": "Kept in tmux but not connected since SvrCtlRS restarted; attaching reconnects it"
           }
         }
       },

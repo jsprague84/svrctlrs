@@ -37,7 +37,6 @@
 		/** Server-side sessions, for the `sessions` view and the count on its entry */
 		sessions: LiveSession[];
 		held: Map<string, string>;
-		detachTtlSecs: number;
 		sessionsLoading: boolean;
 		sessionsError: string | null;
 		sessionsLoaded: boolean;
@@ -62,7 +61,6 @@
 		onBackToTabs,
 		sessions,
 		held,
-		detachTtlSecs,
 		sessionsLoading,
 		sessionsError,
 		sessionsLoaded,
@@ -219,7 +217,6 @@
 					<SessionList
 						{sessions}
 						{held}
-						{detachTtlSecs}
 						loading={sessionsLoading}
 						error={sessionsError}
 						loaded={sessionsLoaded}

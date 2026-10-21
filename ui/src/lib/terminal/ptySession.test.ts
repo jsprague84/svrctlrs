@@ -452,6 +452,22 @@ describe('resume', () => {
 	});
 });
 
+describe('kept shells', () => {
+	it('keeps the session when a kept shell cannot be reconnected, so Reconnect tries it again', async () => {
+		const h = harness();
+		saveSessionRecord('tab-1', { sessionId: 'kept-1', lastSeq: 41, serverId: 7 }, h.store);
+		h.session.loadSession();
+		await h.session.connect();
+		h.ws().open();
+		expect(h.ws().sent[0]).toMatchObject({ type: 'attach', session_id: 'kept-1' });
+		h.ws().reply({ type: 'error', code: 'resume_failed', data: 'server down' });
+		expect(h.session.heldSessionId).toBe('kept-1');
+		expect(h.session.currentView.status).toBe('error');
+		expect(h.session.currentView.showReconnect).toBe(true);
+		expect(h.term.resets).toBe(0);
+	});
+});
+
 describe('keep-alive', () => {
 	it('pings every interval and drops a socket whose pong never comes', async () => {
 		const h = harness();

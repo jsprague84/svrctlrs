@@ -6,6 +6,7 @@
 #
 #   E2E_SSH_HOST=10.0.0.5 E2E_SSH_USER=ubuntu E2E_SSH_KEY=~/.ssh/id_ed25519 scripts/dev/run-e2e.sh
 #   scripts/dev/run-e2e.sh binary      # only the binary-frame pass
+#   scripts/dev/run-e2e.sh kept        # only the kept-shell pass (tmux on the target, a restart)
 #   scripts/dev/run-e2e.sh backpressure  # burst/stall/Ctrl-C memory check (backpressure-check.py)
 set -u
 cd "$(dirname "$0")/../.."
@@ -14,14 +15,18 @@ export E2E_SSH_HOST E2E_SSH_USER="${E2E_SSH_USER:-root}" E2E_SSH_KEY="${E2E_SSH_
 PYTHON="${PYTHON:-python3}"
 WORK="$(mktemp -d)"
 trap 'kill "$SPID" 2>/dev/null; wait "$SPID" 2>/dev/null; rm -rf "$WORK"' EXIT
+KEY="$($PYTHON -c 'import secrets; print(secrets.token_hex(32))')"
 
-DATABASE_URL="sqlite:$WORK/e2e.db" ADMIN_USERNAME=admin ADMIN_PASSWORD=e2e-password-123456 \
-ENCRYPTION_KEY="$($PYTHON -c 'import secrets; print(secrets.token_hex(32))')" \
-SESSION_SECURE=false SESSION_DETACH_TTL_SECS=3 SPA_DIR=ui/build RUST_LOG=info \
-target/debug/server --addr 127.0.0.1:18080 > "$WORK/server.log" 2>&1 &
-SPID=$!
-for _ in $(seq 1 40); do curl -sf http://127.0.0.1:18080/api/v1/health >/dev/null && break; sleep 0.5; done
-kill -0 "$SPID" 2>/dev/null || { echo "server died:"; tail -20 "$WORK/server.log"; exit 1; }
+# Started again on the same database and key for the kept-shell pass's restart
+start_server() {
+  DATABASE_URL="sqlite:$WORK/e2e.db" ADMIN_USERNAME=admin ADMIN_PASSWORD=e2e-password-123456 \
+  ENCRYPTION_KEY="$KEY" SESSION_SECURE=false SESSION_DETACH_TTL_SECS=3 SPA_DIR=ui/build RUST_LOG=info \
+  target/debug/server --addr 127.0.0.1:18080 >> "$WORK/server.log" 2>&1 &
+  SPID=$!
+  for _ in $(seq 1 40); do curl -sf http://127.0.0.1:18080/api/v1/health >/dev/null && break; sleep 0.5; done
+  kill -0 "$SPID" 2>/dev/null || { echo "server died:"; tail -20 "$WORK/server.log"; exit 1; }
+}
+start_server
 
 if [ "${1:-both}" = backpressure ]; then
   SERVER_PID=$SPID $PYTHON scripts/dev/backpressure-check.py
@@ -29,6 +34,18 @@ if [ "${1:-both}" = backpressure ]; then
 fi
 
 status=0
+# Kept shells (tmux on the target): a shell, a restart of the server, the same shell again
+if [ "${1:-both}" = both ] || [ "${1:-both}" = kept ]; then
+  echo "=== kept shell across a restart"
+  if E2E_STATE="$WORK/kept.json" $PYTHON scripts/dev/kept-shell-e2e.py start; then
+    kill -TERM "$SPID"; wait "$SPID" 2>/dev/null
+    start_server
+    E2E_STATE="$WORK/kept.json" $PYTHON scripts/dev/kept-shell-e2e.py resume || status=1
+  else
+    status=1
+  fi
+  [ "${1:-both}" = kept ] && { grep -i "error\|panic" "$WORK/server.log" | head -5; exit $status; }
+fi
 if [ "${1:-both}" != legacy ]; then
   echo "=== binary frames"
   $PYTHON scripts/dev/pty-session-e2e.py || status=1

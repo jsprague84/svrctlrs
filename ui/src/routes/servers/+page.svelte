@@ -83,6 +83,7 @@
 	let tagsText = $state('');
 	let startupCommand = $state('');
 	let recordSessions = $state(false);
+	let persistentShell = $state(false);
 	let description = $state('');
 	let enabled = $state(true);
 
@@ -127,6 +128,7 @@
 		tagsText = '';
 		startupCommand = '';
 		recordSessions = false;
+		persistentShell = false;
 		description = '';
 		enabled = true;
 		editingId = null;
@@ -148,6 +150,7 @@
 		tagsText = server.tags.join(', ');
 		startupCommand = server.startup_command ?? '';
 		recordSessions = server.record_sessions;
+		persistentShell = server.persistent_shell;
 		description = server.description ?? '';
 		enabled = server.enabled;
 		showModal = true;
@@ -169,6 +172,7 @@
 					tags: parseTagInput(tagsText),
 					startup_command: startupCommand.trim(),
 					record_sessions: recordSessions,
+					persistent_shell: persistentShell,
 					description: description.trim(),
 					enabled
 				};
@@ -185,6 +189,7 @@
 					tags: parseTagInput(tagsText),
 					startup_command: startupCommand.trim() || undefined,
 					record_sessions: recordSessions,
+					persistent_shell: persistentShell,
 					description: description.trim() || undefined,
 					enabled
 				};
@@ -738,9 +743,14 @@
 		<Input
 			label="Startup command"
 			bind:value={startupCommand}
-			placeholder="tmux new -A -s main"
+			placeholder="cd /srv/app"
 			class="font-mono"
-			hint="Typed into every new shell on this server right after it starts. tmux or screen here gives you sessions that outlive the app's 15-minute grace period."
+			hint="Typed into every new shell on this server right after it starts."
+		/>
+		<Toggle
+			bind:checked={persistentShell}
+			label="Keep shells in tmux"
+			description="New shells run inside tmux on this server, so they survive a restart of SvrCtlRS (an update, a deploy) and a dropped connection: the app reconnects to the same shell. Scrolling back then happens in tmux. A server without tmux gets a plain shell and a note. Do not also start tmux in the startup command."
 		/>
 		<Toggle
 			bind:checked={recordSessions}

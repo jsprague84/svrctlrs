@@ -13,7 +13,7 @@ pub async fn list_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               startup_command, record_sessions, description, enabled, last_seen_at,
+               startup_command, record_sessions, persistent_shell, description, enabled, last_seen_at,
                last_error, created_at, updated_at
         FROM servers
         ORDER BY name
@@ -31,7 +31,7 @@ pub async fn get_server(pool: &Pool<Sqlite>, id: i64) -> Result<Server> {
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               startup_command, record_sessions, description, enabled, last_seen_at,
+               startup_command, record_sessions, persistent_shell, description, enabled, last_seen_at,
                last_error, created_at, updated_at
         FROM servers
         WHERE id = ?
@@ -51,7 +51,7 @@ pub async fn get_server_by_name(pool: &Pool<Sqlite>, name: &str) -> Result<Serve
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               startup_command, record_sessions, description, enabled, last_seen_at,
+               startup_command, record_sessions, persistent_shell, description, enabled, last_seen_at,
                last_error, created_at, updated_at
         FROM servers
         WHERE name = ?
@@ -74,8 +74,9 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
     let result = sqlx::query(
         r#"
         INSERT INTO servers (name, hostname, port, username, credential_id, via_server_id,
-                             tags, startup_command, record_sessions, description, enabled)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                             tags, startup_command, record_sessions, persistent_shell,
+                             description, enabled)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
     )
     .bind(&input.name)
@@ -93,6 +94,7 @@ pub async fn create_server(pool: &Pool<Sqlite>, input: &CreateServer) -> Result<
             .filter(|c| !c.is_empty()),
     )
     .bind(input.record_sessions)
+    .bind(input.persistent_shell)
     .bind(&input.description)
     .bind(input.enabled)
     .execute(pool)
@@ -147,6 +149,9 @@ pub async fn update_server(pool: &Pool<Sqlite>, id: i64, input: &UpdateServer) -
     }
     if let Some(record) = input.record_sessions {
         qb.push(", record_sessions = ").push_bind(record);
+    }
+    if let Some(persistent) = input.persistent_shell {
+        qb.push(", persistent_shell = ").push_bind(persistent);
     }
     if let Some(description) = &input.description {
         qb.push(", description = NULLIF(")
@@ -228,7 +233,7 @@ pub async fn list_enabled_servers(pool: &Pool<Sqlite>) -> Result<Vec<Server>> {
     sqlx::query_as::<_, Server>(
         r#"
         SELECT id, name, hostname, port, username, credential_id, via_server_id, tags,
-               startup_command, record_sessions, description, enabled, last_seen_at,
+               startup_command, record_sessions, persistent_shell, description, enabled, last_seen_at,
                last_error, created_at, updated_at
         FROM servers
         WHERE enabled = 1
@@ -263,6 +268,7 @@ mod tests {
             tags: vec![],
             startup_command: None,
             record_sessions: false,
+            persistent_shell: false,
             description: None,
             enabled: true,
         }
@@ -300,6 +306,7 @@ mod tests {
             tags: vec!["Prod".into(), "prod".into(), " web ".into()],
             startup_command: Some(" tmux new -A -s main ".into()),
             record_sessions: true,
+            persistent_shell: false,
             description: Some("Test server".to_string()),
             enabled: true,
         };

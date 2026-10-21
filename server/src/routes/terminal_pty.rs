@@ -227,8 +227,15 @@ async fn handle_pty_socket(
                              \x1b[1;36m╚════════════════════════════════════════════════════╝\x1b[0m\r\n\r\n")).await;
                         let cols = req.cols.unwrap_or(80);
                         let rows = req.rows.unwrap_or(24);
-                        match start_pty_session(&state, user_id, &client_ip, server_id, cols, rows)
-                            .await
+                        match start_pty_session(
+                            &state,
+                            user_id,
+                            &client_ip,
+                            server_id,
+                            (cols, rows),
+                            Launch::New,
+                        )
+                        .await
                         {
                             Ok((live, record)) => {
                                 if let Err(e) = state.sessions.insert(live.clone()).await {
@@ -325,7 +332,43 @@ async fn handle_pty_socket(
                             .await;
                             continue;
                         };
-                        match state.sessions.attach(id, user_id).await {
+                        let attached = match state.sessions.attach(id, user_id).await {
+                            Some(live) => Some(live),
+                            // Not live: a kept shell (tmux) from before a restart or a lost
+                            // connection is reattached over a new connection
+                            None => {
+                                let size = (req.cols.unwrap_or(80), req.rows.unwrap_or(24));
+                                match state
+                                    .persistent
+                                    .revive(&state, user_id, id, size, req.last_seq, &client_ip)
+                                    .await
+                                {
+                                    Ok(Some((live, record))) => {
+                                        if record {
+                                            let (cols, rows) = size;
+                                            recording_note(&state, &live, cols, rows).await;
+                                        }
+                                        Some(live)
+                                    }
+                                    Ok(None) => None,
+                                    Err(e) => {
+                                        send(
+                                            &ws_sender,
+                                            PtyResponse {
+                                                code: Some("resume_failed".into()),
+                                                ..PtyResponse::plain(
+                                                    "error",
+                                                    format!("\r\n\x1b[31m✗ Could not reconnect the kept shell: {e}\x1b[0m\r\n"),
+                                                )
+                                            },
+                                        )
+                                        .await;
+                                        continue;
+                                    }
+                                }
+                            }
+                        };
+                        match attached {
                             Some(live) => {
                                 info!(session_id = %live.id, server = %live.server_name, "Client reattached to session");
                                 if let (Some(cols), Some(rows)) = (req.cols, req.rows) {
@@ -429,9 +472,10 @@ async fn handle_pty_socket(
             live.mark_closed("Session closed");
             state.sessions.remove(&live.id).await;
         } else {
-            // Reload, lost link, backgrounded tab: keep the shell for a while.
-            state.sessions.detach(&live).await;
-            info!(session_id = %live.id, ttl_secs = state.sessions.detach_ttl().as_secs(),
+            // Reload, lost link, backgrounded tab: keep the shell for the user's keep time.
+            let (ttl, _) = crate::routes::api::sessions::keep_time(&state, user_id).await;
+            state.sessions.detach(&live, ttl).await;
+            info!(session_id = %live.id, ttl_secs = ttl.as_secs(),
                 "Client detached; session kept for reattach");
         }
     }
@@ -527,6 +571,12 @@ async fn forward(sender: &WsSender, item: Followed, binary: bool) -> bool {
             send(sender, PtyResponse::plain("closed", reason.to_string())).await;
             false
         }
+        // A kept shell let go for a restart: closing the socket makes the client reconnect,
+        // and its reattach reaches the restarted server
+        Followed::Released => {
+            sender.lock().await.close().await.ok();
+            false
+        }
     }
 }
 
@@ -543,17 +593,30 @@ async fn recording_note(state: &AppState, live: &Arc<LiveSession>, cols: u32, ro
     }
 }
 
+/// What [`start_pty_session`] starts.
+pub(crate) enum Launch<'a> {
+    /// A new shell: in tmux when the server keeps its shells, else the login shell
+    New,
+    /// A kept shell again, after a restart or a lost connection; output is numbered after
+    /// `last_seq`, the last frame the reattaching client saw
+    Revive {
+        shell: &'a svrctlrs_database::models::PersistentShell,
+        last_seq: u64,
+    },
+}
+
 /// Start an interactive PTY session: connect through the shared SSH client, open a shell
 /// with a PTY, and hand the channel to a driver task that owns it for the session's life.
 /// Also returns whether the server wants its sessions recorded.
-async fn start_pty_session(
+pub(crate) async fn start_pty_session(
     state: &AppState,
     user_id: i64,
     client_ip: &str,
     server_id: i64,
-    cols: u32,
-    rows: u32,
+    (cols, rows): (u32, u32),
+    launch: Launch<'_>,
 ) -> Result<(Arc<LiveSession>, bool), ConnectError> {
+    use crate::persistent_shells::{shell_command, tmux_name};
     use svrctlrs_database::queries;
 
     let server = queries::servers::get_server(&state.pool, server_id)
@@ -564,6 +627,18 @@ async fn start_pty_session(
             .await
             .ok(),
         None => None,
+    };
+
+    // A kept shell: its id (which names the tmux session), the tmux name, the command run
+    // instead of the login shell, and whether it is a reattach
+    let kept = match &launch {
+        Launch::Revive { shell, .. } => Some((shell.id.clone(), shell.tmux_name.clone(), true)),
+        Launch::New if server.persistent_shell => {
+            let id = crate::sessions::new_session_id();
+            let name = tmux_name(&id);
+            Some((id, name, false))
+        }
+        Launch::New => None,
     };
 
     let conn = crate::ssh::connect(&state.pool, &server, credential.as_ref()).await?;
@@ -577,28 +652,85 @@ async fn start_pty_session(
                 "login": conn.target.login(),
                 "auth": conn.auth,
                 "recorded": server.record_sessions,
+                "persistent": kept.is_some(),
+                "reattached": matches!(launch, Launch::Revive { .. }),
             })),
     );
-    let channel = open_shell(&conn, server.startup_command.as_deref(), cols, rows).await?;
+    let program = kept
+        .as_ref()
+        .map(|(_, name, revived)| shell_command(name, *revived));
+    // The startup command belongs to a new shell; a reattached one already ran it
+    let startup = match launch {
+        Launch::New => server.startup_command.as_deref(),
+        Launch::Revive { .. } => None,
+    };
+    let channel = open_shell(&conn, program.as_deref(), startup, cols, rows).await?;
 
     // The session owns the PTY from here on; sockets attach to it.
     let (command_tx, command_rx) = mpsc::channel::<PtyCommand>(256);
-    let live = LiveSession::new(user_id, server.id, server.name.clone(), command_tx);
+    let (live, keep) = match kept {
+        None => (
+            LiveSession::new(user_id, server.id, server.name.clone(), command_tx),
+            None,
+        ),
+        Some((id, name, revived)) => {
+            let (created_at, seq_base) = match launch {
+                Launch::Revive { shell, last_seq } => (shell.created_at, last_seq),
+                Launch::New => (chrono::Utc::now(), 0),
+            };
+            if !revived {
+                if let Err(e) =
+                    queries::persistent_shells::insert(&state.pool, &id, user_id, server.id, &name)
+                        .await
+                {
+                    let _ = channel.close().await;
+                    return Err(ConnectError::Failed(format!(
+                        "Could not keep the shell: {e}"
+                    )));
+                }
+            }
+            let live = LiveSession::persistent(
+                id,
+                user_id,
+                server.id,
+                server.name.clone(),
+                command_tx,
+                created_at,
+                seq_base,
+            );
+            (
+                live,
+                Some(Keep {
+                    state: state.clone(),
+                    tmux_name: name,
+                }),
+            )
+        }
+    };
     spawn_pty_driver(
         live.clone(),
         conn,
         channel,
         command_rx,
         state.sessions.clone(),
+        keep,
     );
     Ok((live, server.record_sessions))
 }
 
+/// What the driver of a kept shell needs when it ends.
+pub(crate) struct Keep {
+    pub state: AppState,
+    pub tmux_name: String,
+}
+
 /// Open an interactive shell on an authenticated connection: a session channel, a PTY of the
-/// given size, the shell, and the server's startup command typed as the first line (it echoes
-/// like anything typed, so the user sees what ran).
+/// given size, the login shell (or `program` in its place, for a kept shell), and the
+/// server's startup command typed as the first line (it echoes like anything typed, so the
+/// user sees what ran).
 pub(crate) async fn open_shell(
     conn: &crate::ssh::Connection,
+    program: Option<&str>,
     startup_command: Option<&str>,
     cols: u32,
     rows: u32,
@@ -626,10 +758,11 @@ pub(crate) async fn open_shell(
         .await
         .map_err(|e| format!("Failed to request PTY: {}", e))?;
 
-    channel
-        .request_shell(false)
-        .await
-        .map_err(|e| format!("Failed to start shell: {}", e))?;
+    match program {
+        None => channel.request_shell(false).await,
+        Some(program) => channel.exec(false, program).await,
+    }
+    .map_err(|e| format!("Failed to start shell: {}", e))?;
 
     if let Some(cmd) = startup_command.map(str::trim).filter(|c| !c.is_empty()) {
         let line = format!("{cmd}\n");
@@ -646,15 +779,24 @@ pub(crate) async fn open_shell(
 /// queue; output goes into the session's ring and out to attached sockets. When the shell
 /// ends the session is marked closed with the reason, removed from the registry, and the
 /// connection is closed.
+///
+/// A kept shell (`keep`) ends differently. Released for a restart: tmux keeps it, and so does
+/// the row. Connection lost: released too, so clients reconnect and reattach, and it ends
+/// after the keep time if none does. Ended for good (closed, expired, exited): its tmux
+/// session is ended on this connection and the row goes.
 pub(crate) fn spawn_pty_driver(
     live: Arc<LiveSession>,
     conn: crate::ssh::Connection,
     mut channel: russh::Channel<russh::client::Msg>,
     mut command_rx: mpsc::Receiver<PtyCommand>,
     registry: Arc<crate::sessions::SessionRegistry>,
+    keep: Option<Keep>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut reason = "Session ended".to_string();
+        // How it ended: closed by a command, or the shell ended; neither means the connection
+        // was lost
+        let mut ended_here = false;
         loop {
             tokio::select! {
                 cmd = command_rx.recv() => {
@@ -670,6 +812,7 @@ pub(crate) fn spawn_pty_driver(
                             }
                         }
                         Some(PtyCommand::Close) | None => {
+                            ended_here = true;
                             let _ = channel.eof().await;
                             let _ = channel.close().await;
                             break;
@@ -686,6 +829,7 @@ pub(crate) fn spawn_pty_driver(
                             live.push_output(data.to_vec()).await;
                         }
                         Some(russh::ChannelMsg::Eof) => {
+                            ended_here = true;
                             live.push_text("\r\n\x1b[33m[Session ended]\x1b[0m\r\n").await;
                             break;
                         }
@@ -693,6 +837,7 @@ pub(crate) fn spawn_pty_driver(
                             break;
                         }
                         Some(russh::ChannelMsg::ExitStatus { exit_status }) => {
+                            ended_here = true;
                             reason = format!("Shell exited with status {exit_status}");
                             live.push_text(&format!("\r\n\x1b[90m[Exit status: {}]\x1b[0m\r\n", exit_status)).await;
                         }
@@ -702,6 +847,38 @@ pub(crate) fn spawn_pty_driver(
                 }
             }
         }
+        if let Some(keep) = keep {
+            let restart = live.is_released();
+            if restart || !ended_here {
+                // A restart, or the connection dropped: tmux keeps the shell for a reattach
+                live.release();
+                registry.remove(&live.id).await;
+                let _ = conn
+                    .handle
+                    .disconnect(russh::Disconnect::ByApplication, "", "English")
+                    .await;
+                // After a restart the next start-up arms the wait
+                if !restart {
+                    let (ttl, _) =
+                        crate::routes::api::sessions::keep_time(&keep.state, live.user_id).await;
+                    info!(session_id = %live.id, ttl_secs = ttl.as_secs(),
+                        "Kept shell lost its connection; waiting for a reattach");
+                    keep.state
+                        .persistent
+                        .wait(keep.state.clone(), live.id.clone(), ttl)
+                        .await;
+                }
+                return;
+            }
+            // Ended for good: end the tmux session too (it may have ended already)
+            end_tmux(&conn, &keep.tmux_name).await;
+            if let Err(e) =
+                svrctlrs_database::queries::persistent_shells::delete(&keep.state.pool, &live.id)
+                    .await
+            {
+                warn!(session_id = %live.id, error = %e, "Could not forget a kept shell");
+            }
+        }
         live.mark_closed(&reason);
         registry.remove(&live.id).await;
         let _ = conn
@@ -709,6 +886,31 @@ pub(crate) fn spawn_pty_driver(
             .disconnect(russh::Disconnect::ByApplication, "", "English")
             .await;
     })
+}
+
+/// End a kept shell's tmux session on a connection that is still up, within a few seconds.
+async fn end_tmux(conn: &crate::ssh::Connection, tmux_name: &str) {
+    let ended = async {
+        let mut channel = conn.handle.channel_open_session().await.ok()?;
+        channel
+            .exec(true, crate::persistent_shells::kill_command(tmux_name))
+            .await
+            .ok()?;
+        while let Some(msg) = channel.wait().await {
+            if matches!(msg, russh::ChannelMsg::Close) {
+                break;
+            }
+        }
+        Some(())
+    };
+    if tokio::time::timeout(std::time::Duration::from_secs(5), ended)
+        .await
+        .ok()
+        .flatten()
+        .is_none()
+    {
+        warn!(tmux = %tmux_name, "Could not end the kept shell's tmux session");
+    }
 }
 
 /// The PTY driver against the in-process SSH server: what the shell is asked for, input and
@@ -794,13 +996,22 @@ mod tests {
     }
 
     async fn start(conn: crate::ssh::Connection, startup: Option<&str>) -> Running {
-        let channel = open_shell(&conn, startup, 100, 30).await.expect("shell");
-        let registry = SessionRegistry::new(Duration::from_secs(60), 16);
+        let channel = open_shell(&conn, None, startup, 100, 30)
+            .await
+            .expect("shell");
+        let registry = SessionRegistry::new(Duration::from_secs(60), Duration::from_secs(3600), 16);
         let (command_tx, command_rx) = mpsc::channel(256);
         let live = LiveSession::new(1, 1, "loop".into(), command_tx);
         registry.insert(live.clone()).await.unwrap();
         let events = live.subscribe();
-        spawn_pty_driver(live.clone(), conn, channel, command_rx, registry.clone());
+        spawn_pty_driver(
+            live.clone(),
+            conn,
+            channel,
+            command_rx,
+            registry.clone(),
+            None,
+        );
         Running {
             live,
             registry,

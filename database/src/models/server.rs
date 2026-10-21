@@ -54,6 +54,8 @@ pub struct Server {
     pub startup_command: Option<String>,
     /// Shells opened on this server are recorded for the user who opens them
     pub record_sessions: bool,
+    /// New shells run in tmux on the server, so they outlive a restart of SvrCtlRS
+    pub persistent_shell: bool,
     pub description: Option<String>,
     pub enabled: bool,
 
@@ -94,6 +96,8 @@ pub struct CreateServer {
     pub startup_command: Option<String>,
     #[serde(default)]
     pub record_sessions: bool,
+    #[serde(default)]
+    pub persistent_shell: bool,
     pub description: Option<String>,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
@@ -149,6 +153,7 @@ pub struct UpdateServer {
     /// An empty string clears it
     pub startup_command: Option<String>,
     pub record_sessions: Option<bool>,
+    pub persistent_shell: Option<bool>,
     pub description: Option<String>,
     pub enabled: Option<bool>,
     pub last_error: Option<String>,
@@ -166,6 +171,7 @@ impl UpdateServer {
             || self.tags.is_some()
             || self.startup_command.is_some()
             || self.record_sessions.is_some()
+            || self.persistent_shell.is_some()
             || self.description.is_some()
             || self.enabled.is_some()
             || self.last_error.is_some()
@@ -196,6 +202,7 @@ mod tests {
             tags: Json(vec![]),
             startup_command: None,
             record_sessions: false,
+            persistent_shell: false,
             description: None,
             enabled: true,
             last_seen_at: None,
@@ -254,6 +261,7 @@ mod tests {
             tags: vec![],
             startup_command: None,
             record_sessions: false,
+            persistent_shell: false,
             description: None,
             enabled: true,
         };

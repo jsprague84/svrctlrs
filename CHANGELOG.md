@@ -19,6 +19,16 @@ the release workflow uses the matching section as the release notes.
   allowance of 10 attempts per 15 minutes; if the count cannot be read, the attempt is refused.
 
 ### Added
+- **Shells that outlive a restart: Keep shells in tmux** (per server, off by default). New
+  shells on such a server run inside tmux there; when SvrCtlRS restarts (every deploy did end
+  every shell) or the connection to the server drops, the pane reconnects to the same shell.
+  A server without tmux gets a plain shell and a note. Kept shells end like any other — on
+  exit, on close, after the keep time with nobody attached — and take their tmux session with
+  them. `svrctl server edit X --persistent-shell true` sets it too (migration 110).
+- **Choose how long your detached shells are kept**: 15 minutes, 1 hour or 8 hours, in the
+  Sessions panel (`PUT /api/v1/sessions/keep`), for your account on every device and for
+  shells already waiting. `SESSION_DETACH_TTL_MAX_SECS` (default 8 hours) caps it;
+  `SESSION_DETACH_TTL_SECS` stays the default for accounts that chose nothing.
 - **The desktop app signs in through your browser.** "Sign in with your browser" opens
   `/auth/app`, where you sign in however the server allows (Pocket ID, or password and code)
   and approve the app; the browser hands it a one-time code on a `127.0.0.1` port, which only

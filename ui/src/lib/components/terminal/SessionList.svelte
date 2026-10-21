@@ -6,14 +6,14 @@
 	 */
 	import { RotateCw, Play, Square, ArrowRight } from '@lucide/svelte';
 	import StateBlock from '#lib/components/ui/StateBlock.svelte';
+	import KeepTimeSelect from './KeepTimeSelect.svelte';
 	import type { LiveSession } from '#lib/types/index.js';
-	import { classifySessions, describeSession, formatTtl } from '#lib/utils/sessions.js';
+	import { classifySessions, describeSession } from '#lib/utils/sessions.js';
 
 	interface Props {
 		sessions: LiveSession[];
 		/** session id → tab id for the sessions tabs in this window hold */
 		held: Map<string, string>;
-		detachTtlSecs: number;
 		loading: boolean;
 		error: string | null;
 		/** Something has been fetched at least once; before that the empty state is not shown */
@@ -24,18 +24,8 @@
 		onGoToTab: (tabId: string) => void;
 	}
 
-	let {
-		sessions,
-		held,
-		detachTtlSecs,
-		loading,
-		error,
-		loaded,
-		onRefresh,
-		onResume,
-		onEnd,
-		onGoToTab
-	}: Props = $props();
+	let { sessions, held, loading, error, loaded, onRefresh, onResume, onEnd, onGoToTab }: Props =
+		$props();
 
 	let groups = $derived(classifySessions(sessions, held));
 	/** Re-render ages while the list is open */
@@ -86,6 +76,9 @@
 								>{row.session.server_name}{#if row.session.recorded}<span
 										class="ml-1.5 text-[10px] font-semibold text-error"
 										title="Its output is being recorded">● REC</span
+									>{/if}{#if row.session.persistent}<span
+										class="ml-1.5 text-[10px] font-semibold text-text-muted"
+										title="Runs in tmux on the server: it outlives a restart of SvrCtlRS">tmux</span
 									>{/if}</span
 							>
 							<span class="block truncate text-[11px] text-text-muted">
@@ -128,6 +121,9 @@
 								>{row.session.server_name}{#if row.session.recorded}<span
 										class="ml-1.5 text-[10px] font-semibold text-error"
 										title="Its output is being recorded">● REC</span
+									>{/if}{#if row.session.persistent}<span
+										class="ml-1.5 text-[10px] font-semibold text-text-muted"
+										title="Runs in tmux on the server: it outlives a restart of SvrCtlRS">tmux</span
 									>{/if}</span
 							>
 							<span class="block truncate text-[11px] text-text-muted">
@@ -160,9 +156,7 @@
 
 	<div class="flex items-center justify-between gap-2 px-1 text-[11px] text-text-muted">
 		<span class="min-w-0">
-			{#if detachTtlSecs > 0}
-				A shell with nothing attached closes after {formatTtl(detachTtlSecs)}.
-			{/if}
+			<KeepTimeSelect />
 		</span>
 		<button
 			type="button"

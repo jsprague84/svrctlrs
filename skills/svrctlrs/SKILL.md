@@ -54,6 +54,7 @@ svrctl import hosts.ssh_config --tag imported # a file the owner gave you, or - 
 svrctl tag prod web-01 web-02                 # add; --remove to take off
 svrctl server add --name N --host H [--user U] [--credential C] [--via JUMP]
 svrctl server edit X --credential "<cred>"    # --via none, --tags a,b, --disable …
+svrctl server edit X --persistent-shell true  # new shells run in tmux there: they outlive a SvrCtlRS restart
 svrctl host-keys X ; svrctl credentials ; svrctl audit --action server.
 svrctl exec X -- uptime                       # one command via svrctlrs (full-admin token)
 ```

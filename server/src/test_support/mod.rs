@@ -53,6 +53,7 @@ pub async fn add_server(
             tags: vec![],
             startup_command: None,
             record_sessions: false,
+            persistent_shell: false,
             description: None,
             enabled: true,
         },

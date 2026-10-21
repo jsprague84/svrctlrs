@@ -388,6 +388,18 @@ async fn api_shapes_are_unchanged() {
     );
     owner!("GET /sessions", "GET", "/api/v1/sessions");
     owner!(
+        "PUT /sessions/keep",
+        "PUT",
+        "/api/v1/sessions/keep",
+        Some(json!({ "detach_ttl_secs": 3600 }))
+    );
+    owner!(
+        "PUT /sessions/keep (refused)",
+        "PUT",
+        "/api/v1/sessions/keep",
+        Some(json!({ "detach_ttl_secs": 61 }))
+    );
+    owner!(
         "DELETE /sessions/{id} (missing)",
         "DELETE",
         "/api/v1/sessions/nope"

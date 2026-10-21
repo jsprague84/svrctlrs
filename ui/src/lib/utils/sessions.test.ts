@@ -47,12 +47,20 @@ describe('describeSession', () => {
 			'started just now · open here'
 		);
 	});
+
+	it('says when a kept shell is waiting in tmux after a restart', () => {
+		const kept = { ...session('a', 5), persistent: true, waiting: true };
+		expect(describeSession({ session: kept, tabId: null }, now)).toBe(
+			'started 5 min ago · waiting in tmux'
+		);
+	});
 });
 
 describe('formatTtl', () => {
 	it('picks the largest whole unit', () => {
 		expect(formatTtl(900)).toBe('15 min');
 		expect(formatTtl(3600)).toBe('1 h');
+		expect(formatTtl(28800)).toBe('8 h');
 		expect(formatTtl(90)).toBe('90 s');
 		expect(formatTtl(0)).toBe('');
 	});

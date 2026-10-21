@@ -310,6 +310,9 @@ enum ServerCommand {
         tags: Vec<String>,
         #[arg(long)]
         description: Option<String>,
+        /// Keep shells in tmux on the server, so they outlive a restart of SvrCtlRS
+        #[arg(long)]
+        persistent_shell: bool,
     },
     /// Change a server; only what you pass changes
     Edit {
@@ -333,6 +336,9 @@ enum ServerCommand {
         tags: Option<String>,
         #[arg(long)]
         description: Option<String>,
+        /// Keep shells in tmux on the server (`true`/`false`)
+        #[arg(long)]
+        persistent_shell: Option<bool>,
         #[arg(long, conflicts_with = "disable")]
         enable: bool,
         #[arg(long)]
@@ -839,6 +845,7 @@ async fn server_command(api: &Api, out: &Out, cmd: ServerCommand) -> Result<u8, 
             via,
             tags,
             description,
+            persistent_shell,
         } => {
             let credential_id = match credential {
                 Some(c) => Some(api.credential(&c).await?.id),
@@ -851,6 +858,7 @@ async fn server_command(api: &Api, out: &Out, cmd: ServerCommand) -> Result<u8, 
             let mut body = json!({
                 "name": name, "hostname": host, "username": user, "credential_id": credential_id,
                 "via_server_id": via_server_id, "tags": tags, "description": description,
+                "persistent_shell": persistent_shell,
             });
             if let Some(p) = port {
                 body["port"] = json!(p);
@@ -870,6 +878,7 @@ async fn server_command(api: &Api, out: &Out, cmd: ServerCommand) -> Result<u8, 
             via,
             tags,
             description,
+            persistent_shell,
             enable,
             disable,
         } => {
@@ -913,6 +922,9 @@ async fn server_command(api: &Api, out: &Out, cmd: ServerCommand) -> Result<u8, 
             }
             if let Some(v) = description {
                 body.insert("description".into(), json!(v));
+            }
+            if let Some(v) = persistent_shell {
+                body.insert("persistent_shell".into(), json!(v));
             }
             if enable || disable {
                 body.insert("enabled".into(), json!(enable));

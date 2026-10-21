@@ -402,7 +402,7 @@ Client → server:
 | `type` | Fields | Meaning |
 |---|---|---|
 | `shell` | `server_id`, `cols`, `rows`, `binary?` | open a PTY on the server; answered with `connected` carrying a `session_id` |
-| `attach` | `session_id`, `last_seq`, `cols?`, `rows?`, `binary?` | resume a session this user owns; the server replays output after `last_seq` |
+| `attach` | `session_id`, `last_seq`, `cols?`, `rows?`, `binary?` | resume a session this user owns; the server replays output after `last_seq`. A kept shell (tmux) that is not live — SvrCtlRS restarted, or its connection dropped — is reconnected: a new SSH connection attaches to the same tmux session, and its output is numbered after `last_seq` |
 | `input` | `data` | keystrokes |
 | `resize` | `cols`, `rows` | terminal resized |
 | `ping` | — | keepalive |
@@ -418,7 +418,7 @@ Server → client:
 | `replay_start` / `replay_end` | — | brackets the frames resent after an `attach` |
 | `replay_window_lost` | — | the client was further behind than the ring holds, on attach or later (it stopped reading during a burst); redraw from scratch, the whole ring follows |
 | `closed` | `data` | the shell ended (exit, `close`, TTL expiry, server shutdown); the socket stays open but the session is gone |
-| `error` | `data`, `code?` | `code: "session_gone"` — the id is unknown or expired, send `shell`; `code: "quota"` — too many sessions |
+| `error` | `data`, `code?` | `code: "session_gone"` — the id is unknown or expired, send `shell`; `code: "quota"` — too many sessions; `code: "resume_failed"` — a kept shell could not be reconnected (the server is unreachable); it is still kept, so `attach` again later |
 | `pong` | — | — |
 
 **Binary output.** With `binary: true` on `shell`/`attach`, output is not wrapped in JSON:
@@ -429,14 +429,28 @@ directions stay JSON text. The web UI always asks for binary; the JSON form rema
 clients.
 
 Sessions live in the server, not in the socket. A session with no attached client is kept for
-`SESSION_DETACH_TTL_SECS` (default 900) and then closed; a user may have at most
-`SESSION_MAX_PER_USER` (default 16). The replay ring holds the last 4096 frames or 2 MiB of
-output per session. Live sessions of the calling user are listed by `GET /api/v1/sessions`
-(`sessions[]` with `id`, `server_id`, `server_name`, `created_at`, `attachments` — sockets
-attached right now, 0 while detached — `latest_seq` and `recorded`, oldest first, plus `detach_ttl_secs`;
-ended sessions are not listed) and ended by `DELETE /api/v1/sessions/{id}` (404 for an unknown
-id or another user's session; every attached socket receives `closed`). The terminal UI's
-**Sessions** panel is built on these two calls.
+the user's keep time and then closed; a user may have at most `SESSION_MAX_PER_USER` (default
+16). The keep time is the account's choice — `PUT /api/v1/sessions/keep` with
+`{"detach_ttl_secs": 900 | 3600 | 28800}` (only the lengths within
+`SESSION_DETACH_TTL_MAX_SECS`; 400 for any other) or `null` for the server's default
+(`SESSION_DETACH_TTL_SECS`, 900) — and applies at once to shells already waiting. The replay
+ring holds the last 4096 frames or 2 MiB of output per session. Live sessions of the calling
+user are listed by `GET /api/v1/sessions` (`sessions[]` with `id`, `server_id`, `server_name`,
+`created_at`, `attachments` — sockets attached right now, 0 while detached — `latest_seq`,
+`recorded`, `persistent` (it runs in tmux) and `waiting` (a kept shell not connected since a
+restart; `attach` reconnects it), oldest first, plus `detach_ttl_secs`, `detach_ttl_max_secs`,
+`detach_ttl_choices` and `detach_ttl_chosen`; ended sessions are not listed) and ended by
+`DELETE /api/v1/sessions/{id}` (404 for an unknown id or another user's session; every
+attached socket receives `closed`; a waiting kept shell has its tmux session ended). The
+terminal UI's **Sessions** panel is built on these calls.
+
+**Kept shells.** On a server with `persistent_shell` set, `shell` starts the user's shell
+inside tmux on that server (`tmux new-session -A -s svrctlrs-<session id>`, run through
+`sh -c` so any login shell takes it; no tmux there: a plain shell and a note). When SvrCtlRS
+stops, such a session is released rather than closed: attached sockets are closed without a
+`closed` frame, so clients reconnect and `attach` — and reach the restarted server. A dropped
+SSH connection to the server releases it the same way. A kept shell no client reattaches to is
+ended after its owner's keep time.
 
 Host-key handling: the first connection to a server stores its key; a
 later connection presenting a key that matches none stored for that server is refused with an

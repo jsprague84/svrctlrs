@@ -339,6 +339,12 @@ impl Recorder {
                 status: RecordingStatus::Complete,
                 reason: reason.to_string(),
             })),
+            // A kept shell let go for a restart (or a lost connection): this recording ends
+            // here, and a reattach starts the next one
+            Some(Followed::Released) => Ok(Some(Ending {
+                status: RecordingStatus::Complete,
+                reason: "Kept shell disconnected (it lives on in tmux)".to_string(),
+            })),
             None => Ok(Some(Ending {
                 status: RecordingStatus::Complete,
                 reason: "Session ended".to_string(),

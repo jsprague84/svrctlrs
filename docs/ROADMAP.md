@@ -240,11 +240,15 @@ beside the binary, and what an identity provider does stays optional.
     the OS keyring instead of `localStorage` (SECURITY known weakness 4), `?token=` removed,
     `ALLOWED_ORIGINS` no longer relaxing the browser cookie, Bearer logout, a tray that is
     optional, and a Nix flake for NixOS (the AppImage forces X11).
-23. **Shells that outlive a deploy and a pocket.** Every push to `master` restarts the
-    container and ends every shell, and a detached shell is kept 15 minutes. A per-account
-    "keep detached shells" preference (15 min / 1 h / 8 h, capped by the server) and an opt-in
-    per-server persistent shell in tmux, so a restart reattaches the same remote shell (tmux
-    missing: a plain shell and a note).
+23. ~~**Shells that outlive a deploy and a pocket.**~~ Done 2026-10-21: a per-account keep
+    time for detached shells (15 min / 1 h / 8 h in the Sessions panel, `PUT /sessions/keep`,
+    capped by `SESSION_DETACH_TTL_MAX_SECS`, applied to shells already waiting) and an opt-in
+    per-server **Keep shells in tmux** (migration 110): the shell runs in `tmux new-session -A
+    -s svrctlrs-<id>` on the server, a restart or a dropped SSH connection releases the session
+    instead of ending it, and the client's reconnect attaches a new connection to the same tmux
+    session; kept shells end like any other and take their tmux session with them (no tmux: a
+    plain shell and a note). Tested against a loopback server that acts like tmux and against
+    real tmux on hermes.
 24. **Backups inside the app.** Nothing has run `svrctl backup` in production since
     2026-10-05; PBS snapshots the VM nightly, but that is a crash copy of a live SQLite file.
     A nightly `VACUUM INTO` with retention, run by the server like the recordings sweep, its

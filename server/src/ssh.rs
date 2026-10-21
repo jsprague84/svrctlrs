@@ -675,6 +675,7 @@ mod tests {
             tags: svrctlrs_database::sqlx::types::Json(vec![]),
             startup_command: None,
             record_sessions: false,
+            persistent_shell: false,
             description: None,
             enabled: true,
             last_seen_at: None,

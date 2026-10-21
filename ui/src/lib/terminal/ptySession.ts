@@ -664,6 +664,15 @@ export class PtySession {
 					const { cols, rows } = this.term;
 					const req: PtyRequest = { type: 'shell', server_id: serverId, cols, rows, binary: true };
 					ws.send(JSON.stringify(req));
+				} else if (res.code === 'resume_failed') {
+					// A kept shell (tmux) could not be reconnected (server down?). It is still
+					// kept; Reconnect tries the same shell again.
+					this.term.write(res.data);
+					this.setNote(null);
+					this.stopReconnecting();
+					this.cleanupSocket(false);
+					this.setStatus('error');
+					this.update({ showReconnect: true });
 				} else {
 					this.term.write(res.data);
 					if (res.code === 'host_key_unconfirmed' && res.details) {

@@ -10,7 +10,6 @@
 		open: boolean;
 		sessions: LiveSession[];
 		held: Map<string, string>;
-		detachTtlSecs: number;
 		loading: boolean;
 		error: string | null;
 		loaded: boolean;
@@ -25,7 +24,6 @@
 		open,
 		sessions,
 		held,
-		detachTtlSecs,
 		loading,
 		error,
 		loaded,
@@ -66,7 +64,6 @@
 			<SessionList
 				{sessions}
 				{held}
-				{detachTtlSecs}
 				{loading}
 				{error}
 				{loaded}

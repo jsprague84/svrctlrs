@@ -44,6 +44,19 @@ pub async fn put(pool: &Pool<Sqlite>, user_id: i64, key: &str, value: &str) -> R
     .map_err(Error::Database)
 }
 
+/// Forget the user's value under `key` (back to the default).
+#[instrument(skip(pool))]
+pub async fn delete(pool: &Pool<Sqlite>, user_id: i64, key: &str) -> Result<()> {
+    sqlx::query("DELETE FROM user_settings WHERE user_id = ? AND key = ?")
+        .bind(user_id)
+        .bind(key)
+        .execute(pool)
+        .await
+        .context("Failed to delete user setting")
+        .map_err(Error::Database)?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

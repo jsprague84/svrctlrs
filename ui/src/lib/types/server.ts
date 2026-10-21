@@ -14,6 +14,8 @@ export interface Server {
 	startup_command: string | null;
 	/** Shells opened on this server are recorded for whoever opens them */
 	record_sessions: boolean;
+	/** New shells run in tmux on the server and outlive a restart of SvrCtlRS */
+	persistent_shell: boolean;
 	description: string | null;
 	enabled: boolean;
 	last_seen_at: string | null;
@@ -53,6 +55,7 @@ export interface CreateServer {
 	tags?: string[];
 	startup_command?: string;
 	record_sessions?: boolean;
+	persistent_shell?: boolean;
 	description?: string;
 	enabled?: boolean;
 }
@@ -70,6 +73,7 @@ export interface UpdateServer {
 	/** An empty string clears it */
 	startup_command?: string;
 	record_sessions?: boolean;
+	persistent_shell?: boolean;
 	description?: string;
 	enabled?: boolean;
 }

@@ -65,6 +65,9 @@ struct Shared {
     /// from it by a removal command (these beat `options.authorized_keys`)
     installed: Mutex<Vec<PublicKey>>,
     removed: Mutex<Vec<PublicKey>>,
+    /// tmux sessions started by a kept shell's command (`persistent_shells.rs`); like real
+    /// tmux they outlive the connection, until `tmux kill-session`
+    tmux: Mutex<Vec<String>>,
 }
 
 /// The key line between `marker'` and the next `'` in a command, parsed.
@@ -115,6 +118,7 @@ impl TestSshServer {
             events: Mutex::new(Vec::new()),
             installed: Mutex::new(Vec::new()),
             removed: Mutex::new(Vec::new()),
+            tmux: Mutex::new(Vec::new()),
         });
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let port = listener.local_addr().expect("address").port();
@@ -149,6 +153,11 @@ impl TestSshServer {
 
     pub async fn events(&self) -> Vec<Event> {
         self.shared.events.lock().await.clone()
+    }
+
+    /// The tmux sessions alive on this "server"
+    pub async fn tmux_sessions(&self) -> Vec<String> {
+        self.shared.tmux.lock().await.clone()
     }
 
     /// Wait (up to 5 s) until an event matching `want` has been recorded.
@@ -339,6 +348,33 @@ impl server::Handler for Connection {
         let command = String::from_utf8_lossy(data).into_owned();
         self.record(Event::Exec(command.clone())).await;
         let _ = session.channel_success(channel);
+        // A kept shell's command: an interactive shell "in tmux", whose session outlives the
+        // connection
+        if let Some(rest) = command.split("exec tmux new-session -A -s ").nth(1) {
+            let name = rest.split(';').next().unwrap_or("").trim().to_string();
+            let mut tmux = self.shared.tmux.lock().await;
+            let note = if tmux.contains(&name) {
+                format!("[tmux: attached {name}]\r\n$ ")
+            } else {
+                tmux.push(name.clone());
+                if command.contains("has-session") {
+                    "The kept shell had ended\r\n$ ".to_string()
+                } else {
+                    format!("[tmux: new {name}]\r\n$ ")
+                }
+            };
+            drop(tmux);
+            self.shells.push(channel);
+            let _ = session.data(channel, note.into_bytes());
+            return Ok(());
+        }
+        if let Some(name) = command.strip_prefix("tmux kill-session -t =") {
+            self.shared.tmux.lock().await.retain(|n| n != name.trim());
+            let _ = session.exit_status_request(channel, 0);
+            let _ = session.eof(channel);
+            let _ = session.close(channel);
+            return Ok(());
+        }
         let (out, code) = if command.contains("authorized_keys")
             && command.contains("svrctlrs-key-installed")
         {

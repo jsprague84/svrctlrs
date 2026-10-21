@@ -713,7 +713,6 @@
 			onBackToTabs={() => (sheetView = 'tabs')}
 			sessions={liveSessions}
 			held={heldSessions}
-			detachTtlSecs={sessionsState.getDetachTtlSecs()}
 			sessionsLoading={sessionsState.isLoading()}
 			sessionsError={sessionsState.getError()}
 			sessionsLoaded={sessionsState.hasLoaded()}
@@ -1027,7 +1026,6 @@
 				open={sessionsOpen}
 				sessions={liveSessions}
 				held={heldSessions}
-				detachTtlSecs={sessionsState.getDetachTtlSecs()}
 				loading={sessionsState.isLoading()}
 				error={sessionsState.getError()}
 				loaded={sessionsState.hasLoaded()}

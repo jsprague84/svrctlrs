@@ -23,7 +23,8 @@ api/         svrctlrs-api: the REST API's request/response types (+ OpenAPI sche
 core/        encryption (AES-256-GCM), error type, notification senders
 database/    sqlx models, queries, embedded migrations (migrations/ current, migrations-legacy/ frozen)
 server/      Axum app: main.rs, app.rs (the router stack), ssh.rs (the one SSH client),
-             sessions.rs (server-owned PTYs), recordings.rs (opt-in session recording),
+             sessions.rs (server-owned PTYs), persistent_shells.rs (shells kept in tmux),
+             recordings.rs (opt-in session recording),
              api_tokens.rs + approvals.rs (agent tokens: presets, held deletes),
              diagnose.rs + key_ops.rs + routes/api/ops.rs (diagnose, exec, onboard, rotate-key),
              routes/{api/*, terminal_pty.rs, ui/auth.rs}, health_monitor.rs,
@@ -70,7 +71,7 @@ CI's clippy may be older or newer than yours; green locally is not proof.
   No `unwrap()` on request paths.
 - **Migrations**: two embedded chains (`database/src/lib.rs::run_migrations`).
   `database/migrations/` is current: `100_baseline.sql` plus everything after it; add the next
-  change with the next free number (`110_…` after `109_sign_in.sql`). `database/migrations-legacy/` (`000`–`024`) is frozen and only runs for a
+  change with the next free number (`111_…` after `110_persistent_shells.sql`). `database/migrations-legacy/` (`000`–`024`) is frozen and only runs for a
   database that predates the baseline, which is then marked as having `100` applied. Never
   edit a shipped migration (sqlx checksums them).
 - **Svelte 5**: runes only (`$state`, `$derived`, `$effect`, `$props`); callback props, not

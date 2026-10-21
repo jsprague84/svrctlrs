@@ -20,6 +20,7 @@ Android app; those talk to a remote server over the same API.
  │ diagnose.rs             the connection walked step by step, with fixes     │
  │ key_ops.rs              install/remove public keys (authorize, rotate)     │
  │ sessions.rs             server-owned PTY sessions, replay ring, TTL      │
+│ persistent_shells.rs    shells kept in tmux across a restart             │
  │ recordings.rs           opt-in asciicast recording, encrypted, per user  │
  │ health_monitor.rs       periodic checks → notifications (rstify/Gotify) │
  │ ServeDir(SPA_DIR) fallback → index.html                                  │
@@ -89,7 +90,10 @@ does not pull in Tauri's GTK/WebKit dependencies.
    slow client. On a server with `record_sessions`, a recorder (`recordings.rs`) follows the
    session the same way and writes asciicast v2, encrypted per chunk with the credential key,
    to `RECORDINGS_DIR/<user id>/`; `routes/api/recordings.rs` serves it back, decrypted, to
-   its owner only. Hourly housekeeping applies `recording.retention_days` and removes files
+   its owner only. On a server with `persistent_shell`, the shell runs in tmux there
+   (`persistent_shells.rs`): a restart or a lost connection *releases* the session (clients
+   reconnect), and an `attach` for a session that is not live opens a new connection to the
+   same tmux session; housekeeping ends kept shells nobody reattaches to. Hourly housekeeping applies `recording.retention_days` and removes files
    no row knows. Every SSH connection
    — the shell, the connection test, SFTP, "Authorize key" — goes through `ssh.rs`: russh,
    host key verified during the handshake (first contact recorded and refused until the user
@@ -121,13 +125,14 @@ does not pull in Tauri's GTK/WebKit dependencies.
 |---|---|
 | `users` | username, argon2 hash |
 | `tower_sessions` | session records (managed by the store) |
-| `servers` | name, hostname, port, username (NULL = the credential's user, else root), `credential_id`, `via_server_id` (jump host; `ON DELETE SET NULL`), `tags` (JSON array), `startup_command`, `record_sessions`, `enabled`, `last_seen_at`, `last_error` |
+| `servers` | name, hostname, port, username (NULL = the credential's user, else root), `credential_id`, `via_server_id` (jump host; `ON DELETE SET NULL`), `tags` (JSON array), `startup_command`, `record_sessions`, `persistent_shell`, `enabled`, `last_seen_at`, `last_error` |
 | `credentials` | name, type (`password`, `ssh_key`, …), encrypted `value`, optional `username`, JSON `metadata`, `encrypted` flag |
 | `server_host_keys` | `(server_id, key_type)` → public key, first/last seen, `trusted_at` (NULL = waiting for confirmation) |
 | `terminal_profiles` | per-user layout + pane configs (`server_id` per pane), `is_default` |
 | `quick_commands` | per-user snippets: name, command, optional `server_id`, category, sort order |
 | `settings` | key/value with `value_type`; `notification.*` and `app.default_profile_id` are seeded |
-| `user_settings` | a user's own preference documents: (`user_id`, `key`) → JSON `value`; only `terminal` today (`ON DELETE CASCADE`) |
+| `user_settings` | a user's own settings: (`user_id`, `key`) → `value`; `terminal` (a JSON document the UI owns) and `session_keep` (seconds, read by the server) (`ON DELETE CASCADE`) |
+| `persistent_shells` | shells kept in tmux: session `id`, `user_id`, `server_id` (both `ON DELETE CASCADE`), `tmux_name` — what a restarted server needs to reattach |
 | `login_failures` | the login limiter's failed attempts: `key` (`ip:…` / `user:…`), `failed_at` (Unix seconds); pruned past the 15-minute window |
 | `user_totp` | one TOTP enrolment per user: encrypted base32 `secret`, `confirmed_at` (NULL while pending), `last_step` (no code twice) |
 | `user_recovery_codes` | SHA-256 of each one-time recovery code, `used_at` |

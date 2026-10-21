@@ -4,8 +4,14 @@
 //! reload, a backgrounded tab, a flaky link — killed the shell. Here the server owns the
 //! session. Output is numbered and kept in a bounded replay ring; a client that reconnects
 //! sends the last sequence it saw and gets everything it missed, then live output. A session
-//! with no attached client survives for a grace period (`SESSION_DETACH_TTL_SECS`, default
-//! 15 minutes) and is closed when that runs out. Modelled on RelayTerm's session manager.
+//! with no attached client survives for a grace period and is closed when that runs out: the
+//! user's own choice (15 minutes, 1 hour or 8 hours, capped by `SESSION_DETACH_TTL_MAX_SECS`),
+//! else `SESSION_DETACH_TTL_SECS` (default 15 minutes). Modelled on RelayTerm's session manager.
+//!
+//! A *persistent* session (a server with `persistent_shell`; `persistent_shells.rs`) runs in
+//! tmux on that server. On shutdown it is released rather than closed: the SSH connection goes,
+//! tmux keeps the shell, attached clients are told to reconnect, and the restarted server
+//! attaches a new connection to the same tmux session when they do.
 //!
 //! Frames hold the PTY's raw bytes: a multibyte character split across two SSH reads must
 //! reach the terminal intact, which a per-chunk UTF-8 conversion cannot guarantee.
@@ -55,6 +61,8 @@ pub enum SessionEvent {
     },
     /// The shell ended (or the session was closed); the reason is shown to the user.
     Closed(Arc<str>),
+    /// A persistent session let go of its shell for a restart: clients reconnect and reattach.
+    Released,
 }
 
 /// Bounded FIFO of recent output, by frame count and by bytes.
@@ -135,6 +143,10 @@ pub struct LiveSession {
     closed: OnceLock<Arc<str>>,
     /// A recorder is writing this session's output (`recordings.rs`)
     recorded: AtomicBool,
+    /// The shell runs in tmux on the server and outlives this process
+    pub persistent: bool,
+    /// Let go for a restart (persistent sessions only): the shell lives on in tmux
+    released: AtomicBool,
 }
 
 impl LiveSession {
@@ -161,6 +173,42 @@ impl LiveSession {
         )
     }
 
+    /// A session whose shell runs in tmux on the server, under the id `id`. A session revived
+    /// after a restart numbers its output from `seq_base` on, the last frame the reattaching
+    /// client saw, so that client takes the new output as what comes next.
+    pub fn persistent(
+        id: String,
+        user_id: i64,
+        server_id: i64,
+        server_name: String,
+        command_tx: mpsc::Sender<PtyCommand>,
+        created_at: chrono::DateTime<chrono::Utc>,
+        seq_base: u64,
+    ) -> Arc<Self> {
+        let (events, _) = broadcast::channel(Self::BROADCAST_CAPACITY);
+        Arc::new(Self {
+            id,
+            user_id,
+            server_id,
+            server_name,
+            created_at,
+            started: Instant::now(),
+            command_tx,
+            events,
+            replay: Mutex::new(ReplayRing::new(
+                ReplayRing::DEFAULT_MAX_FRAMES,
+                ReplayRing::DEFAULT_MAX_BYTES,
+            )),
+            seq: AtomicU64::new(seq_base),
+            attachments: AtomicUsize::new(0),
+            detach_timer: Mutex::new(None),
+            closed: OnceLock::new(),
+            recorded: AtomicBool::new(false),
+            persistent: true,
+            released: AtomicBool::new(false),
+        })
+    }
+
     fn with_buffers(
         user_id: i64,
         server_id: i64,
@@ -185,6 +233,8 @@ impl LiveSession {
             detach_timer: Mutex::new(None),
             closed: OnceLock::new(),
             recorded: AtomicBool::new(false),
+            persistent: false,
+            released: AtomicBool::new(false),
         })
     }
 
@@ -209,6 +259,19 @@ impl LiveSession {
 
     pub fn set_recorded(&self, on: bool) {
         self.recorded.store(on, Ordering::SeqCst);
+    }
+
+    /// Let go of a persistent shell (a restart, a lost connection): attached clients are told
+    /// to reconnect, and the shell stays in tmux on the server.
+    pub fn release(&self) {
+        if !self.released.swap(true, Ordering::SeqCst) {
+            let _ = self.events.send(SessionEvent::Released);
+        }
+    }
+
+    /// Let go for a restart: the shell stays in tmux on the server.
+    pub fn is_released(&self) -> bool {
+        self.released.load(Ordering::SeqCst)
     }
 
     /// Why the shell ended, once it has.
@@ -310,6 +373,8 @@ pub enum Followed {
     },
     /// The shell ended. Nothing follows.
     Closed(Arc<str>),
+    /// The server let go of a persistent shell for a restart; reconnect. Nothing follows.
+    Released,
 }
 
 /// One consumer's view of a session's output from a sequence number on: what the ring holds
@@ -413,6 +478,10 @@ impl Follower {
                     return Some(Followed::Resized { cols, rows, at });
                 }
                 Ok(SessionEvent::Closed(reason)) => self.closing = Some(reason),
+                Ok(SessionEvent::Released) => {
+                    self.done = true;
+                    return Some(Followed::Released);
+                }
                 Err(RecvError::Lagged(missed)) => {
                     debug!(
                         session_id = %self.live.id,
@@ -438,43 +507,75 @@ pub struct SessionSummary {
     pub latest_seq: u64,
     /// Its output is being recorded
     pub recorded: bool,
+    /// It runs in tmux on the server
+    pub persistent: bool,
 }
 
-/// All live sessions on this server, with the detach grace period.
+/// All live sessions on this server, with how long a detached one is kept.
 pub struct SessionRegistry {
     sessions: Mutex<HashMap<String, Arc<LiveSession>>>,
-    detach_ttl: Duration,
+    default_ttl: Duration,
+    max_ttl: Duration,
     max_per_user: usize,
 }
 
 impl SessionRegistry {
     pub const DEFAULT_DETACH_TTL: Duration = Duration::from_secs(15 * 60);
+    pub const DEFAULT_MAX_DETACH_TTL: Duration = Duration::from_secs(8 * 60 * 60);
     pub const DEFAULT_MAX_PER_USER: usize = 16;
+    /// What a user can choose for their own shells: 15 minutes, 1 hour, 8 hours.
+    pub const DETACH_TTL_CHOICES: [u64; 3] = [15 * 60, 60 * 60, 8 * 60 * 60];
 
-    pub fn new(detach_ttl: Duration, max_per_user: usize) -> Arc<Self> {
+    /// `default_ttl` for users who chose nothing, `max_ttl` caps what they choose (and the
+    /// default; a maximum below it is raised to it).
+    pub fn new(default_ttl: Duration, max_ttl: Duration, max_per_user: usize) -> Arc<Self> {
         Arc::new(Self {
             sessions: Mutex::new(HashMap::new()),
-            detach_ttl,
+            default_ttl,
+            max_ttl: max_ttl.max(default_ttl),
             max_per_user: max_per_user.max(1),
         })
     }
 
-    /// Read `SESSION_DETACH_TTL_SECS` (default 900) and `SESSION_MAX_PER_USER` (default 16).
+    /// Read `SESSION_DETACH_TTL_SECS` (default 900), `SESSION_DETACH_TTL_MAX_SECS` (default
+    /// 28800) and `SESSION_MAX_PER_USER` (default 16).
     pub fn from_env() -> Arc<Self> {
-        let ttl = std::env::var("SESSION_DETACH_TTL_SECS")
-            .ok()
-            .and_then(|v| v.trim().parse::<u64>().ok())
-            .map(Duration::from_secs)
-            .unwrap_or(Self::DEFAULT_DETACH_TTL);
+        let secs = |name: &str| {
+            std::env::var(name)
+                .ok()
+                .and_then(|v| v.trim().parse::<u64>().ok())
+                .map(Duration::from_secs)
+        };
         let max = std::env::var("SESSION_MAX_PER_USER")
             .ok()
             .and_then(|v| v.trim().parse::<usize>().ok())
             .unwrap_or(Self::DEFAULT_MAX_PER_USER);
-        Self::new(ttl, max)
+        Self::new(
+            secs("SESSION_DETACH_TTL_SECS").unwrap_or(Self::DEFAULT_DETACH_TTL),
+            secs("SESSION_DETACH_TTL_MAX_SECS").unwrap_or(Self::DEFAULT_MAX_DETACH_TTL),
+            max,
+        )
     }
 
-    pub fn detach_ttl(&self) -> Duration {
-        self.detach_ttl
+    /// The longest a user may choose
+    pub fn max_ttl(&self) -> Duration {
+        self.max_ttl
+    }
+
+    /// The choices a user has on this server: those within the maximum.
+    pub fn ttl_choices(&self) -> Vec<u64> {
+        Self::DETACH_TTL_CHOICES
+            .into_iter()
+            .filter(|s| Duration::from_secs(*s) <= self.max_ttl)
+            .collect()
+    }
+
+    /// How long a user's shell is kept, given what they chose (if anything): the choice
+    /// capped by the maximum, else the default.
+    pub fn ttl_for(&self, chosen_secs: Option<u64>) -> Duration {
+        chosen_secs
+            .map(|s| Duration::from_secs(s).min(self.max_ttl))
+            .unwrap_or(self.default_ttl)
     }
 
     /// Register a freshly started session. Refuses when the user already holds the quota.
@@ -513,9 +614,9 @@ impl SessionRegistry {
         session.attachments.fetch_add(1, Ordering::SeqCst);
     }
 
-    /// A client went away. With no clients left, the session is closed after the grace
-    /// period unless someone reattaches first.
-    pub async fn detach(self: &Arc<Self>, session: &Arc<LiveSession>) {
+    /// A client went away. With no clients left, the session is closed after `ttl` (the
+    /// user's keep time, [`SessionRegistry::ttl_for`]) unless someone reattaches first.
+    pub async fn detach(self: &Arc<Self>, session: &Arc<LiveSession>, ttl: Duration) {
         let left = session
             .attachments
             .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
@@ -526,9 +627,13 @@ impl SessionRegistry {
         if left > 0 || session.is_closed() {
             return;
         }
+        self.arm_timer(session, ttl).await;
+    }
+
+    /// Close `session` after `ttl` unless a client attaches first (replacing any timer).
+    async fn arm_timer(self: &Arc<Self>, session: &Arc<LiveSession>, ttl: Duration) {
         let registry = Arc::downgrade(self);
         let weak = Arc::downgrade(session);
-        let ttl = self.detach_ttl;
         let id = session.id.clone();
         let handle = tokio::spawn(async move {
             tokio::time::sleep(ttl).await;
@@ -544,7 +649,24 @@ impl SessionRegistry {
                 registry.remove(&id).await;
             }
         });
-        *session.detach_timer.lock().await = Some(handle);
+        if let Some(old) = session.detach_timer.lock().await.replace(handle) {
+            old.abort();
+        }
+    }
+
+    /// The user changed their keep time: their detached sessions are kept `ttl` from now.
+    pub async fn retime_detached(self: &Arc<Self>, user_id: i64, ttl: Duration) {
+        let detached: Vec<Arc<LiveSession>> = self
+            .sessions
+            .lock()
+            .await
+            .values()
+            .filter(|s| s.user_id == user_id && s.attachments() == 0 && !s.is_closed())
+            .cloned()
+            .collect();
+        for session in detached {
+            self.arm_timer(&session, ttl).await;
+        }
     }
 
     pub async fn remove(&self, id: &str) {
@@ -577,6 +699,12 @@ impl SessionRegistry {
             .cloned()
     }
 
+    /// Whether a session with this id is live (anyone's): the expiry sweep after a restart
+    /// leaves revived shells alone.
+    pub async fn contains(&self, id: &str) -> bool {
+        self.sessions.lock().await.contains_key(id)
+    }
+
     pub async fn list_for_user(&self, user_id: i64) -> Vec<SessionSummary> {
         let sessions: Vec<Arc<LiveSession>> = self
             .sessions
@@ -596,19 +724,27 @@ impl SessionRegistry {
                 attachments: s.attachments(),
                 latest_seq: s.latest_seq().await,
                 recorded: s.is_recorded(),
+                persistent: s.persistent,
             });
         }
         out.sort_by_key(|s| s.created_at);
         out
     }
 
-    /// Close every session (server shutdown).
+    /// Server shutdown. Plain sessions are closed. Persistent ones are released: the SSH
+    /// connection closes, which only detaches tmux, and attached clients are told to
+    /// reconnect, which reaches the restarted server.
     pub async fn close_all(&self) {
         let sessions: Vec<Arc<LiveSession>> =
             self.sessions.lock().await.values().cloned().collect();
         for s in sessions {
-            s.close().await;
-            s.mark_closed("Server shutting down");
+            if s.persistent {
+                s.release();
+                s.close().await;
+            } else {
+                s.close().await;
+                s.mark_closed("Server shutting down");
+            }
         }
         if !self.sessions.lock().await.is_empty() {
             warn!("Closed live sessions for shutdown");
@@ -616,7 +752,7 @@ impl SessionRegistry {
     }
 }
 
-fn new_session_id() -> String {
+pub fn new_session_id() -> String {
     use base64::Engine;
     use rand::RngCore;
     let mut bytes = [0u8; 16];
@@ -820,7 +956,8 @@ mod tests {
 
     #[tokio::test]
     async fn registry_attach_is_owner_only_and_detach_expires_after_ttl() {
-        let registry = SessionRegistry::new(Duration::from_millis(60), 16);
+        let registry =
+            SessionRegistry::new(Duration::from_millis(60), Duration::from_secs(3600), 16);
         let (s, mut rx) = session(7);
         let id = s.id.clone();
         registry.insert(s.clone()).await.unwrap();
@@ -829,7 +966,7 @@ mod tests {
         assert!(registry.attach(&id, 8).await.is_none(), "another user");
         assert!(registry.attach("nope", 7).await.is_none());
 
-        registry.detach(&s).await;
+        registry.detach(&s, registry.ttl_for(None)).await;
         assert_eq!(s.attachments(), 0);
         // Reattach within the grace period cancels the close
         assert!(registry.attach(&id, 7).await.is_some());
@@ -838,7 +975,7 @@ mod tests {
         assert!(registry.get(&id, 7).await.is_some());
 
         // Detach again and let it expire
-        registry.detach(&s).await;
+        registry.detach(&s, registry.ttl_for(None)).await;
         tokio::time::sleep(Duration::from_millis(120)).await;
         assert!(s.is_closed());
         assert!(matches!(rx.try_recv(), Ok(PtyCommand::Close)));
@@ -848,9 +985,100 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_users_keep_time_is_their_choice_within_the_maximum() {
+        let registry =
+            SessionRegistry::new(Duration::from_secs(900), Duration::from_secs(3600), 16);
+        assert_eq!(registry.ttl_for(None), Duration::from_secs(900));
+        assert_eq!(registry.ttl_for(Some(3600)), Duration::from_secs(3600));
+        assert_eq!(
+            registry.ttl_for(Some(28800)),
+            Duration::from_secs(3600),
+            "capped"
+        );
+        assert_eq!(registry.ttl_choices(), vec![900, 3600]);
+
+        // A maximum below the default is raised to it
+        let odd = SessionRegistry::new(Duration::from_secs(7200), Duration::from_secs(60), 16);
+        assert_eq!(odd.max_ttl(), Duration::from_secs(7200));
+        assert_eq!(odd.ttl_for(None), Duration::from_secs(7200));
+    }
+
+    #[tokio::test]
+    async fn a_new_keep_time_applies_to_shells_already_detached() {
+        let registry = SessionRegistry::new(Duration::from_secs(60), Duration::from_secs(3600), 16);
+        let (s, _rx) = session(7);
+        let (other, _ro) = session(8);
+        for x in [&s, &other] {
+            registry.insert(x.clone()).await.unwrap();
+            registry.attach_new(x);
+            registry.detach(x, Duration::from_secs(60)).await;
+        }
+        registry.retime_detached(7, Duration::from_millis(50)).await;
+        tokio::time::sleep(Duration::from_millis(150)).await;
+        assert!(s.is_closed(), "user 7's shell now expires sooner");
+        assert!(!other.is_closed(), "user 8's keeps its own time");
+    }
+
+    #[tokio::test]
+    async fn shutdown_releases_persistent_sessions_and_closes_the_rest() {
+        let registry = SessionRegistry::new(Duration::from_secs(60), Duration::from_secs(3600), 16);
+        let (plain, mut plain_rx) = session(1);
+        let (tx, mut kept_rx) = mpsc::channel(8);
+        let kept = LiveSession::persistent(
+            "kept".into(),
+            1,
+            1,
+            "web".into(),
+            tx,
+            chrono::Utc::now(),
+            40,
+        );
+        registry.insert(plain.clone()).await.unwrap();
+        registry.insert(kept.clone()).await.unwrap();
+        let mut plain_follow = plain.follow(0);
+        let mut kept_follow = kept.follow(40);
+
+        registry.close_all().await;
+
+        assert!(matches!(plain_rx.try_recv(), Ok(PtyCommand::Close)));
+        assert!(matches!(
+            plain_follow.next().await,
+            Some(Followed::Closed(_))
+        ));
+        // The persistent one lets go of its connection but is not ended: its clients are told
+        // to reconnect, and nothing says the shell is gone
+        assert!(matches!(kept_rx.try_recv(), Ok(PtyCommand::Close)));
+        assert!(kept.is_released());
+        assert!(!kept.is_closed());
+        assert_eq!(kept_follow.next().await, Some(Followed::Released));
+        assert_eq!(kept_follow.next().await, None);
+    }
+
+    #[tokio::test]
+    async fn a_revived_session_numbers_its_output_after_what_the_client_saw() {
+        let (tx, _rx) = mpsc::channel(8);
+        let kept = LiveSession::persistent(
+            "kept".into(),
+            1,
+            1,
+            "web".into(),
+            tx,
+            chrono::Utc::now(),
+            500,
+        );
+        let mut follow = kept.follow(500);
+        assert!(follow.catch_up().await.is_empty());
+        kept.push_text("redrawn").await;
+        match follow.next().await {
+            Some(Followed::Output(f)) => assert_eq!(f.seq, 501),
+            other => panic!("{other:?}"),
+        }
+    }
+
     #[tokio::test]
     async fn listing_reports_what_the_resume_list_shows_and_skips_ended_sessions() {
-        let registry = SessionRegistry::new(Duration::from_secs(60), 16);
+        let registry = SessionRegistry::new(Duration::from_secs(60), Duration::from_secs(3600), 16);
         let (attached, _ra) = session(1);
         let (detached, _rd) = session(1);
         let (ended, _re) = session(1);
@@ -889,7 +1117,7 @@ mod tests {
 
     #[tokio::test]
     async fn close_session_ends_the_shell_tells_listeners_and_is_owner_only() {
-        let registry = SessionRegistry::new(Duration::from_secs(60), 16);
+        let registry = SessionRegistry::new(Duration::from_secs(60), Duration::from_secs(3600), 16);
         let (s, mut rx) = session(7);
         let id = s.id.clone();
         registry.insert(s.clone()).await.unwrap();
@@ -916,7 +1144,7 @@ mod tests {
 
     #[tokio::test]
     async fn registry_enforces_the_per_user_quota() {
-        let registry = SessionRegistry::new(Duration::from_secs(60), 1);
+        let registry = SessionRegistry::new(Duration::from_secs(60), Duration::from_secs(3600), 1);
         let (a, _ra) = session(1);
         let (b, _rb) = session(1);
         let (c, _rc) = session(2);

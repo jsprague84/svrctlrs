@@ -353,6 +353,7 @@
           "last_error": "null",
           "last_seen_at": "null",
           "name": "string",
+          "persistent_shell": "boolean",
           "port": "integer",
           "record_sessions": "boolean",
           "startup_command": "null|string",
@@ -379,6 +380,7 @@
         "last_error": "null",
         "last_seen_at": "null",
         "name": "string",
+        "persistent_shell": "boolean",
         "port": "integer",
         "record_sessions": "boolean",
         "startup_command": "null",
@@ -414,6 +416,7 @@
         "last_error": "null",
         "last_seen_at": "null",
         "name": "string",
+        "persistent_shell": "boolean",
         "port": "integer",
         "record_sessions": "boolean",
         "startup_command": "string",
@@ -446,6 +449,11 @@
   },
   "GET /sessions": {
     "body": {
+      "detach_ttl_choices": [
+        "integer"
+      ],
+      "detach_ttl_chosen": "boolean",
+      "detach_ttl_max_secs": "integer",
       "detach_ttl_secs": "integer",
       "sessions": [
         "empty"
@@ -861,6 +869,23 @@
       "message": "string"
     },
     "status": 200
+  },
+  "PUT /sessions/keep": {
+    "body": {
+      "detach_ttl_chosen": "boolean",
+      "detach_ttl_secs": "integer"
+    },
+    "status": 200
+  },
+  "PUT /sessions/keep (refused)": {
+    "body": {
+      "error": {
+        "code": "string",
+        "message": "string"
+      },
+      "success": "boolean"
+    },
+    "status": 400
   },
   "PUT /settings": {
     "body": {

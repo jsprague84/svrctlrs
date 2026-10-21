@@ -53,9 +53,14 @@ clears it; a credential that is still assigned to a server cannot be deleted —
 which servers use it.
 
 **Startup command.** One line typed into every new shell on that server right after it opens,
-for example `tmux new -A -s main` or `cd /srv/app && git status`. With tmux or screen there
-your work survives even the app's 15-minute grace period for detached shells: the next shell
-reattaches to the same tmux session. It echoes in the terminal like anything you type.
+for example `cd /srv/app && git status`. It echoes in the terminal like anything you type.
+
+**Keep shells in tmux.** With this on, every new shell on that server runs inside tmux there,
+so it survives SvrCtlRS restarting (an update or a deploy ends every other shell) and a dropped
+connection to the server: the pane reconnects and you are back in the same shell, programs
+still running. Scrolling back then happens in tmux (its copy mode, or the mouse if your
+`.tmux.conf` turns it on), not in the pane. A server without tmux gets a plain shell and a
+note. Do not also start tmux from the startup command: that would put tmux inside tmux.
 
 **Tags and filtering.** Give a server tags (*prod*, *home*, *db*; comma separated in the
 form). Every list — the Servers page, the sidebar, the phone's server picker — shows the tags
@@ -199,8 +204,11 @@ server can set a new password with `svrctl reset-password` (DEPLOYMENT.md, "Lock
 Shells run in the server, not in your browser tab. Switching to Servers or Settings and back,
 reloading the page, losing Wi-Fi for a minute or putting the phone to sleep does not end them:
 the pane reattaches and the server resends what you missed. A shell with nobody attached is
-closed after 15 minutes by default (`SESSION_DETACH_TTL_SECS`); open tabs are remembered for
-the life of the browser tab, so a reload brings them back with their shells.
+closed after 15 minutes by default; the **Sessions** panel lets you keep them for 1 or 8 hours
+instead (your account's choice, applied to shells already waiting too; the server may cap it).
+Open tabs are remembered for the life of the browser tab, so a reload brings them back with
+their shells. A restart of SvrCtlRS ends every shell, except on servers set to **Keep shells
+in tmux**, whose panes reconnect to the same shell.
 
 - **New tab**: `Ctrl+Shift+T` or the `+` in the tab bar, then pick a server. Up to 10 tabs. A
   tab without a server lists your servers (and any shells waiting to be resumed) in the pane.
@@ -209,8 +217,8 @@ the life of the browser tab, so a reload brings them back with their shells.
   moves spatially.
 - **Search output**: `Ctrl+Shift+F`.
 - **Reconnect**: if the connection drops, the pane retries with backoff and resumes the same
-  shell, replaying the output you missed. If the shell has ended meanwhile (exit, 15-minute
-  grace period, server restart) the pane says so and offers **Reconnect** (new shell) or
+  shell, replaying the output you missed. If the shell has ended meanwhile (exit, keep time
+  run out, server restart) the pane says so and offers **Reconnect** (new shell) or
   **New Session**. **Disconnect** and closing a tab end the shell for good.
 - **Preferences** (gear icon): font, size, weight, line height, cursor style and blink,
   scrollback, scroll speed, tab width, contrast, predictive echo. They belong to your account,

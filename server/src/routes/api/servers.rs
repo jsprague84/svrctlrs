@@ -51,6 +51,7 @@ pub(crate) fn server_view(s: svrctlrs_database::models::Server) -> Server {
         tags: s.tags.0,
         startup_command: s.startup_command,
         record_sessions: s.record_sessions,
+        persistent_shell: s.persistent_shell,
         description: s.description,
         enabled: s.enabled,
         last_seen_at: s.last_seen_at,
@@ -315,6 +316,7 @@ async fn create_server(
         tags: input.tags,
         startup_command: input.startup_command,
         record_sessions: input.record_sessions,
+        persistent_shell: input.persistent_shell,
         description: input.description,
         enabled: input.enabled,
     };
@@ -331,7 +333,10 @@ async fn create_server(
             .user(me)
             .client_ip(Some(client_ip(&headers)))
             .target("server", id, &create.name)
-            .details(json!({ "record_sessions": create.record_sessions })),
+            .details(json!({
+                "record_sessions": create.record_sessions,
+                "persistent_shell": create.persistent_shell,
+            })),
     );
 
     Ok((
@@ -411,6 +416,7 @@ async fn update_server(
         tags: input.tags,
         startup_command: input.startup_command,
         record_sessions: input.record_sessions,
+        persistent_shell: input.persistent_shell,
         description: input.description,
         enabled: input.enabled,
         last_error: None,
@@ -429,9 +435,12 @@ async fn update_server(
         .user(me)
         .client_ip(Some(client_ip(&headers)))
         .target("server", id, update.name.as_deref().unwrap_or(&before.name));
-    if let Some(record) = update.record_sessions {
-        // Turning recording on or off is worth seeing in the log
-        entry = entry.details(json!({ "record_sessions": record }));
+    // Turning recording or kept shells on or off is worth seeing in the log
+    if update.record_sessions.is_some() || update.persistent_shell.is_some() {
+        entry = entry.details(json!({
+            "record_sessions": update.record_sessions,
+            "persistent_shell": update.persistent_shell,
+        }));
     }
     crate::audit::record(&state.pool, entry);
 
@@ -534,6 +543,7 @@ async fn import_servers(
             tags: input.tags.clone(),
             startup_command: None,
             record_sessions: false,
+            persistent_shell: false,
             description: Some("Imported from ssh_config".to_string()),
             enabled: true,
         };

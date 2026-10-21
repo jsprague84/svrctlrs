@@ -45,6 +45,9 @@ export function describeSession(row: SessionRow, now: Date = new Date()): string
 				? 'attached elsewhere'
 				: `attached elsewhere ×${row.session.attachments}`
 		);
+	} else if (row.session.waiting) {
+		// Kept in tmux across a restart; resuming reconnects it
+		parts.push('waiting in tmux');
 	} else {
 		parts.push('detached');
 	}

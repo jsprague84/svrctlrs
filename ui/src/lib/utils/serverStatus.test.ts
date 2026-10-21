@@ -13,6 +13,7 @@ const base: Server = {
 	tags: [],
 	startup_command: null,
 	record_sessions: false,
+	persistent_shell: false,
 	description: null,
 	enabled: true,
 	last_seen_at: null,

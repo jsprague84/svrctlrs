@@ -31,6 +31,8 @@ pub struct AppState {
     pub app_codes: Arc<crate::sign_in::app_codes::AppCodes>,
     /// Live interactive sessions; they outlive the sockets that use them.
     pub sessions: Arc<SessionRegistry>,
+    /// Kept shells (tmux) waiting for a client, and revivals in progress.
+    pub persistent: Arc<crate::persistent_shells::PersistentShells>,
     /// Where session recordings are written, and the recorders still writing.
     pub recordings: Arc<RecordingStore>,
     /// Ids of API tokens as they are revoked or removed, so terminals opened with one end.
@@ -57,6 +59,7 @@ impl AppState {
             ws_tickets: Arc::new(WsTickets::default()),
             app_codes: Arc::default(),
             sessions: SessionRegistry::from_env(),
+            persistent: Arc::default(),
             recordings: RecordingStore::from_env(),
             token_revocations: tokio::sync::broadcast::channel(64).0,
             approval_events: tokio::sync::broadcast::channel(64).0,

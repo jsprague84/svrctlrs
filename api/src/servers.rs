@@ -26,6 +26,9 @@ pub struct Server {
     pub startup_command: Option<String>,
     /// Shells opened here are recorded for the user who opens them
     pub record_sessions: bool,
+    /// New shells run in tmux on the server, so they outlive a restart of SvrCtlRS (a server
+    /// without tmux gets a plain shell and a note)
+    pub persistent_shell: bool,
     pub description: Option<String>,
     pub enabled: bool,
     /// The last successful contact
@@ -70,6 +73,8 @@ pub struct NewServer {
     #[serde(default)]
     pub record_sessions: bool,
     #[serde(default)]
+    pub persistent_shell: bool,
+    #[serde(default)]
     pub description: Option<String>,
     /// Retired with command mode; `true` is refused
     #[serde(default)]
@@ -112,6 +117,8 @@ pub struct ServerChanges {
     pub startup_command: Option<String>,
     #[serde(default)]
     pub record_sessions: Option<bool>,
+    #[serde(default)]
+    pub persistent_shell: Option<bool>,
     #[serde(default)]
     pub description: Option<String>,
     #[serde(default)]

@@ -271,6 +271,26 @@ a server and thereby have the shells other users open there recorded. Those reco
 to the users who opened the shells, not to whoever switched recording on, and the terminal
 tells them.
 
+## Kept shells (tmux)
+
+Off unless a server's **Keep shells in tmux** is set (opt-in per server; audited as
+`server.updated` with `persistent_shell`). A shell opened there runs in a tmux session on that
+server named `svrctlrs-<session id>` (`server/src/persistent_shells.rs`), and the table
+`persistent_shells` remembers it for its owner so a restarted SvrCtlRS can attach to it again.
+
+- **Who can reattach.** Only the user whose shell it is: the reattach looks the row up by
+  session id *and* `user_id`, like every other session lookup. On the server itself, anyone who
+  can log in as the same remote account could already run anything as it, and can also
+  `tmux attach` to the session; that is the same trust as the account, not a new one.
+- **How long it lives.** As long as an ordinary shell: it ends on exit, on **close**, and after
+  the owner's keep time with nobody attached — after a restart too, counted from the restart.
+  Ending it runs `tmux kill-session` on the server, so nothing is left behind. Two cases leave a
+  tmux session on the server: the server cannot be reached when the shell is ended (the row is
+  forgotten anyway, and a warning logged), and deleting the server or the user in SvrCtlRS
+  (the rows go by foreign key; the remote tmux sessions are not touched).
+- **What the server runs.** One fixed command through the login shell (`sh -c '…'` with the
+  session name, which is URL-safe base64); nothing from a request reaches it.
+
 ## Predictive echo
 
 The pane draws typed characters before the shell echoes them (`ui/src/lib/terminal/localEcho.ts`,

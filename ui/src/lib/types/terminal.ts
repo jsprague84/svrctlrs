@@ -55,6 +55,10 @@ export interface LiveSession {
 	latest_seq: number;
 	/** Its output is being recorded */
 	recorded?: boolean;
+	/** It runs in tmux on the server and outlives a restart of SvrCtlRS */
+	persistent?: boolean;
+	/** Kept in tmux, not connected since SvrCtlRS restarted; attaching reconnects it */
+	waiting?: boolean;
 }
 
 export type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';

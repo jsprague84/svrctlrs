@@ -11,6 +11,7 @@ mod health_monitor;
 mod host_keys;
 mod key_ops;
 mod login_limiter;
+mod persistent_shells;
 mod recordings;
 mod request_id;
 mod routes;
@@ -197,6 +198,9 @@ async fn main() -> anyhow::Result<()> {
     health_monitor::start_health_monitor(state.clone());
     // Recordings: mark the ones a stopped server left running, then retention every hour
     recordings::start_housekeeping(state.pool.clone(), state.recordings.clone());
+    // Kept shells (tmux) from before this start end after their owner's keep time unless
+    // reattached
+    persistent_shells::start_housekeeping(state.clone());
 
     // Start server with graceful shutdown
     let listener = tokio::net::TcpListener::bind(&args.addr).await?;
