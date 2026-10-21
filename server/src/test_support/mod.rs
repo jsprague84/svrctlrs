@@ -3,6 +3,7 @@
 //! code paths that otherwise only the e2e run against a real host exercised.
 
 pub mod app;
+pub mod oidc_provider;
 pub mod ssh_server;
 
 use svrctlrs_database::models::{CreateCredential, CreateServer, CredentialType};

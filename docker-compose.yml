@@ -25,6 +25,15 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?Set ENCRYPTION_KEY in .env (64 hex chars for AES-256-GCM)}
       # Origins of non-browser clients (Tauri desktop/Android). Leave empty for browser-only use.
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      # Sign-in with an OpenID Connect provider (optional) and whether passwords are taken
+      - PUBLIC_URL=${PUBLIC_URL:-}
+      - OIDC_ISSUER=${OIDC_ISSUER:-}
+      - OIDC_CLIENT_ID=${OIDC_CLIENT_ID:-}
+      - OIDC_CLIENT_SECRET=${OIDC_CLIENT_SECRET:-}
+      - OIDC_NAME=${OIDC_NAME:-}
+      - OIDC_SCOPES=${OIDC_SCOPES:-}
+      - OIDC_ALLOWED_GROUPS=${OIDC_ALLOWED_GROUPS:-}
+      - PASSWORD_LOGIN=${PASSWORD_LOGIN:-on}
     volumes:
       - svrctlrs-data:/app/data
       # Optional: SSH keys the server may use for key-path credentials. Mount a dedicated

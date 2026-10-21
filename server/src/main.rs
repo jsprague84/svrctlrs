@@ -156,8 +156,34 @@ async fn main() -> anyhow::Result<()> {
         })
         .unwrap_or_default();
 
+    // How people sign in: password, an OpenID Connect provider, or both. A half-made
+    // configuration (a provider without a client id, password sign-in off with nothing in
+    // its place) stops the server rather than lock everyone out or fall back silently.
+    let sign_in = sign_in::SignInConfig::from_env()
+        .map_err(|e| anyhow::anyhow!("sign-in configuration: {e} — refusing to start"))?;
+    if let Some(provider) = sign_in.provider() {
+        info!(
+            issuer = %provider.config.issuer,
+            name = %provider.config.name,
+            redirect_uri = %provider.config.redirect_uri,
+            password_login = sign_in.password_login,
+            "OpenID Connect sign-in configured"
+        );
+        let linked =
+            svrctlrs_database::queries::user_identities::count_linked_users(database.pool())
+                .await?;
+        if !sign_in.password_login && linked == 0 {
+            warn!(
+                "PASSWORD_LOGIN=off but no account has a linked identity: nobody can sign in. \
+                 Set PASSWORD_LOGIN=on, sign in with a password and link the provider under \
+                 Settings → Access → Sign-in"
+            );
+        }
+    }
+
     // Initialize application state
-    let state = AppState::new(database, allowed_origins).await?;
+    let mut state = AppState::new(database, allowed_origins).await?;
+    state.sign_in = std::sync::Arc::new(sign_in);
 
     // Default secure=true for production (HTTPS). Set SESSION_SECURE=false for local dev.
     let session_secure = std::env::var("SESSION_SECURE")

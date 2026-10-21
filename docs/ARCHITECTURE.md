@@ -51,7 +51,10 @@ does not pull in Tauri's GTK/WebKit dependencies.
    (`routes/api/files.rs`, streamed transfers) do not.
 2. **`require_auth`** (`server/src/routes/ui/auth.rs`) exempts `/auth/login`,
    `/auth/login/totp` (a password sign-in's second step, `server/src/sign_in/totp.rs`),
-   `/auth/logout`, `/api/v1/auth/login`, `/api/v1/health`, the static app shell, `/manifest.webmanifest` and
+   `/auth/oidc/start` and `/auth/oidc/callback` (sign-in with an OpenID Connect provider:
+   `routes/ui/oidc.rs` over `server/src/sign_in/oidc.rs` and `jwt.rs`; how anyone may sign in
+   is `SignInConfig`, read from the environment at start-up), `/auth/logout`,
+   `/api/v1/auth/login`, `/api/v1/health`, the static app shell, `/manifest.webmanifest` and
    `OPTIONS` (list in `SECURITY.md`). Everything else needs a session cookie, an API token
    (`Bearer svr_…`, `server/src/api_tokens.rs`: hashed lookup, then the token's access preset
    decides by method and path, 403 for anything it does not name), a session Bearer token (the

@@ -22,12 +22,20 @@ pub struct AppHarness {
 
 impl AppHarness {
     pub async fn new() -> Self {
+        Self::with_sign_in(crate::sign_in::SignInConfig::default()).await
+    }
+
+    /// The app with these sign-in settings. With password sign-in off, the owner's session is
+    /// made in the store directly (as a provider sign-in would leave it).
+    pub async fn with_sign_in(sign_in: crate::sign_in::SignInConfig) -> Self {
         super::ensure_encryption();
         let dir = tempfile::tempdir().unwrap();
         let url = format!("sqlite:{}", dir.path().join("t.db").display());
         let database = svrctlrs_database::Database::new(&url).await.unwrap();
         database.migrate().await.unwrap();
-        let state = AppState::new(database, vec![]).await.unwrap();
+        let mut state = AppState::new(database, vec![]).await.unwrap();
+        let password_login = sign_in.password_login;
+        state.sign_in = std::sync::Arc::new(sign_in);
         let store = SqliteStore::new(state.pool.clone());
         store.migrate().await.unwrap();
         svrctlrs_database::queries::users::create_user(
@@ -39,17 +47,31 @@ impl AppHarness {
         )
         .await
         .unwrap();
-        let app = crate::app::router(state.clone(), store, false);
-        let (status, body) = call(
-            &app,
-            "POST",
-            "/api/v1/auth/login",
-            None,
-            Some(json!({ "username": "ann", "password": "correct horse battery" })),
-        )
-        .await;
-        assert_eq!(status, StatusCode::OK, "{body}");
-        let session = body["session_id"].as_str().unwrap().to_string();
+        let app = crate::app::router(state.clone(), store.clone(), false);
+        let session = if password_login {
+            let (status, body) = call(
+                &app,
+                "POST",
+                "/api/v1/auth/login",
+                None,
+                Some(json!({ "username": "ann", "password": "correct horse battery" })),
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK, "{body}");
+            body["session_id"].as_str().unwrap().to_string()
+        } else {
+            use tower_sessions::SessionStore;
+            let mut record = tower_sessions::session::Record {
+                id: tower_sessions::session::Id::default(),
+                data: std::collections::HashMap::from([
+                    ("user_id".to_string(), json!(1)),
+                    ("auth_method".to_string(), json!("oidc")),
+                ]),
+                expiry_date: time::OffsetDateTime::now_utc() + time::Duration::hours(1),
+            };
+            store.create(&mut record).await.unwrap();
+            record.id.to_string()
+        };
         Self {
             app,
             state,

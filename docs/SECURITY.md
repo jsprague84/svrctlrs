@@ -38,6 +38,33 @@ other web pages the operator visits (see CSWSH below).
   it needs `docker exec`, never the network): it ends that account's sessions (browser and
   native app) and is audited as `user.password_reset`. API tokens are separate credentials and
   survive it, as they survive a password change; revoke them under Settings → Access.
+- **Sign-in with an OpenID Connect provider** (optional, `OIDC_ISSUER`; DEPLOYMENT.md) —
+  the authorization code flow with PKCE (S256), `state` and `nonce`, run by the server itself
+  (`server/src/sign_in/oidc.rs`). A flow lives ten minutes in memory under its `state` and is
+  bound to the browser that started it by a random value in its own `HttpOnly`,
+  `SameSite=Lax` cookie (`svrctlrs_oidc`, path `/auth/oidc`), compared in constant time; it is
+  used up by the first callback, right or wrong. The ID token comes straight from the token
+  endpoint over TLS and is still checked in full: signature against the provider's published
+  keys (RS256, ES256 or EdDSA only, each with a key of its own type, so `none`, HMAC and
+  key-type confusion are refused; RSA keys under 2048 bits are not trusted; the
+  verification is the `ssh-key` code russh already uses, `sign_in/jwt.rs`), `iss`, `aud` and
+  `azp`, `exp` and `iat` with a minute's leeway, the flow's `nonce`, a subject, and the
+  callback's `iss` parameter (RFC 9207) when sent. `OIDC_ALLOWED_GROUPS` adds a group check.
+  The account is found by `(issuer, subject)` only, never by e-mail address, and nothing is
+  ever created: an identity is linked by its account while signed in (Settings → Access →
+  Sign-in → Link, a same-origin navigation; one identity belongs to one account) and an
+  unlinked one is refused (`login.oidc_unlinked`). Failed callbacks count against the login
+  limiter by address. After the callback the browser gets a small page that moves on to the
+  app instead of a redirect, so the new `SameSite=Strict` session cookie is sent. Audit:
+  `login` with `method: oidc`, `user.identity_linked`, `user.identity_unlinked`,
+  `login.oidc_refused` (group). Signing out lands on `/auth/login?signed_out=1`, which does not
+  send you straight back to the provider.
+- **`PASSWORD_LOGIN=off`** refuses every password sign-in (`/auth/login`, its TOTP step and
+  `/api/v1/auth/login` answer 403, the latter `PASSWORD_LOGIN_OFF`), so the provider's
+  sign-in — a passkey, at Pocket ID — is the only way in. It needs a provider (the server does
+  not start otherwise), the last linked identity cannot be unlinked, and break-glass is the
+  environment flag on the host plus `svrctl reset-password`. The setting is read at start-up
+  only: no session or token can change it. API tokens are not affected.
 - **Two-factor sign-in (TOTP)** — optional per account (Settings → Access → Sign-in):
   RFC 6238, HMAC-SHA1, 6 digits, 30 s, one step of clock drift either way. Turning it on
   takes the current password, shows the secret (and a QR code) once, and takes effect only
@@ -69,7 +96,8 @@ other web pages the operator visits (see CSWSH below).
   edge like the reference one these apps cannot sign in (they cannot complete the passkey
   redirect); signing in through the system browser is ROADMAP item 22.
 - **API tokens** (agents and scripts: `svrctl`, Hermes, Claude Code) — see "API tokens" below.
-- **Exempt routes** — `/auth/login`, `/auth/logout`, `/api/v1/auth/login`, `/api/v1/health`,
+- **Exempt routes** — `/auth/login`, `/auth/login/totp`, `/auth/oidc/start`,
+  `/auth/oidc/callback`, `/auth/logout`, `/api/v1/auth/login`, `/api/v1/health`,
   the static app shell (`/_app/*`, `/icons/*`, `/fonts/*`, `/favicon.svg`,
   `/service-worker.js`), `/manifest.webmanifest` and `OPTIONS` preflights. `/api/v1/health`
   reveals only version and revision. The manifest is served by the server

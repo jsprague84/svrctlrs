@@ -7,6 +7,7 @@ use crate::state::AppState;
 
 pub mod auth;
 pub mod manifest;
+pub mod oidc;
 
 /// Create UI router: SPA + auth routes
 pub fn ui_routes() -> Router<AppState> {

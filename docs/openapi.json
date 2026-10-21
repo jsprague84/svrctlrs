@@ -288,6 +288,16 @@
               }
             }
           },
+          "403": {
+            "description": "Password sign-in is off (`PASSWORD_LOGIN_OFF`)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginRefused"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Too many failures; see Retry-After",
             "content": {

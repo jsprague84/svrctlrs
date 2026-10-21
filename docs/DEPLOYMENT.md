@@ -36,6 +36,14 @@ the rest is the same.
 | `ADMIN_USERNAME` | no | `admin` | admin username for that first start |
 | `ENCRYPTION_KEY` | strongly recommended | generated | 64 hex chars (`openssl rand -hex 32`). If the variable is absent the server writes `data/encryption.key` (mode 0600) and uses that; if it is present but invalid — including an empty string — the server refuses to start. Losing the key makes every stored credential unrecoverable. |
 | `DATABASE_URL` | no | `sqlite:/app/data/svrctlrs.db` | SQLite location (WAL mode; `-wal`/`-shm` files sit beside it) |
+| `PUBLIC_URL` | with OIDC | — | the address people open, e.g. `https://svrctlrs.example.com`; the provider's callback is `PUBLIC_URL/auth/oidc/callback` |
+| `OIDC_ISSUER` | no | unset | an OpenID Connect provider's issuer URL (any provider with discovery: Pocket ID, Authelia, Kanidm, Keycloak, …). Unset: password sign-in only |
+| `OIDC_CLIENT_ID` | with OIDC | — | the client registered at the provider |
+| `OIDC_CLIENT_SECRET` | no | unset | its secret (confidential client); unset for a public client with PKCE only |
+| `OIDC_NAME` | no | `single sign-on` | what the button says: "Sign in with …" |
+| `OIDC_SCOPES` | no | `openid profile email` (+ `groups` when groups are set) | scopes asked for; must include `openid` |
+| `OIDC_ALLOWED_GROUPS` | no | unset | comma-separated; the ID token's `groups` must name one. A second check beside the provider's own restriction |
+| `PASSWORD_LOGIN` | no | `on` | `off` refuses every password sign-in (form and JSON), leaving the provider as the only way in; needs `OIDC_ISSUER`. API tokens are not affected |
 | `SESSION_SECURE` | no | `true` | set `false` only when serving plain HTTP on a trusted LAN |
 | `ALLOWED_ORIGINS` | for native clients | unset | comma-separated origins of the Tauri apps, e.g. `tauri://localhost,https://tauri.localhost,http://tauri.localhost`. Enables CORS for them and switches the session cookie to `SameSite=None`. Leave empty for browser-only use. |
 | `SESSION_DETACH_TTL_SECS` | no | `900` | how long an interactive shell is kept after its last client disconnects (reload, lost link, phone backgrounded) before it is closed |
@@ -76,6 +84,36 @@ login proxy, use the headers-only chain or drop the middlewares; the app's own l
 the only gate, so keep it on a private network or behind a VPN. The server sets its own CSP
 and security headers either way. WebSockets need no special proxy
 configuration with Traefik; with nginx add the usual `Upgrade`/`Connection` headers on `/ws/`.
+
+## Signing in with an identity provider (OIDC)
+
+The server can sign people in with any OpenID Connect provider itself: no proxy and no other
+service. It is optional; without `OIDC_ISSUER` nothing changes.
+
+1. Register a client at the provider: callback URL `https://<host>/auth/oidc/callback`,
+   confidential (with a secret) or public with PKCE, scopes `openid profile email` (plus
+   `groups` if you use `OIDC_ALLOWED_GROUPS`). Restrict it to the people who should get a
+   shell on your servers — at Pocket ID, a group-restricted client.
+2. Set `PUBLIC_URL`, `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `OIDC_NAME`
+   in `.env`, then `docker compose up -d`. The log says `OpenID Connect sign-in configured`.
+   A half-made configuration stops the server with the reason.
+3. Sign in with your password, open Settings → Access → Sign-in and choose **Link**. You go to
+   the provider and back; your account now lists the identity. Accounts are never created or
+   matched by e-mail address: an identity the server has not been told about is refused
+   (audited as `login.oidc_unlinked`).
+4. Sign out and use **Sign in with …** on the login page.
+5. Optionally set `PASSWORD_LOGIN=off`. The login page then goes straight to the provider
+   (except right after signing out), and both password routes answer 403. The start-up log
+   warns if no account has a linked identity.
+
+**Break-glass** (the provider is down, or the identity was unlinked by mistake): on the host,
+set `PASSWORD_LOGIN=on` in `.env`, `docker compose up -d`, sign in with the password (and the
+TOTP code, if the account has one), fix things, set it back. If the password is forgotten too,
+`svrctl reset-password` (below). With the edge described next, password sign-in is reachable
+from the internet while it is on, so do this from the LAN or put the passkey chain back on the
+router for that time.
+
+API tokens never go through any of this: agents keep working whatever the sign-in settings.
 
 ## Native clients against this server
 

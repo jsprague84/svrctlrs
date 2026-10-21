@@ -110,8 +110,8 @@ async fn sign_in_methods(
             recovery_codes_left,
         },
         provider: state.sign_in.provider().map(|p| SignInProvider {
-            name: p.name.clone(),
-            issuer: p.issuer.clone(),
+            name: p.config.name.clone(),
+            issuer: p.config.issuer.clone(),
         }),
         identities,
     }))

@@ -19,6 +19,13 @@ the release workflow uses the matching section as the release notes.
   allowance of 10 attempts per 15 minutes; if the count cannot be read, the attempt is refused.
 
 ### Added
+- **Sign in with your identity provider (OpenID Connect)**, built into the server: set
+  `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `PUBLIC_URL`, link your account
+  under Settings → Access → Sign-in, and the login page offers "Sign in with …". Any provider
+  with discovery works (Pocket ID, Authelia, Kanidm, Keycloak, …); no proxy or extra service.
+  Accounts are linked, never created or matched by e-mail. `PASSWORD_LOGIN=off` then makes the
+  provider the only way in (break-glass: turn it back on in `.env`). API tokens work as before
+  whatever is set.
 - **Two-factor sign-in (TOTP)**, optional per account: Settings → Access → Sign-in shows a QR
   code for any authenticator app, and confirming a code turns it on and gives you ten
   one-time recovery codes. A password sign-in then asks for a code (or a recovery code) on a

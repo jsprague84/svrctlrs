@@ -1,7 +1,7 @@
 //! Authentication routes, middleware and the `CurrentUser` extractor
 
 use axum::{
-    extract::{FromRequestParts, Request, State},
+    extract::{FromRequestParts, Query, Request, State},
     http::{header, request::Parts, HeaderMap, StatusCode, Uri},
     middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
@@ -89,6 +89,8 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
     let path_lower = path.to_ascii_lowercase();
     let is_login = path_lower == "/auth/login"
         || path_lower == "/auth/login/totp"
+        || path_lower == "/auth/oidc/start"
+        || path_lower == "/auth/oidc/callback"
         || path_lower == "/api/v1/auth/login";
     if is_login && request.headers().contains_key(header::AUTHORIZATION) {
         return ApiError::bad_request(
@@ -452,6 +454,7 @@ pub fn routes() -> Router<AppState> {
         .route("/auth/login", get(login_page).post(login))
         .route("/auth/login/totp", post(login_totp))
         .route("/auth/logout", post(logout))
+        .merge(super::oidc::routes())
 }
 
 /// The JSON auth routes, which the OpenAPI document describes.
@@ -576,9 +579,30 @@ const CODE_FORM: &str = r#"<form method="post" action="/auth/login/totp">
 </form>
 <p class="links"><a href="/auth/login">Start over</a></p>"#;
 
-/// Render minimal standalone login page
-fn render_login_html(error: Option<&str>) -> String {
-    render_auth_page("Sign in to continue", error, PASSWORD_FORM)
+/// The login page for this server's sign-in methods: the provider's button, the password form,
+/// or both.
+pub(crate) fn login_html(sign_in: &crate::sign_in::SignInConfig, error: Option<&str>) -> String {
+    let mut body = String::new();
+    if let Some(provider) = sign_in.provider() {
+        body.push_str(&format!(
+            r#"<a class="button" href="/auth/oidc/start">Sign in with {}</a>"#,
+            html_escape(&provider.config.name)
+        ));
+        if sign_in.password_login {
+            body.push_str(r#"<div class="or">or with a password</div>"#);
+            body.push_str(
+                &PASSWORD_FORM
+                    .replace(
+                        r#"<button type="submit">"#,
+                        r#"<button type="submit" class="secondary">"#,
+                    )
+                    .replace(" autofocus", ""),
+            );
+        }
+    } else {
+        body.push_str(PASSWORD_FORM);
+    }
+    render_auth_page("Sign in to continue", error, &body)
 }
 
 fn render_code_html(error: Option<&str>) -> String {
@@ -586,8 +610,26 @@ fn render_code_html(error: Option<&str>) -> String {
 }
 
 /// Login page handler
-async fn login_page() -> Html<String> {
-    Html(render_login_html(None))
+async fn login_page(
+    State(state): State<AppState>,
+    Query(query): Query<super::oidc::LoginPageQuery>,
+) -> Response {
+    if let Some(redirect) = super::oidc::auto_redirect(&state, &query) {
+        return redirect;
+    }
+    Html(login_html(&state.sign_in, None)).into_response()
+}
+
+/// The answer to a password sent to a server that takes none
+fn password_login_off(state: &AppState) -> Response {
+    (
+        StatusCode::FORBIDDEN,
+        Html(login_html(
+            &state.sign_in,
+            Some("Password sign-in is off on this server."),
+        )),
+    )
+        .into_response()
 }
 
 /// Why a sign-in step was refused. Credential and rate-limit failures are told apart only in
@@ -801,7 +843,7 @@ fn retry_after_message(retry_after: std::time::Duration) -> String {
     format!("Too many failed attempts. Try again in {minutes} minute(s).")
 }
 
-fn html_failure(failure: LoginFailure, page: fn(Option<&str>) -> String) -> Response {
+fn html_failure(failure: LoginFailure, page: &dyn Fn(Option<&str>) -> String) -> Response {
     match failure {
         LoginFailure::RateLimited(retry_after) => (
             StatusCode::TOO_MANY_REQUESTS,
@@ -828,10 +870,10 @@ fn html_failure(failure: LoginFailure, page: fn(Option<&str>) -> String) -> Resp
     }
 }
 
-fn internal_page() -> Response {
+fn internal_page(state: &AppState) -> Response {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        Html(render_login_html(Some("Internal server error"))),
+        Html(login_html(&state.sign_in, Some("Internal server error"))),
     )
         .into_response()
 }
@@ -843,19 +885,23 @@ async fn login(
     session: Session,
     Form(creds): Form<LoginForm>,
 ) -> Response {
+    if !state.sign_in.password_login {
+        return password_login_off(&state);
+    }
     if !is_same_origin_request(&headers) {
         return (
             StatusCode::FORBIDDEN,
-            Html(render_login_html(Some("Cross-site login refused"))),
+            Html(login_html(&state.sign_in, Some("Cross-site login refused"))),
         )
             .into_response();
     }
+    let page = |e: Option<&str>| login_html(&state.sign_in, e);
     let ip = client_ip(&headers);
     match check_password(&state, &ip, &creds).await {
         Ok((user, false)) => {
             match start_session(&state, &session, user.id, &user.username, &ip, "password").await {
                 Ok(()) => Redirect::to("/").into_response(),
-                Err(_) => internal_page(),
+                Err(_) => internal_page(&state),
             }
         }
         Ok((user, true)) => {
@@ -869,11 +915,11 @@ async fn login(
             if session.cycle_id().await.is_err()
                 || session.insert(PENDING_LOGIN_KEY, &pending).await.is_err()
             {
-                return internal_page();
+                return internal_page(&state);
             }
             Html(render_code_html(None)).into_response()
         }
-        Err(failure) => html_failure(failure, render_login_html),
+        Err(failure) => html_failure(failure, &page),
     }
 }
 
@@ -884,26 +930,27 @@ async fn login_totp(
     session: Session,
     Form(form): Form<CodeForm>,
 ) -> Response {
+    if !state.sign_in.password_login {
+        return password_login_off(&state);
+    }
     if !is_same_origin_request(&headers) {
         return (
             StatusCode::FORBIDDEN,
-            Html(render_login_html(Some("Cross-site login refused"))),
+            Html(login_html(&state.sign_in, Some("Cross-site login refused"))),
         )
             .into_response();
     }
+    let page = |e: Option<&str>| login_html(&state.sign_in, e);
     let Some(mut pending) = session
         .get::<PendingLogin>(PENDING_LOGIN_KEY)
         .await
         .unwrap_or(None)
     else {
-        return Html(render_login_html(Some("Sign in again"))).into_response();
+        return Html(page(Some("Sign in again"))).into_response();
     };
     if chrono::Utc::now().timestamp() - pending.started_at > PENDING_LOGIN_SECS {
         let _ = session.remove::<PendingLogin>(PENDING_LOGIN_KEY).await;
-        return Html(render_login_html(Some(
-            "That took too long. Sign in again.",
-        )))
-        .into_response();
+        return Html(page(Some("That took too long. Sign in again."))).into_response();
     }
     let ip = client_ip(&headers);
     match check_code(&state, &ip, pending.user_id, &pending.username, &form.code).await {
@@ -919,26 +966,23 @@ async fn login_totp(
             .await
             {
                 Ok(()) => Redirect::to("/").into_response(),
-                Err(_) => internal_page(),
+                Err(_) => internal_page(&state),
             }
         }
         Err(LoginFailure::InvalidCode) => {
             pending.tries += 1;
             if pending.tries >= PENDING_LOGIN_TRIES {
                 let _ = session.remove::<PendingLogin>(PENDING_LOGIN_KEY).await;
-                return Html(render_login_html(Some(
-                    "Too many wrong codes. Sign in again.",
-                )))
-                .into_response();
+                return Html(page(Some("Too many wrong codes. Sign in again."))).into_response();
             }
             if session.insert(PENDING_LOGIN_KEY, &pending).await.is_err() {
-                return internal_page();
+                return internal_page(&state);
             }
-            html_failure(LoginFailure::InvalidCode, render_code_html)
+            html_failure(LoginFailure::InvalidCode, &render_code_html)
         }
         Err(failure) => {
             let _ = session.remove::<PendingLogin>(PENDING_LOGIN_KEY).await;
-            html_failure(failure, render_login_html)
+            html_failure(failure, &page)
         }
     }
 }
@@ -1003,6 +1047,7 @@ fn json_failure(failure: LoginFailure) -> Response {
     responses(
         (status = 200, description = "Signed in; the session cookie is set too", body = LoggedIn),
         (status = 401, description = "Wrong password, or a code is required (`TOTP_REQUIRED`) or wrong (`TOTP_INVALID`)", body = LoginRefused),
+        (status = 403, description = "Password sign-in is off (`PASSWORD_LOGIN_OFF`)", body = LoginRefused),
         (status = 429, description = "Too many failures; see Retry-After", body = LoginRefused),
     ))]
 async fn login_json(
@@ -1011,6 +1056,14 @@ async fn login_json(
     session: Session,
     Json(login): Json<svrctlrs_api::auth::Login>,
 ) -> Response {
+    if !state.sign_in.password_login {
+        return refused_with(
+            StatusCode::FORBIDDEN,
+            "PASSWORD_LOGIN_OFF",
+            "Password sign-in is off on this server",
+        )
+        .into_response();
+    }
     let creds = LoginForm {
         username: login.username,
         password: login.password,
@@ -1081,7 +1134,8 @@ async fn logout(
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
     tracing::info!("User logged out");
-    Ok(Redirect::to("/auth/login"))
+    // Not straight back to the provider, whose own session would sign you in again
+    Ok(Redirect::to("/auth/login?signed_out=1"))
 }
 
 #[cfg(test)]
