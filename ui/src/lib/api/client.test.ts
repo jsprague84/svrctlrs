@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const goto = vi.fn();
 vi.mock('$app/navigation', () => ({ goto }));
 
-import { ApiError, authorizedFetch, checkSignIn, get } from './client.js';
+import { ApiError, authorizedFetch, checkSignIn, get, logout } from './client.js';
 
 function store(): Storage {
 	const data = new Map<string, string>();
@@ -69,11 +69,22 @@ describe('the web app behind a login proxy', () => {
 		expect(reload).toHaveBeenCalledTimes(2);
 	});
 
-	it("sends the app's own 401 to the login page, without a reload", async () => {
+	it("sends the app's own 401 to the server's login page, not the SPA's", async () => {
 		fetchMock.mockResolvedValue(json(401, { error: 'Authentication required' }));
 		await expect(get('/servers')).rejects.toMatchObject({ status: 401 });
-		expect(goto).toHaveBeenCalledWith('/auth/login');
+		// A full page load: the server's page offers the identity provider and two-factor
+		expect(window.location.href).toBe('/auth/login');
+		expect(goto).not.toHaveBeenCalled();
 		expect(reload).not.toHaveBeenCalled();
+	});
+
+	it('signs out to the login page without going straight back to the provider', async () => {
+		fetchMock.mockResolvedValue(new Response(null, { status: 200 }));
+		await logout();
+		expect(fetchMock.mock.calls[0][0]).toBe('/auth/logout');
+		expect(fetchMock.mock.calls[0][1]).toMatchObject({ method: 'POST' });
+		expect(window.location.href).toBe('/auth/login?signed_out=1');
+		expect(goto).not.toHaveBeenCalled();
 	});
 });
 

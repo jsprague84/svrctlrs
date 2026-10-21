@@ -24,9 +24,17 @@ export class ApiError extends Error {
 	}
 }
 
-/** Where a 401 from the app sends the user (its own login page). */
-async function toLogin(): Promise<void> {
-	// Use SvelteKit goto if available, fall back to window.location for non-SPA contexts
+/** Where a 401 or signing out sends the user. In the browser that is the server's own login
+ *  page (password, two-factor, "Sign in with …" for an identity provider), which only a full
+ *  page load reaches: a client-side `goto` would render the SPA's `/auth/login` route, the
+ *  native apps' password-only form. After signing out, `?signed_out=1` keeps the page from
+ *  sending you straight back to the provider. */
+async function toLogin(signedOut = false): Promise<void> {
+	const path = signedOut ? '/auth/login?signed_out=1' : '/auth/login';
+	if (!getServerUrl()) {
+		window.location.href = path;
+		return;
+	}
 	try {
 		const { goto } = await import('$app/navigation');
 		goto('/auth/login');
@@ -147,5 +155,5 @@ export async function logout(): Promise<void> {
 	}
 	localStorage.removeItem('svrctlrs-session-token');
 	localStorage.removeItem('svrctlrs-user-id');
-	await toLogin();
+	await toLogin(true);
 }

@@ -380,6 +380,14 @@ with sync_playwright() as p:
                 go("/")
                 page.get_by_label("New terminal").click()
                 shot("sheet-servers")
+            if vp_name == "desktop":
+                # Logout lands on the server's login page (the one that offers an identity
+                # provider), not the SPA's password-only route, and does not bounce to a provider
+                go("/")
+                page.get_by_role("button", name="Logout").click()
+                page.wait_for_url("**/auth/login?signed_out=1", timeout=5000)
+                check(f"logout shows the server's login page ({theme})",
+                      page.locator('form[action="/auth/login"]').count() == 1)
             ctx.close()
     # Login page, logged out
     for vp_name, vp in VIEWPORTS.items():
