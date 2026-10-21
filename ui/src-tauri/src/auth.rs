@@ -143,7 +143,18 @@ pub async fn sign_in_with_browser(
         return Err("the browser came back from a different sign-in; try again".into());
     }
 
-    let response = reqwest::Client::new()
+    // Named, so the account's device list says "Desktop app on Linux"
+    let os = match std::env::consts::OS {
+        "linux" => "Linux",
+        "windows" => "Windows",
+        "macos" => "macOS",
+        other => other,
+    };
+    let client = reqwest::Client::builder()
+        .user_agent(format!("svrctlrs-desktop/{} ({os})", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|e| format!("cannot start the sign-in: {e}"))?;
+    let response = client
         .post(format!("{server_url}/api/v1/auth/app-token"))
         .header("content-type", "application/json")
         .body(serde_json::json!({ "code": code, "code_verifier": verifier }).to_string())

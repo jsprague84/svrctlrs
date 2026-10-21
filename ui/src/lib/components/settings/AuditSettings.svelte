@@ -15,7 +15,7 @@
 	/** One chip per kind of event; `action` is the comma-separated prefix list the API takes */
 	const KINDS: Array<{ id: string; label: string; action?: string }> = [
 		{ id: 'all', label: 'Everything' },
-		{ id: 'logins', label: 'Logins', action: 'login,logout' },
+		{ id: 'logins', label: 'Logins', action: 'login,logout,device.' },
 		{ id: 'sessions', label: 'Sessions', action: 'session.,recording.' },
 		{ id: 'changes', label: 'Changes', action: 'server.,credential.,user.,token.' }
 	];
