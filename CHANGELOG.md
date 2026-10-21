@@ -26,6 +26,14 @@ the release workflow uses the matching section as the release notes.
   `localStorage` (an older build's token moves there at the first start). It works behind the
   reference edge, and Ctrl+W reaches vim in the terminal. Set `ALLOWED_ORIGINS` to the app's
   origin (`tauri://localhost` on Linux).
+- **A Nix flake for the desktop app** (`nix run git+https://git.js-node.cc/jsprague/svrctlrs#desktop`):
+  nixpkgs' WebKitGTK, Wayland, the tray and the keyring wired up. The AppImage cannot start on
+  NixOS or on a Wayland compositor without Xwayland (it forces X11).
+
+### Fixed
+- The desktop app no longer crashes at start when the tray library
+  (`libayatana-appindicator`) is missing; it runs without a tray.
+- The AppImage build failed once the app could open the browser (`xdg-open` missing in CI).
 - **Sign in with your identity provider (OpenID Connect)**, built into the server: set
   `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `PUBLIC_URL`, link your account
   under Settings → Access → Sign-in, and the login page offers "Sign in with …". Any provider

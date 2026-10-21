@@ -144,6 +144,15 @@ API tokens never go through any of this: agents keep working whatever the sign-i
 It needs nothing at the edge: the reference router passes the app's requests to the server,
 which judges its token like any other.
 
+**Which package.** `.deb` (Debian, Ubuntu) and `.rpm` (Fedora) come with each release. On
+**NixOS** use the flake: `nix run git+https://git.js-node.cc/jsprague/svrctlrs#desktop`, or put
+`inputs.svrctlrs.packages.${pkgs.system}.desktop` in `environment.systemPackages`; it uses
+nixpkgs' WebKitGTK and runs on Wayland. The **AppImage** forces X11 (Tauri's GTK hook works
+around a Wayland crash), so on a Wayland compositor without Xwayland (niri without
+`xwayland-satellite`) it fails with "Failed to initialize GTK"; and on NixOS it needs
+`appimage-run` anyway. The app runs without a tray if `libayatana-appindicator` is missing
+(closing the window then quits).
+
 ## Backups
 
 A backup is the database **and the encryption key**; one without the other is useless.

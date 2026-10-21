@@ -215,7 +215,8 @@ Migrations are checksummed, so never edit one that has shipped.
 
 One Tauri project; the Linux desktop build (`.deb`, `.rpm`, AppImage) registers a tray icon and
 hides to tray on close. `src-tauri/src/auth.rs` signs it in through the system browser (a
-`127.0.0.1` listener, PKCE, `tauri-plugin-opener`) and keeps the token with `keyring`. The app identifier is `cc.jsnode.svrctlrs`. The Android target is
+`127.0.0.1` listener, PKCE, `tauri-plugin-opener`) and keeps the token with `keyring`. Besides
+the CI packages, `flake.nix` builds it the nixpkgs way (`packaging/nix/desktop.nix`). The app identifier is `cc.jsnode.svrctlrs`. The Android target is
 parked (`.forgejo/workflows-parked/`); the phone uses the web app.
 
 ## Build and delivery

@@ -66,10 +66,20 @@ pub fn run() {
                 if let Some(icon) = app.default_window_icon() {
                     tray = tray.icon(icon.clone());
                 }
-                let available = match tray.build(app) {
-                    Ok(_) => true,
-                    Err(e) => {
+                // The tray library is loaded at run time, and libappindicator-sys panics
+                // (instead of returning an error) when it is not installed: run without a tray
+                // then, rather than crash at start.
+                let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    tray.build(app)
+                }));
+                let available = match built {
+                    Ok(Ok(_)) => true,
+                    Ok(Err(e)) => {
                         log::warn!("system tray unavailable, close will quit: {e}");
+                        false
+                    }
+                    Err(_) => {
+                        log::warn!("no tray library (libayatana-appindicator), close will quit");
                         false
                     }
                 };

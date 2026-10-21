@@ -36,7 +36,9 @@ file.
   `svrctl diagnose <server>` answers "why can't I reach it?" step by step, with a fix.
 - **Clients** — the web UI served by the server, with a mobile layout (touch gestures, an
   extra-keys row, swipe between tabs) that works in a phone browser; and a Tauri desktop app
-  for Linux (`.deb`, `.rpm`, AppImage).
+  for Linux (`.deb`, `.rpm`, AppImage, and a Nix flake: `nix run
+  git+https://git.js-node.cc/jsprague/svrctlrs#desktop`) that signs in through your browser and
+  leaves Ctrl+W to vim.
 
 ## Screenshots
 

@@ -33,6 +33,7 @@ server/      Axum app: main.rs, app.rs (the router stack), ssh.rs (the one SSH c
              app on a temporary database)
 ui/          SvelteKit 5 SPA (adapter-static → ui/build, served by the server at SPA_DIR)
 ui/src-tauri/  Tauri 2 desktop + Android (excluded from the Cargo workspace)
+flake.nix, packaging/nix/  the desktop app as a Nix package (NixOS; update the npm hash with ui/package-lock.json)
 .forgejo/    CI images and workflows (ci, docker, android, desktop)
 scripts/ci/  release helper; scripts/deploy/ docker-vm deploy (forced-command target)
 skills/      svrctlrs/SKILL.md, the agent skill for svrctl (linked from .claude/skills/)

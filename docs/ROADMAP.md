@@ -17,8 +17,8 @@ approvals for the deletes that cannot be undone (items 15–16).
 **3.4.0 released 2026-10-19**: the OpenAPI document and typed responses, diagnose, exec,
 onboard and rotate-key, and `svrctl` as the agent CLI with its skill and a Hermes eval
 (items 17–19): agent access is done. **After 3.4.0** (2026-10-19): the password login closed
-to the internet (item 20), sign-in with OIDC and TOTP in the binary (item 21); items 22–26
-follow in the owner's order.
+to the internet (item 20), sign-in with OIDC and TOTP in the binary (item 21), the desktop app signing in through the
+browser (item 22); items 23–26 follow in the owner's order.
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an
@@ -233,15 +233,13 @@ beside the binary, and what an identity provider does stays optional.
     SvrCtlRS's path and one headers-only router serves browsers, apps and agent tokens. Agent
     tokens work exactly as before (tested with password sign-in off; outside check
     2026-10-21).
-22. **Keep the desktop app** (owner: vim needs Ctrl+W, which a browser tab keeps for itself).
-    Sign-in through the system browser (RFC 8252 shape, with svrctlrs as the authority: the
-    app opens `/auth/app` with a PKCE challenge, the browser signs in however the server
-    allows (provider, or password and TOTP; an open session skips it), and after a "sign in
-    the desktop app?" prompt svrctlrs hands a one-time code to the app's `127.0.0.1` port,
-    which the app exchanges with its verifier; no second provider client, and it works
-    without a provider), the session in the OS keyring
-    instead of `localStorage` (SECURITY known weakness 4), the deprecated `?token=` removed,
-    and a build tried on the owner's desktop with vim (`:split`, Ctrl+W j). Needs 21.
+22. ~~**Keep the desktop app**~~ Done 2026-10-21 (owner tested on the t490, NixOS + niri:
+    sign-in through the browser with Pocket ID, vim `:split` and Ctrl+W j, still signed in after
+    a restart). Sign-in through the system browser with svrctlrs as the authority (`/auth/app`,
+    a one-time code on a `127.0.0.1` port, PKCE; works without a provider), a 30-day session in
+    the OS keyring instead of `localStorage` (SECURITY known weakness 4), `?token=` removed,
+    `ALLOWED_ORIGINS` no longer relaxing the browser cookie, Bearer logout, a tray that is
+    optional, and a Nix flake for NixOS (the AppImage forces X11).
 23. **Shells that outlive a deploy and a pocket.** Every push to `master` restarts the
     container and ends every shell, and a detached shell is kept 15 minutes. A per-account
     "keep detached shells" preference (15 min / 1 h / 8 h, capped by the server) and an opt-in
