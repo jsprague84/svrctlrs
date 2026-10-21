@@ -243,19 +243,45 @@ pub(crate) async fn app_token(
             "Internal error",
         );
     }
+    // The app is a signed-in device like a browser; the session names its row
+    let session_id = record.id.to_string();
+    let device =
+        match crate::devices::record(&state.pool, user_id, &session_id, "app", &headers).await {
+            Ok(device) => device,
+            Err(e) => {
+                tracing::error!(error = %e, "Failed to record the app's sign-in");
+                let _ = store.delete(&record.id).await;
+                return refused(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "INTERNAL",
+                    "Internal error",
+                );
+            }
+        };
+    record
+        .data
+        .insert(crate::devices::DEVICE_KEY.to_string(), device.id.into());
+    if let Err(e) = store.save(&record).await {
+        tracing::error!(error = %e, "Failed to save the app's session");
+        return refused(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "INTERNAL",
+            "Internal error",
+        );
+    }
     crate::audit::record(
         &state.pool,
         NewAuditEntry::new("login")
             .user(user_id)
             .username(&username)
             .client_ip(Some(ip))
-            .details(serde_json::json!({ "method": "app" })),
+            .details(serde_json::json!({ "method": "app", "device_id": device.id })),
     );
     tracing::info!(user_id, "Desktop app signed in");
     Json(LoggedIn {
         success: true,
         user_id,
-        session_id: record.id.to_string(),
+        session_id,
     })
     .into_response()
 }

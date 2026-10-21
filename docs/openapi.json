@@ -3140,6 +3140,86 @@
         }
       }
     },
+    "/api/v1/users/me/devices": {
+      "get": {
+        "tags": [
+          "users"
+        ],
+        "summary": "The caller's signed-in devices: this one first, then the most recently used",
+        "operationId": "list",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceList"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/devices/sign-out-others": {
+      "post": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Sign out every device but this one",
+        "operationId": "sign_out_others",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DevicesSignedOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/devices/{id}": {
+      "delete": {
+        "tags": [
+          "users"
+        ],
+        "summary": "Sign a device out: its session ends and its terminals close (its shells stay, detached).\nSigning out this device is signing out.",
+        "operationId": "sign_out",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdMessage"
+                }
+              }
+            }
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/users/me/identities/{id}": {
       "delete": {
         "tags": [
@@ -4457,6 +4537,79 @@
           },
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "Device": {
+        "type": "object",
+        "description": "A browser or desktop-app sign-in",
+        "required": [
+          "id",
+          "label",
+          "method",
+          "current",
+          "created_at",
+          "last_seen_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "label": {
+            "type": "string",
+            "description": "A short name from its user agent: \"Firefox on Android\", \"Desktop app on Linux\""
+          },
+          "method": {
+            "type": "string",
+            "description": "`password`, `password+totp`, `password+recovery_code`, `oidc`, `app` or `unknown`"
+          },
+          "current": {
+            "type": "boolean",
+            "description": "The device this request came from"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "last_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Written at most once a minute"
+          },
+          "last_ip": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DeviceList": {
+        "type": "object",
+        "description": "`GET /users/me/devices`: this device first, then the most recently used",
+        "required": [
+          "devices"
+        ],
+        "properties": {
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            }
+          }
+        }
+      },
+      "DevicesSignedOut": {
+        "type": "object",
+        "description": "`POST /users/me/devices/sign-out-others`",
+        "required": [
+          "signed_out"
+        ],
+        "properties": {
+          "signed_out": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       },

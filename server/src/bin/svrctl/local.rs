@@ -254,6 +254,9 @@ async fn reset_password(
                 sessions_ended += 1;
             }
         }
+        // Their devices leave the list with them (a database the server has not migrated
+        // yet has no devices)
+        let _ = queries::devices::delete_all_except(pool, user.id, None).await;
     }
 
     // Removing the enrolment needs no key: it deletes the (encrypted) secret

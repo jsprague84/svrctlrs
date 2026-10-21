@@ -5,6 +5,7 @@ pub mod approvals;
 pub mod audit;
 pub mod backup_runs;
 pub mod credentials;
+pub mod devices;
 pub mod login_failures;
 pub mod persistent_shells;
 pub mod quick_commands;

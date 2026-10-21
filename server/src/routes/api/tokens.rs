@@ -212,7 +212,7 @@ async fn remove(
 /// signed-in owner, used for a shell through the WebSocket ticket exchange against the
 /// loopback SSH server, and revoked, which ends that shell.
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::test_support::app::{call, eventually, AppHarness};
     use futures_util::{SinkExt, StreamExt};
@@ -317,7 +317,7 @@ mod tests {
     }
 
     /// Read text messages until one satisfies `want`; None on timeout or close.
-    async fn next_matching<S>(
+    pub(crate) async fn next_matching<S>(
         ws: &mut S,
         want: impl Fn(&serde_json::Value) -> bool,
     ) -> Option<serde_json::Value>

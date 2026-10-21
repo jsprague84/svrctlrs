@@ -12,6 +12,7 @@ pub mod auth;
 pub mod backups;
 pub mod common;
 pub mod credentials;
+pub mod devices;
 pub mod files;
 pub mod notifications;
 pub mod ops;

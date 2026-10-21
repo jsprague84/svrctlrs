@@ -13,6 +13,7 @@ use tower_sessions::{session::Id, Session, SessionStore};
 use tower_sessions_sqlx_store::SqliteStore;
 
 use crate::api_tokens::{self, TokenAuth, TokenCheck};
+use crate::devices::{self, DeviceAuth, Verdict};
 use crate::routes::api::ApiError;
 use crate::state::AppState;
 use crate::ws_tickets::TicketOwner;
@@ -47,7 +48,7 @@ impl<S: Send + Sync> FromRequestParts<S> for CurrentUser {
 /// manifest, which reads the session itself and adds the signed-in user's own shortcuts.
 ///
 /// Four ways in, all ending with a [`CurrentUser`] extension on the request:
-/// - the session cookie, holding `user_id`;
+/// - the session cookie, holding `user_id`, while its device is signed in (`devices.rs`);
 /// - a one-time ticket on a WebSocket upgrade (`?ticket=`, see `ws_tickets.rs`);
 /// - an API token (`Authorization: Bearer svr_…`, see `api_tokens.rs`): the user is the
 ///   token's owner, the request must fall inside the token's preset (403 otherwise, decided
@@ -56,7 +57,9 @@ impl<S: Send + Sync> FromRequestParts<S> for CurrentUser {
 /// - a session token (`Authorization: Bearer <session id>`, or `?token=` on WebSocket
 ///   upgrades, deprecated in favour of tickets). It is looked up as a session record through
 ///   the store, so it must be unexpired, and the user id comes from *that record* — never from
-///   anything the client sends alongside it.
+///   anything the client sends alongside it. Its device must be signed in too.
+///
+/// A cookie or session token also gets a [`DeviceAuth`] extension naming its device.
 ///
 /// A request that carries an API token is judged by that token alone, before any cookie is
 /// looked at. The reference edge lets requests with `Authorization: Bearer svr_…` past its
@@ -124,10 +127,49 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
         return token_auth(pool, &value, &path, request, next).await;
     }
 
-    // Session cookie
+    // Session cookie, while its device is signed in
     if let Some(user_id) = session.get::<i64>(USER_ID_KEY).await.unwrap_or(None) {
-        request.extensions_mut().insert(CurrentUser(user_id));
-        return next.run(request).await;
+        let (Some(pool), Some(id)) = (pool.as_ref(), session.id()) else {
+            return StatusCode::UNAUTHORIZED.into_response();
+        };
+        let marker = session
+            .get::<i64>(devices::DEVICE_KEY)
+            .await
+            .unwrap_or(None);
+        let method = session.get::<String>(AUTH_METHOD_KEY).await.unwrap_or(None);
+        match devices::judge(
+            pool,
+            &id.to_string(),
+            user_id,
+            marker,
+            method.as_deref(),
+            request.headers(),
+        )
+        .await
+        {
+            Verdict::Valid {
+                device_id,
+                adopted,
+                touched,
+            } => {
+                if adopted {
+                    let _ = session.insert(devices::DEVICE_KEY, device_id).await;
+                }
+                if touched {
+                    // Saved again, so the 24 hours of inactivity start over
+                    let now = chrono::Utc::now().timestamp();
+                    let _ = session.insert(devices::SEEN_KEY, now).await;
+                }
+                request.extensions_mut().insert(CurrentUser(user_id));
+                request.extensions_mut().insert(DeviceAuth(device_id));
+                return next.run(request).await;
+            }
+            // Signed out from another device: drop the session and answer as signed out
+            Verdict::SignedOut => {
+                let _ = session.flush().await;
+            }
+            Verdict::Error => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+        }
     }
 
     // One-time ticket on a WebSocket upgrade (see ws_tickets.rs). Consumed on first use.
@@ -140,6 +182,18 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
             let Some(owner) = tickets.and_then(|t| t.redeem(&ticket)) else {
                 return StatusCode::UNAUTHORIZED.into_response();
             };
+            if let Some(device) = owner.device {
+                // Minted by a signed-in device that may have been signed out since
+                let valid = match &pool {
+                    Some(pool) => svrctlrs_database::queries::devices::exists(pool, device)
+                        .await
+                        .unwrap_or(false),
+                    None => false,
+                };
+                if !valid {
+                    return StatusCode::UNAUTHORIZED.into_response();
+                }
+            }
             if let Some(token) = &owner.token {
                 // Minted with a token: the upgrade gets that token's access, and only while
                 // the token is still good (it may have been revoked since).
@@ -158,6 +212,9 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
                     );
                 }
             }
+            if let Some(device) = owner.device {
+                request.extensions_mut().insert(DeviceAuth(device));
+            }
             return proceed(request, next, owner.user_id, owner.token).await;
         }
     }
@@ -175,9 +232,49 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
     let token = bearer_token(request.headers());
 
     if let (Some(token), Some(pool)) = (token, pool) {
-        if let Some(user_id) = user_id_for_token(&SqliteStore::new(pool), &token).await {
-            request.extensions_mut().insert(CurrentUser(user_id));
-            return next.run(request).await;
+        let store = SqliteStore::new(pool.clone());
+        if let Some(mut record) = session_for_token(&store, &token).await {
+            if let Some(user_id) = record.data.get(USER_ID_KEY).and_then(|v| v.as_i64()) {
+                let marker = record
+                    .data
+                    .get(devices::DEVICE_KEY)
+                    .and_then(|v| v.as_i64());
+                let method = record
+                    .data
+                    .get(AUTH_METHOD_KEY)
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                match devices::judge(
+                    &pool,
+                    &token,
+                    user_id,
+                    marker,
+                    method.as_deref(),
+                    request.headers(),
+                )
+                .await
+                {
+                    Verdict::Valid {
+                        device_id, adopted, ..
+                    } => {
+                        if adopted {
+                            record
+                                .data
+                                .insert(devices::DEVICE_KEY.to_string(), device_id.into());
+                            if let Err(e) = store.save(&record).await {
+                                tracing::warn!(error = %e, "Could not mark the session's device");
+                            }
+                        }
+                        request.extensions_mut().insert(CurrentUser(user_id));
+                        request.extensions_mut().insert(DeviceAuth(device_id));
+                        return next.run(request).await;
+                    }
+                    Verdict::SignedOut => {
+                        let _ = store.delete(&record.id).await;
+                    }
+                    Verdict::Error => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+                }
+            }
         }
     }
 
@@ -378,10 +475,12 @@ async fn ws_ticket(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
     token: Option<axum::Extension<TokenAuth>>,
+    device: Option<axum::Extension<DeviceAuth>>,
 ) -> Json<svrctlrs_api::auth::WsTicket> {
     let ticket = state.ws_tickets.issue(TicketOwner {
         user_id,
         token: token.map(|axum::Extension(t)| t),
+        device: device.map(|axum::Extension(DeviceAuth(id))| id),
     });
     Json(svrctlrs_api::auth::WsTicket {
         ticket,
@@ -405,12 +504,14 @@ fn query_param(uri: &Uri, name: &str) -> Option<String> {
     })
 }
 
-/// Resolve a token to the user id stored in its session record. `load` only returns
-/// unexpired records, so an expired session is not a valid token either.
-async fn user_id_for_token(store: &SqliteStore, token: &str) -> Option<i64> {
+/// Resolve a session token to its session record. `load` only returns unexpired records, so
+/// an expired session is not a valid token either.
+async fn session_for_token(
+    store: &SqliteStore,
+    token: &str,
+) -> Option<tower_sessions::session::Record> {
     let id: Id = token.parse().ok()?;
-    let record = store.load(&id).await.ok().flatten()?;
-    record.data.get(USER_ID_KEY)?.as_i64()
+    store.load(&id).await.ok().flatten()
 }
 
 /// Whether a WebSocket upgrade may proceed, judged by its `Origin`.
@@ -840,28 +941,21 @@ async fn check_code(
     Err(LoginFailure::InvalidCode)
 }
 
-/// Sign `user` in: forget the limiter's failures, audit, and start a fresh session (a new
-/// id, so a pre-login session cannot be fixated).
+/// Sign `user` in: forget the limiter's failures, start a fresh session (a new id, so a
+/// pre-login session cannot be fixated), record it as a device, and audit.
 pub(crate) async fn start_session(
     state: &AppState,
     session: &Session,
     user_id: i64,
     username: &str,
-    ip: &str,
+    headers: &HeaderMap,
     method: &str,
 ) -> Result<(), String> {
-    let keys = crate::login_limiter::LoginLimiter::keys(ip, username);
+    let ip = client_ip(headers);
+    let keys = crate::login_limiter::LoginLimiter::keys(&ip, username);
     if let Err(e) = state.login_limiter.clear(&keys).await {
         tracing::error!(error = %e, "Failed to clear login failures");
     }
-    crate::audit::record(
-        &state.pool,
-        NewAuditEntry::new("login")
-            .user(user_id)
-            .username(username)
-            .client_ip(Some(ip.to_string()))
-            .details(serde_json::json!({ "method": method })),
-    );
 
     session.cycle_id().await.map_err(|e| {
         tracing::error!(error = %e, "Failed to cycle session id");
@@ -876,7 +970,32 @@ pub(crate) async fn start_session(
         .insert(AUTH_METHOD_KEY, method)
         .await
         .map_err(|e| e.to_string())?;
-    tracing::info!(username = %username, user_id, method, "User logged in");
+    // Saved now, so the session has the id its device is recorded under
+    session.save().await.map_err(|e| {
+        tracing::error!(error = %e, "Failed to save session");
+        "Failed to save session".to_string()
+    })?;
+    let id = session.id().ok_or("The session has no id")?;
+    let device = devices::record(&state.pool, user_id, &id.to_string(), method, headers)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Failed to record the sign-in");
+            "Failed to record the sign-in".to_string()
+        })?;
+    session
+        .insert(devices::DEVICE_KEY, device.id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("login")
+            .user(user_id)
+            .username(username)
+            .client_ip(Some(ip))
+            .details(serde_json::json!({ "method": method, "device_id": device.id })),
+    );
+    tracing::info!(username = %username, user_id, method, device_id = device.id, "User logged in");
     Ok(())
 }
 
@@ -941,7 +1060,16 @@ async fn login(
     let ip = client_ip(&headers);
     match check_password(&state, &ip, &creds).await {
         Ok((user, false)) => {
-            match start_session(&state, &session, user.id, &user.username, &ip, "password").await {
+            match start_session(
+                &state,
+                &session,
+                user.id,
+                &user.username,
+                &headers,
+                "password",
+            )
+            .await
+            {
                 Ok(()) => Redirect::to(&take_after_login(&session).await).into_response(),
                 Err(_) => internal_page(&state),
             }
@@ -1002,7 +1130,7 @@ async fn login_totp(
                 &session,
                 pending.user_id,
                 &pending.username,
-                &ip,
+                &headers,
                 method,
             )
             .await
@@ -1131,7 +1259,7 @@ async fn login_json(
     } else {
         "password"
     };
-    if start_session(&state, &session, user.id, &user.username, &ip, method)
+    if start_session(&state, &session, user.id, &user.username, &headers, method)
         .await
         .is_err()
     {
@@ -1166,12 +1294,14 @@ async fn logout(
         let store = SqliteStore::new(state.pool.clone());
         if let Ok(id) = token.parse::<Id>() {
             if let Ok(Some(record)) = store.load(&id).await {
+                let device = devices::session_ending(&state, &token).await;
                 if let Some(user_id) = record.data.get(USER_ID_KEY).and_then(|v| v.as_i64()) {
                     crate::audit::record(
                         &state.pool,
                         NewAuditEntry::new("logout")
                             .user(user_id)
-                            .client_ip(Some(client_ip(&headers))),
+                            .client_ip(Some(client_ip(&headers)))
+                            .details(serde_json::json!({ "device_id": device })),
                     );
                 }
                 store
@@ -1187,11 +1317,16 @@ async fn logout(
         return Err(StatusCode::FORBIDDEN);
     }
     if let Some(user_id) = session.get::<i64>(USER_ID_KEY).await.unwrap_or(None) {
+        let device = match session.id() {
+            Some(id) => devices::session_ending(&state, &id.to_string()).await,
+            None => None,
+        };
         crate::audit::record(
             &state.pool,
             NewAuditEntry::new("logout")
                 .user(user_id)
-                .client_ip(Some(client_ip(&headers))),
+                .client_ip(Some(client_ip(&headers)))
+                .details(serde_json::json!({ "device_id": device })),
         );
     }
     session
@@ -1324,6 +1459,18 @@ mod tests {
             .unwrap();
         let store = SqliteStore::new(pool.clone());
         store.migrate().await.unwrap();
+        // Signed-in sessions are recorded as devices, which belong to accounts
+        svrctlrs_database::run_migrations(&pool).await.unwrap();
+        for id in [5, 7, 9, 42] {
+            svrctlrs_database::sqlx::query(
+                "INSERT INTO users (id, username, password_hash) VALUES (?, ?, 'x')",
+            )
+            .bind(id)
+            .bind(format!("user{id}"))
+            .execute(&pool)
+            .await
+            .unwrap();
+        }
         let tickets = std::sync::Arc::new(crate::ws_tickets::WsTickets::default());
         let app = Router::new()
             .route(
@@ -1450,6 +1597,7 @@ mod tests {
         let ticket = tickets.issue(TicketOwner {
             user_id: 9,
             token: None,
+            device: None,
         });
 
         let upgrade = |t: &str| {
@@ -1470,6 +1618,7 @@ mod tests {
         let fresh = tickets.issue(TicketOwner {
             user_id: 9,
             token: None,
+            device: None,
         });
         let resp = app
             .oneshot(
@@ -2062,6 +2211,7 @@ mod tests {
                 preset: api_tokens::Preset::FullAdmin,
                 require_approval: false,
             }),
+            device: None,
         };
         let upgrade = |t: &str| {
             Request::get(format!("/ws/terminal/pty?ticket={t}"))
@@ -2095,6 +2245,7 @@ mod tests {
                 preset: api_tokens::Preset::ReadOnly,
                 ..owner.token.clone().unwrap()
             }),
+            device: None,
         };
         let resp = app
             .clone()

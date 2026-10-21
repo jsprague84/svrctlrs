@@ -14,12 +14,14 @@ use std::time::{Duration, Instant};
 
 use crate::api_tokens::TokenAuth;
 
-/// Who a ticket was issued to: the user, and the API token they asked with, if any, so the
-/// upgrade carries the same identity (and the same access) as the request that minted it.
+/// Who a ticket was issued to: the user, and the API token or signed-in device they asked
+/// with, so the upgrade carries the same identity (and the same access) as the request that
+/// minted it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TicketOwner {
     pub user_id: i64,
     pub token: Option<TokenAuth>,
+    pub device: Option<i64>,
 }
 
 pub struct WsTickets {
@@ -88,6 +90,7 @@ mod tests {
         TicketOwner {
             user_id,
             token: None,
+            device: None,
         }
     }
 
@@ -139,6 +142,7 @@ mod tests {
                 preset: crate::api_tokens::Preset::FullAdmin,
                 require_approval: false,
             }),
+            device: None,
         };
         let t = tickets.issue(owner.clone());
         assert_eq!(tickets.redeem(&t), Some(owner));

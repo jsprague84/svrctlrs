@@ -62,7 +62,9 @@ does not pull in Tauri's GTK/WebKit dependencies.
    (`Bearer svr_…`, `server/src/api_tokens.rs`: hashed lookup, then the token's access preset
    decides by method and path, 403 for anything it does not name), a session Bearer token (the
    session id, looked up in the session store), or on a WebSocket upgrade a one-time
-   `?ticket=`; the user always comes from the session or token record. An API token is looked
+   `?ticket=`; the user always comes from the session or token record. A cookie or session
+   token also needs its row in `devices` (`server/src/devices.rs`), which every sign-in writes;
+   signing a device out deletes the row, so its session is refused at once. An API token is looked
    at first and alone (a cookie beside it is ignored); two `Authorization` headers, or a login
    carrying one, get 400, which keeps the edge's token router (DEPLOYMENT.md) from reaching
    anything a token does not allow. A token request runs
@@ -116,7 +118,8 @@ does not pull in Tauri's GTK/WebKit dependencies.
   `ADMIN_USERNAME`/`ADMIN_PASSWORD` if the table is empty.
 - Sessions: tower-sessions with the SQLite store, 24 h inactivity expiry, `Secure` unless
   `SESSION_SECURE=false`, always `SameSite=Strict`. The desktop app's sessions come from
-  `POST /api/v1/auth/app-token` (`routes/ui/app_sign_in.rs`), 30 days.
+  `POST /api/v1/auth/app-token` (`routes/ui/app_sign_in.rs`), 30 days. Each one is a
+  signed-in device (`devices.rs`, `/api/v1/users/me/devices`, Settings → Access → Devices).
 - Credentials: `value` encrypted with AES-256-GCM (`core/src/encryption.rs`). The key comes
   from `ENCRYPTION_KEY` (64 hex chars), else `data/encryption.key`, else is generated.
 - API tokens: `api_tokens` table, SHA-256 of the secret only; presets enforced by
@@ -130,6 +133,7 @@ does not pull in Tauri's GTK/WebKit dependencies.
 |---|---|
 | `users` | username, argon2 hash |
 | `tower_sessions` | session records (managed by the store) |
+| `devices` | one row per browser or desktop-app sign-in: `user_id` (`ON DELETE CASCADE`), the session id's SHA-256, `method`, `user_agent`, first and last address, `created_at`, `last_seen_at` (written at most once a minute); no row, no session |
 | `servers` | name, hostname, port, username (NULL = the credential's user, else root), `credential_id`, `via_server_id` (jump host; `ON DELETE SET NULL`), `tags` (JSON array), `startup_command`, `record_sessions`, `persistent_shell`, `enabled`, `last_seen_at`, `last_error` |
 | `credentials` | name, type (`password`, `ssh_key`, …), encrypted `value`, optional `username`, JSON `metadata`, `encrypted` flag |
 | `server_host_keys` | `(server_id, key_type)` → public key, first/last seen, `trusted_at` (NULL = waiting for confirmation) |

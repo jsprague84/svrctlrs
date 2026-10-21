@@ -7,6 +7,7 @@ mod app;
 mod approvals;
 mod audit;
 mod backups;
+mod devices;
 mod diagnose;
 mod health_monitor;
 mod host_keys;
@@ -132,6 +133,22 @@ async fn main() -> anyhow::Result<()> {
     tokio::task::spawn(
         deletion_task_store.continuously_delete_expired(tokio::time::Duration::from_secs(300)),
     );
+    // Devices whose session is gone (expired, or not in a restored backup) leave the list,
+    // now and with every sweep of expired sessions
+    {
+        let pool = database.pool().clone();
+        tokio::task::spawn(async move {
+            let mut every = tokio::time::interval(tokio::time::Duration::from_secs(300));
+            loop {
+                every.tick().await;
+                match devices::prune(&pool).await {
+                    Ok(0) => {}
+                    Ok(n) => info!(count = n, "Forgot devices whose session ended"),
+                    Err(e) => warn!(error = %e, "Could not prune devices"),
+                }
+            }
+        });
+    }
 
     // Seed the first account from ADMIN_PASSWORD (and ADMIN_USERNAME, default "admin") when no
     // users exist. Without a password there is nobody to sign in as, so say so.

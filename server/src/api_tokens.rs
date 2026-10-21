@@ -8,8 +8,9 @@
 //!
 //! **Access is decided here and only here**, by method and path, before any handler runs
 //! ([`Preset::allows`], called from `routes::ui::auth::require_auth`). Anything a preset does
-//! not name is refused with 403. No preset names token or account management, so a token can
-//! never create, change or revoke tokens or accounts: revoking it ends everything it can do.
+//! not name is refused with 403. No preset names token or account management or signed-in
+//! devices, so a token can never create, change or revoke tokens or accounts, nor see or end a
+//! sign-in: revoking it ends everything it can do.
 
 use axum::http::Method;
 use rand::{distributions::Alphanumeric, Rng};
@@ -72,8 +73,8 @@ fn well_formed(value: &str) -> bool {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Preset {
-    /// Everything the owner can do, terminals and files included, except managing tokens and
-    /// accounts.
+    /// Everything the owner can do, terminals and files included, except managing tokens,
+    /// accounts and signed-in devices.
     FullAdmin,
     /// Read-only, plus managing servers, host keys and credentials.
     ServersKeys,
@@ -433,6 +434,10 @@ mod tests {
             ("DELETE", "/api/v1/users/2", none),
             ("DELETE", "/api/v1/users/me", none),
             ("PUT", "/api/v1/users/me/password", none),
+            // nor anyone's signed-in devices
+            ("GET", "/api/v1/users/me/devices", none),
+            ("DELETE", "/api/v1/users/me/devices/1", none),
+            ("POST", "/api/v1/users/me/devices/sign-out-others", none),
             ("GET", "/", none),
             ("GET", "/settings", none),
             ("POST", "/auth/logout", none),

@@ -101,6 +101,7 @@ async fn pty_ws_handler(
     State(state): State<AppState>,
     CurrentUser(user_id): CurrentUser,
     token: Option<axum::Extension<TokenAuth>>,
+    device: Option<axum::Extension<crate::devices::DeviceAuth>>,
 ) -> Response {
     // Cross-site WebSocket hijacking guard; see auth::websocket_origin_allowed.
     if !crate::routes::ui::auth::websocket_origin_allowed(&headers, &state.allowed_origins) {
@@ -110,13 +111,20 @@ async fn pty_ws_handler(
     info!("Interactive PTY WebSocket connection request");
     let ip = crate::routes::ui::auth::client_ip(&headers);
     let token = token.map(|axum::Extension(t)| t);
-    // The socket outlives the request's task, so it takes the token along: for the audit
-    // rows it writes, and to end when the token is revoked.
+    // The socket outlives the request's task, so it takes its credential along: the token for
+    // the audit rows it writes, and either to end when the token is revoked or the device
+    // signed out.
+    let credential = match (&token, device) {
+        (Some(t), _) => Some(Credential::Token(t.id)),
+        (None, Some(axum::Extension(crate::devices::DeviceAuth(id)))) => {
+            Some(Credential::Device(id))
+        }
+        (None, None) => None,
+    };
     ws.on_upgrade(move |socket| {
-        let token_id = token.as_ref().map(|t| t.id);
         crate::audit::with_token(
             token,
-            handle_pty_socket(socket, state, user_id, ip, token_id),
+            handle_pty_socket(socket, state, user_id, ip, credential),
         )
     })
     .into_response()
@@ -126,25 +134,55 @@ async fn pty_ws_handler(
 enum Wake {
     Message(Result<Message, axum::Error>),
     Ended,
-    TokenRevoked,
+    CredentialEnded,
 }
 
-/// Resolves when the API token `token_id` is revoked or removed; never without a token.
-async fn token_revoked(
+/// What a socket was opened with, besides its user
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Credential {
+    /// An API token: revoking it ends the socket and the shells it started
+    Token(i64),
+    /// A signed-in device: signing it out ends the socket; its shells stay, detached
+    Device(i64),
+}
+
+impl Credential {
+    fn subscribe(self, state: &AppState) -> broadcast::Receiver<i64> {
+        match self {
+            Credential::Token(_) => state.token_revocations.subscribe(),
+            Credential::Device(_) => state.device_sign_outs.subscribe(),
+        }
+    }
+
+    async fn still_valid(self, state: &AppState) -> bool {
+        match self {
+            Credential::Token(id) => crate::api_tokens::still_valid(&state.pool, id).await,
+            Credential::Device(id) => svrctlrs_database::queries::devices::exists(&state.pool, id)
+                .await
+                .unwrap_or(true),
+        }
+    }
+}
+
+/// Resolves when the socket's token is revoked or its device signed out; never without one.
+async fn credential_ended(
     state: &AppState,
-    revocations: &mut Option<broadcast::Receiver<i64>>,
-    token_id: Option<i64>,
+    ends: &mut Option<broadcast::Receiver<i64>>,
+    credential: Option<Credential>,
 ) {
-    let (Some(rx), Some(id)) = (revocations.as_mut(), token_id) else {
+    let (Some(rx), Some(credential)) = (ends.as_mut(), credential) else {
         return std::future::pending().await;
+    };
+    let id = match credential {
+        Credential::Token(id) | Credential::Device(id) => id,
     };
     loop {
         match rx.recv().await {
-            Ok(revoked) if revoked == id => return,
+            Ok(ended) if ended == id => return,
             Ok(_) => {}
             // Missed some: ask the database instead
             Err(broadcast::error::RecvError::Lagged(_)) => {
-                if !crate::api_tokens::still_valid(&state.pool, id).await {
+                if !credential.still_valid(state).await {
                     return;
                 }
             }
@@ -159,7 +197,7 @@ async fn handle_pty_socket(
     state: AppState,
     user_id: i64,
     client_ip: String,
-    token_id: Option<i64>,
+    credential: Option<Credential>,
 ) {
     let (ws_sender, mut ws_receiver) = socket.split();
     let ws_sender = Arc::new(tokio::sync::Mutex::new(ws_sender));
@@ -173,8 +211,8 @@ async fn handle_pty_socket(
     let mut close_on_exit = false;
     // A shell this socket started (not one it attached to) ends with a revoked token.
     let mut started_here = false;
-    let mut revoked = false;
-    let mut revocations = token_id.map(|_| state.token_revocations.subscribe());
+    let mut ended = false;
+    let mut ends = credential.map(|c| c.subscribe(&state));
 
     loop {
         let wake = tokio::select! {
@@ -182,13 +220,13 @@ async fn handle_pty_socket(
                 Some(msg) => Wake::Message(msg),
                 None => Wake::Ended,
             },
-            () = token_revoked(&state, &mut revocations, token_id) => Wake::TokenRevoked,
+            () = credential_ended(&state, &mut ends, credential) => Wake::CredentialEnded,
         };
         let msg = match wake {
             Wake::Message(msg) => msg,
             Wake::Ended => break,
-            Wake::TokenRevoked => {
-                revoked = true;
+            Wake::CredentialEnded => {
+                ended = true;
                 break;
             }
         };
@@ -462,21 +500,35 @@ async fn handle_pty_socket(
     if let Some(task) = forwarder {
         task.abort();
     }
-    if revoked {
-        warn!(token_id, "API token revoked; ending its terminal");
+    if ended {
+        let (code, message) = match credential {
+            Some(Credential::Device(id)) => {
+                warn!(device_id = id, "Device signed out; closing its terminal");
+                // The shell is the account's: it stays, detached, for another device
+                close_on_exit = false;
+                (
+                    "device_signed_out",
+                    "\r\n\x1b[31m✗ This device was signed out\x1b[0m\r\n",
+                )
+            }
+            _ => {
+                warn!(?credential, "API token revoked; ending its terminal");
+                close_on_exit = started_here;
+                (
+                    "token_revoked",
+                    "\r\n\x1b[31m✗ The API token this terminal was opened with was revoked\x1b[0m\r\n",
+                )
+            }
+        };
         send(
             &ws_sender,
             PtyResponse {
-                code: Some("token_revoked".into()),
-                ..PtyResponse::plain(
-                    "error",
-                    "\r\n\x1b[31m✗ The API token this terminal was opened with was revoked\x1b[0m\r\n",
-                )
+                code: Some(code.into()),
+                ..PtyResponse::plain("error", message)
             },
         )
         .await;
         ws_sender.lock().await.close().await.ok();
-        close_on_exit = started_here;
     }
     if let Some(live) = session {
         if close_on_exit {

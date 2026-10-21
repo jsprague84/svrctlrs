@@ -252,7 +252,9 @@ async fn callback(
 
     match flow.purpose {
         Purpose::Link { user_id } => link_identity(&state, &headers, user_id, identity).await,
-        Purpose::Login { next } => login_identity(&state, &session, &ip, identity, &next).await,
+        Purpose::Login { next } => {
+            login_identity(&state, &session, &headers, identity, &next).await
+        }
     }
 }
 
@@ -310,10 +312,11 @@ async fn link_identity(
 async fn login_identity(
     state: &AppState,
     session: &Session,
-    ip: &str,
+    headers: &HeaderMap,
     identity: crate::sign_in::oidc::Identity,
     next: &str,
 ) -> Response {
+    let ip = &client_ip(headers);
     let found = match user_identities::find(&state.pool, &identity.issuer, &identity.subject).await
     {
         Ok(found) => found,
@@ -370,7 +373,7 @@ async fn login_identity(
     {
         tracing::warn!(error = %e, "Failed to record an identity's use");
     }
-    if start_session(state, session, user.id, &user.username, ip, "oidc")
+    if start_session(state, session, user.id, &user.username, headers, "oidc")
         .await
         .is_err()
     {

@@ -15,7 +15,7 @@ they are not forgotten. Fixes are tracked in `ROADMAP.md` (History, P0 Security)
 | Shell access to servers | SvrCtlRS sign-in: an OpenID Connect provider (the reference deployment: Pocket ID passkeys, password sign-in off), or an argon2 password with optional TOTP behind a login proxy | anyone who can authenticate or steal a session |
 | Stored credentials (passwords, key material) | AES-256-GCM with `ENCRYPTION_KEY` | anyone with the DB *and* the key, or with a valid session (the server decrypts on use) |
 | Server inventory, host keys | database file permissions (uid 1000 in the container) | anyone with the volume |
-| Sessions / tokens | SQLite `tower_sessions`, 24 h inactivity expiry | anyone with the DB; the client that holds the token |
+| Sessions / tokens | SQLite `tower_sessions`, 24 h inactivity expiry; each one a signed-in device the owner can sign out | anyone with the DB; the client that holds the token, until its device is signed out |
 | API tokens (agents, scripts) | only a SHA-256 hash stored; access preset; optional expiry; revocable | whoever holds the secret, within its preset, until it expires or is revoked |
 | Session recordings (opt-in) | AES-256-GCM with `ENCRYPTION_KEY`; owner-only access | anyone with the files *and* the key; the owner's session |
 
@@ -35,8 +35,9 @@ other web pages the operator visits (see CSWSH below).
   account is an administrator, so put the whole app behind the edge passkey login as well
   ("Deployment guidance"). Lockout
   recovery is `svrctl reset-password <user>` on the host (it opens the database directly, so
-  it needs `docker exec`, never the network): it ends that account's sessions (browser and
-  native app) and is audited as `user.password_reset`. API tokens are separate credentials and
+  it needs `docker exec`, never the network): it ends that account's sessions and devices
+  (browser and native app) and is audited as `user.password_reset`. A lost phone needs none
+  of that: sign it out under Settings → Access → Devices ("Signed-in devices" below). API tokens are separate credentials and
   survive it, as they survive a password change; revoke them under Settings → Access.
 - **Sign-in with an OpenID Connect provider** (optional, `OIDC_ISSUER`; DEPLOYMENT.md) —
   the authorization code flow with PKCE (S256), `state` and `nonce`, run by the server itself
@@ -84,13 +85,36 @@ other web pages the operator visits (see CSWSH below).
   login limiter, and a wrong one answers `403 PASSWORD_INCORRECT`, so a hijacked session cannot
   guess it at leisure and the web app does not mistake the answer for "signed out".
 - **No API token reaches any of this.** No preset names `/api/v1/users/me/sign-in`,
-  `/users/me/totp…` or `/users/me/identities/…` (tested for every preset).
+  `/users/me/totp…`, `/users/me/identities/…` or `/users/me/devices…` (tested for every
+  preset).
 - **Sessions** — tower-sessions, SQLite store, `HttpOnly`, `Secure` unless
   `SESSION_SECURE=false`, always `SameSite=Strict` (since ROADMAP 22 `ALLOWED_ORIGINS` no
   longer relaxes it: the desktop app uses a Bearer token, not cookies). Expiry: 24 h of
-  inactivity. Logout flushes the session. A signed-out page load is remembered in the session
+  inactivity (the store saves only a session that changed, so recording last use, at most once
+  a minute, is also what saves it again; before ROADMAP 26 a browser session ended 24 h after
+  sign-in however much it was used). Logout flushes the session and forgets its device. A signed-out page load is remembered in the session
   (local paths only, never `/api/`, `/ws/` or another `/auth/` page except `/auth/app`) and the
   browser returns there after signing in, also through the provider, whose flow carries it.
+- **Signed-in devices** (`server/src/devices.rs`, ROADMAP 26) — every browser sign-in
+  (password, with or without a second factor, or the provider) and every desktop-app session
+  writes a row in `devices`: the account, the session id's SHA-256 (never the id, so a backup
+  copy holds nothing that signs in), the method, the user agent, the first and latest client
+  address, when it signed in and when it was last used (written at most once a minute). **The
+  row is what keeps a session signed in**: the auth layer refuses a cookie or session token
+  whose row is gone, and drops the session. That also covers a request still running when its
+  device is signed out, which writes its session back as it finishes (the session carries its
+  row's id, so it is told apart from a sign-in made before devices existed, which is recorded
+  on its next use). Settings → Access → Devices lists them (`GET /api/v1/users/me/devices`,
+  this device first and marked); **Sign out** on one (`DELETE …/devices/{id}`) or **Sign out
+  other devices** (`POST …/devices/sign-out-others`) deletes the rows and sessions and closes
+  the terminals those devices have open (`device_signed_out`). Their shells are the account's
+  and stay, detached, for the keep time, so another device can pick them up; a request
+  already running (an `exec`, an upload) finishes. Signing out this device is signing out.
+  Rows whose session ended (expired, `svrctl reset-password`, a restored copy) are forgotten at
+  start-up and every five minutes. Audit: `login` and `logout` name the `device_id`;
+  `device.signed_out` (the device, whether it was this one, its last address) and
+  `device.signed_out_others` (how many). API tokens are not devices: they keep their own list
+  and last use under Agent tokens, and no preset reaches these routes.
 - **The desktop app signs in through the system browser** (`routes/ui/app_sign_in.rs`,
   `sign_in/app_codes.rs`; RFC 8252 shape with svrctlrs as the authority). The app listens on a
   random `127.0.0.1` port and opens `/auth/app` with `state` and a PKCE S256 challenge; the
@@ -165,8 +189,8 @@ Named credentials the owner creates under Settings → Access → Agent tokens
     compared) and `rotate-key`. These run on svrctlrs with the stored credentials; no
     request carries or returns a password or private key, so nothing secret passes through an
     agent (or its cloud model).
-  - **No preset** names `/api/v1/tokens`, creating or deleting accounts, or changing a
-    password. A token can never mint, change or revoke tokens or accounts, so revoking a
+  - **No preset** names `/api/v1/tokens`, creating or deleting accounts, changing a
+    password, or signed-in devices. A token can never mint, change or revoke tokens or accounts, so revoking a
     token ends everything it can do, and a leaked token cannot leave a second way in behind.
 - **Lifetime.** 30, 90 or 365 days, or never (the API takes any 1–3650 days or `null`).
   Expired and revoked tokens answer `401 TOKEN_EXPIRED` / `TOKEN_REVOKED`; the row stays,
