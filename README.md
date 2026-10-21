@@ -64,8 +64,9 @@ Behind a Traefik edge with a `proxy` network, use `docker-compose.yml` instead. 
 cross-origin settings the desktop and Android apps need, are in
 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).
 
-Images are published to `git.js-node.cc/jsprague/svrctlrs` for `linux/amd64` and
-`linux/arm64` (Raspberry Pi 4/5 on a 64-bit OS) with tags `latest`, `vX.Y.Z` and the commit SHA.
+Images are published to `git.js-node.cc/jsprague/svrctlrs`: releases (`vX.Y.Z`, `latest`) for
+`linux/amd64` and `linux/arm64` (Raspberry Pi 4/5 on a 64-bit OS), and every `master` commit
+(`edge` and the commit SHA) for `linux/amd64`.
 
 ## For agents
 

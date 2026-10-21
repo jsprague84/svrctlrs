@@ -4,12 +4,15 @@
 #   - `build` runner + catthehacker image; Docker comes from the runner's DinD sidecar at
 #     tcp://docker:2375 (injected as DOCKER_HOST — never mount a socket or TLS certs here).
 #   - Registry login with the inherited user-level FORGEJO_REGISTRY_TOKEN_ALL secret.
-#   - One multi-arch image (linux/amd64 + linux/arm64, cross-compiled, no emulation).
+#   - master builds linux/amd64 only (all docker-vm runs; arm64 would double the compile on
+#     the critical path to every deploy). Release tags build linux/amd64 + linux/arm64 as one
+#     multi-arch image (cross-compiled, no emulation); a manual run can ask for arm64 too.
 #   - Every build is tagged with the short and full commit SHA and stamped with
 #     org.opencontainers.image.revision, so a deploy can prove which commit is running.
-#   - master also gets :latest and auto-deploys to docker-vm over a forced-command SSH key.
-#   - A tag publishes :vX.Y.Z (+ :latest) and a Forgejo release, and never deploys: a tag is a
-#     release artifact, not necessarily what should be live.
+#   - master also gets :edge and auto-deploys to docker-vm over a forced-command SSH key.
+#   - A tag publishes :vX.Y.Z and :latest (so :latest is always multi-arch: the newest
+#     release) and a Forgejo release, and never deploys: a tag is a release artifact, not
+#     necessarily what should be live.
 
 name: Docker
 
@@ -25,6 +28,11 @@ on:
       - '.forgejo/workflows/ci.yaml'
       - '.forgejo/workflows/desktop.yaml'
   workflow_dispatch:
+    inputs:
+      arm64:
+        description: Build linux/arm64 too (release tags always do)
+        type: boolean
+        default: false
 
 env:
   IMAGE: git.js-node.cc/jsprague/svrctlrs
@@ -49,25 +57,31 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.FORGEJO_REGISTRY_TOKEN_ALL }}
 
-      - name: Compute image tags
+      - name: Compute image tags and platforms
         id: tag
         shell: bash
+        env:
+          ARM64_INPUT: ${{ github.event.inputs.arm64 }}
         run: |
           set -euo pipefail
           TAGS="${IMAGE}:${GITHUB_SHA::7},${IMAGE}:${GITHUB_SHA}"
+          PLATFORMS="linux/amd64"
           case "${GITHUB_REF}" in
-            refs/heads/master) TAGS="${IMAGE}:latest,${TAGS}" ;;
-            refs/tags/*)       TAGS="${IMAGE}:latest,${IMAGE}:${GITHUB_REF_NAME},${TAGS}" ;;
+            refs/heads/master) TAGS="${IMAGE}:edge,${TAGS}" ;;
+            refs/tags/*)       TAGS="${IMAGE}:latest,${IMAGE}:${GITHUB_REF_NAME},${TAGS}"
+                               PLATFORMS="linux/amd64,linux/arm64" ;;
           esac
+          if [ "${ARM64_INPUT:-false}" = "true" ]; then PLATFORMS="linux/amd64,linux/arm64"; fi
           echo "tags=${TAGS}" >> "${GITHUB_OUTPUT}"
-          echo "publishing: ${TAGS}"
+          echo "platforms=${PLATFORMS}" >> "${GITHUB_OUTPUT}"
+          echo "publishing: ${TAGS} for ${PLATFORMS}"
 
       - name: Build and push
         uses: https://github.com/docker/build-push-action@v6
         with:
           context: .
-          # Both cross-compiled on this amd64 runner (see the Dockerfile): no QEMU involved
-          platforms: linux/amd64,linux/arm64
+          # arm64 is cross-compiled on this amd64 runner (see the Dockerfile): no QEMU involved
+          platforms: ${{ steps.tag.outputs.platforms }}
           push: true
           build-args: |
             SVRCTLRS_REVISION=${{ github.sha }}

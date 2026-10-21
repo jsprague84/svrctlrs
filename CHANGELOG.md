@@ -33,6 +33,9 @@ the release workflow uses the matching section as the release notes.
   `svrctl reset-password <user> --clear-totp` turns it off from the host if the phone is gone.
 
 ### Changed
+- **`master` images are `linux/amd64` only**, tagged `edge` and the commit SHA; releases are
+  still built for `linux/amd64` and `linux/arm64`, and `latest` now means the newest release
+  (it used to follow `master`). Halves the image build in front of every deploy.
 - A wrong current password (changing the password, two-factor changes) is now
   `403 PASSWORD_INCORRECT` instead of 401, which sent the web app to the login page, and it
   counts against the login limiter.

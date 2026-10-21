@@ -1,9 +1,9 @@
 # Deployment
 
-SvrCtlRS ships as one container image, `git.js-node.cc/jsprague/svrctlrs`, built by CI from
-`master` (tags `latest`, `<sha7>`, `<sha>`) and from release tags (`vX.Y.Z`), for `linux/amd64`
-and `linux/arm64` (a Raspberry Pi 4 or 5 on a 64-bit OS, other ARM servers); Docker pulls the
-right one. The container
+SvrCtlRS ships as one container image, `git.js-node.cc/jsprague/svrctlrs`, built by CI. Release
+tags (`vX.Y.Z`, and `latest` for the newest release) are built for `linux/amd64` and
+`linux/arm64` (a Raspberry Pi 4 or 5 on a 64-bit OS, other ARM servers); Docker pulls the
+right one. `master` builds (`edge`, `<sha7>`, `<sha>`) are `linux/amd64` only. The container
 runs as uid 1000, listens on 8080, stores everything under `/app/data`, and reports health
 through `/app/svrctl health` (which calls `GET /api/v1/health`).
 
@@ -54,7 +54,7 @@ the rest is the same.
 | `SPA_DIR` | no | `/app/ui/build` | where the built SPA lives |
 | `RUST_LOG` | no | `info` | tracing filter |
 | `LOG_FORMAT` | no | text | `json` for one JSON object per line (log shippers); text otherwise |
-| `TAG` | compose only | `latest` | image tag; the deploy script writes the deployed commit's short SHA here |
+| `TAG` | compose only | `latest` | image tag: `latest` (newest release), `vX.Y.Z`, `edge` (newest `master`, amd64 only) or a commit SHA; the deploy script writes the deployed commit's short SHA here |
 | `SSH_KEY_PATH` | compose only | `./ssh` | host directory mounted read-only at `/home/svrctlrs/.ssh` for key-path credentials. Use a dedicated directory, not your own `~/.ssh`. |
 | `SVRCTLRS_HOST` | compose only | `svrctlrs.js-node.app` | Traefik host rule |
 | `SVRCTLRS_BIND` | standalone compose only | `127.0.0.1:8080` | host address and port published for the container's 8080 |
