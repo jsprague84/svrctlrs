@@ -17,7 +17,8 @@ approvals for the deletes that cannot be undone (items 15–16).
 **3.4.0 released 2026-10-19**: the OpenAPI document and typed responses, diagnose, exec,
 onboard and rotate-key, and `svrctl` as the agent CLI with its skill and a Hermes eval
 (items 17–19): agent access is done. **After 3.4.0** (2026-10-19): the password login closed
-to the internet (item 20); items 21–26 follow in the owner's order.
+to the internet (item 20), sign-in with OIDC and TOTP in the binary (item 21); items 22–26
+follow in the owner's order.
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an
@@ -220,14 +221,18 @@ beside the binary, and what an identity provider does stays optional.
     before), refuses two `Authorization` headers and a login carrying one (tests, e2e). The
     web app reloads when an API call is redirected to the edge's sign-in, and a refused
     terminal socket asks the API, so an expired passkey sign-in brings the prompt back.
-21. **Sign-in: OIDC and TOTP, both optional, both inside the binary.** OpenID Connect with any
-    provider (here Pocket ID, its own client limited to the `owner` group, per the dev-space
-    edge-auth standard), so one passkey sign-in replaces passkey-then-password and the edge
-    can drop tinyauth for svrctlrs; built-in TOTP for deployments without a provider; the login
-    limiter's state in the database, so a restart does not reset it. Without a provider the
-    password login stays the default; with one it can be turned off (break-glass: an
-    environment flag and `svrctl reset-password`). No new service; prefer crates already in
-    the build (`reqwest`, `sha2`, `rsa`/`p256`). Migration `109_…`.
+21. ~~**Sign-in: OIDC and TOTP, both optional, both inside the binary.**~~ Done 2026-10-21:
+    OpenID Connect with any provider (code flow with PKCE, `state`, `nonce`; the ID token
+    checked in full with the RSA/ECDSA/Ed25519 code russh already builds; accounts linked by
+    issuer and subject, never created or matched by e-mail), optional TOTP with ten recovery
+    codes for password sign-in, the login limiter's failures in the database (migration 109),
+    `PASSWORD_LOGIN=off` with break-glass by environment flag and `svrctl reset-password
+    [--clear-totp]`, and Settings → Access → Sign-in. One new crate (`qrcode`, SVG only). The
+    reference deployment signs in with Pocket ID in the app (its own client, `owner` group,
+    `scripts/deploy/pocket-id-client.sh`) with password sign-in off, so tinyauth left
+    SvrCtlRS's path and one headers-only router serves browsers, apps and agent tokens. Agent
+    tokens work exactly as before (tested with password sign-in off; outside check
+    2026-10-21).
 22. **Keep the desktop app** (owner: vim needs Ctrl+W, which a browser tab keeps for itself).
     Sign-in through the system browser (RFC 8252 shape, with svrctlrs as the authority: the
     app opens `/auth/app` with a PKCE challenge, the browser signs in however the server
