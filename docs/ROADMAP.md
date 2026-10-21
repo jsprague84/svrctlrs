@@ -1,6 +1,6 @@
 # Roadmap
 
-**Updated 2026-10-19.** The first part is the live plan: where the app stands against similar
+**Updated 2026-10-21.** The first part is the live plan: where the app stands against similar
 projects, what comes next and in which order, what is parked, and what is deliberately out of
 scope. The second part is the history of the 2026-10 hardening passes, kept because each row
 names the evidence for a fix.
@@ -18,7 +18,8 @@ approvals for the deletes that cannot be undone (items 15–16).
 onboard and rotate-key, and `svrctl` as the agent CLI with its skill and a Hermes eval
 (items 17–19): agent access is done. **After 3.4.0** (2026-10-19): the password login closed
 to the internet (item 20), sign-in with OIDC and TOTP in the binary (item 21), the desktop app signing in through the
-browser (item 22); items 23–26 follow in the owner's order.
+browser (item 22), shells kept across a restart (item 23) and backups inside the app (item
+24); items 25–26 follow in the owner's order.
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an
@@ -249,10 +250,20 @@ beside the binary, and what an identity provider does stays optional.
     session; kept shells end like any other and take their tmux session with them (no tmux: a
     plain shell and a note). Tested against a loopback server that acts like tmux and against
     real tmux on hermes.
-24. **Backups inside the app.** Nothing has run `svrctl backup` in production since
-    2026-10-05; PBS snapshots the VM nightly, but that is a crash copy of a live SQLite file.
-    A nightly `VACUUM INTO` with retention, run by the server like the recordings sweep, its
-    last run shown on About.
+24. ~~**Backups inside the app.**~~ Done 2026-10-21: the server copies its database every
+    night (`backup.hour`, 03:00 UTC) into `BACKUP_DIR` (default `data/backups`, on the data
+    volume, so the VM snapshot carries finished copies) and keeps `backup.keep` (14; 0 = off),
+    one attempt per daily slot, made up minutes after a start that missed it, a failed night
+    notified once (`server/src/backups.rs`, migration 111 `backup_runs`). The copy
+    (`database/src/backup.rs`, shared with `svrctl backup`) is `VACUUM INTO` a hidden file then
+    renamed, 0600 in a 0700 folder, with the sign-ins removed and vacuumed away (checked on the
+    bytes); never the key. About shows the last copy and error with **Back up now**
+    (`GET`/`POST /backups`, full admin to write); General sets keep and hour. `svrctl restore`
+    checks integrity, schema and that every secret decrypts with the running key, stages the
+    copy, and the next start swaps it in keeping `before-restore-<time>/`; `--check` only
+    looks. Tested end to end with both binaries (backup, change, wrong key refused, restore,
+    restart, data back, old session gone). Production's first copy ran two minutes after the
+    deploy, and `restore --check` on it read all six credentials with the production key.
 25. **File browser: open before download, and edit small files.** A tap on a file downloads
     it today, which the owner keeps doing by accident. Selecting a file shows it (text and
     images in a viewer; download becomes an explicit action); small text files open in a plain
