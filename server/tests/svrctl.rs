@@ -541,3 +541,22 @@ async fn backup_then_restore_brings_the_data_back() {
     let audit = s.owner(reqwest::Method::GET, "/audit", Value::Null).await;
     assert!(audit.to_string().contains("backup.restored"), "{audit}");
 }
+
+#[test]
+fn version_and_help_name_svrctl() {
+    let run = |arg: &str| {
+        let out = Command::new(env!("CARGO_BIN_EXE_svrctl"))
+            .arg(arg)
+            .output()
+            .expect("svrctl binary");
+        assert!(out.status.success(), "svrctl {arg} failed");
+        String::from_utf8(out.stdout).unwrap()
+    };
+    let version = run("--version");
+    assert_eq!(
+        version.trim(),
+        format!("svrctl {}", env!("CARGO_PKG_VERSION")),
+        "svrctl --version"
+    );
+    assert!(run("--help").contains("Usage: svrctl"), "svrctl --help");
+}

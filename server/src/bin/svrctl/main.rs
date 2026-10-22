@@ -56,7 +56,7 @@ human (host key, approval) · 4 not found · 5 not allowed · 6 invalid or confl
 
 /// svrctl — administer svrctlrs from the command line
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None, after_help = EXAMPLES)]
+#[command(name = "svrctl", author, version, about, long_about = None, after_help = EXAMPLES)]
 #[command(propagate_version = true)]
 struct Cli {
     /// The svrctlrs server
