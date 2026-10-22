@@ -147,6 +147,13 @@ Settings → Access → **Sign-in** shows how you can sign in:
 
 None of this changes what agent tokens can do: they never sign in.
 
+**Devices**, under Sign-in, lists where your account is signed in: each browser and the
+desktop app, named after it ("Firefox on Android", "Desktop app on Linux"), with when it was
+last used, its address, and when and how it signed in. This device is first. **Sign out**
+(the arrow on a row) ends that sign-in at once — the way to deal with a lost phone, without
+changing your password. Its open terminals close; your shells keep running and wait for you
+on your other devices. **Sign out other devices** ends all of them but this one.
+
 ## Agent tokens
 
 Settings → Access (`/settings?tab=access`) → **Agent tokens** is where agents and scripts get

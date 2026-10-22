@@ -120,14 +120,14 @@ users), and keep the login limiter's state in the database so a restart does not
     dialog with a live preview (`ui/src/lib/utils/snippet.ts`, Vitest; the phone check runs
     one). Only plain identifiers are variables and Go template keywords are reserved, so
     `docker --format '{{.Names}}'` and `{{range}}…{{end}}` stay as written.
-14. **Release maturity.** Done 2026-10-19 except the last bullet:
+14. ~~**Release maturity.**~~ Done 2026-10-19:
    ~~`linux/arm64` image~~ (cross-compiled on the amd64 runner, no QEMU: every `RUN` on
    `$BUILDPLATFORM`, the runtime stage only copies; smoke-tested under qemu-user),
    ~~`svrctl reset-password`~~ (prompt, `--password-stdin` or `--generate`; ends that account's
    sessions; audited), ~~`CONTRIBUTING.md` and issue templates~~, ~~screenshots in the README~~
    (item 8), ~~a compose example without the dev-space edge~~ (`docker-compose.standalone.yml`).
    Found on the way: `ADMIN_PASSWORD` without `ADMIN_USERNAME` seeded nobody (fixed).
-   **Still open:** the published OpenAPI document, now item 17.
+   The published OpenAPI document followed as item 17.
 
 ### Agent access (decided 2026-10-19, owner)
 
