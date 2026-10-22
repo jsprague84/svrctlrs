@@ -43,9 +43,9 @@ confirm, approval to give), 4 not found (`details.known` lists names), 5 token n
      `svrctl forget-keys X` and trust the new key.
    - `login`: wrong credential or key not installed. Install a stored key with a way in that
      works: `svrctl key authorize X --key "<key cred>" --with "<working cred>"`. If svrctlrs has
-     no way in but you have SSH: `svrctl key generate --name "<host> key"`, append its
-     `public_key` to that account's authorized_keys over your SSH (keep the other lines), then
-     `svrctl server edit X --credential "<host> key"`.
+     no way in but you have SSH: `svrctl key generate --name "<host> key"`, have its
+     `public_key` accepted for that account using your own SSH access (add it; keep the keys
+     already accepted), then `svrctl server edit X --credential "<host> key"`.
 3. `svrctl diagnose X` again until `"ok": true`. A login step that says "a fallback key"
    worked with svrctlrs's own key, not the server's credential: that credential is broken.
 
