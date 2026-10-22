@@ -654,11 +654,47 @@ async fn rotate_key(
     };
     if remove_old {
         match crate::key_ops::remove(pool, &server, &old, &new).await {
-            Ok(()) => steps.push(op(
-                "remove_old",
-                "ok",
-                format!("Removed {}'s public key from {}", old.name, server.name),
-            )),
+            Ok(()) => {
+                steps.push(op(
+                    "remove_old",
+                    "ok",
+                    format!("Removed {}'s public key from {}", old.name, server.name),
+                ));
+                // Prove it: the old key must be refused now, so nobody has to check by hand
+                let check = crate::diagnose::diagnose(pool, &server, Some(old.clone())).await;
+                let login_refused = check.hops.last().is_some_and(|hop| {
+                    hop.steps
+                        .iter()
+                        .any(|st| st.step == "login" && st.status == "failed")
+                });
+                if check.ok {
+                    steps.push(op(
+                        "prove_old_refused",
+                        "failed",
+                        format!(
+                            "{} still logs in to {}: its public key is in another \
+                             authorized_keys file there (see AuthorizedKeysFile in sshd_config)",
+                            old.name, server.name
+                        ),
+                    ));
+                    next = Some(format!(
+                        "Remove {}'s public key from the other authorized_keys file on {} by hand",
+                        old.name, server.name
+                    ));
+                } else if login_refused {
+                    steps.push(op(
+                        "prove_old_refused",
+                        "ok",
+                        format!("{} is refused by {} now", old.name, server.name),
+                    ));
+                } else {
+                    steps.push(op(
+                        "prove_old_refused",
+                        "skipped",
+                        format!("Could not check: {}", check.verdict),
+                    ));
+                }
+            }
             Err(e) => {
                 steps.push(op("remove_old", "failed", e.message));
                 next = Some(format!(
@@ -686,7 +722,8 @@ async fn rotate_key(
             .details(json!({
                 "old_credential_id": old_id,
                 "new_credential_id": new.id,
-                "old_removed": remove_old && steps.last().is_some_and(|s| s.status == "ok"),
+                "old_removed": remove_old
+                    && steps.iter().any(|s| s.step == "remove_old" && s.status == "ok"),
             })),
     );
     let done = steps.iter().all(|s| s.status != "failed");
@@ -1065,6 +1102,18 @@ mod tests {
         let (status, r) = h.owner("POST", &uri, Some(json!({}))).await;
         assert_eq!(status, StatusCode::OK, "{r}");
         assert_eq!(r["done"], true, "{r}");
+        // It proved the old key is refused, so the caller need not
+        let proof = r["steps"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|s| s["step"] == "prove_old_refused")
+            .cloned();
+        assert_eq!(
+            proof.as_ref().map(|p| &p["status"]),
+            Some(&json!("ok")),
+            "{r}"
+        );
         let new_id = r["new_credential_id"].as_i64().unwrap();
         assert_eq!(
             queries::servers::get_server(&pool, sid)

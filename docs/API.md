@@ -286,8 +286,19 @@ leader key and predictive echo; `ui/src/lib/terminal/prefsSync.ts` has the field
 defaults); any other key answers 404. The server stores the document as given and the UI
 merges it over its defaults, so fields a client does not know are ignored rather than fatal.
 
-Deleting a user cascades to their sessions, profiles, quick commands, preferences,
+Deleting a user cascades to their sessions, devices, profiles, quick commands, preferences,
 recordings and API tokens.
+
+### Signed-in devices (signed-in users only)
+
+Every browser and desktop-app sign-in of the caller's account. No API token preset names
+these routes (403 `TOKEN_SCOPE`); tokens are listed under `/tokens`.
+
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| GET | `/users/me/devices` | — | `{devices: [{id, label, method, current, created_at, last_seen_at, last_ip}]}`, this device first, then the most recently used; `label` from the user agent ("Firefox on Android"), `last_seen_at` written at most once a minute |
+| DELETE | `/users/me/devices/{id}` | — | signs it out: its session ends, its open terminals get `device_signed_out` and close, its shells stay detached; 404 for another account's device. Your own device: you are signed out |
+| POST | `/users/me/devices/sign-out-others` | — | every device but the caller's: `{signed_out: n}` |
 
 ## API tokens (signed-in users only)
 
@@ -371,8 +382,9 @@ when called again with that `fingerprint`, a different one fails. With `new_key`
 generates `"<name> key"`, installs it with the way in, proves it and switches to it. **rotate-key**
 needs a server that logs in with a stored key: it checks the key, generates
 `"<name> key <date>"`, installs it with the old key, proves it, switches, and (with
-`remove_old`, default) removes the old public key from `authorized_keys`; the old credential
-is kept and `next` says whether other servers still use it. `dry_run` on onboard and
+`remove_old`, default) removes the old public key from `authorized_keys` and proves the old
+key is refused (`prove_old_refused`: `failed` when it still logs in, for instance from a
+second `authorized_keys` file); the old credential is kept and `next` says whether other servers still use it. `dry_run` on onboard and
 rotate-key lists the steps as `planned` and changes nothing. Step statuses: `ok`, `failed`,
 `skipped`, `waiting`, `planned`.
 
