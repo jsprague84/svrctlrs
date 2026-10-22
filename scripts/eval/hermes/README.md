@@ -53,3 +53,17 @@ existing tags. Findings acted on:
   only what was asked.
 - local-qwen tried `exec` with a servers-&-keys token: refused with `TOKEN_SCOPE` and a hint,
   as designed.
+
+## Results, 2026-10-21 (image 6dae093: compact svrctl output, `diagnose --all`, rotate-key proof)
+
+| Profile | Score | Tool calls per task | Tool output read (bytes) | Against 2026-10-19 |
+|---|---|---|---|---|
+| default | 5/5 | 9 · 4 · 4 · 4 · 2 (23) | 28,378 | 24 calls, 39,816 bytes: **−29 % read** |
+| local-qwen | 5/5 | 11 · 13 · 6 · 5 · 3 (38) | 25,855 | 50 calls, 48,525 bytes: **−24 % calls, −47 % read** |
+
+The rotate task moved most (local-qwen 21 calls and 20 KB → 6 calls and 6.6 KB): rotate-key
+now proves the old key is refused, so the model no longer goes looking on the host. Both
+profiles compared every host key on the host before `trust`, and deleted nothing. The default
+profile ran with its own evolved copy of the skill (Hermes rewrote it from use; not
+overwritten), local-qwen with the repository's. `summarize.py` now prints the bytes read.
+
