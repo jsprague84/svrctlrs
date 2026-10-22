@@ -39,7 +39,7 @@ pub struct Failure {
     /// HTTP status, when there was one
     pub status: Option<u16>,
     /// The API's `error.details`
-    pub details: Option<Value>,
+    pub details: Option<Box<Value>>,
 }
 
 impl Failure {
@@ -100,23 +100,53 @@ impl Failure {
 /// Where the answer goes and in which form.
 pub struct Out {
     pub json: bool,
+    /// Indented JSON: only for a person who asked for `--json` on a terminal. A pipe (an
+    /// agent, a script) gets one compact line.
+    pretty: bool,
+}
+
+/// Leave out what costs an agent tokens and says nothing: every `null`, at any depth. A key
+/// that is absent means the same as `null` in every answer.
+pub fn slim(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            map.retain(|_, v| !v.is_null());
+            map.values_mut().for_each(slim);
+        }
+        Value::Array(items) => items.iter_mut().for_each(slim),
+        _ => {}
+    }
 }
 
 impl Out {
     pub fn new(force_json: bool, force_text: bool) -> Self {
+        let terminal = std::io::stdout().is_terminal();
         Self {
-            json: force_json || (!force_text && !std::io::stdout().is_terminal()),
+            json: force_json || (!force_text && !terminal),
+            pretty: terminal,
         }
     }
 
-    /// Print a result: the JSON of `value`, or the text `human` makes of it.
+    fn print_json(&self, mut value: Value) {
+        slim(&mut value);
+        let text = if self.pretty {
+            serde_json::to_string_pretty(&value)
+        } else {
+            serde_json::to_string(&value)
+        };
+        println!(
+            "{}",
+            text.unwrap_or_else(|e| json!({ "error": e.to_string() }).to_string())
+        );
+    }
+
+    /// Print a result: the JSON of `value` (without nulls), or the text `human` makes of it.
     pub fn emit<T: Serialize>(&self, value: &T, human: impl FnOnce(&T) -> String) {
         if self.json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(value)
-                    .unwrap_or_else(|e| json!({ "error": e.to_string() }).to_string())
-            );
+            match serde_json::to_value(value) {
+                Ok(v) => self.print_json(v),
+                Err(e) => println!("{}", json!({ "error": e.to_string() })),
+            }
         } else {
             let text = human(value);
             if !text.is_empty() {
@@ -133,12 +163,9 @@ impl Out {
                 error["status"] = json!(s);
             }
             if let Some(d) = &f.details {
-                error["details"] = d.clone();
+                error["details"] = (**d).clone();
             }
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&json!({ "error": error })).unwrap_or_default()
-            );
+            self.print_json(json!({ "error": error }));
         } else {
             eprintln!("error: {}", f.message);
             eprintln!("hint: {}", f.hint());
@@ -150,6 +177,18 @@ impl Out {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn slim_drops_nulls_at_any_depth_and_keeps_false_and_empty() {
+        let mut v = json!({
+            "a": null, "b": false, "c": [], "d": [{ "e": null, "f": 0 }], "g": { "h": null }
+        });
+        slim(&mut v);
+        assert_eq!(
+            v,
+            json!({ "b": false, "c": [], "d": [{ "f": 0 }], "g": {} })
+        );
+    }
 
     #[test]
     fn exit_codes_follow_the_error_kind() {
@@ -172,7 +211,7 @@ mod tests {
     #[test]
     fn hints_name_the_next_command() {
         let f = Failure {
-            details: Some(json!({ "fingerprint": "SHA256:abc" })),
+            details: Some(Box::new(json!({ "fingerprint": "SHA256:abc" }))),
             ..Failure::new("HOST_KEY_UNCONFIRMED", "x")
         };
         assert!(f

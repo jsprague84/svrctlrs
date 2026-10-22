@@ -20,6 +20,7 @@ use reqwest::Method;
 use serde_json::{json, Value};
 use svrctlrs_api::approvals::{Approval, HeldForApproval};
 use svrctlrs_api::audit::AuditPage;
+use svrctlrs_api::backups::{BackupCreated, BackupStatus};
 use svrctlrs_api::credentials::{CredentialList, GeneratedKey};
 use svrctlrs_api::ops::{Diagnosis, ExecResult, OnboardResult, OpStep, RotateKeyResult};
 use svrctlrs_api::servers::{
@@ -35,7 +36,7 @@ use out::{code, Failure, Out};
 const EXAMPLES: &str = "\
 Examples:
   export SVRCTLRS_URL=https://svrctlrs.example SVRCTLRS_TOKEN=svr_…
-  svrctl servers                                  # what svrctlrs knows
+  svrctl servers                                  # what svrctlrs knows (--tag T, --failing)
   svrctl diagnose web-01                          # why can't I reach it? (verdict + fix per step)
   svrctl exec web-01 -- systemctl is-active ssh   # one command, its exit status is svrctl's
   svrctl onboard --name lab-02 --host 10.0.0.12 --credential 'lab password'
@@ -44,9 +45,10 @@ Examples:
   svrctl import hosts.ssh_config --tag imported
   svrctl tag prod web-01 web-02                   # --remove to take it off
   svrctl server rm old-box --wait                 # waits for the owner's approval if needed
+  svrctl backups --now                            # a database copy before a bulk change
 
-Output: one JSON document when stdout is not a terminal (or with --json); errors are
-{\"error\": {code, message, hint}}.
+Output: one compact JSON line when stdout is not a terminal (or with --json), null fields left
+out; errors are {\"error\": {code, message, hint}}.
 Exit codes: 0 done · 1 ran, but the answer is a failure · 2 bad arguments · 3 waiting on a
 human (host key, approval) · 4 not found · 5 not allowed · 6 invalid or conflicting ·
 7 svrctlrs unreachable. `exec` exits with the remote command's status (124: timed out).";
@@ -103,7 +105,7 @@ struct Wait {
 enum Command {
     /// Is svrctlrs up? (no token; the container healthcheck)
     Health,
-    /// Version and number of servers
+    /// Version, number of servers, and the last database backup
     Status {
         /// Ignored (older `svrctl status server`)
         #[arg(hide = true)]
@@ -115,6 +117,9 @@ enum Command {
         /// Only servers with this tag
         #[arg(long)]
         tag: Option<String>,
+        /// Only servers whose last check failed (they have a `last_error`)
+        #[arg(long)]
+        failing: bool,
     },
     /// Show, add, change, test or delete a server
     #[command(subcommand)]
@@ -242,7 +247,7 @@ enum Command {
     },
     /// The audit log, newest first
     Audit {
-        #[arg(long, default_value_t = 50)]
+        #[arg(long, default_value_t = 20)]
         limit: i64,
         /// Action prefixes, e.g. `server.,token.`
         #[arg(long)]
@@ -253,6 +258,12 @@ enum Command {
     },
     /// Print the API's OpenAPI document
     Openapi,
+    /// The server's database backups: where they go, the last one, the copies kept. With
+    /// --now, have the server write one now (full-admin token), e.g. before a bulk change
+    Backups {
+        #[arg(long)]
+        now: bool,
+    },
 
     /// [local] Write a consistent copy of the database into the backup folder (the same copy
     /// the server makes every night: no sign-ins, file 0600), then keep only the newest
@@ -331,6 +342,12 @@ enum ServerCommand {
         /// Keep shells in tmux on the server, so they outlive a restart of SvrCtlRS
         #[arg(long)]
         persistent_shell: bool,
+        /// One line typed into every new shell there (e.g. `cd /srv && tmux attach`)
+        #[arg(long)]
+        startup_command: Option<String>,
+        /// Record every shell opened there (output only, encrypted, its owner can replay it)
+        #[arg(long)]
+        record: bool,
     },
     /// Change a server; only what you pass changes
     Edit {
@@ -357,6 +374,12 @@ enum ServerCommand {
         /// Keep shells in tmux on the server (`true`/`false`)
         #[arg(long)]
         persistent_shell: Option<bool>,
+        /// One line typed into every new shell there; empty clears it
+        #[arg(long)]
+        startup_command: Option<String>,
+        /// Record every shell opened there (`true`/`false`)
+        #[arg(long)]
+        record: Option<bool>,
         #[arg(long, conflicts_with = "disable")]
         enable: bool,
         #[arg(long)]
@@ -485,21 +508,95 @@ async fn run(api: &Api, out: &Out, command: Command) -> Result<u8, Failure> {
         }
         Command::Status { .. } => {
             let s: Status = api.get("/status").await?;
-            out.emit(&s, |s| {
+            // The last backup, in a few words; a token that may not read it just leaves it out
+            let backup = api.get::<BackupStatus>("/backups").await.ok().map(|b| {
+                json!({
+                    "last_success_at": b.last_success.as_ref().map(|r| r.finished_at),
+                    "last_error": b.last_run.as_ref().and_then(|r| r.error.clone()),
+                    "next_run": b.next_run,
+                })
+            });
+            let answer = json!({
+                "status": s.status,
+                "version": s.version,
+                "servers": s.resources.servers,
+                "backup": backup,
+            });
+            out.emit(&answer, |_| {
+                let backup = match &backup {
+                    Some(b) if !b["last_error"].is_null() => {
+                        format!(
+                            ", last backup FAILED: {}",
+                            b["last_error"].as_str().unwrap_or("")
+                        )
+                    }
+                    Some(b) => match b["last_success_at"].as_str() {
+                        Some(at) => format!(", last backup {at}"),
+                        None => ", no backup yet".to_string(),
+                    },
+                    None => String::new(),
+                };
                 format!(
-                    "svrctlrs {} {}, {} servers",
+                    "svrctlrs {} {}, {} servers{backup}",
                     s.version, s.status, s.resources.servers
                 )
             });
             Ok(code::OK)
         }
-        Command::Servers { tag } => {
+        Command::Servers { tag, failing } => {
             let mut list: ServerList = api.get("/servers").await?;
             if let Some(tag) = tag {
                 list.servers
                     .retain(|s| s.tags.iter().any(|t| t.eq_ignore_ascii_case(&tag)));
             }
-            out.emit(&list, |l| servers_text(&l.servers));
+            if failing {
+                list.servers.retain(|s| s.last_error.is_some());
+            }
+            if out.json {
+                // A list is for finding a server: its timestamps are in `server show`
+                let mut v = serde_json::to_value(&list).unwrap_or_default();
+                if let Some(items) = v["servers"].as_array_mut() {
+                    for item in items.iter_mut().filter_map(Value::as_object_mut) {
+                        item.remove("created_at");
+                        item.remove("updated_at");
+                    }
+                }
+                out.emit(&v, |_| String::new());
+            } else {
+                out.emit(&list, |l| servers_text(&l.servers));
+            }
+            Ok(code::OK)
+        }
+        Command::Backups { now } => {
+            if now {
+                let created: BackupCreated = api.call(Method::POST, "/backups", None).await?;
+                out.emit(&created, |c| {
+                    format!(
+                        "wrote {} ({} bytes){}",
+                        c.file.name,
+                        c.file.size_bytes,
+                        if c.removed > 0 {
+                            format!(", removed {} older", c.removed)
+                        } else {
+                            String::new()
+                        }
+                    )
+                });
+            } else {
+                let b: BackupStatus = api.get("/backups").await?;
+                out.emit(&b, |b| {
+                    let last = match (&b.last_run, &b.last_success) {
+                        (Some(r), _) if r.error.is_some() => format!(
+                            "last attempt FAILED at {}: {}",
+                            r.finished_at,
+                            r.error.as_deref().unwrap_or("")
+                        ),
+                        (_, Some(ok)) => format!("last copy {}", ok.finished_at),
+                        _ => "no copy yet".to_string(),
+                    };
+                    format!("{last}; {} copies kept in {}", b.files.len(), b.dir)
+                });
+            }
             Ok(code::OK)
         }
         Command::Server(cmd) => server_command(api, out, cmd).await,
@@ -519,7 +616,11 @@ async fn run(api: &Api, out: &Out, command: Command) -> Result<u8, Failure> {
                 )
                 .await?;
             let d: Diagnosis = api::decode(reply.body)?;
-            out.emit(&d, diagnosis_text);
+            if out.json {
+                out.emit(&brief_steps(&d), |_| String::new());
+            } else {
+                out.emit(&d, diagnosis_text);
+            }
             Ok(if d.ok { code::OK } else { code::FAILED })
         }
         Command::Exec {
@@ -831,6 +932,22 @@ async fn run(api: &Api, out: &Out, command: Command) -> Result<u8, Failure> {
                 path.push_str(&format!("&q={}", urlencode(&q)));
             }
             let page: AuditPage = api.get(&path).await?;
+            if out.json {
+                // `details` is JSON held in a string: hand it over as JSON, not escaped text
+                let mut v = serde_json::to_value(&page).unwrap_or_default();
+                if let Some(items) = v["entries"].as_array_mut() {
+                    for item in items.iter_mut() {
+                        if let Some(parsed) = item["details"]
+                            .as_str()
+                            .and_then(|d| serde_json::from_str::<Value>(d).ok())
+                        {
+                            item["details"] = parsed;
+                        }
+                    }
+                }
+                out.emit(&v, |_| String::new());
+                return Ok(code::OK);
+            }
             out.emit(&page, |p| {
                 p.entries
                     .iter()
@@ -881,6 +998,8 @@ async fn server_command(api: &Api, out: &Out, cmd: ServerCommand) -> Result<u8, 
             tags,
             description,
             persistent_shell,
+            startup_command,
+            record,
         } => {
             let credential_id = match credential {
                 Some(c) => Some(api.credential(&c).await?.id),
@@ -894,6 +1013,7 @@ async fn server_command(api: &Api, out: &Out, cmd: ServerCommand) -> Result<u8, 
                 "name": name, "hostname": host, "username": user, "credential_id": credential_id,
                 "via_server_id": via_server_id, "tags": tags, "description": description,
                 "persistent_shell": persistent_shell,
+                "startup_command": startup_command, "record_sessions": record,
             });
             if let Some(p) = port {
                 body["port"] = json!(p);
@@ -914,6 +1034,8 @@ async fn server_command(api: &Api, out: &Out, cmd: ServerCommand) -> Result<u8, 
             tags,
             description,
             persistent_shell,
+            startup_command,
+            record,
             enable,
             disable,
         } => {
@@ -960,6 +1082,13 @@ async fn server_command(api: &Api, out: &Out, cmd: ServerCommand) -> Result<u8, 
             }
             if let Some(v) = persistent_shell {
                 body.insert("persistent_shell".into(), json!(v));
+            }
+            if let Some(v) = startup_command {
+                // An empty string clears it
+                body.insert("startup_command".into(), json!(v.trim()));
+            }
+            if let Some(v) = record {
+                body.insert("record_sessions".into(), json!(v));
             }
             if enable || disable {
                 body.insert("enabled".into(), json!(enable));
@@ -1158,4 +1287,22 @@ fn urlencode(s: &str) -> String {
             _ => format!("%{b:02X}"),
         })
         .collect()
+}
+
+/// A diagnosis without what a skipped step repeats ("no connection to shake hands over") and
+/// without durations of zero: the steps that ran say everything.
+fn brief_steps<T: serde::Serialize>(d: &T) -> Value {
+    let mut v = serde_json::to_value(d).unwrap_or_default();
+    if let Some(hops) = v["hops"].as_array_mut() {
+        for steps in hops.iter_mut().filter_map(|h| h["steps"].as_array_mut()) {
+            for step in steps.iter_mut().filter_map(Value::as_object_mut) {
+                if step.get("status").and_then(Value::as_str) == Some("skipped") {
+                    step.retain(|k, _| k == "step" || k == "status");
+                } else if step.get("duration_ms").and_then(Value::as_u64) == Some(0) {
+                    step.remove("duration_ms");
+                }
+            }
+        }
+    }
+    v
 }

@@ -246,8 +246,57 @@ async fn svrctl_speaks_json_with_stable_exit_codes() {
     let (code, out, _) = s.svrctl(Some(&admin), &["tag", "prod", "web"], None);
     assert_eq!(code, 0);
     assert_eq!(out["servers"][0]["tags"], json!(["lab", "prod"]));
-    let (_, out, _) = s.svrctl(Some(&admin), &["servers", "--tag", "PROD"], None);
+    let (_, out, text) = s.svrctl(Some(&admin), &["servers", "--tag", "PROD"], None);
     assert_eq!(out["servers"].as_array().unwrap().len(), 1);
+    // Piped: one compact line, no nulls, a list without timestamps
+    assert_eq!(text.trim_end().lines().count(), 1, "{text}");
+    assert!(
+        !text.contains("null") && !text.contains("created_at"),
+        "{text}"
+    );
+
+    // Status says when the last backup was; backups --now writes one through the server
+    let (code, out, _) = s.svrctl(Some(&admin), &["backups", "--now"], None);
+    assert_eq!(code, 0, "{out}");
+    assert!(out["file"]["name"].as_str().unwrap().ends_with(".db"));
+    let (code, out, _) = s.svrctl(Some(&reader), &["status"], None);
+    assert_eq!(code, 0, "{out}");
+    assert!(out["backup"]["last_success_at"].is_string(), "{out}");
+    let (code, out, _) = s.svrctl(Some(&reader), &["backups", "--now"], None);
+    assert_eq!(code, 5, "a read-only token writes no backup: {out}");
+
+    // The startup command and recording are set and cleared like any other field
+    let (code, out, _) = s.svrctl(
+        Some(&admin),
+        &[
+            "server",
+            "edit",
+            "web",
+            "--startup-command",
+            "cd /srv",
+            "--record",
+            "true",
+        ],
+        None,
+    );
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(out["server"]["startup_command"], "cd /srv");
+    assert_eq!(out["server"]["record_sessions"], true);
+    let (_, out, _) = s.svrctl(
+        Some(&admin),
+        &[
+            "server",
+            "edit",
+            "web",
+            "--startup-command",
+            "",
+            "--record",
+            "false",
+        ],
+        None,
+    );
+    assert!(out["server"].get("startup_command").is_none(), "{out}");
+    assert_eq!(out["server"]["record_sessions"], false);
 
     // Unreachable: the diagnosis runs (exit 1) and says where it stops
     let (code, out, _) = s.svrctl(Some(&admin), &["diagnose", "web"], None);
@@ -261,6 +310,18 @@ async fn svrctl_speaks_json_with_stable_exit_codes() {
         .unwrap()
         .clone();
     assert_eq!(tcp["status"], "failed");
+    // A skipped step is just its name and status
+    let skipped = out["hops"][0]["steps"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["status"] == "skipped")
+        .unwrap()
+        .clone();
+    assert_eq!(skipped.as_object().unwrap().len(), 2, "{skipped}");
+    // and the failing server is the one --failing lists
+    let (_, out, _) = s.svrctl(Some(&admin), &["servers", "--failing"], None);
+    assert_eq!(out["servers"][0]["name"], "web", "{out}");
 
     // exec where nothing listens: svrctlrs refuses (6), with the reason
     let (code, out, _) = s.svrctl(Some(&admin), &["exec", "web", "--", "echo", "hi"], None);

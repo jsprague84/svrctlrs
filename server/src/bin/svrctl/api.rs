@@ -118,7 +118,7 @@ impl Api {
 /// Read a body into the type the server sends.
 pub fn decode<T: DeserializeOwned>(body: Value) -> Result<T, Failure> {
     serde_json::from_value(body.clone()).map_err(|e| Failure {
-        details: Some(body),
+        details: Some(Box::new(body)),
         ..Failure::new(
             "BAD_RESPONSE",
             format!("svrctlrs answered something svrctl does not understand ({e}); are the two the same version?"),
@@ -139,7 +139,7 @@ fn failure_from(status: u16, body: &Value) -> Failure {
                 .and_then(Value::as_str)
                 .unwrap_or("")
                 .to_string(),
-            e.get("details").cloned(),
+            e.get("details").cloned().map(Box::new),
         ),
         Some(Value::String(m)) => (default_code(status).to_string(), m.clone(), None),
         _ => (
@@ -193,7 +193,7 @@ fn pick<T>(
         1 => Ok(found.remove(0)),
         0 => Err(Failure {
             status: Some(404),
-            details: Some(serde_json::json!({ "known": names })),
+            details: Some(Box::new(serde_json::json!({ "known": names }))),
             ..Failure::new(
                 "NOT_FOUND",
                 format!("No {kind} named or numbered {reference:?}"),

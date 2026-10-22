@@ -31,6 +31,17 @@ the release workflow uses the matching section as the release notes.
   allowance of 10 attempts per 15 minutes; if the count cannot be read, the attempt is refused.
 
 ### Added
+- **`svrctl` costs an agent less.** Piped output is one compact JSON line with `null` fields
+  left out and keys in their natural order (`id`, `name` first); server lists drop their
+  timestamps (`server show` keeps them), a diagnosis keeps only the name and status of a
+  skipped step, and audit `details` arrive as JSON instead of an escaped string (default 20
+  entries). `servers --failing` lists servers whose last check failed; `status` names the last
+  backup; `backups [--now]` reads the backup state or has the server write a copy (before a
+  bulk change); `server add`/`edit` take `--startup-command` and `--record`. A server list is
+  about half its size, a diagnosis 45 % smaller. Releases attach `svrctl-linux-amd64`,
+  `svrctl-linux-arm64` and their checksums.
+- **rotate-key proves the old key is refused** (`prove_old_refused`), so neither an agent nor
+  the owner has to check by hand; it fails when the old key still logs in.
 - **The file browser opens a file instead of downloading it.** A tap shows text (up to 1 MB)
   and images (up to 10 MB) in a viewer; Download is a button. Text files up to 256 KB open in
   a plain editor that suits a phone and keeps the file's line endings and BOM; a save is

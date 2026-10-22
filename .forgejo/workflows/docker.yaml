@@ -109,10 +109,33 @@ jobs:
             exit 1
           }
 
+      - name: Log in to the Forgejo container registry
+        uses: https://github.com/docker/login-action@v3
+        with:
+          registry: git.js-node.cc
+          username: ${{ github.actor }}
+          password: ${{ secrets.FORGEJO_REGISTRY_TOKEN_ALL }}
+
+      # svrctl on its own, for agents on other machines: copied out of the image just
+      # published (created, never run, so arm64 needs no emulation)
+      - name: Take svrctl out of the image
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for arch in amd64 arm64; do
+            id=$(docker create --platform "linux/${arch}" "${IMAGE}:${GITHUB_REF_NAME}")
+            docker cp "${id}:/app/svrctl" "dist/svrctl-linux-${arch}"
+            docker rm "${id}" >/dev/null
+          done
+          (cd dist && sha256sum svrctl-linux-* > svrctl-SHA256SUMS && cat svrctl-SHA256SUMS)
+
       - name: Create or update the release
         env:
           TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: scripts/ci/forgejo-release.sh "${GITHUB_REF_NAME}"
+        run: |
+          scripts/ci/forgejo-release.sh "${GITHUB_REF_NAME}" \
+            dist/svrctl-linux-amd64 dist/svrctl-linux-arm64 dist/svrctl-SHA256SUMS
 
   deploy:
     name: Deploy to docker-vm
