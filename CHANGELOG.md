@@ -6,6 +6,18 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Security
+- **Signed-in devices, with sign-out per device.** Settings → Access → Devices lists the
+  account's browser and desktop-app sign-ins (name from the user agent, last use, address,
+  how it signed in), this device first. **Sign out** ends one at once, **Sign out other
+  devices** all but this one, so a lost phone no longer needs a password reset that ends every
+  session. Its open terminals close; its shells stay, detached, for the other devices. Every
+  sign-in is a row in `devices` (migration 112) that the auth layer requires, so a request
+  still running when its device is signed out cannot bring the session back. No API token can
+  list or end devices. Audited (`device.signed_out`, `device.signed_out_others`; `login` and
+  `logout` name the device).
+- **A browser session lasts 24 hours from its last use, as documented.** The session store
+  saves only a session that changed, so a browser session ended 24 hours after sign-in however
+  much it was used. Recording a device's last use (at most once a minute) saves it again.
 - **A password alone no longer signs in from the internet** behind the reference edge. The
   compose file sent all of `/api/` and `/ws/` past the Pocket ID passkey for the native apps,
   so the JSON login took a password without it, and that session opened shells. Every path a

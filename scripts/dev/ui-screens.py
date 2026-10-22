@@ -319,6 +319,35 @@ with sync_playwright() as p:
             except Exception:
                 off = False
             check("two-factor is off again", off)
+            # Signed-in devices: a second sign-in (Firefox on a phone; the emulated phone itself is
+            # Chrome on Android) is listed under this one and signed
+            # out from the list; its session stops working at once
+            req = urllib.request.Request(BASE + "/api/v1/auth/login", method="POST",
+                data=json.dumps({"username": USER, "password": PASSWORD}).encode(),
+                headers={"Content-Type": "application/json",
+                         "User-Agent": "Mozilla/5.0 (Android 14; Mobile; rv:131.0) Gecko/131.0 Firefox/131.0"})
+            with urllib.request.urlopen(req) as r:
+                phone_session = json.loads(r.read())["session_id"]
+            go("/settings?tab=access")
+            devices = page.get_by_test_id("devices")
+            check("this device is listed first", devices.locator("li").first.get_by_text("this device").count() == 1)
+            check("the phone is listed by name", devices.get_by_text("Firefox on Android").count() == 1)
+            shot("settings-access-devices", full=True)
+            page.get_by_role("button", name="Sign out Firefox on Android").click()
+            page.get_by_role("dialog", name="Sign out Firefox on Android?").get_by_role("button", name="Sign out").click()
+            try:
+                devices.get_by_text("Firefox on Android").wait_for(state="detached", timeout=5000)
+                gone = True
+            except Exception:
+                gone = False
+            check("the phone leaves the list", gone)
+            req = urllib.request.Request(BASE + "/api/v1/servers", headers={"Authorization": f"Bearer {phone_session}"})
+            try:
+                urllib.request.urlopen(req)
+                phone_status = 200
+            except urllib.error.HTTPError as e:
+                phone_status = e.code
+            check("the signed-out phone is refused", phone_status == 401, str(phone_status))
             # Approval: a token set to ask first tries to delete a server; the link opens the
             # request, and Deny leaves the server alone
             asker = api("POST", "/api/v1/tokens", {"name": f"asker-{vp_name}-{theme}", "preset": "servers_keys",

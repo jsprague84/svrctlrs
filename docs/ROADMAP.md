@@ -19,7 +19,8 @@ onboard and rotate-key, and `svrctl` as the agent CLI with its skill and a Herme
 (items 17–19): agent access is done. **After 3.4.0** (2026-10-19): the password login closed
 to the internet (item 20), sign-in with OIDC and TOTP in the binary (item 21), the desktop app signing in through the
 browser (item 22), shells kept across a restart (item 23), backups inside the app (item
-24) and a file browser that opens files before it downloads them (item 25); item 26 is next.
+24), a file browser that opens files before it downloads them (item 25) and signed-in
+devices with sign-out per device (item 26): the owner's list from 2026-10-19 is done.
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an
@@ -275,9 +276,20 @@ beside the binary, and what an identity provider does stays optional.
     server now speaks SFTP, so every file route is tested in CI; the e2e opens vim on hermes
     through `edit`; the phone check edits, conflicts, views an image and edits in a terminal
     tab (it caught the CSP blocking `blob:` images).
-26. **Signed-in devices.** The account's browser and app sessions (device, address, last use)
-    with sign-out per device, so a lost phone does not need a password reset that ends every
-    session.
+26. ~~**Signed-in devices.**~~ Done 2026-10-21: every browser and desktop-app sign-in is a
+    row in `devices` (migration 112: the session id's SHA-256, method, user agent, first and
+    last address, last use written at most once a minute), and the auth layer accepts a
+    session only while its row exists, so a request still running when its device is signed
+    out cannot write the session back to life. Sign-ins from before are recorded on their next
+    use; rows whose session ended are forgotten every five minutes. Settings → Access → Devices
+    (this device first) signs out one or all the others; their terminals close
+    (`device_signed_out`) and their shells stay, detached, for the other devices. No token
+    preset names the routes. Found on the way: the session store saves only changed sessions,
+    so a browser session had ended 24 h after sign-in; recording last use now keeps the
+    documented 24 h of inactivity. Tests through the real router (refusal, written-back
+    session, adoption, last use and expiry, presets, a loopback terminal closed with its shell
+    kept), the e2e signs a second sign-in out of a real shell on hermes, the screen sweep
+    signs one out from the list.
 
 ## Maybe later
 

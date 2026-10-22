@@ -14,7 +14,8 @@ Exercises: shell, dropped socket, attach with last_seq (gap replay), live input 
 reattach, full redraw from seq 0, `closed` on exit, `session_gone`, TTL expiry, and session
 recording (opt-in per server, output only, invisible to another user), and agent tokens
 (a shell through a ticket, audit attribution, presets, revocation), approvals (a held
-delete run once the owner approves), and the operations diagnose, exec and onboard. Output
+delete run once the owner approves), signed-in devices (a second sign-in signed out: its
+terminal closes, its shell stays), and the operations diagnose, exec and onboard. Output
 frames
 are requested in binary form (E2E_BINARY=0 for the legacy JSON `output` frames) and a
 multibyte marker checks that bytes reach the client intact.
@@ -576,6 +577,44 @@ async def main():
     except urllib.error.HTTPError as e:
         assert e.code == 404, e.code
     print("approval: held, refused to the token, approved by the owner, done ok")
+
+    # Signed-in devices: a second sign-in (the "phone") opens a shell; signed out from this
+    # one, its terminal closes and its API calls are refused, while its shell stays, detached,
+    # for this device. No token sees the list.
+    phone_jar = http.cookiejar.CookieJar()
+    phone = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(phone_jar))
+    req = urllib.request.Request(BASE + "/api/v1/auth/login",
+        data=json.dumps({"username": USER, "password": PASSWORD}).encode(), method="POST",
+        headers={"Content-Type": "application/json", "Origin": BASE,
+                 "User-Agent": "Mozilla/5.0 (Linux; Android 14; Pixel 7) Chrome/130.0 Mobile Safari/537.36"})
+    phone.open(req).read()
+    phone_cookie = "; ".join(f"{c.name}={c.value}" for c in phone_jar)
+    devices = api("GET", "/api/v1/users/me/devices")["devices"]
+    assert devices[0]["current"] is True, devices
+    phone_dev = next(d for d in devices if d["label"] == "Chrome on Android")
+    st, body = token_call(reader, "GET", "/api/v1/users/me/devices")
+    assert st == 403 and body["error"]["code"] == "TOKEN_SCOPE", (st, body)
+    async with websockets.connect(WS, additional_headers={"Cookie": phone_cookie, "Origin": BASE}) as ws:
+        await ws.send(json.dumps({"type": "shell", "server_id": sid, "cols": 80, "rows": 24, "binary": BINARY}))
+        fr = await recv_until(ws, lambda m: m["type"] in ("connected", "error"), 30)
+        assert fr[-1]["type"] == "connected", fr
+        phone_session = fr[-1]["session_id"]
+        api("DELETE", f"/api/v1/users/me/devices/{phone_dev['id']}")
+        fr = await recv_until(ws, lambda m: m["type"] == "error", 10)
+        assert fr and fr[-1].get("code") == "device_signed_out", fr[-3:]
+    try:
+        phone.open(urllib.request.Request(BASE + "/api/v1/servers", headers={"Origin": BASE}))
+        raise AssertionError("the signed-out phone still reaches the API")
+    except urllib.error.HTTPError as e:
+        assert e.code == 401, e.code
+    await asyncio.sleep(0.5)
+    kept = [x for x in api("GET", "/api/v1/sessions")["sessions"] if x["id"] == phone_session]
+    assert kept and kept[0]["attachments"] == 0, kept
+    api("DELETE", f"/api/v1/sessions/{phone_session}")
+    assert all(d["id"] != phone_dev["id"] for d in api("GET", "/api/v1/users/me/devices")["devices"])
+    entries = api("GET", "/api/v1/audit?limit=50")["entries"]
+    assert any(e["action"] == "device.signed_out" for e in entries), "no audit row for the sign-out"
+    print("devices: listed, phone signed out, its terminal closed, its shell kept, token refused ok")
 
     # Operations from svrctlrs itself, against the real host. rotate-key and onboarding with a
     # new key are left to the loopback tests: they would edit authorized_keys on the target.
