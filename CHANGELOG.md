@@ -5,6 +5,20 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-10-21
+
+The "sign-in and staying power" release. Sign in with your own identity provider (OpenID
+Connect) or add two-factor codes, both built into the server; list your signed-in devices and
+sign one out; the desktop app signs in through your browser. Shells can live in tmux on the
+server so they survive a restart of SvrCtlRS, the database backs itself up every night, and the
+file browser opens and edits small files. `svrctl` costs agents less (compact output,
+`diagnose --all`, rotate-key that proves the old key is refused) and releases carry `svrctl`
+binaries. A UI pass rebuilt the light theme and the app now follows the system's theme.
+Upgrading: migrations 109–112 run on start. `docker-compose.yml` (the Traefik edge) now
+defaults to `PASSWORD_LOGIN=off`, sign-in through the identity provider only; if you use it
+and sign in with a password, set `PASSWORD_LOGIN=on` in `.env` before you pull.
+`docker-compose.standalone.yml` keeps passwords on.
+
 ### Security
 - **Signed-in devices, with sign-out per device.** Settings → Access → Devices lists the
   account's browser and desktop-app sign-ins (name from the user agent, last use, address,
@@ -96,11 +110,6 @@ the release workflow uses the matching section as the release notes.
 - **A Nix flake for the desktop app** (`nix run git+https://git.js-node.cc/jsprague/svrctlrs#desktop`):
   nixpkgs' WebKitGTK, Wayland, the tray and the keyring wired up. The AppImage cannot start on
   NixOS or on a Wayland compositor without Xwayland (it forces X11).
-
-### Fixed
-- The desktop app no longer crashes at start when the tray library
-  (`libayatana-appindicator`) is missing; it runs without a tray.
-- The AppImage build failed once the app could open the browser (`xdg-open` missing in CI).
 - **Sign in with your identity provider (OpenID Connect)**, built into the server: set
   `OIDC_ISSUER`, `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `PUBLIC_URL`, link your account
   under Settings → Access → Sign-in, and the login page offers "Sign in with …". Any provider
@@ -113,6 +122,11 @@ the release workflow uses the matching section as the release notes.
   one-time recovery codes. A password sign-in then asks for a code (or a recovery code) on a
   second page; the JSON login takes it as `totp`. Wrong codes count like wrong passwords.
   `svrctl reset-password <user> --clear-totp` turns it off from the host if the phone is gone.
+
+### Fixed
+- The desktop app no longer crashes at start when the tray library
+  (`libayatana-appindicator`) is missing; it runs without a tray.
+- The AppImage build failed once the app could open the browser (`xdg-open` missing in CI).
 
 ### Removed
 - `?token=` on WebSocket upgrades (deprecated since 3.0): a token in a URL is now refused. The

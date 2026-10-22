@@ -13,7 +13,7 @@ exclude = [
 [workspace.package]
 # 3.x is the terminal/SSH product (SvelteKit + Tauri). 1.x/2.x tags were the retired
 # monitoring platform; the version is shared by the server, the UI and the Tauri apps.
-version = "3.4.0"
+version = "3.5.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 repository = "https://git.js-node.cc/jsprague/svrctlrs"
