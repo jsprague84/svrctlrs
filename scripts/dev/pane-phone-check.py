@@ -22,6 +22,8 @@ Screenshots land in E2E_OUT (default: a temp dir).
 import json, os, struct, sys, tempfile, time, urllib.parse, urllib.request, http.cookiejar, zlib
 from playwright.sync_api import sync_playwright
 
+# The app follows the OS theme on a first visit: THEME=light runs the whole check in light mode
+THEME = os.environ.get("THEME", "dark")
 BASE = os.environ.get("E2E_URL", "http://127.0.0.1:18081")
 USER = os.environ.get("E2E_USER", "admin")
 PASSWORD = os.environ.get("E2E_PASSWORD", "e2e-password-123456")
@@ -93,7 +95,7 @@ def check(name, ok, detail=""):
 
 with sync_playwright() as p:
     browser = p.chromium.launch(executable_path=CHROMIUM, args=["--disable-webgl", "--disable-3d-apis"])
-    ctx = browser.new_context(**p.devices["Pixel 7"], base_url=BASE)
+    ctx = browser.new_context(**p.devices["Pixel 7"], base_url=BASE, color_scheme=THEME)
     ctx.grant_permissions(["clipboard-read", "clipboard-write"], origin=BASE)
     page = ctx.new_page()
     logs = []
@@ -302,7 +304,7 @@ with sync_playwright() as p:
     saved = api("GET", "/api/v1/users/me/preferences/terminal")["value"] or {}
     check("a preference changed on the phone is saved to the account",
           saved.get("predictiveEcho") == "off", str(saved)[:200])
-    desk = browser.new_context(base_url=BASE, viewport={"width": 1280, "height": 800})
+    desk = browser.new_context(base_url=BASE, viewport={"width": 1280, "height": 800}, color_scheme=THEME)
     r = desk.request.post(BASE + "/api/v1/auth/login", data={"username": USER, "password": PASSWORD},
         headers={"Origin": BASE})
     dpage = desk.new_page()

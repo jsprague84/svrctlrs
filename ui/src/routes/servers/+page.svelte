@@ -367,6 +367,12 @@
 		];
 	}
 
+	/** Desktop's "⋯" menu: what the row strip does not already show */
+	function menuActions(server: Server): MenuItem[] {
+		const onRow = ['Test connection', 'Diagnose', ...(needsKey(server) ? ['Authorize key'] : [])];
+		return rowActions(server).filter((a) => !onRow.includes(a.label));
+	}
+
 	function openRecordings(server: Server) {
 		goto(`${resolve('/recordings')}?server=${server.id}`);
 	}
@@ -428,7 +434,7 @@
 						bind:value={search}
 						placeholder="Filter…"
 						aria-label="Filter servers"
-						class="pl-7 pr-2 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary w-40"
+						class="pl-7 pr-2 py-1.5 text-sm bg-input border border-border-strong rounded-md text-text-primary w-40"
 					/>
 				</div>
 			{/if}
@@ -482,7 +488,7 @@
 					{@const test = testResults[server.id]}
 					{@const cred = credentialName(server.credential_id)}
 					<li
-						class="border border-border/50 rounded-lg pl-3 pr-1.5 md:px-4 py-2.5 md:py-3 hover:bg-surface-raised/30 flex items-center gap-2 md:gap-4"
+						class="bg-surface border border-border rounded-lg pl-3 pr-1.5 md:px-4 py-2.5 md:py-3 hover:border-border-strong/60 flex items-center gap-2 md:gap-4"
 					>
 						<div class="min-w-0 flex-1">
 							<div class="flex items-center gap-2 min-w-0">
@@ -590,10 +596,24 @@
 							</Button>
 							<ActionMenu label="Actions for {server.name}" items={rowActions(server)} />
 						</div>
+						<!-- Desktop: the actions used often stay on the row; the rest share the phone's menu -->
 						<div class="hidden md:flex items-center gap-1 flex-nowrap flex-shrink-0">
 							<Button size="sm" onclick={() => connect(server)} disabled={!server.enabled}>
 								<TerminalSquare class="w-3.5 h-3.5" /> Connect
 							</Button>
+							{#if needsKey(server)}
+								<Button
+									variant="secondary"
+									size="sm"
+									class="text-warning border-warning/40"
+									onclick={() => (authServer = server)}
+									aria-label="Authorize an SSH key on this server"
+									title="This server logs in with a password; install an SSH key on it"
+								>
+									<ShieldCheck class="w-3.5 h-3.5" />
+									<span class="hidden lg:inline">Authorize key</span>
+								</Button>
+							{/if}
 							<Button
 								variant="ghost"
 								size="sm"
@@ -608,8 +628,8 @@
 									></span>
 								{:else}
 									<Wifi class="w-3.5 h-3.5" />
-									<span class="hidden lg:inline">Test</span>
 								{/if}
+								<span class="hidden lg:inline">Test</span>
 							</Button>
 							<Button
 								variant="ghost"
@@ -621,60 +641,7 @@
 								<Stethoscope class="w-3.5 h-3.5" />
 								<span class="hidden lg:inline">Diagnose</span>
 							</Button>
-							<Button
-								variant={needsKey(server) ? 'secondary' : 'ghost'}
-								size="sm"
-								class={needsKey(server) ? 'text-warning' : ''}
-								onclick={() => (authServer = server)}
-								aria-label="Authorize an SSH key on this server"
-								title="Install an SSH key on this server"
-							>
-								<ShieldCheck class="w-3.5 h-3.5" />
-								<span class="hidden lg:inline">Authorize key</span>
-							</Button>
-							{#if canRotate(server)}
-								<Button
-									variant="ghost"
-									size="sm"
-									onclick={() => rotateKey(server)}
-									disabled={rotating === server.id}
-									aria-label="Rotate the SSH key"
-									title="Replace the server's key with a new one"
-								>
-									<RotateCw class="w-3.5 h-3.5 {rotating === server.id ? 'animate-spin' : ''}" />
-									<span class="hidden xl:inline">Rotate</span>
-								</Button>
-							{/if}
-							<Button
-								variant="ghost"
-								size="sm"
-								onclick={() => openHostKeys(server)}
-								aria-label="Stored host keys"
-								title="Stored SSH host keys"
-							>
-								<KeyRound class="w-3.5 h-3.5" />
-								<span class="hidden lg:inline">Keys</span>
-							</Button>
-							<Button
-								variant="ghost"
-								size="sm"
-								onclick={() => openEdit(server)}
-								aria-label="Edit server"
-								title="Edit"
-							>
-								<Pencil class="w-3.5 h-3.5" />
-								<span class="hidden lg:inline">Edit</span>
-							</Button>
-							<Button
-								variant="ghost"
-								size="sm"
-								onclick={() => handleDelete(server)}
-								aria-label="Delete server"
-								title="Delete"
-							>
-								<Trash2 class="w-3.5 h-3.5 text-error" />
-								<span class="hidden lg:inline">Delete</span>
-							</Button>
+							<ActionMenu label="More actions for {server.name}" items={menuActions(server)} />
 						</div>
 					</li>
 				{/each}
@@ -790,9 +757,9 @@
 			No host key recorded yet — the first connection will record one to confirm.
 		</div>
 	{:else}
-		<ul class="flex flex-col gap-2">
+		<ul class="flex flex-col divide-y divide-border border border-border rounded-md">
 			{#each hostKeys as key (key.id)}
-				<li class="border border-border/50 rounded-sm px-3 py-2">
+				<li class="px-3 py-2">
 					<div class="flex items-center gap-2 flex-wrap">
 						<Badge variant="info">{key.key_type}</Badge>
 						{#if key.trusted}

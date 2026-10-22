@@ -17,9 +17,9 @@
 <section class={card ? 'p-4 bg-surface border border-border rounded-lg' : ''}>
 	<div class="flex items-start justify-between gap-3 mb-3">
 		<div>
-			<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold">{title}</h3>
+			<h3 class="text-sm font-semibold text-text-primary">{title}</h3>
 			{#if description}
-				<p class="text-xs text-text-muted mt-1">{description}</p>
+				<p class="text-xs text-text-secondary mt-0.5 max-w-prose">{description}</p>
 			{/if}
 		</div>
 		{#if actions}

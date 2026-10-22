@@ -674,36 +674,43 @@ pub(crate) fn render_auth_page(subtitle: &str, error: Option<&str>, body: &str) 
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <title>SvrCtlRS — Sign in</title>
 <style>
+:root{{--page:#1a1b26;--card:#1f2335;--line:#292e42;--field:#16161e;--field-line:#6b74a6;--ink:#c0caf5;--ink-2:#a9b1d6;--muted:#8a90b1;--accent:#7aa2f7;--on-accent:#1a1b26;--error:#f7768e;--shadow:0 8px 32px rgba(0,0,0,.35);color-scheme:dark}}
+@media (prefers-color-scheme:light){{:root{{--page:#f3f4f7;--card:#fff;--line:#d4d8e1;--field:#fff;--field-line:#7b8197;--ink:#1f2335;--ink-2:#3b4261;--muted:#5a6075;--accent:#2c58b0;--on-accent:#fff;--error:#b3323d;--shadow:0 1px 2px rgba(31,35,53,.06),0 8px 24px rgba(31,35,53,.08);color-scheme:light}}}}
 *,*::before,*::after{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#1a1b26;color:#c0caf5;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:1rem}}
-.card{{background:#24283b;border:1px solid #414868;border-radius:12px;padding:2.5rem;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.3)}}
-h1{{font-size:1.5rem;font-weight:600;margin-bottom:0.25rem;text-align:center}}
-.sub{{color:#787fa0;font-size:0.875rem;text-align:center;margin-bottom:2rem}}
-.error{{background:#f85149;color:#fff;padding:0.75rem 1rem;border-radius:6px;margin-bottom:1.5rem;font-size:0.875rem}}
-label{{display:block;font-size:0.875rem;font-weight:500;color:#a9b1d6;margin-bottom:0.375rem}}
-input{{width:100%;padding:0.625rem 0.75rem;background:#1a1b26;border:1px solid #414868;border-radius:6px;color:#c0caf5;font-size:1rem;outline:none;transition:border-color 0.15s}}
-input:focus{{border-color:#7aa2f7}}
-.field{{margin-bottom:1.25rem}}
-button,.button{{display:block;width:100%;min-height:44px;padding:0.75rem;background:#7aa2f7;color:#1a1b26;border:none;border-radius:6px;font-size:0.875rem;font-weight:600;cursor:pointer;transition:background 0.15s;text-align:center;text-decoration:none}}
-button:hover,.button:hover{{background:#89b4fa}}
-.secondary{{background:transparent;color:#a9b1d6;border:1px solid #414868}}
-.secondary:hover{{background:#2f3549}}
-.or{{display:flex;align-items:center;gap:0.75rem;color:#787fa0;font-size:0.75rem;margin:1.5rem 0}}
-.or::before,.or::after{{content:"";flex:1;border-top:1px solid #414868}}
-.hint{{color:#787fa0;font-size:0.75rem;margin-top:0.375rem}}
-.links{{margin-top:1.25rem;text-align:center;font-size:0.8125rem}}
-.links a{{color:#7aa2f7}}
+body{{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--page);color:var(--ink);display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:1rem}}
+.card{{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2rem 2rem 2.25rem;width:100%;max-width:380px;box-shadow:var(--shadow)}}
+.brand{{display:flex;align-items:center;justify-content:center;gap:.6rem;margin-bottom:.35rem}}
+.brand svg{{width:32px;height:32px;flex:none}}
+h1{{font-size:1.375rem;font-weight:650;letter-spacing:-.01em}}
+.sub{{color:var(--muted);font-size:.875rem;text-align:center;margin-bottom:1.75rem}}
+.error{{background:color-mix(in srgb,var(--error) 10%,var(--card));color:var(--error);border:1px solid color-mix(in srgb,var(--error) 35%,var(--card));padding:.7rem .9rem;border-radius:8px;margin-bottom:1.25rem;font-size:.875rem}}
+label{{display:block;font-size:.875rem;font-weight:500;color:var(--ink-2);margin-bottom:.375rem}}
+input{{width:100%;padding:.625rem .75rem;background:var(--field);border:1px solid var(--field-line);border-radius:8px;color:var(--ink);font-size:1rem;outline:none;transition:border-color .15s,box-shadow .15s}}
+input:focus{{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}}
+.field{{margin-bottom:1.1rem}}
+button,.button{{display:block;width:100%;min-height:44px;padding:.75rem;background:var(--accent);color:var(--on-accent);border:1px solid transparent;border-radius:8px;font:inherit;font-size:.9375rem;font-weight:600;cursor:pointer;transition:filter .15s,background .15s;text-align:center;text-decoration:none}}
+button:hover,.button:hover{{filter:brightness(1.08)}}
+button:focus-visible,.button:focus-visible,a:focus-visible{{outline:2px solid var(--accent);outline-offset:2px}}
+.secondary{{background:transparent;color:var(--ink);border-color:var(--field-line)}}
+.secondary:hover{{filter:none;background:color-mix(in srgb,var(--ink) 6%,transparent)}}
+.or{{display:flex;align-items:center;gap:.75rem;color:var(--muted);font-size:.75rem;margin:1.5rem 0}}
+.or::before,.or::after{{content:"";flex:1;border-top:1px solid var(--line)}}
+.hint{{color:var(--muted);font-size:.75rem;margin-top:.375rem}}
+.links{{margin-top:1.25rem;text-align:center;font-size:.8125rem}}
+.links a{{color:var(--accent)}}
 </style>
 </head>
 <body>
-<div class="card">
-<h1>SvrCtlRS</h1>
+<main class="card">
+<div class="brand"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="#1a1b26"/><path d="M8 11l5 5-5 5" stroke="#7aa2f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/><line x1="16" y1="21" x2="24" y2="21" stroke="#565f89" stroke-width="2.5" stroke-linecap="round"/></svg><h1>SvrCtlRS</h1></div>
 <p class="sub">{subtitle}</p>
 {error_block}
 {body}
-</div>
+</main>
 </body>
 </html>"##
     )

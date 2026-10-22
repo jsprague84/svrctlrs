@@ -18,7 +18,8 @@ which a browser tab keeps for itself.
    a *Authorize on a server* picker.
 2. **Servers → Add Server** with hostname, port and user. A new remote server without a
    credential goes straight to step 3.
-3. **Authorize key** (on the server row, or from the public-key dialog): pick the key — or
+3. **Authorize key** (on the row of a server that has no key yet, in its **⋯** menu otherwise,
+   or from the public-key dialog): pick the key — or
    generate one right there — and log in *once* with the account's password (used immediately,
    never stored) or a credential that already works. SvrCtlRS appends the public key to
    `~/.ssh/authorized_keys` — what `ssh-copy-id` does — verifies that the key logs in, and
@@ -90,10 +91,10 @@ network is not dropped by the network, and a dead link is noticed within a minut
 The first connection to a server does not go through until you have confirmed its SSH host
 key: the terminal (or a failed *Test*) shows the key type and `SHA256:` fingerprint, you compare
 it with `ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub` run on the server itself, and choose
-**Trust and connect** (or **Trust key** on the row, or **Trust** under **Keys**). The file
+**Trust and connect** (or **Trust key** on the row, or **Trust** under **Host keys**). The file
 browser refuses with the same fingerprint until then. If the server later presents a key that
 matches none trusted for it, the connection is refused and the terminal shows a mismatch
-error. The **Keys** button on a server lists the recorded keys, trusted or unconfirmed, with
+error. **Host keys** in a server's **⋯** menu lists the recorded keys, trusted or unconfirmed, with
 their fingerprints and, once you have confirmed out of band that the key really changed,
 **Forget all keys** makes the next connection ask for confirmation again.
 
@@ -387,7 +388,9 @@ down or coming back sends a push notification.
 
 ## Themes
 
-Tokyo Night dark is the default; switch to light in the sidebar. The terminal colours follow.
+A new browser or device starts in the system's theme (Tokyo Night dark, or a light theme)
+and follows it when it changes. The sidebar's toggle picks one for good on that device. The
+terminal colours follow, and so does the sign-in page (always the system's theme).
 
 ## Mobile (Android app or a phone browser)
 

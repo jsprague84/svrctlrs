@@ -153,29 +153,26 @@
 		<div class="flex items-center justify-between py-2">
 			<div>
 				<p class="text-sm text-text-primary">Theme</p>
-				<p class="text-xs text-text-muted">The terminal colours follow</p>
+				<p class="text-xs text-text-muted">
+					System follows the device. The terminal colours follow.
+				</p>
 			</div>
-			<div class="flex gap-1" role="group" aria-label="Theme">
-				<button
-					type="button"
-					aria-pressed={themeState.isDark()}
-					class="px-4 md:px-3 py-1 min-h-11 md:min-h-0 text-sm md:text-xs rounded-sm transition-colors {themeState.isDark()
-						? 'bg-accent text-accent-foreground font-medium'
-						: 'bg-surface-raised text-text-secondary'}"
-					onclick={() => {
-						if (!themeState.isDark()) themeState.toggleTheme();
-					}}>Dark</button
-				>
-				<button
-					type="button"
-					aria-pressed={!themeState.isDark()}
-					class="px-4 md:px-3 py-1 min-h-11 md:min-h-0 text-sm md:text-xs rounded-sm transition-colors {!themeState.isDark()
-						? 'bg-accent text-accent-foreground font-medium'
-						: 'bg-surface-raised text-text-secondary'}"
-					onclick={() => {
-						if (themeState.isDark()) themeState.toggleTheme();
-					}}>Light</button
-				>
+			<div
+				class="flex p-0.5 gap-0.5 rounded-md border border-border bg-surface-raised"
+				role="group"
+				aria-label="Theme"
+			>
+				{#each [['system', 'System'], ['dark', 'Dark'], ['light', 'Light']] as const as [value, label] (value)}
+					<button
+						type="button"
+						aria-pressed={themeState.getChoice() === value}
+						class="px-4 md:px-3 py-1 min-h-11 md:min-h-0 text-sm md:text-xs rounded-sm transition-colors {themeState.getChoice() ===
+						value
+							? 'bg-surface text-text-primary font-medium shadow-xs'
+							: 'text-text-secondary hover:text-text-primary'}"
+						onclick={() => themeState.setChoice(value)}>{label}</button
+					>
+				{/each}
 			</div>
 		</div>
 	</SettingsSection>
@@ -222,7 +219,7 @@
 					bind:value={retentionDays}
 					onchange={saveRetention}
 					disabled={!loaded}
-					class="w-20 px-3 py-1.5 min-h-11 md:min-h-0 text-base md:text-sm bg-input border border-border rounded-sm text-text-primary"
+					class="w-20 px-3 py-1.5 min-h-11 md:min-h-0 text-base md:text-sm bg-input border border-border-strong rounded-md text-text-primary"
 				/>
 				<span class="text-sm text-text-secondary">days</span>
 			</div>
@@ -248,7 +245,7 @@
 				bind:value={backupKeep}
 				onchange={saveBackupKeep}
 				disabled={!loaded}
-				class="w-20 px-3 py-1.5 min-h-11 md:min-h-0 text-base md:text-sm bg-input border border-border rounded-sm text-text-primary flex-shrink-0"
+				class="w-20 px-3 py-1.5 min-h-11 md:min-h-0 text-base md:text-sm bg-input border border-border-strong rounded-md text-text-primary flex-shrink-0"
 			/>
 		</div>
 		<div class="flex items-center justify-between gap-4 py-2">

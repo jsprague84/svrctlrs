@@ -131,7 +131,7 @@
 				bind:value={userId}
 				onchange={() => load(true)}
 				aria-label="User"
-				class="px-2 py-1 min-h-11 md:min-h-0 text-sm md:text-xs bg-input border border-border rounded-sm text-text-primary"
+				class="px-2 py-1 min-h-11 md:min-h-0 text-sm md:text-xs bg-input border border-border-strong rounded-md text-text-primary"
 			>
 				<option value="">Any user</option>
 				{#each users as u (u.id)}
@@ -147,7 +147,7 @@
 				oninput={onQueryInput}
 				placeholder="Search target, command, address…"
 				aria-label="Search the audit log"
-				class="w-full pl-7 pr-2 py-1 min-h-11 md:min-h-0 text-base md:text-xs bg-input border border-border rounded-sm text-text-primary"
+				class="w-full pl-7 pr-2 py-1 min-h-11 md:min-h-0 text-base md:text-xs bg-input border border-border-strong rounded-md text-text-primary"
 			/>
 		</div>
 		<Button variant="secondary" size="sm" onclick={() => load(true)} disabled={loading}

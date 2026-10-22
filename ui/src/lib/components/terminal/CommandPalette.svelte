@@ -328,7 +328,7 @@
 
 <!-- Always in DOM, toggle visibility via CSS to avoid WebKitGTK layout corruption -->
 <div
-	class="fixed inset-0 bg-black/40 z-40 transition-opacity duration-100
+	class="fixed inset-0 bg-scrim z-40 transition-opacity duration-100
 		{open ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}"
 	onclick={(e) => {
 		e.stopPropagation();

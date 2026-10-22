@@ -242,7 +242,7 @@
 				<select
 					bind:value={filter}
 					aria-label="Filter by type"
-					class="px-2 py-1.5 text-sm bg-input border border-border rounded-sm text-text-primary"
+					class="px-2 py-1.5 text-sm bg-input border border-border-strong rounded-md text-text-primary"
 				>
 					<option value="all">All types</option>
 					<option value="ssh_key">SSH keys</option>
@@ -279,7 +279,7 @@
 			<ul class="flex flex-col gap-2">
 				{#each shown as cred (cred.id)}
 					<li
-						class="border border-border/50 rounded-lg px-3 md:px-4 py-3 hover:bg-surface-raised/30 flex flex-col md:flex-row md:items-center gap-2 md:gap-4"
+						class="bg-surface border border-border rounded-lg px-3 md:px-4 py-3 hover:border-border-strong/60 flex flex-col md:flex-row md:items-center gap-2 md:gap-4"
 					>
 						<div class="min-w-0 flex-1">
 							<div class="flex items-center gap-2 min-w-0 flex-wrap">
@@ -508,7 +508,7 @@
 		<textarea
 			readonly
 			rows="3"
-			class="w-full px-3 py-2 text-xs font-mono bg-input border border-border rounded-sm text-text-primary resize-y"
+			class="w-full px-3 py-2 text-xs font-mono bg-input border border-border-strong rounded-md text-text-primary resize-y"
 			value={publicKeyFor.key}></textarea>
 		{#if remoteServers.length > 0}
 			<div class="flex items-end gap-2 mt-3">

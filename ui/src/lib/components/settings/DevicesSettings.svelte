@@ -114,10 +114,13 @@
 	{:else if loadError}
 		<StateBlock kind="error" title={loadError} onRetry={load} compact />
 	{:else}
-		<ul class="flex flex-col gap-2" data-testid="devices">
+		<ul
+			class="flex flex-col divide-y divide-border border border-border rounded-md"
+			data-testid="devices"
+		>
 			{#each devices as device (device.id)}
 				{@const Icon = icon(device)}
-				<li class="flex items-center gap-3 border border-border/50 rounded-sm px-3 py-2">
+				<li class="flex items-center gap-3 px-3 py-2">
 					<Icon class="w-4 h-4 flex-shrink-0 text-text-muted" />
 					<div class="flex-1 min-w-0">
 						<div class="flex items-center gap-2 min-w-0">
@@ -140,6 +143,7 @@
 						title="Sign out"
 					>
 						<LogOut class="w-3.5 h-3.5 text-error" />
+						<span class="hidden md:inline">Sign out</span>
 					</Button>
 				</li>
 			{/each}

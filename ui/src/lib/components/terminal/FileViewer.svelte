@@ -207,14 +207,14 @@
 		{@attach overlay({ onEscape: () => void close() })}
 	>
 		<button
-			class="absolute inset-0 bg-black/60 hidden md:block"
+			class="absolute inset-0 bg-scrim hidden md:block"
 			onclick={() => void close()}
 			tabindex="-1"
 			aria-label="Close"
 		></button>
 
 		<div
-			class="relative flex flex-col w-full h-full md:max-w-5xl md:h-[min(88dvh,60rem)] bg-surface md:border md:border-border md:rounded-lg md:shadow-lg overflow-hidden pt-[env(safe-area-inset-top,0px)]"
+			class="relative flex flex-col w-full h-full md:max-w-5xl md:h-[min(88dvh,60rem)] bg-surface md:border md:border-border md:rounded-xl md:shadow-xl overflow-hidden pt-[env(safe-area-inset-top,0px)]"
 		>
 			<!-- Header: the file, and what can be done with it -->
 			<div class="flex items-center gap-1 pl-3 pr-1 md:pr-2 py-1 border-b border-border">

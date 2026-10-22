@@ -194,9 +194,9 @@
 						{/if}
 					</div>
 					{#if methods.identities.length}
-						<ul class="flex flex-col gap-2 mb-2">
+						<ul class="flex flex-col divide-y divide-border border border-border rounded-md mb-2">
 							{#each methods.identities as identity (identity.id)}
-								<li class="flex items-center gap-3 border border-border/50 rounded-sm px-3 py-2">
+								<li class="flex items-center gap-3 px-3 py-2">
 									<div class="flex-1 min-w-0">
 										<div class="text-sm text-text-primary truncate">{identityLabel(identity)}</div>
 										<div class="text-[11px] text-text-muted truncate">

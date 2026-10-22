@@ -24,18 +24,18 @@
 		{@attach overlay({ onEscape: () => onClose() })}
 	>
 		<!-- Backdrop -->
-		<button class="absolute inset-0 bg-black/60" onclick={onClose} tabindex="-1" aria-label="Close"
+		<button class="absolute inset-0 bg-scrim" onclick={onClose} tabindex="-1" aria-label="Close"
 		></button>
 
 		<!-- Content -->
 		<div
-			class="relative bg-surface border border-border rounded-lg shadow-lg w-[calc(100%-1rem)] md:w-full max-w-lg mx-auto max-h-[90dvh] flex flex-col"
+			class="relative bg-surface border border-border rounded-xl shadow-xl w-[calc(100%-1rem)] md:w-full max-w-lg mx-auto max-h-[90dvh] flex flex-col"
 		>
 			<!-- Header -->
 			<div class="flex items-center justify-between px-4 py-3 border-b border-border">
-				<h2 class="text-sm font-semibold text-text-primary">{title}</h2>
+				<h2 class="text-base font-semibold text-text-primary">{title}</h2>
 				<button
-					class="w-11 h-11 -mr-3 md:w-auto md:h-auto md:mr-0 md:p-1 flex items-center justify-center text-text-muted hover:text-text-primary rounded-sm"
+					class="w-11 h-11 -mr-3 md:w-auto md:h-auto md:mr-0 md:p-1.5 flex items-center justify-center text-text-muted hover:text-text-primary hover:bg-surface-raised rounded-md"
 					onclick={onClose}
 					aria-label="Close dialog"
 				>

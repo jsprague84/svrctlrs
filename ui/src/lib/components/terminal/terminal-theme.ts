@@ -26,28 +26,28 @@ export const tokyoNightTheme: ITheme = {
 	brightWhite: '#c0caf5'
 };
 
-/** Light xterm.js theme (warm paper-like) */
+/** Light xterm.js theme: the app's cool light palette; every ANSI colour reads at WCAG AA */
 export const lightTheme: ITheme = {
-	background: '#f5f5f0',
-	foreground: '#2e3440',
-	cursor: '#2e3440',
-	cursorAccent: '#f5f5f0',
-	selectionBackground: '#2e6fcf33',
-	selectionForeground: '#2e3440',
-	black: '#2e3440',
-	red: '#c43e3e',
-	green: '#2e8b57',
-	yellow: '#b8860b',
-	blue: '#2e6fcf',
-	magenta: '#8b5fbf',
-	cyan: '#3366a5',
-	white: '#4c566a',
-	brightBlack: '#7b8394',
-	brightRed: '#c43e3e',
-	brightGreen: '#2e8b57',
-	brightYellow: '#b8860b',
-	brightBlue: '#2e6fcf',
-	brightMagenta: '#8b5fbf',
-	brightCyan: '#3366a5',
-	brightWhite: '#9aa0ad'
+	background: '#f8f9fb',
+	foreground: '#1f2335',
+	cursor: '#1f2335',
+	cursorAccent: '#f8f9fb',
+	selectionBackground: '#2c58b033',
+	selectionForeground: '#1f2335',
+	black: '#1f2335',
+	red: '#b3323d',
+	green: '#2d6a35',
+	yellow: '#7f5a0e',
+	blue: '#2c58b0',
+	magenta: '#7847bd',
+	cyan: '#0f6a85',
+	white: '#5a6075',
+	brightBlack: '#6c7287',
+	brightRed: '#c5414b',
+	brightGreen: '#387a3f',
+	brightYellow: '#8f6a12',
+	brightBlue: '#3a68c4',
+	brightMagenta: '#8a59cc',
+	brightCyan: '#187a96',
+	brightWhite: '#3b4261'
 };

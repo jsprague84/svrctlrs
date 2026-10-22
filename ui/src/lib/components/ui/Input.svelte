@@ -31,8 +31,8 @@
 	<input
 		id={inputId}
 		bind:value
-		class="px-3 py-1.5 min-h-11 md:min-h-0 text-base md:text-sm bg-input border rounded-sm text-text-primary placeholder:text-text-muted
-			{error ? 'border-error' : 'border-border'} {className}"
+		class="px-3 py-1.5 min-h-11 md:min-h-0 text-base md:text-sm bg-input border rounded-md text-text-primary placeholder:text-text-muted
+			{error ? 'border-error' : 'border-border-strong'} {className}"
 		aria-invalid={error ? 'true' : undefined}
 		{...rest}
 	/>

@@ -28,13 +28,18 @@
 	--color-primary-foreground: #1a1b26;
 	--color-secondary: #24283b;
 	--color-secondary-foreground: #c0caf5;
+	--color-secondary-hover: #2f3549;
 	--color-destructive: #f7768e;
 	--color-destructive-foreground: #1a1b26;
 
 	/* Borders & inputs */
 	--color-border: #292e42;
+	/* Input and select outlines: 3:1 against what they sit on (WCAG 1.4.11) */
+	--color-border-strong: #6b74a6;
 	--color-input: #24283b;
 	--color-ring: #7aa2f7;
+	/* Behind dialogs, sheets and panels */
+	--color-scrim: rgb(0 0 0 / 0.6);
 
 	/* Sidebar */
 	--color-sidebar: #16161e;
@@ -65,43 +70,47 @@
 	--density: 0.75;
 }
 
-/* Light theme overrides */
+/* Light theme: cool blue-grey neutrals from the Tokyo Night family. Anything you act on
+   (cards, dialogs, menus, inputs) is white on a grey page; raised is the hover/chip grey.
+   Text colours clear WCAG AA (4.5:1) on every surface, badge tints included (tested). */
 [data-theme='light'] {
-	/* Text colours clear WCAG AA (4.5:1) on every surface, badge tints included */
-	--color-background: #f5f5f0;
-	--color-foreground: #2e3440;
-	--color-surface: #eae8e4;
-	--color-surface-raised: #dfddd8;
-	--color-surface-overlay: #d2d0cb;
+	--color-background: #f3f4f7;
+	--color-foreground: #1f2335;
+	--color-surface: #ffffff;
+	--color-surface-raised: #eaecf1;
+	--color-surface-overlay: #dde0e8;
 
-	--color-text-primary: #2e3440;
-	--color-text-secondary: #4c566a;
-	--color-text-muted: #575e6e;
+	--color-text-primary: #1f2335;
+	--color-text-secondary: #3b4261;
+	--color-text-muted: #5a6075;
 
-	--color-accent: #265cac;
-	--color-accent-foreground: #f5f5f0;
+	--color-accent: #2c58b0;
+	--color-accent-foreground: #ffffff;
 
-	--color-success: #236a43;
-	--color-warning: #795807;
-	--color-error: #a83333;
-	--color-info: #2f5f99;
+	--color-success: #2d6a35;
+	--color-warning: #7f5a0e;
+	--color-error: #b3323d;
+	--color-info: #1d6191;
 
-	--color-primary: #265cac;
-	--color-primary-foreground: #f5f5f0;
-	--color-secondary: #dfddd8;
-	--color-secondary-foreground: #2e3440;
-	--color-destructive: #a83333;
-	--color-destructive-foreground: #f5f5f0;
+	--color-primary: #2c58b0;
+	--color-primary-foreground: #ffffff;
+	--color-secondary: #ffffff;
+	--color-secondary-foreground: #1f2335;
+	--color-secondary-hover: #eef0f4;
+	--color-destructive: #b3323d;
+	--color-destructive-foreground: #ffffff;
 
-	--color-border: #c8c5be;
-	--color-input: #eae8e4;
-	--color-ring: #265cac;
+	--color-border: #d4d8e1;
+	--color-border-strong: #7b8197;
+	--color-input: #ffffff;
+	--color-ring: #2c58b0;
+	--color-scrim: rgb(31 35 53 / 0.4);
 
-	--color-sidebar: #eae8e4;
-	--color-sidebar-foreground: #2e3440;
-	--color-sidebar-accent: #dfddd8;
-	--color-sidebar-border: #c8c5be;
-	--color-sidebar-muted: #575e6e;
+	--color-sidebar: #eceef3;
+	--color-sidebar-foreground: #1f2335;
+	--color-sidebar-accent: #ffffff;
+	--color-sidebar-border: #d4d8e1;
+	--color-sidebar-muted: #5a6075;
 }
 
 /* Bundled terminal font: the "JetBrains Mono" choice must not fall back to Android's monospace */
@@ -131,7 +140,6 @@ body {
 	background-color: var(--color-background);
 	color: var(--color-foreground);
 	font-family:
-		'Inter',
 		system-ui,
 		-apple-system,
 		sans-serif;
@@ -199,14 +207,31 @@ textarea {
 	color-scheme: light;
 }
 
-[data-theme='light'] ::-webkit-scrollbar-track {
-	background: #eae8e4;
-}
-
 [data-theme='light'] ::-webkit-scrollbar-thumb {
-	background: #c8c5be;
+	background: #c3c8d4;
 }
 
 [data-theme='light'] ::-webkit-scrollbar-thumb:hover {
-	background: #7b8394;
+	background: var(--color-border-strong);
+}
+
+/* One visible focus ring for every control the keyboard reaches. Components that draw their
+   own (inputs with a border colour change) still get it; outline-none opts out explicitly. */
+@layer base {
+	:where(a[href], button, input, select, textarea, summary, [tabindex]):focus-visible {
+		outline: 2px solid var(--color-ring);
+		outline-offset: 2px;
+	}
+}
+
+/* Native selects drawn like the app's inputs: own chevron, no OS chrome. Unlayered on
+   purpose, so a px-* utility cannot take the chevron's room. */
+select:not([multiple]):not([size]) {
+	appearance: none;
+	-webkit-appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237f86a3' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.5rem center;
+	background-size: 12px;
+	padding-right: 1.75rem;
 }

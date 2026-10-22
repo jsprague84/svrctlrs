@@ -52,7 +52,7 @@
 	<button
 		tabindex="-1"
 		aria-label="Close preferences"
-		class="fixed inset-0 bg-black/40 z-20 md:hidden"
+		class="fixed inset-0 bg-scrim z-20 md:hidden"
 		onclick={onClose}
 	></button>
 {/if}
@@ -90,12 +90,12 @@
 	<div class="flex-1 overflow-y-auto px-3 py-2 space-y-4">
 		<!-- Font -->
 		<section>
-			<h3 class="text-[10px] uppercase tracking-wider text-text-muted mb-2">Font</h3>
+			<h3 class="text-xs font-medium text-text-secondary mb-2">Font</h3>
 			<div class="space-y-2">
 				<label class="block">
 					<span class="text-xs text-text-secondary">Family</span>
 					<select
-						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border-strong rounded-md text-text-primary"
 						value={currentFontLabel()}
 						onchange={(e) => {
 							const label = (e.target as HTMLSelectElement).value;
@@ -151,7 +151,7 @@
 				<label class="block">
 					<span class="text-xs text-text-secondary">Weight</span>
 					<select
-						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border-strong rounded-md text-text-primary"
 						value={prefs.fontWeight}
 						onchange={(e) =>
 							terminalPrefs.updatePref(
@@ -170,7 +170,7 @@
 				<label class="block">
 					<span class="text-xs text-text-secondary">Bold Weight</span>
 					<select
-						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border-strong rounded-md text-text-primary"
 						value={prefs.fontWeightBold}
 						onchange={(e) =>
 							terminalPrefs.updatePref(
@@ -224,12 +224,12 @@
 
 		<!-- Cursor -->
 		<section>
-			<h3 class="text-[10px] uppercase tracking-wider text-text-muted mb-2">Cursor</h3>
+			<h3 class="text-xs font-medium text-text-secondary mb-2">Cursor</h3>
 			<div class="space-y-2">
 				<label class="block">
 					<span class="text-xs text-text-secondary">Style</span>
 					<select
-						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border-strong rounded-md text-text-primary"
 						value={prefs.cursorStyle}
 						onchange={(e) =>
 							terminalPrefs.updatePref(
@@ -258,7 +258,7 @@
 
 		<!-- Scrolling -->
 		<section>
-			<h3 class="text-[10px] uppercase tracking-wider text-text-muted mb-2">Scrolling</h3>
+			<h3 class="text-xs font-medium text-text-secondary mb-2">Scrolling</h3>
 			<div class="space-y-2">
 				<label class="block">
 					<span class="text-xs text-text-secondary">Scrollback Lines</span>
@@ -270,7 +270,7 @@
 						value={prefs.scrollback}
 						onchange={(e) =>
 							terminalPrefs.updatePref('scrollback', Number((e.target as HTMLInputElement).value))}
-						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border-strong rounded-md text-text-primary"
 					/>
 				</label>
 
@@ -335,7 +335,7 @@
 
 		<!-- Rendering -->
 		<section>
-			<h3 class="text-[10px] uppercase tracking-wider text-text-muted mb-2">Rendering</h3>
+			<h3 class="text-xs font-medium text-text-secondary mb-2">Rendering</h3>
 			<div class="space-y-2">
 				<label class="flex items-center gap-2">
 					<input
@@ -354,7 +354,7 @@
 				<label class="block">
 					<span class="text-xs text-text-secondary">Minimum Contrast Ratio</span>
 					<select
-						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border-strong rounded-md text-text-primary"
 						value={prefs.minimumContrastRatio}
 						onchange={(e) =>
 							terminalPrefs.updatePref(
@@ -373,12 +373,12 @@
 
 		<!-- Behavior -->
 		<section>
-			<h3 class="text-[10px] uppercase tracking-wider text-text-muted mb-2">Behavior</h3>
+			<h3 class="text-xs font-medium text-text-secondary mb-2">Behavior</h3>
 			<div class="space-y-2">
 				<label class="block">
 					<span class="text-xs text-text-secondary">Tab Stop Width</span>
 					<select
-						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border-strong rounded-md text-text-primary"
 						value={prefs.tabStopWidth}
 						onchange={(e) =>
 							terminalPrefs.updatePref(
@@ -406,7 +406,7 @@
 				<label class="block">
 					<span class="text-xs text-text-secondary">Predictive Echo</span>
 					<select
-						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border-strong rounded-md text-text-primary"
 						value={prefs.predictiveEcho}
 						onchange={(e) =>
 							terminalPrefs.updatePref(
@@ -427,7 +427,7 @@
 				<label class="block">
 					<span class="text-xs text-text-secondary">Leader Key</span>
 					<select
-						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border rounded-sm text-text-primary"
+						class="mt-0.5 w-full px-2 py-1 text-xs bg-input border border-border-strong rounded-md text-text-primary"
 						value={prefs.leaderKey}
 						onchange={(e) =>
 							terminalPrefs.updatePref(

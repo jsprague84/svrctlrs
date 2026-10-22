@@ -20,10 +20,13 @@
 	}: Props = $props();
 
 	const variantClasses: Record<Variant, string> = {
-		primary: 'bg-primary text-primary-foreground hover:opacity-90',
-		secondary: 'bg-secondary text-secondary-foreground hover:opacity-90',
-		destructive: 'bg-destructive text-destructive-foreground hover:opacity-90',
-		ghost: 'text-text-secondary hover:bg-surface-raised hover:text-text-primary'
+		// One filled button per area; secondary is outlined; ghost for row and toolbar actions
+		primary: 'bg-primary text-primary-foreground border-transparent hover:bg-primary/90',
+		secondary:
+			'bg-secondary text-secondary-foreground border-border hover:bg-secondary-hover shadow-xs',
+		destructive:
+			'bg-destructive text-destructive-foreground border-transparent hover:bg-destructive/90',
+		ghost: 'text-text-secondary border-transparent hover:bg-surface-raised hover:text-text-primary'
 	};
 
 	const sizeClasses: Record<Size, string> = {
@@ -34,7 +37,7 @@
 </script>
 
 <button
-	class="inline-flex items-center justify-center gap-1.5 min-h-11 md:min-h-0 rounded-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50 disabled:cursor-not-allowed {variantClasses[
+	class="inline-flex items-center justify-center gap-1.5 min-h-11 md:min-h-0 rounded-md border font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50 disabled:cursor-not-allowed {variantClasses[
 		variant
 	]} {sizeClasses[size]} {className}"
 	{...rest}

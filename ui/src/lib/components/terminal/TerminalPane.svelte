@@ -815,10 +815,9 @@
 <!-- Terminal shell: owns touch gesture recognition via capture-phase listeners.
      Mouse passes through to xterm.js. Touch is intercepted before xterm.js sees it. -->
 <div
-	class="terminal-shell h-full w-full bg-background relative {bellFlash
-		? 'ring-2 ring-inset ring-warning'
-		: ''}"
+	class="terminal-shell h-full w-full relative {bellFlash ? 'ring-2 ring-inset ring-warning' : ''}"
 	class:hidden={!active}
+	style:background-color={themeState.isDark() ? tokyoNightTheme.background : lightTheme.background}
 	bind:this={shellEl}
 >
 	<div class="terminal-viewport h-full w-full" bind:this={containerEl}></div>
@@ -874,14 +873,14 @@
 				</div>
 				<div class="flex gap-2 justify-end">
 					<button
-						class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-sm hover:opacity-90"
+						class="px-3 py-1.5 text-sm font-medium bg-secondary text-secondary-foreground border border-border rounded-md hover:bg-secondary-hover"
 						onclick={() => session?.dismissHostKey()}
 						disabled={trustingHostKey}
 					>
 						Cancel
 					</button>
 					<button
-						class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-sm hover:opacity-90 disabled:opacity-60"
+						class="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground border border-transparent rounded-md hover:bg-primary/90 disabled:opacity-60"
 						onclick={trustHostKey}
 						disabled={trustingHostKey}
 					>
@@ -899,13 +898,13 @@
 			<p class="text-text-muted text-sm">Session disconnected</p>
 			<div class="flex gap-2">
 				<button
-					class="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-sm hover:opacity-90"
+					class="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground border border-transparent rounded-md hover:bg-primary/90"
 					onclick={() => connect()}
 				>
 					Reconnect
 				</button>
 				<button
-					class="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-sm hover:opacity-90"
+					class="px-3 py-1.5 text-sm font-medium bg-secondary text-secondary-foreground border border-border rounded-md hover:bg-secondary-hover"
 					onclick={() => session?.startFresh()}
 				>
 					New Session

@@ -93,16 +93,19 @@
 <button
 	bind:this={trigger}
 	type="button"
-	class="relative w-11 h-11 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-raised active:bg-surface-raised focus-visible:outline-2 focus-visible:outline-accent {className}"
+	class="relative w-11 h-11 md:w-8 md:h-8 flex items-center justify-center rounded-md text-text-secondary hover:bg-surface-raised hover:text-text-primary active:bg-surface-raised {className}"
 	aria-haspopup="menu"
 	aria-expanded={open}
 	aria-label={label}
 	title={label}
 	onclick={toggle}
 >
-	<Ellipsis class="w-5 h-5" />
+	<Ellipsis class="w-5 h-5 md:w-4 md:h-4" />
 	{#if items.some((i) => i.attention)}
-		<span class="absolute top-2 right-2 w-2 h-2 rounded-full bg-warning" aria-hidden="true"></span>
+		<span
+			class="absolute top-2 right-2 md:top-1 md:right-1 w-2 h-2 rounded-full bg-warning"
+			aria-hidden="true"
+		></span>
 	{/if}
 </button>
 
@@ -125,11 +128,14 @@
 		onkeydown={onMenuKeydown}
 		{@attach overlay({ onEscape: () => (open = false) })}
 	>
-		{#each items as item (item.label)}
+		{#each items as item, i (item.label)}
+			{#if item.destructive && i > 0}
+				<div class="my-1 border-t border-border" role="separator"></div>
+			{/if}
 			<button
 				type="button"
 				role="menuitem"
-				class="flex w-full items-center gap-3 px-3 min-h-11 text-sm text-left disabled:opacity-50
+				class="flex w-full items-center gap-3 px-3 min-h-11 md:min-h-9 text-sm text-left disabled:opacity-50
 					{item.destructive
 					? 'text-error hover:bg-error/10'
 					: 'text-text-primary hover:bg-surface-raised'} focus-visible:bg-surface-raised focus-visible:outline-none"

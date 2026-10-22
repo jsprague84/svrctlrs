@@ -48,7 +48,7 @@
 
 <div>
 	<div class="flex items-center justify-between gap-3 mb-3">
-		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold">Backups</h3>
+		<h3 class="text-sm font-semibold text-text-primary">Backups</h3>
 		{#if status}
 			<Button size="sm" variant="secondary" onclick={runNow} disabled={busy || status.running}>
 				{busy || status.running ? 'Backing up…' : 'Back up now'}

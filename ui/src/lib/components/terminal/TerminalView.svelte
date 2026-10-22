@@ -741,7 +741,8 @@
 			<h1 class="hidden md:block text-sm font-semibold text-text-primary">SvrCtlRS</h1>
 
 			<select
-				class="flex-1 min-w-0 ml-0 md:ml-4 px-2 py-2 md:py-1 text-sm bg-input border border-border rounded-sm text-text-primary focus:ring-1 focus:ring-ring focus:outline-none"
+				aria-label="Server"
+				class="flex-1 min-w-0 md:max-w-md ml-0 md:ml-4 px-2.5 py-2 md:py-1.5 text-sm bg-input border border-border-strong rounded-md text-text-primary"
 				bind:value={selectedServerId}
 			>
 				{#if serversLoading}
@@ -758,7 +759,7 @@
 
 			{#if activeTab?.status !== 'connected'}
 				<button
-					class="px-3 py-1 text-sm bg-primary text-primary-foreground rounded-sm hover:opacity-90 disabled:opacity-50"
+					class="px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground border border-transparent rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
 					disabled={selectedServerId === null}
 					onclick={handleConnect}
 				>
@@ -766,7 +767,7 @@
 				</button>
 			{:else}
 				<button
-					class="px-3 py-1 text-sm bg-destructive text-destructive-foreground rounded-sm hover:opacity-90"
+					class="px-3 py-1.5 text-sm font-medium bg-secondary text-secondary-foreground border border-border rounded-md hover:bg-secondary-hover hover:text-error"
 					onclick={handleDisconnect}
 				>
 					Disconnect
@@ -780,7 +781,7 @@
 					</span>
 				{/if}
 				<button
-					class="p-2 md:p-1 text-text-muted hover:text-text-primary"
+					class="p-2 md:p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised"
 					onclick={() => {
 						if (activeTabId) paneRefs[activeTabId]?.clear();
 					}}
@@ -790,7 +791,7 @@
 					<Trash2 class="w-4 h-4" />
 				</button>
 				<button
-					class="p-2 md:p-1 text-text-muted hover:text-text-primary"
+					class="p-2 md:p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised"
 					onclick={() => {
 						if (activeTabId) paneRefs[activeTabId]?.copyOutput();
 					}}
@@ -800,7 +801,7 @@
 					<ClipboardCopy class="w-4 h-4" />
 				</button>
 				<button
-					class="p-2 md:p-1 text-text-muted hover:text-text-primary"
+					class="p-2 md:p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised"
 					onclick={() => {
 						if (activeTabId) paneRefs[activeTabId]?.downloadOutput();
 					}}
@@ -810,7 +811,7 @@
 					<Download class="w-4 h-4" />
 				</button>
 				<button
-					class="p-2 md:p-1 text-text-muted hover:text-text-primary disabled:opacity-40"
+					class="p-2 md:p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised disabled:opacity-40"
 					class:text-accent={filesOpen}
 					disabled={!activeTab?.serverId}
 					onclick={() => {
@@ -823,7 +824,7 @@
 					<FolderOpen class="w-4 h-4" />
 				</button>
 				<button
-					class="relative p-2 md:p-1 text-text-muted hover:text-text-primary"
+					class="relative p-2 md:p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised"
 					class:text-accent={sessionsOpen}
 					onclick={() => {
 						if (sessionsOpen) sessionsOpen = false;
@@ -837,7 +838,7 @@
 					<History class="w-4 h-4" />
 					{#if resumableCount > 0}
 						<span
-							class="absolute -top-0.5 -right-0.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-accent text-background text-[9px] font-semibold leading-3.5 text-center"
+							class="absolute -top-0.5 -right-0.5 min-w-3.5 h-3.5 px-0.5 rounded-full bg-accent text-accent-foreground text-[9px] font-semibold leading-3.5 text-center"
 							aria-hidden="true"
 						>
 							{resumableCount}
@@ -845,7 +846,7 @@
 					{/if}
 				</button>
 				<button
-					class="p-2 md:p-1 text-text-muted hover:text-text-primary"
+					class="p-2 md:p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-surface-raised"
 					class:text-accent={prefsOpen}
 					onclick={() => {
 						prefsOpen = !prefsOpen;
@@ -872,7 +873,7 @@
 				type="text"
 				bind:value={searchTerm}
 				oninput={handleSearch}
-				class="px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary placeholder:text-text-muted w-full md:w-64"
+				class="px-2 py-1 text-sm bg-input border border-border-strong rounded-md text-text-primary placeholder:text-text-muted w-full md:w-64"
 				placeholder="Search terminal output..."
 			/>
 			<div class="flex gap-1 mt-1 md:mt-0 md:gap-2">
@@ -929,7 +930,7 @@
 						<div
 							class="absolute top-0 left-1 z-10 px-1.5 py-0 text-[10px] font-mono rounded-b-sm {tab.id ===
 							activeTabId
-								? 'bg-accent text-background'
+								? 'bg-accent text-accent-foreground'
 								: 'bg-surface-raised/80 text-text-muted'}"
 						>
 							{tab.slot + 1}
@@ -973,7 +974,7 @@
 				{:else}
 					<div class="max-w-md mx-auto px-4 py-8 md:py-12 flex flex-col gap-3">
 						<div class="text-center">
-							<h2 class="text-sm font-medium text-text-primary">Open a shell</h2>
+							<h2 class="text-base font-semibold text-text-primary">Open a shell</h2>
 							<p class="text-xs text-text-muted mt-1">
 								{isMobile()
 									? 'Pick a server, or + for the full list.'
@@ -986,7 +987,7 @@
 								<li>
 									<button
 										type="button"
-										class="w-full flex items-center gap-3 px-3 min-h-12 rounded-md border border-border/60 bg-surface hover:bg-surface-raised active:bg-surface-raised text-left"
+										class="w-full flex items-center gap-3 px-3 min-h-12 rounded-md border border-border bg-surface hover:bg-surface-raised hover:border-border-strong/60 active:bg-surface-raised text-left"
 										onclick={() => connectTo(server)}
 									>
 										<span class="w-2 h-2 rounded-full flex-shrink-0 {st.dot}" title={st.label}

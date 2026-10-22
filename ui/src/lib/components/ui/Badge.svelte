@@ -11,7 +11,7 @@
 	let { variant = 'default', children }: Props = $props();
 
 	const variantClasses: Record<Variant, string> = {
-		default: 'bg-surface-raised text-text-secondary border-border',
+		default: 'text-text-secondary border-border',
 		success: 'bg-success/10 text-success border-success/30',
 		warning: 'bg-warning/10 text-warning border-warning/30',
 		error: 'bg-error/10 text-error border-error/30',
@@ -20,7 +20,7 @@
 </script>
 
 <span
-	class="inline-flex items-center px-1.5 py-0.5 text-[11px] rounded-sm border {variantClasses[
+	class="inline-flex items-center px-1.5 py-px text-[11px] leading-4 font-medium rounded-full border {variantClasses[
 		variant
 	]}"
 >

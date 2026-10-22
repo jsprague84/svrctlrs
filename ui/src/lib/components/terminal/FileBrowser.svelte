@@ -298,7 +298,7 @@
 				<!-- svelte-ignore a11y_autofocus -->
 				<input
 					type="text"
-					class="flex-1 min-w-0 px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary"
+					class="flex-1 min-w-0 px-2 py-1 text-sm bg-input border border-border-strong rounded-md text-text-primary"
 					placeholder="Folder name"
 					bind:value={newFolderName}
 					autofocus
@@ -331,7 +331,7 @@
 							<!-- svelte-ignore a11y_autofocus -->
 							<input
 								type="text"
-								class="flex-1 min-w-0 px-2 py-1 text-sm bg-input border border-border rounded-sm text-text-primary"
+								class="flex-1 min-w-0 px-2 py-1 text-sm bg-input border border-border-strong rounded-md text-text-primary"
 								bind:value={renameValue}
 								autofocus
 								onkeydown={(e) =>

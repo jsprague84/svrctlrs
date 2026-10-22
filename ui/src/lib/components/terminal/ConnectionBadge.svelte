@@ -24,9 +24,9 @@
 			label: 'Connecting...'
 		},
 		disconnected: {
-			color: 'text-text-muted',
-			bg: 'bg-surface-raised',
-			border: 'border-border',
+			color: 'text-text-secondary',
+			bg: 'bg-surface',
+			border: 'border-border-strong/60',
 			label: 'Disconnected'
 		},
 		error: { color: 'text-error', bg: 'bg-error/10', border: 'border-error/30', label: 'Error' }
@@ -36,10 +36,12 @@
 </script>
 
 <span
-	class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs rounded-sm border {c.border} {c.color} {c.bg}"
+	class="inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full border whitespace-nowrap {c.border} {c.color} {c.bg}"
 >
 	<span
-		class="w-1.5 h-1.5 rounded-full {c.color.replace('text-', 'bg-')}"
+		class="w-1.5 h-1.5 rounded-full {status === 'disconnected'
+			? 'border border-current'
+			: c.color.replace('text-', 'bg-')}"
 		class:animate-pulse={status === 'connecting'}
 	></span>
 	{c.label}

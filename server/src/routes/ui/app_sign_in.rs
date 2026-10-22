@@ -100,7 +100,7 @@ async fn approve_page(
         .unwrap_or_default();
     let body = format!(
         r#"<p style="margin-bottom:1.25rem;font-size:0.875rem;line-height:1.5">The SvrCtlRS desktop app on this computer asks to sign in as <strong>{user}</strong>. It gets a session of its own for {days} days, with a shell on every server, like this browser.</p>
-<p style="margin-bottom:1.5rem;font-size:0.8125rem;color:#787fa0">Only approve if you just chose "Sign in" in the app.</p>
+<p style="margin-bottom:1.5rem;font-size:0.8125rem;color:var(--muted)">Only approve if you just chose "Sign in" in the app.</p>
 <form method="post" action="/auth/app">
 <input type="hidden" name="port" value="{port}">
 <input type="hidden" name="state" value="{state}">

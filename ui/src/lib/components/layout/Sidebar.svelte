@@ -169,9 +169,7 @@
 	{#if mobileOpen || !collapsed}
 		<div class="flex-1 overflow-y-auto border-t border-sidebar-border" aria-label="Servers">
 			<div class="px-3 py-2">
-				<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold mb-1.5">
-					Servers
-				</h3>
+				<h3 class="text-xs font-medium text-sidebar-muted mb-1.5">Servers</h3>
 				{#if loading && servers.length === 0}
 					<StateBlock kind="loading" title="Loading…" compact />
 				{:else if error}
@@ -210,9 +208,7 @@
 		<div class="border-t border-sidebar-border">
 			<div class="px-3 py-2">
 				<div class="flex items-center justify-between mb-1.5">
-					<h3 class="text-[10px] uppercase tracking-wider text-sidebar-muted font-semibold">
-						Profiles
-					</h3>
+					<h3 class="text-xs font-medium text-sidebar-muted">Profiles</h3>
 					<button
 						class="p-0.5 text-sidebar-muted hover:text-sidebar-foreground transition-colors"
 						onclick={handleSaveProfile}

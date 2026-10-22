@@ -32,7 +32,7 @@
 	<label class="inline-flex flex-wrap items-center gap-1">
 		<span>Keep a shell nothing is attached to for</span>
 		<select
-			class="min-h-11 md:min-h-0 rounded-sm border border-border bg-surface px-1 py-0.5 text-[11px] text-text-primary disabled:opacity-50"
+			class="min-h-11 md:min-h-0 rounded-md border border-border-strong bg-input px-1.5 py-0.5 text-[11px] text-text-primary disabled:opacity-50"
 			value={String(current)}
 			onchange={choose}
 			disabled={saving}

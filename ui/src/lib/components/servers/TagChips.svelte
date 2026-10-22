@@ -15,10 +15,10 @@
 	const hit = "relative before:absolute before:content-[''] md:before:hidden";
 	const base = $derived(
 		compact
-			? `${hit} before:-inset-1.5 min-h-8 md:min-h-0 px-2 md:px-1.5 py-1 md:py-0.5 text-[11px] md:text-[10px] rounded-sm border transition-colors`
+			? `${hit} before:-inset-1.5 min-h-8 md:min-h-0 px-2 md:px-1.5 py-1 md:py-0.5 text-[11px] md:text-[10px] rounded-full border transition-colors`
 			: `${hit} before:-inset-1 min-h-9 md:min-h-0 px-3 md:px-2 py-1 md:py-0.5 text-xs rounded-full border transition-colors`
 	);
-	const on = 'bg-accent/20 border-accent/40 text-accent';
+	const on = 'bg-accent/15 border-accent/50 text-accent font-medium';
 	const off = $derived(
 		compact
 			? 'border-sidebar-border text-sidebar-muted hover:text-sidebar-foreground'

@@ -174,7 +174,7 @@
 	<!-- Mobile backdrop -->
 	{#if mobileOpen}
 		<button
-			class="fixed inset-0 bg-black/50 z-30 md:hidden"
+			class="fixed inset-0 bg-scrim z-30 md:hidden"
 			onclick={closeMobileSidebar}
 			aria-label="Close sidebar"
 			tabindex="-1"

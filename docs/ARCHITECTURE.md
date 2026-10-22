@@ -226,8 +226,11 @@ Migrations are checksummed, so never edit one that has shipped.
   keyboard detection (`platform/keyboard.svelte.ts`).
 - **Platform**: `platform/index.ts` detects Tauri and stores the server URL; in the browser the
   API base is same-origin.
-- **Styling**: Tailwind v4 `@theme` tokens, Tokyo Night dark (default) and a light theme via
-  `data-theme`; xterm themes follow the app theme.
+- **Styling**: Tailwind v4 `@theme` tokens in `app.css`: Tokyo Night dark and a light theme via
+  `data-theme` (set before the first paint by `app.html` from the saved choice or the OS
+  theme); xterm themes follow the app theme. Surfaces: `background` (page), `surface` (cards,
+  dialogs, menus), `surface-raised` (hover, chips); `border-strong` outlines inputs.
+  `theme-contrast.test.ts` holds both palettes to WCAG AA.
 
 ## Tauri apps (`ui/src-tauri/`)
 

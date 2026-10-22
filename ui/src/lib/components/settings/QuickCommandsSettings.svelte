@@ -133,7 +133,7 @@
 		<ul class="flex flex-col gap-2">
 			{#each commands as cmd (cmd.id)}
 				<li
-					class="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 p-3 border border-border/50 rounded-lg hover:bg-surface-raised/30"
+					class="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 p-3 bg-surface border border-border rounded-lg hover:border-border-strong/60"
 				>
 					<div class="flex-1 min-w-0">
 						<p class="text-sm font-medium text-text-primary">{cmd.name}</p>

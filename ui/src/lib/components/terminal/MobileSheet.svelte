@@ -97,7 +97,7 @@
 {#if open}
 	<button
 		type="button"
-		class="fixed inset-0 bg-black/40 z-40"
+		class="fixed inset-0 bg-scrim z-40"
 		onclick={onClose}
 		aria-label="Close"
 		tabindex="-1"

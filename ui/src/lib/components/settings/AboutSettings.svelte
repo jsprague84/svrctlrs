@@ -52,9 +52,7 @@
 <div class="flex flex-col gap-6">
 	<!-- App Info -->
 	<div>
-		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">
-			Application
-		</h3>
+		<h3 class="text-sm font-semibold text-text-primary mb-3">Application</h3>
 		<div class="flex flex-col gap-2">
 			<div class="flex items-center justify-between py-1">
 				<span class="text-sm text-text-secondary">Name</span>
@@ -73,7 +71,7 @@
 
 	<!-- Server Health -->
 	<div>
-		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">Server</h3>
+		<h3 class="text-sm font-semibold text-text-primary mb-3">Server</h3>
 		<div class="flex items-center justify-between py-1">
 			<span class="text-sm text-text-secondary">Status</span>
 			{#if serverHealth}
@@ -109,9 +107,7 @@
 
 	<!-- Keyboard Shortcuts -->
 	<div>
-		<h3 class="text-[11px] uppercase tracking-wider text-text-muted font-semibold mb-3">
-			Keyboard Shortcuts
-		</h3>
+		<h3 class="text-sm font-semibold text-text-primary mb-3">Keyboard Shortcuts</h3>
 		{#each categories as cat (cat)}
 			<div class="mb-3">
 				<p class="text-xs font-medium text-text-secondary mb-1">

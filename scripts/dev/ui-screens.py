@@ -367,8 +367,9 @@ with sync_playwright() as p:
             check("denied, and the server is still there",
                   any(x["name"] == "nas" for x in api("GET", "/api/v1/servers")["servers"]))
             shot("approvals", full=True)
-            if SSH_HOST and theme == "dark":
-                # A live shell on the real target, for the README and USER-GUIDE pictures
+            if SSH_HOST:
+                # A live shell on the real target, for the README and USER-GUIDE pictures (and
+                # the light theme's terminal chrome, files, viewer and sessions)
                 go("/")
                 page.locator(f"text={LIVE} >> visible=true").first.click()
                 trust = page.get_by_role("button", name="Trust and connect")
@@ -453,18 +454,32 @@ with sync_playwright() as p:
                 check(f"logout shows the server's login page ({theme})",
                       page.locator('form[action="/auth/login"]').count() == 1)
             ctx.close()
-    # Login page, logged out
+    # Login page, logged out: the server renders it and it follows the OS theme
     for vp_name, vp in VIEWPORTS.items():
-        opts = dict(p.devices[vp["device"]]) if "device" in vp else {k: v for k, v in vp.items()}
-        ctx = browser.new_context(**opts, base_url=BASE)
-        page = ctx.new_page()
-        page.goto("/auth/login")
-        page.wait_for_timeout(800)
-        fname = f"{vp_name}-dark-login.png"
-        if want(fname):
-            page.screenshot(path=os.path.join(OUT, fname))
-            shots.append((fname, 0))
-        ctx.close()
+        for theme in ("dark", "light"):
+            opts = dict(p.devices[vp["device"]]) if "device" in vp else {k: v for k, v in vp.items()}
+            ctx = browser.new_context(**opts, base_url=BASE, color_scheme=theme)
+            page = ctx.new_page()
+            page.goto("/auth/login")
+            page.wait_for_timeout(800)
+            fname = f"{vp_name}-{theme}-login.png"
+            bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
+            check(f"login page follows the OS theme ({vp_name}-{theme})",
+                  bg == ("rgb(26, 27, 38)" if theme == "dark" else "rgb(243, 244, 247)"), bg)
+            if want(fname):
+                page.screenshot(path=os.path.join(OUT, fname))
+                shots.append((fname, 0))
+            ctx.close()
+    # A first visit follows the OS theme too (no choice saved yet)
+    ctx = browser.new_context(base_url=BASE, color_scheme="light")
+    ctx.request.post(BASE + "/api/v1/auth/login", data={"username": USER, "password": PASSWORD},
+        headers={"Origin": BASE})
+    page = ctx.new_page()
+    page.goto("/servers")
+    page.wait_for_load_state("networkidle")
+    check("a first visit follows the OS theme",
+          page.evaluate("document.documentElement.dataset.theme") == "light")
+    ctx.close()
     browser.close()
 
 for name, overflow in shots:

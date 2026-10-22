@@ -66,7 +66,7 @@
 	{#snippet footer()}
 		<button
 			type="button"
-			class="px-3 py-1.5 min-h-11 md:min-h-0 text-sm bg-secondary text-secondary-foreground rounded-sm hover:opacity-90"
+			class="px-3 py-1.5 min-h-11 md:min-h-0 text-sm font-medium bg-secondary text-secondary-foreground border border-border rounded-md hover:bg-secondary-hover"
 			onclick={close}
 		>
 			Cancel
@@ -74,7 +74,7 @@
 		<button
 			type="submit"
 			form="snippet-vars"
-			class="px-3 py-1.5 min-h-11 md:min-h-0 text-sm bg-primary text-primary-foreground rounded-sm hover:opacity-90"
+			class="px-3 py-1.5 min-h-11 md:min-h-0 text-sm font-medium bg-primary text-primary-foreground border border-transparent rounded-md hover:bg-primary/90"
 		>
 			Run
 		</button>

@@ -169,9 +169,9 @@
 		{:else if loadError}
 			<StateBlock kind="error" title={loadError} onRetry={load} compact />
 		{:else}
-			<ul class="flex flex-col gap-2 mb-4">
+			<ul class="flex flex-col divide-y divide-border border border-border rounded-md mb-4">
 				{#each users as user (user.id)}
-					<li class="flex items-center gap-3 border border-border/50 rounded-sm px-3 py-2">
+					<li class="flex items-center gap-3 px-3 py-2">
 						<div class="flex-1 min-w-0">
 							<span class="text-sm text-text-primary font-medium truncate">{user.username}</span>
 							{#if user.is_me}<Badge variant="info">you</Badge>{/if}

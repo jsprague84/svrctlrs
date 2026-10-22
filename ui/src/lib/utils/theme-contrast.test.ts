@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { colorTokens, contrastRatio, over, parseHex } from './contrast.js';
+import { lightTheme } from '#lib/components/terminal/terminal-theme.js';
 
 // Both themes' tokens, straight from the stylesheet the app ships
 const css = readFileSync(new URL('../../app.css', import.meta.url), 'utf8');
@@ -47,6 +48,27 @@ describe.each([
 		['accent-foreground', 'accent']
 	])('%s on %s (buttons)', (fg, bg) => {
 		expect(contrastRatio(parseHex(tokens[fg]), parseHex(tokens[bg]))).toBeGreaterThanOrEqual(AA);
+	});
+
+	it.each(['background', 'surface', 'surface-raised'])(
+		'input outlines and the focus ring stand out on %s (3:1, WCAG 1.4.11)',
+		(bg) => {
+			for (const fg of ['border-strong', 'ring']) {
+				const ratio = contrastRatio(parseHex(tokens[fg]), parseHex(tokens[bg]));
+				expect(ratio, `${fg} on ${bg}`).toBeGreaterThanOrEqual(3);
+			}
+		}
+	);
+});
+
+describe('light terminal theme', () => {
+	// Dark keeps Tokyo Night as published (its bright black is a dim comment colour on purpose)
+	const ansi = Object.entries(lightTheme).filter(
+		([k]) => !/background|cursor|selection|black$/i.test(k) || k === 'brightBlack'
+	);
+	it.each(ansi)('%s reads at AA on the terminal background', (_name, color) => {
+		const ratio = contrastRatio(parseHex(color as string), parseHex(lightTheme.background!));
+		expect(ratio).toBeGreaterThanOrEqual(AA);
 	});
 });
 

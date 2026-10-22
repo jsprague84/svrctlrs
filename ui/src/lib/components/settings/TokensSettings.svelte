@@ -219,13 +219,9 @@
 		/>
 	{:else}
 		<!-- Phones: one card per token -->
-		<ul class="md:hidden flex flex-col gap-2">
+		<ul class="md:hidden flex flex-col divide-y divide-border border border-border rounded-md">
 			{#each tokens as t (t.id)}
-				<li
-					class="border border-border/50 rounded-sm px-3 py-2 {t.status !== 'active'
-						? 'opacity-70'
-						: ''}"
-				>
+				<li class="px-3 py-2 {t.status !== 'active' ? 'opacity-70' : ''}">
 					<div class="flex items-center gap-3">
 						<div class="flex-1 min-w-0">
 							<div class="flex items-center gap-1.5 min-w-0">
@@ -311,7 +307,7 @@
 			readonly
 			rows="2"
 			aria-label="The new token"
-			class="w-full px-3 py-2 text-sm font-mono bg-input border border-border rounded-sm text-text-primary resize-none break-all"
+			class="w-full px-3 py-2 text-sm font-mono bg-input border border-border-strong rounded-md text-text-primary resize-none break-all"
 			onfocus={(e) => e.currentTarget.select()}
 			value={created.secret}></textarea>
 		<p class="text-xs text-text-muted mt-3 mb-1">Use it as</p>

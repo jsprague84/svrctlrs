@@ -156,6 +156,7 @@ hidden pane resizes its shell. Run it after touching
 
 ```bash
 E2E_SSH_HOST=10.0.0.5 E2E_SSH_USER=ubuntu CHROMIUM=$(command -v chromium) scripts/dev/run-phone-check.sh
+THEME=light E2E_SSH_HOST=… scripts/dev/run-phone-check.sh   # the same in light mode
 ```
 
 `scripts/dev/ui-screens.py` (run by `scripts/dev/run-ui-screens.sh`) seeds a throwaway server
@@ -168,13 +169,14 @@ must warn), reads it from the copy-once display, uses it from outside the browse
 server list, 403 on `/tokens`), checks the list never shows it, and revokes it (then 401);
 then a token set to ask first tries to delete a server, the link opens the request on
 `/approvals`, and Deny leaves the server in place.
-With an SSH target it adds a live shell and the file browser, and (the live server
-records sessions) the recordings list and the player, checking that the player shows the
+With an SSH target it adds a live shell, the file browser, the file viewer and the Sessions
+panel (in both themes), and (the live server records sessions) the recordings list and the player, checking that the player shows the
 recorded shell and closes on Escape; the pictures in
 `docs/images/` come from that run (dark theme, phone shots at half size, `pngquant`-ed). The
 live server is named `lab-01`, and each shot first rewrites its real address on the page to
 `192.0.2.10` (a documentation address) and fails if the address is still visible, so published
-pictures never show the target. Run it after UI changes:
+pictures never show the target. Logged out, it shoots the server's sign-in page under a dark
+and a light OS theme and checks that it, and a first visit to the app, follow the OS. Run it after UI changes:
 
 ```bash
 E2E_OUT=/tmp/shots CHROMIUM=$(command -v chromium) scripts/dev/run-ui-screens.sh   # SCREENS=phone-dark to narrow it

@@ -220,7 +220,7 @@
 				{#each items as r (r.id)}
 					{@const status = STATUS[r.status]}
 					<li
-						class="border border-border/50 rounded-lg pl-3 pr-1.5 md:px-4 py-2.5 md:py-3 hover:bg-surface-raised/30 flex items-center gap-2 md:gap-4"
+						class="bg-surface border border-border rounded-lg pl-3 pr-1.5 md:px-4 py-2.5 md:py-3 hover:border-border-strong/60 flex items-center gap-2 md:gap-4"
 					>
 						<button
 							type="button"

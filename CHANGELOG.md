@@ -119,6 +119,18 @@ the release workflow uses the matching section as the release notes.
   desktop app uses one-time tickets.
 
 ### Changed
+- **A UI pass, light mode first.** The light theme is new: cool blue-grey neutrals from the
+  Tokyo Night family instead of beige, with white cards, dialogs, menus and inputs on a grey
+  page, so surfaces step clearly; every text colour, input outline and the light terminal's
+  ANSI colours clear WCAG AA (tested). A new browser or device starts in the system's theme
+  and follows it; Settings → General picks System, Dark or Light. The sign-in page follows the
+  system theme too and shares the app's colours. Across both themes: one visible focus ring
+  on every control, outlined secondary buttons, styled selects (the terminal's server picker
+  included), outline tag chips, a readable Disconnected badge, section headings in sentence
+  case, Devices/Sign-in/Users lists as divided lists, and calmer terminal chrome (Disconnect is
+  no longer a red button). Server rows on the desktop show Connect, Test and Diagnose plus the
+  phone's ⋯ menu for the rest; Authorize key stays on the row of a server that still logs in
+  with a password.
 - `svrctl backup` writes the same copy as the nightly backup (no sign-ins, file 0600), into
   `BACKUP_DIR` by default and keeping `backup.keep` copies unless `--out`/`--keep` say
   otherwise. It no longer copies `data/encryption.key` unless `--with-key`.

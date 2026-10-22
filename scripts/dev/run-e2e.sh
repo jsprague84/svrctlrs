@@ -8,11 +8,18 @@
 #   scripts/dev/run-e2e.sh binary      # only the binary-frame pass
 #   scripts/dev/run-e2e.sh kept        # only the kept-shell pass (tmux on the target, a restart)
 #   scripts/dev/run-e2e.sh backpressure  # burst/stall/Ctrl-C memory check (backpressure-check.py)
+#   E2E_PORT=18090 scripts/dev/run-e2e.sh  # when 18080 is taken
 set -u
 cd "$(dirname "$0")/../.."
 : "${E2E_SSH_HOST:?set E2E_SSH_HOST to a host the key can log in to}"
 export E2E_SSH_HOST E2E_SSH_USER="${E2E_SSH_USER:-root}" E2E_SSH_KEY="${E2E_SSH_KEY:-$HOME/.ssh/id_ed25519}"
 PYTHON="${PYTHON:-python3}"
+PORT="${E2E_PORT:-18080}"
+export E2E_URL="http://127.0.0.1:$PORT"
+# Something else answering on the port would pass the health check and fail every request
+if curl -s -o /dev/null "$E2E_URL/"; then
+  echo "port $PORT is already in use; set E2E_PORT to a free one"; exit 1
+fi
 WORK="$(mktemp -d)"
 trap 'kill "$SPID" 2>/dev/null; wait "$SPID" 2>/dev/null; rm -rf "$WORK"' EXIT
 KEY="$($PYTHON -c 'import secrets; print(secrets.token_hex(32))')"
@@ -21,9 +28,9 @@ KEY="$($PYTHON -c 'import secrets; print(secrets.token_hex(32))')"
 start_server() {
   BACKUP_DIR="$WORK/backups" DATABASE_URL="sqlite:$WORK/e2e.db" ADMIN_USERNAME=admin ADMIN_PASSWORD=e2e-password-123456 \
   ENCRYPTION_KEY="$KEY" SESSION_SECURE=false SESSION_DETACH_TTL_SECS=3 SPA_DIR=ui/build RUST_LOG=info \
-  target/debug/server --addr 127.0.0.1:18080 >> "$WORK/server.log" 2>&1 &
+  target/debug/server --addr "127.0.0.1:$PORT" >> "$WORK/server.log" 2>&1 &
   SPID=$!
-  for _ in $(seq 1 40); do curl -sf http://127.0.0.1:18080/api/v1/health >/dev/null && break; sleep 0.5; done
+  for _ in $(seq 1 40); do curl -sf "$E2E_URL/api/v1/health" >/dev/null && break; sleep 0.5; done
   kill -0 "$SPID" 2>/dev/null || { echo "server died:"; tail -20 "$WORK/server.log"; exit 1; }
 }
 start_server

@@ -63,9 +63,7 @@
 
 	{#if groups.resumable.length > 0}
 		<section aria-label="Sessions you can resume">
-			<h3 class="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-				Not open here
-			</h3>
+			<h3 class="px-1 pb-1 text-xs font-medium text-text-muted">Not open here</h3>
 			<ul class="flex flex-col gap-1">
 				{#each groups.resumable as row (row.session.id)}
 					<li
@@ -110,9 +108,7 @@
 
 	{#if groups.open.length > 0}
 		<section aria-label="Sessions open in this window">
-			<h3 class="px-1 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-muted">
-				Open in this window
-			</h3>
+			<h3 class="px-1 pb-1 text-xs font-medium text-text-muted">Open in this window</h3>
 			<ul class="flex flex-col gap-1">
 				{#each groups.open as row (row.session.id)}
 					<li class="flex items-center gap-2 rounded-md px-2 py-1.5">

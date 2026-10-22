@@ -163,9 +163,12 @@
 				{/if}
 
 				{#if others.length > 0}
-					<ul class="flex flex-col gap-2" aria-label="Approval requests">
+					<ul
+						class="flex flex-col divide-y divide-border border border-border rounded-md"
+						aria-label="Approval requests"
+					>
 						{#each others as a (a.id)}
-							<li class="border border-border/50 rounded-sm px-3 py-2">
+							<li class="px-3 py-2">
 								<div class="flex items-start gap-3">
 									<div class="flex-1 min-w-0">
 										<div class="flex items-center gap-1.5 min-w-0">
