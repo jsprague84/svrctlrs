@@ -138,7 +138,7 @@ agent that has a shell, a CLI plus an Agent Skill (`SKILL.md`, the open standard
 Code and Codex read) is cheaper and more reliable than a wide MCP tool list, and Hermes's own
 docs call its skill+CLI GitHub integration more capable than the GitHub MCP server. MCP is
 moving toward a few task-level tools or code against a typed API, and its 2026-07-28 revision
-reworked the transport, so it waits until a client without a shell needs it. Agents already
+reworked the transport; the owner dropped it (2026-10-21, see "Out of scope"). Agents already
 reach servers over their own SSH; svrctlrs is not meant to be a second door to servers, but a
 token may open terminals and files when that helps a diagnosis. Phone and desktop both get
 compact screens for everything below.
@@ -206,7 +206,7 @@ compact screens for everything below.
     profiles passed all five tasks (why can't I reach X + fix, onboard, rotate, import, tag)
     with every host key compared out of band; the transcripts led to `diagnose --credential`,
     a rotate-key hint that no longer invites deleting the old credential, and a "do only
-    what was asked" rule in the skill. MCP stays under "Maybe later".
+    what was asked" rule in the skill. MCP was later dropped (out of scope).
 
 ### After agent access (decided 2026-10-19, owner)
 
@@ -303,10 +303,6 @@ beside the binary, and what an identity provider does stays optional.
 - A **Paste** key on the phone's extra-keys row (pasting relies on the keyboard's clipboard
   button today), and fullscreen with Keyboard Lock so Ctrl+W reaches vim in a Chromium
   browser, if the desktop app (item 22) falls short.
-- **MCP server for agent access** (owner, 2026-10-19): only when a client without a shell
-  (Claude Desktop, a phone app, Open WebUI) needs it. Then a few task-level tools mirroring
-  items 18–19 over Streamable HTTP on the current spec, bearer token, each tool marked
-  read-only or destructive — not one tool per endpoint.
 
 ## Out of scope (deliberately)
 
@@ -315,7 +311,10 @@ dashboards and alerting beyond up/down notifications (the retired 1.x/2.x produc
 "run on every host"; automations and schedulers; a plugin system; an AI assistant inside the
 app (outside agents administer it through tokens and `svrctl`, items 15–19); multiple
 database engines; collaborative session sharing; **SSH agent forwarding** (the server would
-hold the agent, so a compromised server could sign with it). If one of these is wanted,
+hold the agent, so a compromised server could sign with it); **an MCP server** (owner,
+2026-10-21: agents with a shell use `svrctl` and its skill, which cost less context per turn
+and can be shaped and filtered, as the 2026-10-21 eval measured; a client without a shell is
+not a use case). If one of these is wanted,
 Termix or Nexterm already do it well.
 
 ## History

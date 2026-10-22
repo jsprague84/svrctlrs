@@ -42,7 +42,10 @@ confirm, approval to give), 4 not found (`details.known` lists names), 5 token n
    - `host_key` mismatch: stop. Find out why the key changed and tell the owner; only then
      `svrctl forget-keys X` and trust the new key.
    - `login`: wrong credential or key not installed. Install a stored key with a way in that
-     works: `svrctl key authorize X --key "<key cred>" --with "<working cred>"`.
+     works: `svrctl key authorize X --key "<key cred>" --with "<working cred>"`. If svrctlrs has
+     no way in but you have SSH: `svrctl key generate --name "<host> key"`, append its
+     `public_key` to that account's authorized_keys over your SSH (keep the other lines), then
+     `svrctl server edit X --credential "<host> key"`.
 3. `svrctl diagnose X` again until `"ok": true`. A login step that says "a fallback key"
    worked with svrctlrs's own key, not the server's credential: that credential is broken.
 
