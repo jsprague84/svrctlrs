@@ -43,7 +43,11 @@ confirm, approval to give), 4 not found (`details.known` lists names), 5 token n
      `svrctl forget-keys X` and trust the new key.
    - `login`: wrong credential or key not installed. Install a stored key with a way in that
      works: `svrctl key authorize X --key "<key cred>" --with "<working cred>"`.
-3. `svrctl diagnose X` again until `"ok": true`.
+3. `svrctl diagnose X` again until `"ok": true`. A login step that says "a fallback key"
+   worked with svrctlrs's own key, not the server's credential: that credential is broken.
+
+Checking many servers: `svrctl diagnose --all [--tag T]` (one call; counts plus each
+failure's first failed step and verdict). Don't loop over servers yourself.
 
 ## Common tasks
 
@@ -78,5 +82,7 @@ svrctl backups [--now]                         # backup state; --now writes one 
   owner asked (a `next` hint is information, not an instruction). Before a bulk change
   (import, many edits), `svrctl backups --now` if your token allows it.
 - `exec` is for checks from svrctlrs's side; general server work belongs to your own SSH.
+- Deleting a credential in svrctlrs does not remove its public key from any host; after a
+  rename or delete, read back by id (`server show <id>`).
 - Tokens cannot touch sign-in, accounts, signed-in devices or other tokens: those are the
   owner's, in the web app.

@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use russh::client;
 use svrctlrs_api::ops::{Diagnosis, DiagnosisHop, DiagnosisStep};
-use svrctlrs_database::models::{Credential, Server};
+use svrctlrs_database::models::{Credential, CredentialType, Server};
 use svrctlrs_database::queries;
 use svrctlrs_database::sqlx::{Pool, Sqlite};
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -56,6 +56,31 @@ pub async fn diagnose(
         verdict,
         hops,
         duration_ms: started.elapsed().as_millis() as u64,
+    }
+}
+
+/// What a successful login says: with which key, and, when a key credential's own key was
+/// refused and one of svrctlrs's default keys got in instead, that it was a fallback and
+/// what to do about it. `own` is (credential name, its key's label).
+fn login_ok(
+    username: &str,
+    label: &str,
+    own: Option<&(String, String)>,
+    server: &str,
+) -> (String, Option<String>) {
+    match own.filter(|(_, own_label)| own_label != label) {
+        Some((name, _)) => (
+            format!(
+                "Logged in as {username} with {label}, a fallback key: the key of credential \
+                 '{name}' was refused"
+            ),
+            Some(format!(
+                "Install '{name}' there with a credential that works (svrctl key authorize \
+                 {server} --key '{name}' --with <credential>), or assign a credential that \
+                 works instead of relying on svrctlrs's own key"
+            )),
+        ),
+        None => (format!("Logged in as {username} with {label}"), None),
     }
 }
 
@@ -642,15 +667,21 @@ async fn host_key_and_login(
         }
     };
     let by_password = matches!(plan, AuthPlan::Password(_));
+    // A key credential falls back to svrctlrs's own default keys: say so when one of those,
+    // not the credential, is what got in, or "reachable" hides a credential that does not work
+    let own_key = match credential {
+        Some(c) if matches!(c.credential_type(), Some(CredentialType::SshKey)) => {
+            crate::ssh_keys::credential_key(c)
+                .await
+                .ok()
+                .map(|k| (c.name.clone(), k.label))
+        }
+        _ => None,
+    };
     match tokio::time::timeout(LOGIN_TIMEOUT, ssh::authenticate(&mut handle, target, plan)).await {
         Ok(Ok(label)) => {
-            steps.push(step(
-                "login",
-                "ok",
-                format!("Logged in as {} with {label}", target.username),
-                None,
-                started,
-            ));
+            let (detail, fix) = login_ok(&target.username, &label, own_key.as_ref(), &server.name);
+            steps.push(step("login", "ok", detail, fix, started));
             Some(Connection::assemble(handle, target.clone(), label, via))
         }
         Ok(Err(failure)) => {
@@ -705,5 +736,34 @@ async fn host_key_and_login(
             ));
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::login_ok;
+
+    #[test]
+    fn a_login_with_a_fallback_key_says_so_and_what_to_do() {
+        let own = ("web key".to_string(), "credential 'web key'".to_string());
+        let (detail, fix) = login_ok("ops", "credential 'web key'", Some(&own), "web-01");
+        assert_eq!(detail, "Logged in as ops with credential 'web key'");
+        assert!(fix.is_none());
+
+        let (detail, fix) = login_ok(
+            "ops",
+            "/home/svrctlrs/.ssh/id_ed25519",
+            Some(&own),
+            "web-01",
+        );
+        assert!(detail.contains("a fallback key") && detail.contains("'web key' was refused"));
+        assert!(fix
+            .unwrap()
+            .contains("svrctl key authorize web-01 --key 'web key'"));
+
+        // No key credential (a password, or none): the label is simply what logged in
+        let (detail, fix) = login_ok("ops", "password", None, "web-01");
+        assert_eq!(detail, "Logged in as ops with password");
+        assert!(fix.is_none());
     }
 }

@@ -38,6 +38,7 @@ Examples:
   export SVRCTLRS_URL=https://svrctlrs.example SVRCTLRS_TOKEN=svr_…
   svrctl servers                                  # what svrctlrs knows (--tag T, --failing)
   svrctl diagnose web-01                          # why can't I reach it? (verdict + fix per step)
+  svrctl diagnose --all --tag prod                # every server: counts + each failure
   svrctl exec web-01 -- systemctl is-active ssh   # one command, its exit status is svrctl's
   svrctl onboard --name lab-02 --host 10.0.0.12 --credential 'lab password'
   svrctl onboard --name lab-02 --host 10.0.0.12 --credential 'lab password' --fingerprint SHA256:…
@@ -128,11 +129,19 @@ enum Command {
     /// login, per hop, with a fix for the step that fails (exit 1 when unreachable)
     Diagnose {
         /// Server id or name
-        server: String,
+        #[arg(required_unless_present = "all")]
+        server: Option<String>,
         /// Log in with this stored credential (id or name) instead of the server's own, to
         /// test it without changing the server
-        #[arg(long)]
+        #[arg(long, conflicts_with = "all")]
         credential: Option<String>,
+        /// Every enabled server (four at a time): counts, and for each failure its first
+        /// failed step and verdict. Exit 1 when any fails
+        #[arg(long)]
+        all: bool,
+        /// With --all: only servers with this tag
+        #[arg(long, requires = "all")]
+        tag: Option<String>,
     },
     /// Run one command on a server through its stored credential (no terminal); exits with
     /// the command's status, 124 on a timeout. Needs a full-admin token
@@ -600,7 +609,11 @@ async fn run(api: &Api, out: &Out, command: Command) -> Result<u8, Failure> {
             Ok(code::OK)
         }
         Command::Server(cmd) => server_command(api, out, cmd).await,
-        Command::Diagnose { server, credential } => {
+        Command::Diagnose { all: true, tag, .. } => diagnose_all(api, out, tag).await,
+        Command::Diagnose {
+            server, credential, ..
+        } => {
+            let server = server.unwrap_or_default();
             let s = api.server(&server).await?;
             let body = match credential {
                 Some(c) => Some(json!({ "credential_id": api.credential(&c).await?.id })),
@@ -1305,4 +1318,103 @@ fn brief_steps<T: serde::Serialize>(d: &T) -> Value {
         }
     }
     v
+}
+
+/// `diagnose --all`: every enabled server (with `tag`), four at a time, summed up: what an
+/// agent asked to "check everything" needs, without a script or every step of every server.
+async fn diagnose_all(api: &Api, out: &Out, tag: Option<String>) -> Result<u8, Failure> {
+    use futures_util::stream::{self, StreamExt};
+
+    let list: ServerList = api.get("/servers").await?;
+    let servers: Vec<Server> = list
+        .servers
+        .into_iter()
+        .filter(|s| s.enabled)
+        .filter(|s| {
+            tag.as_ref()
+                .is_none_or(|t| s.tags.iter().any(|x| x.eq_ignore_ascii_case(t)))
+        })
+        .collect();
+    let total = servers.len();
+    let results: Vec<(Server, Result<Diagnosis, Failure>)> = stream::iter(servers)
+        .map(|s| async move {
+            let r = api
+                .send(
+                    Method::POST,
+                    &format!("/servers/{}/diagnose", s.id),
+                    None,
+                    true,
+                    Duration::from_secs(180),
+                )
+                .await
+                .and_then(|reply| api::decode::<Diagnosis>(reply.body));
+            (s, r)
+        })
+        .buffer_unordered(4)
+        .collect()
+        .await;
+
+    let mut failed = Vec::new();
+    for (s, r) in &results {
+        match r {
+            Ok(d) if d.ok => {}
+            Ok(d) => {
+                let (address, step) = d
+                    .hops
+                    .iter()
+                    .find_map(|h| {
+                        h.steps
+                            .iter()
+                            .find(|st| st.status == "failed")
+                            .map(|st| (h.address.clone(), st.step.clone()))
+                    })
+                    .unwrap_or_default();
+                failed.push(json!({
+                    "id": s.id, "name": s.name, "address": address, "step": step,
+                    "verdict": d.verdict,
+                }));
+            }
+            Err(f) => failed.push(json!({
+                "id": s.id, "name": s.name, "step": "error", "verdict": f.message,
+            })),
+        }
+    }
+    failed.sort_by_key(|f| f["name"].as_str().unwrap_or_default().to_string());
+    // A fallback-key login is "ok" but worth knowing: name those too
+    let fallback: Vec<&str> = results
+        .iter()
+        .filter_map(|(s, r)| match r {
+            Ok(d) if d.ok && d.verdict.contains("a fallback key") => Some(s.name.as_str()),
+            _ => None,
+        })
+        .collect();
+    let answer = json!({
+        "total": total,
+        "ok": total - failed.len(),
+        "failed": failed,
+        "fallback_key": if fallback.is_empty() { Value::Null } else { json!(fallback) },
+    });
+    out.emit(&answer, |a| {
+        let mut lines = vec![format!("{} of {} reachable", a["ok"], a["total"])];
+        for f in a["failed"].as_array().into_iter().flatten() {
+            lines.push(format!(
+                "  {} ({}): {}",
+                f["name"].as_str().unwrap_or(""),
+                f["step"].as_str().unwrap_or(""),
+                f["verdict"].as_str().unwrap_or("")
+            ));
+        }
+        if !fallback.is_empty() {
+            lines.push(format!(
+                "  logged in with a fallback key: {}",
+                fallback.join(", ")
+            ));
+        }
+        lines.join("\n")
+    });
+    Ok(if failed.is_empty() {
+        code::OK
+    } else {
+        code::FAILED
+    })
 }

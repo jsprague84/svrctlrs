@@ -322,6 +322,22 @@ async fn svrctl_speaks_json_with_stable_exit_codes() {
     // and the failing server is the one --failing lists
     let (_, out, _) = s.svrctl(Some(&admin), &["servers", "--failing"], None);
     assert_eq!(out["servers"][0]["name"], "web", "{out}");
+    // Everything at once: counts and one line per failure
+    let (code, out, _) = s.svrctl(Some(&admin), &["diagnose", "--all"], None);
+    assert_eq!(code, 1, "{out}");
+    assert_eq!(
+        (out["total"].as_u64(), out["ok"].as_u64()),
+        (Some(1), Some(0)),
+        "{out}"
+    );
+    assert_eq!(out["failed"][0]["name"], "web");
+    assert_eq!(out["failed"][0]["step"], "tcp");
+    let (code, out, _) = s.svrctl(
+        Some(&admin),
+        &["diagnose", "--all", "--tag", "none-such"],
+        None,
+    );
+    assert_eq!((code, out["total"].as_u64()), (0, Some(0)), "{out}");
 
     // exec where nothing listens: svrctlrs refuses (6), with the reason
     let (code, out, _) = s.svrctl(Some(&admin), &["exec", "web", "--", "echo", "hi"], None);

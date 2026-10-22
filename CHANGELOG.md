@@ -40,6 +40,14 @@ the release workflow uses the matching section as the release notes.
   bulk change); `server add`/`edit` take `--startup-command` and `--record`. A server list is
   about half its size, a diagnosis 45 % smaller. Releases attach `svrctl-linux-amd64`,
   `svrctl-linux-arm64` and their checksums.
+- **`svrctl diagnose --all [--tag T]`**: every enabled server, four at a time, in one call:
+  counts, and each failure's first failed step and verdict (eight servers: 1.6 KB instead of
+  eight diagnoses at 0.9 KB each). Asked for by the agent's own notes, which had it write
+  that loop as a script.
+- **A login with a fallback key is named.** A key credential that is refused falls back to
+  svrctlrs's own default keys; when one of those gets in, diagnose's login step (and the
+  verdict) now say "a fallback key: the key of credential '…' was refused" with a fix,
+  instead of a plain "reachable" that hides a broken credential.
 - **rotate-key proves the old key is refused** (`prove_old_refused`), so neither an agent nor
   the owner has to check by hand; it fails when the old key still logs in.
 - **The file browser opens a file instead of downloading it.** A tap shows text (up to 1 MB)
