@@ -196,7 +196,7 @@ repository Settings → Mirror settings, or `GET /api/v1/repos/jsprague/svrctlrs
 
 | Workflow | Trigger | Runner | Does |
 |---|---|---|---|
-| `ci.yaml` | every branch, tags, PRs to master | `rust-high` | fmt, clippy, cargo-audit, tests, svelte-check, eslint + prettier, vitest, SPA build, npm audit |
+| `ci.yaml` | every branch, tags, PRs to master | `rust-high` | fmt, clippy, cargo-audit, tests, svelte-check, eslint + prettier, vitest, SPA build, npm audit (retried only when npm's audit service errors) |
 | `docker.yaml` | `master`, `v*`, manual | `build` | builds the image with buildx for `linux/amd64` and `linux/arm64` (cross-compiled on the amd64 runner: every `RUN` happens on `$BUILDPLATFORM`, the runtime stage only copies, so no QEMU), pushes `latest`/`sha`/`vX.Y.Z` to the Forgejo registry, in a named buildx builder (`svrctlrs`) that outlives the job so cargo-chef's dependency layer and sccache's cache mount stay warm (cache capped at 20 GB; Forgejo's registry does not keep a BuildKit registry cache, tried 2026-10-21); on tags creates the release; on `master` waits for the commit's CI push run to be green (a PR run on the same commit does not count) and deploys to docker-vm |
 | `desktop.yaml` | `v*`, manual | `rust-high` | `.deb`/`.rpm` (gate) and AppImage (best effort), attached to the release; a manual run keeps them as a workflow artifact |
 | `workflows-parked/android.yaml` | — | `android` | parked 2026-10-10 (the Android app is unused; the installable web app replaces it). Move it back to `workflows/` and run `tauri android init` for the `cc.jsnode.svrctlrs` identifier to revive it |

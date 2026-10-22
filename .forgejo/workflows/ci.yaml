@@ -144,4 +144,14 @@ jobs:
         run: cd ui && npm run build
 
       - name: npm audit (production dependencies)
-        run: cd ui && npm audit --omit=dev --audit-level=high
+        # A finding fails at once; only an outage of npm's audit service is retried
+        run: |
+          cd ui
+          for attempt in 1 2 3; do
+            if npm audit --omit=dev --audit-level=high > /tmp/audit.log 2>&1; then cat /tmp/audit.log; exit 0; fi
+            cat /tmp/audit.log
+            grep -q "audit endpoint returned an error" /tmp/audit.log || exit 1
+            echo "npm's audit service failed (attempt $attempt); retrying in 60 s"
+            sleep 60
+          done
+          exit 1
