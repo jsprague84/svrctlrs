@@ -265,6 +265,11 @@ beside the binary, and what an identity provider does stays optional.
     looks. Tested end to end with both binaries (backup, change, wrong key refused, restore,
     restart, data back, old session gone). Production's first copy ran two minutes after the
     deploy, and `restore --check` on it read all six credentials with the production key.
+    **Restore drill** done 2026-10-21 (DEPLOYMENT.md, "Restore drill"): last night's
+    production copy restored into a throwaway `--network none` container on docker-vm with its
+    own copy of the key, through `restore --check`, `restore` and a restart; the restored
+    server answered health and, through its own API, 1 user, 28 servers and 9 credentials,
+    each pasted key with its fingerprint (decrypted by the server). Everything removed after.
 25. ~~**File browser: open before download, and edit small files.**~~ Done 2026-10-21: a tap
     opens the viewer (text up to 1 MiB, images up to 10 MiB through a `blob:` URL; Download
     is a button); text up to 256 KiB, UTF-8, one kind of line ending opens in a plain
@@ -300,9 +305,10 @@ beside the binary, and what an identity provider does stays optional.
   are required before the app is offered to other people. (OIDC and TOTP are item 21, the
   session list item 26.)
 - 2FA on the *target* via keyboard-interactive auth if a server needs it.
-- A **Paste** key on the phone's extra-keys row (pasting relies on the keyboard's clipboard
-  button today), and fullscreen with Keyboard Lock so Ctrl+W reaches vim in a Chromium
-  browser, if the desktop app (item 22) falls short.
+- A **rename or rebrand** if the app is offered publicly, together with roles (above), which
+  are already required before that (owner, 2026-10-21).
+- Fullscreen with Keyboard Lock so Ctrl+W reaches vim in a Chromium browser, if the desktop
+  app (item 22) falls short. (The phone's Paste key is done, 2026-10-21.)
 
 ## Out of scope (deliberately)
 

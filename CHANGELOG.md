@@ -5,6 +5,21 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Added
+- **A Paste key on the phone's extra-keys row.** It reads the clipboard and types it the way a
+  desktop paste does (CR line endings, bracketed paste when the shell asked for it, so a
+  multi-line paste waits for Enter). The browser must allow it: HTTPS, and a permission
+  prompt or a Paste button depending on the browser; when it refuses, a message says so and
+  nothing is sent. The phone check pastes two lines into a real shell and covers a refusal.
+
+### Fixed
+- `svrctl --version` and `--help` name the command `svrctl` (they said `server`).
+
+### Documentation
+- **Restore drill** (DEPLOYMENT.md): restore last night's copy into a throwaway container with
+  no network and its own copy of the key, check it, start it, read the data through its own
+  API, remove it. Run against production's copy on 2026-10-21: everything came back.
+
 ## [3.5.0] - 2026-10-21
 
 The "sign-in and staying power" release. Sign in with your own identity provider (OpenID

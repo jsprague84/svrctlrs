@@ -215,6 +215,44 @@ go together. A copy from another
 machine: `docker cp` it into the container first. Restoring a copy whose key you no longer have
 is not possible; that is the point of the key.
 
+**Restore drill.** `restore --check` proves a copy and the key go together; a drill proves the
+whole way back works, on the host, without touching production. Run it now and then (last run:
+2026-10-21 on docker-vm, last night's copy: 1 user, 28 servers, 9 credentials, all read by the
+running server). Everything lives in one folder and one container, with **no network**, so the
+restored server's health checks and kept-shell housekeeping cannot reach a single server:
+
+```bash
+D=~/svrctlrs-restore-drill; mkdir -m 700 "$D" "$D/data"; umask 077
+IMAGE=$(docker inspect svrctlrs --format '{{.Config.Image}}')   # the image already there
+{ grep '^ENCRYPTION_KEY=' ~/docker-compose/svrctlrs/.env         # its own copy of the key
+  echo ADMIN_USERNAME=drill-admin
+  echo "ADMIN_PASSWORD=$(head -c 24 /dev/urandom | base64 | tr -d /+=)"
+  echo DATABASE_URL=sqlite:/app/data/svrctlrs.db
+  echo SPA_DIR=/app/ui/build; echo PASSWORD_LOGIN=on; } > "$D/env"
+# 1. A fresh install: empty folder, no network
+docker run -d --name svrctlrs-restore-drill --network none --user 1000:1000 --restart no \
+  --env-file "$D/env" -v "$D/data:/app/data" "$IMAGE"
+# 2. Last night's copy in, checked, staged, put in place by a restart
+B=$(docker exec svrctlrs ls /app/data/backups | tail -1)
+mkdir -m 700 "$D/data/incoming"; docker cp "svrctlrs:/app/data/backups/$B" "$D/data/incoming/"
+docker exec svrctlrs-restore-drill /app/svrctl restore --check "/app/data/incoming/$B"
+docker exec svrctlrs-restore-drill /app/svrctl restore "/app/data/incoming/$B"
+docker restart svrctlrs-restore-drill
+docker exec svrctlrs-restore-drill /app/svrctl health   # "database":"ok"
+docker logs svrctlrs-restore-drill 2>&1 | grep -i restored
+```
+
+Then look at the data through the restored server itself. It has no network, so give its copy
+a read-only token (stop it, add a row to `api_tokens` with `token_hash` = hex SHA-256 of a
+`svr_` + 40 letters/digits secret and `preset` = `read_only`, start it) and ask
+`docker exec svrctlrs-restore-drill /app/svrctl --token … status`, `servers` and
+`credentials`: the counts match `restore --check`, and every pasted or generated key shows
+its `SHA256:` fingerprint, which the server can only show after decrypting it (a key given as a
+file path shows `key_source: path` instead). Its log shows every server "unreachable at first
+check" and `ls /sys/class/net` inside it only `lo`. Finally remove it all:
+`docker rm -f svrctlrs-restore-drill && rm -rf ~/svrctlrs-restore-drill`. Production's
+container, volume, `.env` and backups are only read.
+
 ## Upgrades
 
 `docker compose pull && docker compose up -d`. Migrations run at start-up; they are embedded
