@@ -21,6 +21,10 @@ to the internet (item 20), sign-in with OIDC and TOTP in the binary (item 21), t
 browser (item 22), shells kept across a restart (item 23), backups inside the app (item
 24), a file browser that opens files before it downloads them (item 25) and signed-in
 devices with sign-out per device (item 26): the owner's list from 2026-10-19 is done.
+**3.5.0 released 2026-10-21** with all of that. **4.0.0 released 2026-10-21**: the phone's
+Paste key, `svrctl --version`, and a restore drill against production's copy; it marks the app
+complete for one person's daily use, followed by a pause of a week or two of use before more
+changes.
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an

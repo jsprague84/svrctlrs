@@ -5,6 +5,20 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+## [4.0.0] - 2026-10-21
+
+4.0 marks SvrCtlRS as complete for one person's daily use: a self-hosted SSH terminal
+manager, phone-first, in one Rust binary and one SQLite file. Everything the owner's list asked
+for is in: **sign-in** with your own identity provider or a password plus two-factor codes;
+**devices** you can see and sign out one by one; **shells kept** on the server across a closed
+phone, a lost connection or a restart (in tmux when you ask for it); nightly **backups** with a
+checked restore, now proven by a restore drill against production's own copy; a **file
+browser** that views and edits small files; and **agents** as first-class users through
+scoped tokens, approvals for the deletes that cannot be undone, and `svrctl`. Next comes a
+pause for daily use; roles (and a new name) come only if the app is ever offered to other people.
+Upgrading from 3.5.0: no migrations and nothing to change, the major number marks the
+milestone, not a break.
+
 ### Added
 - **A Paste key on the phone's extra-keys row.** It reads the clipboard and types it the way a
   desktop paste does (CR line endings, bracketed paste when the shell asked for it, so a

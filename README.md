@@ -5,7 +5,7 @@ and on your phone (an installable web app), shells that keep running when the ph
 encrypted credentials, multi-pane layouts and an SFTP file browser. One Rust binary, one SQLite
 file.
 
-**Version 3.5.0** · Rust (Axum) · SvelteKit 5 · xterm.js 6 · Tauri 2 · SQLite
+**Version 4.0.0** · Rust (Axum) · SvelteKit 5 · xterm.js 6 · Tauri 2 · SQLite
 
 > 3.x is a different product from the 1.x/2.x releases. Those were a plugin-based monitoring
 > platform and were retired in March 2026; nothing from them survives in this repository.
