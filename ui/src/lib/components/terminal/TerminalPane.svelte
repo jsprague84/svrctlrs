@@ -624,6 +624,38 @@
 		if (session?.isOpen) terminal.input(seq, true);
 	}
 
+	/**
+	 * The phone's Paste key. Must be called from the tap's click handler: the browser lets a page
+	 * read the clipboard only during a user gesture, in a secure context, and may ask first.
+	 * xterm's paste() then does what a native paste does: CR line endings, bracketed paste when
+	 * the shell asked for it, and the same onData path as typing.
+	 */
+	export async function pasteFromClipboard() {
+		if (!terminal || !session?.isOpen) {
+			toast.warning('Connect to a server first');
+			return;
+		}
+		if (!navigator.clipboard?.readText) {
+			toast.error('This browser cannot read the clipboard here — use the keyboard’s paste');
+			return;
+		}
+		let text: string;
+		try {
+			text = await navigator.clipboard.readText();
+		} catch {
+			// Denied, dismissed, or not text. Nothing is sent.
+			toast.error(
+				'The browser would not share the clipboard — allow it for this site, or use the keyboard’s paste'
+			);
+			return;
+		}
+		if (!text) {
+			toast.info('Nothing to paste: the clipboard holds no text');
+			return;
+		}
+		if (session?.isOpen) terminal.paste(text);
+	}
+
 	export function clear() {
 		terminal?.clear();
 		session?.clearOutput();

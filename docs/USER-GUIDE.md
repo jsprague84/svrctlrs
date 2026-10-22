@@ -406,6 +406,14 @@ terminal colours follow, and so does the sign-in page (always the system's theme
   second row). Keys fire on touch and repeat while held. **CTL** and **ALT** are sticky for one
   key — tap CTL then type `d` to send Ctrl+D, or CTL then an arrow — and tapping a modifier
   twice locks it until tapped again.
+- The **Paste** key (clipboard icon, first row) types the clipboard into the shell the way a
+  paste on a desktop does: line breaks become Enter, and when the shell asks for bracketed
+  paste (bash, zsh and fish do) a multi-line paste waits for your Enter instead of running
+  line by line. The browser decides whether the page may read the clipboard: it works only
+  over HTTPS (or on localhost), Chrome asks once per site, and Safari and Firefox show a small
+  **Paste** button to tap. If the browser refuses (permission denied, the prompt dismissed, or
+  the clipboard holds no text) a message says so and nothing is typed; allow clipboard access
+  in the site's settings, or use the keyboard's own paste.
 - **Install it**: the web app is installable — "Add to Home screen" (Android Chrome, iOS Safari
   share sheet) gives a standalone window without browser chrome, its own icon and the full
   screen for the terminal. Shells keep running while the app is in the background and resume

@@ -1144,6 +1144,9 @@
 					if (activeTabId) paneRefs[activeTabId]?.setPendingModifier(mod);
 				}}
 				onPalette={() => (paletteOpen = true)}
+				onPaste={() => {
+					if (activeTabId) paneRefs[activeTabId]?.pasteFromClipboard();
+				}}
 			/>
 		</div>
 	{/if}

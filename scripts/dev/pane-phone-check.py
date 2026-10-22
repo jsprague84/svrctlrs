@@ -8,7 +8,8 @@ uses its DOM renderer and the screen's text can be read back.
 
 Covers: first-contact host-key dialog → trust → shell, typing, tap-to-move-cursor, long-press
 copy, a second tab and a swipe between tabs, that no hidden pane resizes its shell, CTL from
-the extra-keys row (Ctrl+C interrupts `sleep`), predictive echo over a slowed link (typed text
+the extra-keys row (Ctrl+C interrupts `sleep`), the Paste key (two lines as one bracketed paste
+that waits for Enter; a refused clipboard shows a toast and sends nothing), predictive echo over a slowed link (typed text
 drawn ahead of the echo and cleared after it, nothing drawn at a `read -s` prompt), reload →
 resume with the screen intact, the home-screen shortcut (manifest lists the server,
 `/?connect=<id>` shows its tab), terminal preferences following the account (a change on
@@ -241,6 +242,35 @@ with sync_playwright() as p:
     page.keyboard.type("echo after-ctl-c")
     page.keyboard.press("Enter")
     check("CTL then c interrupts sleep", wait_screen("\nafter-ctl-c"), screen()[-300:])
+
+    # The Paste key types the clipboard like a native paste: two lines go in as one bracketed
+    # paste (bash asks for it), so neither runs before Enter; then both run.
+    def paste_key():
+        k = page.get_by_role("button", name="Paste", exact=True).first.bounding_box()
+        tap(k["x"] + k["width"] / 2, k["y"] + k["height"] / 2)
+
+    page.evaluate("navigator.clipboard.writeText('echo paste-$((6*7))\\necho paste-two')")
+    before_paste = len(sent)
+    paste_key()
+    page.wait_for_timeout(1000)
+    inputs = [json.loads(f).get("data", "") for f in sent[before_paste:] if '"input"' in f]
+    check("Paste sends the clipboard as one bracketed paste",
+        "\x1b[200~echo paste-$((6*7))\recho paste-two\x1b[201~" in inputs, repr(inputs[:3]))
+    check("nothing pasted runs before Enter", "\npaste-42" not in screen(), screen()[-200:])
+    check("the Paste key keeps the terminal focused",
+        page.evaluate("!!document.activeElement?.closest('.xterm')"))
+    page.keyboard.press("Enter")
+    check("both pasted lines run on Enter", wait_screen("\npaste-42") and wait_screen("\npaste-two"),
+        screen()[-300:])
+    # The browser refuses: a toast says so and nothing is sent
+    ctx.clear_permissions()
+    before_paste = len(sent)
+    paste_key()
+    page.wait_for_timeout(1000)
+    check("a refused clipboard says so", page.get_by_text("would not share the clipboard").count() > 0)
+    check("and sends nothing", not [f for f in sent[before_paste:] if '"input"' in f], str(sent[before_paste:][:3]))
+    ctx.grant_permissions(["clipboard-read", "clipboard-write"], origin=BASE)
+    page.screenshot(path=f"{OUT}/paste.png")
 
     # Predictive echo on a slow link (250 ms on every message back): the default "auto" mode
     # measures the echo, then draws typed characters at once and clears them when they echo

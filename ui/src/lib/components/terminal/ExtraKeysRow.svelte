@@ -7,8 +7,12 @@
 	 *
 	 * CTL and ALT are sticky for one key — a key here or the next character typed on the soft
 	 * keyboard. Tapping a modifier twice locks it until tapped again.
+	 *
+	 * Paste is the exception to "fire on pointerdown": the browser lets a page read the
+	 * clipboard only during a user gesture, and a touch pointerdown is not one (its pointerup
+	 * and click are). It still swallows pointerdown so the terminal keeps focus.
 	 */
-	import { Command, ChevronUp, ChevronDown } from '@lucide/svelte';
+	import { Command, ChevronUp, ChevronDown, ClipboardPaste } from '@lucide/svelte';
 
 	interface Props {
 		onKeyPress: (sequence: string) => void;
@@ -16,9 +20,11 @@
 		onModifier?: (mod: 'ctl' | 'alt' | null) => void;
 		/** The ⌘ key: open the command palette */
 		onPalette?: () => void;
+		/** The Paste key: read the clipboard and type it into the terminal */
+		onPaste?: () => void;
 	}
 
-	let { onKeyPress, onModifier, onPalette }: Props = $props();
+	let { onKeyPress, onModifier, onPalette, onPaste }: Props = $props();
 
 	type Mod = 'ctl' | 'alt';
 	let active = $state<Mod | null>(null);
@@ -238,6 +244,19 @@
 				{key.label}
 			</button>
 		{/each}
+		<button
+			type="button"
+			class="{keyClass} flex items-center justify-center"
+			onpointerdown={(e) => {
+				e.preventDefault();
+				tick();
+			}}
+			onclick={() => onPaste?.()}
+			aria-label="Paste"
+			title="Paste the clipboard"
+		>
+			<ClipboardPaste class="w-3.5 h-3.5" />
+		</button>
 		<button
 			type="button"
 			class="{keyClass} flex items-center justify-center"
