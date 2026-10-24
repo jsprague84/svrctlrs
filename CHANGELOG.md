@@ -5,6 +5,13 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+## [4.0.1] - 2026-10-24
+
+The first fixes from daily use of 4.0: closing many tabs no longer asks once per tab, the
+desktop app carries its own icon, and the Nix package builds again (NixOS stayed on 3.4.0
+since 3.5.0). Two new advisories in the SSH stack's crypto crates are patched. No migrations,
+nothing to change when upgrading.
+
 ### Added
 - **Close several tabs at once.** A `⋯` menu in the desktop tab bar closes the other tabs, the
   tabs to the right, or all of them; the palette has *Close Other Tabs* and *Close All Tabs*;
