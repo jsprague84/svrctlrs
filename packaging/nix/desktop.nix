@@ -2,16 +2,15 @@
 # ui/package-lock.json, cargo dependencies from ui/src-tauri/Cargo.lock, `cargo tauri build`
 # through cargo-tauri.hook, and a GApps wrapper.
 #
-# After changing ui/package-lock.json, update npmDeps.hash:
-#   nix run nixpkgs#prefetch-npm-deps -- ui/package-lock.json
+# Both lockfiles carry a checksum per package, so there is no hash here to update: a fixed
+# npmDeps hash broke at every release, since the version bump alone changes it.
 {
   lib,
   src,
   rustPlatform,
-  fetchNpmDeps,
+  importNpmLock,
   cargo-tauri,
   nodejs,
-  npmHooks,
   pkg-config,
   wrapGAppsHook3,
   webkitgtk_4_1,
@@ -33,16 +32,12 @@ rustPlatform.buildRustPackage {
   cargoLock.lockFile = src + "/ui/src-tauri/Cargo.lock";
 
   npmRoot = "ui";
-  npmDeps = fetchNpmDeps {
-    name = "svrctlrs-ui-npm-deps-${version}";
-    src = src + "/ui";
-    hash = "sha256-5thGUU2tmEIrXve2p0M9YMmaNvbdwlqpwf0T2k55pzY=";
-  };
+  npmDeps = importNpmLock { npmRoot = src + "/ui"; };
 
   nativeBuildInputs = [
     cargo-tauri.hook
     nodejs
-    npmHooks.npmConfigHook
+    importNpmLock.npmConfigHook
     pkg-config
     wrapGAppsHook3
   ];

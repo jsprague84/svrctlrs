@@ -12,6 +12,13 @@ the release workflow uses the matching section as the release notes.
   instead of one per tab. A middle click on a tab closes it. The UI sweep closes three live
   shells on the phone and the desktop with one confirmation.
 
+### Fixed
+- **The desktop app shows the SvrCtlRS icon** (the terminal prompt), not Tauri's default; the
+  Android launcher icons too. The icons are generated from `ui/static/favicon.svg`.
+- **The Nix desktop package builds again.** Its fixed npm hash changed with every version bump,
+  so 3.5.0 and 4.0.0 did not build and a NixOS flake update stayed on 3.4.0; it now reads the
+  per-package checksums in `ui/package-lock.json` (`importNpmLock`) and has no hash to keep.
+
 ### Security
 - `crypto-bigint` 0.7.6 and `ctutils` 0.4.5 (RUSTSEC-2026-0387, RUSTSEC-2026-0385: operations
   meant to be constant-time were not), both reached through the SSH stack.

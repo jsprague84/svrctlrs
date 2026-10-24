@@ -235,9 +235,9 @@ docker push git.js-node.cc/jsprague/<name>:latest
 3. Add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md`; the release job uses it as notes.
 4. Commit, make sure CI is green, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
    The Nix flake (`flake.nix`, `packaging/nix/desktop.nix`) reads the version from
-   `ui/src-tauri/Cargo.toml`; after a change to `ui/package-lock.json` update its `npmDeps`
-   hash (`nix run nixpkgs#prefetch-npm-deps -- ui/package-lock.json`) and check
-   `nix build .#desktop`.
+   `ui/src-tauri/Cargo.toml` and takes its dependencies from the two lockfiles' own checksums
+   (`importNpmLock`, `cargoLock.lockFile`), so there is no hash to update. CI does not build
+   it: check `nix build .#desktop` where Nix is installed.
 5. The tag publishes the image, the APK and the desktop packages to the Forgejo release. The
    release job fails if the tag does not equal `v` + the `Cargo.toml` version.
 
