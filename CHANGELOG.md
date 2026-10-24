@@ -12,6 +12,10 @@ the release workflow uses the matching section as the release notes.
   instead of one per tab. A middle click on a tab closes it. The UI sweep closes three live
   shells on the phone and the desktop with one confirmation.
 
+### Security
+- `crypto-bigint` 0.7.6 and `ctutils` 0.4.5 (RUSTSEC-2026-0387, RUSTSEC-2026-0385: operations
+  meant to be constant-time were not), both reached through the SSH stack.
+
 ## [4.0.0] - 2026-10-21
 
 4.0 marks SvrCtlRS as complete for one person's daily use: a self-hosted SSH terminal
