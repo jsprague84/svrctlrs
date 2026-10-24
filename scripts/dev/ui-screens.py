@@ -420,6 +420,39 @@ with sync_playwright() as p:
                     shot("terminal-sessions")
                     api("PUT", "/api/v1/sessions/keep", {"detach_ttl_secs": None})
                     page.get_by_label("Sessions on the server").first.click()
+                # Closing every tab asks once, not once per live shell: two more shells on
+                # lab-01, then close all three (tab bar menu on the desktop, tab sheet on the phone)
+                for _ in range(2):
+                    page.get_by_label("New terminal").first.click()
+                    page.wait_for_timeout(600)
+                    picker = page if vp_name == "desktop" else page.get_by_role("dialog", name="Connect to a server")
+                    picker.locator(f"text={LIVE} >> visible=true").first.click()
+                    page.wait_for_timeout(3000)
+                if vp_name == "desktop":
+                    live_tabs = page.get_by_role("tab").count()
+                    page.get_by_role("button", name="Close tabs").click()
+                    page.get_by_role("menuitem", name=f"Close all {live_tabs} tabs").click()
+                else:
+                    page.get_by_label("Tabs —").click()
+                    sheet = page.get_by_role("dialog", name="Terminals")
+                    sheet.wait_for(timeout=5000)
+                    live_tabs = sheet.locator("li").count()
+                    shot("sheet-tabs")
+                    sheet.get_by_role("button", name=f"Close all {live_tabs} terminals").click()
+                confirm = page.get_by_role("dialog", name=f"Close {live_tabs} terminals?")
+                confirm.wait_for(timeout=5000)
+                check(f"close all asks once for {live_tabs} live shells ({vp_name}-{theme})",
+                      live_tabs == 3 and f"{live_tabs} shells on the servers are ended" in confirm.inner_text(),
+                      f"{live_tabs} tabs: {confirm.inner_text()[:120]}")
+                confirm.get_by_role("button", name=f"Close {live_tabs} terminals").click()
+                page.wait_for_timeout(1500)
+                left = page.get_by_role("tab").count() if vp_name == "desktop" else \
+                    page.get_by_role("dialog", name="Terminals").locator("li").count()
+                check(f"close all leaves no tabs ({vp_name}-{theme})",
+                      left == 0 and page.get_by_role("dialog", name=f"Close {live_tabs} terminals?").count() == 0,
+                      f"{left} left")
+                page.keyboard.press("Escape")
+                page.wait_for_timeout(300)
             # The live shells above are recorded (lab-01 records sessions)
             go("/recordings")
             shot("recordings", full=True)

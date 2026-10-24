@@ -220,6 +220,11 @@ in tmux**, whose panes reconnect to the same shell.
 
 - **New tab**: `Ctrl+Shift+T` or the `+` in the tab bar, then pick a server. Up to 10 tabs. A
   tab without a server lists your servers (and any shells waiting to be resumed) in the pane.
+- **Close tabs**: the `×` on a tab, a middle click, or `Ctrl+Shift+W`. The `⋯` next to the
+  layout buttons (shown with two or more tabs) closes the other tabs, those to the right of
+  the active one, or all of them; the palette has *Close Other Tabs* and *Close All Tabs*, and
+  the phone's tab list *Close all*. Closing several asks once, naming how many live shells end;
+  tabs without a live shell close without asking.
 - **Layouts**: `Ctrl+\` cycles single → split horizontal → split vertical → quad. Tabs fill the
   visible slots; `Alt+1`–`Alt+4` focuses a slot, `Alt+[`/`Alt+]` cycles panes, `Alt+Arrow`
   moves spatially.
@@ -395,7 +400,7 @@ terminal colours follow, and so does the sign-in page (always the system's theme
 ## Mobile (Android app or a phone browser)
 
 - The sidebar becomes a drawer (menu button); the status bar shows the connection dot, the
-  server name and one dot per tab — tap it for the **tab list** (switch, close, new terminal),
+  server name and one dot per tab — tap it for the **tab list** (switch, close one or all, new terminal),
   the **+** for a server picker, the gear for terminal settings (font size has −/+ buttons).
   The phone's back gesture closes drawers, sheets and the palette instead of leaving the app.
 - **Swipe left/right** on the terminal to move between tabs; a one-time hint explains this.

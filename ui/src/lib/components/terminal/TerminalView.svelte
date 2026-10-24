@@ -45,6 +45,7 @@
 	import * as toast from '#lib/state/toast.svelte.js';
 	import { extractErrorMessage } from '#lib/utils/error.js';
 	import { confirmDialog } from '#lib/state/confirm.svelte.js';
+	import { closeManyPrompt, closeTargets, type CloseScope } from '#lib/utils/tabClose.js';
 	import { isMobile } from '#lib/state/mobile.svelte.js';
 	import * as terminalPrefs from '#lib/state/terminalPrefs.svelte.js';
 	import {
@@ -650,20 +651,25 @@
 		}
 	}
 
-	async function closeTabWithConfirm(id: string) {
-		const tab = tabs.find((t) => t.id === id);
-		if (tab?.status === 'connected') {
-			const ok = await confirmDialog({
-				title: `Close ${tab.label}?`,
-				message: 'The shell on the server is ended.',
-				confirmLabel: 'Close terminal',
-				destructive: true
-			});
-			if (!ok) return;
+	function closeTabWithConfirm(id: string) {
+		return closeTabsWithConfirm([id]);
+	}
+
+	/** Close several tabs behind one question (asked only when a shell is live). */
+	async function closeTabsWithConfirm(ids: string[]) {
+		const closing = tabs.filter((t) => ids.includes(t.id));
+		if (closing.length === 0) return;
+		const prompt = closeManyPrompt(closing);
+		if (prompt && !(await confirmDialog(prompt))) return;
+		for (const { id } of closing) {
+			paneRefs[id]?.disconnect();
+			delete paneRefs[id];
+			terminalState.closeTab(id);
 		}
-		paneRefs[id]?.disconnect();
-		delete paneRefs[id];
-		terminalState.closeTab(id);
+	}
+
+	function closeScope(scope: CloseScope) {
+		return closeTabsWithConfirm(closeTargets(tabs, activeTabId, scope));
 	}
 
 	function isTextInput(el: Element | null): boolean {
@@ -717,6 +723,7 @@
 				focusTerminal(id);
 			}}
 			onCloseTab={(id) => closeTabWithConfirm(id)}
+			onCloseAll={() => closeScope('all')}
 			onPickServer={connectTo}
 			onShowServers={() => (sheetView = 'servers')}
 			onShowSessions={() => (sheetView = 'sessions')}
@@ -905,6 +912,7 @@
 			{layout}
 			onSelectTab={(id) => terminalState.setActiveTab(id)}
 			onCloseTab={(id) => closeTabWithConfirm(id)}
+			onCloseMany={closeScope}
 			onNewTab={handleNewTab}
 			onSetLayout={(mode) => terminalState.setLayout(mode)}
 		/>
@@ -1099,6 +1107,8 @@
 			onCloseTab={() => {
 				if (activeTabId) closeTabWithConfirm(activeTabId);
 			}}
+			onCloseMany={closeScope}
+			tabCount={tabs.length}
 			onOpenPrefs={() => (prefsOpen = true)}
 			onOpenServers={() => goto(resolve('/servers'))}
 			onOpenSessions={openSessions}

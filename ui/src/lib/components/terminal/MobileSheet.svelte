@@ -27,6 +27,8 @@
 		onClose: () => void;
 		onSelectTab: (id: string) => void;
 		onCloseTab: (id: string) => void;
+		/** Close every tab behind one confirmation */
+		onCloseAll: () => void;
 		onPickServer: (server: Server) => void;
 		onShowServers: () => void;
 		onShowSessions: () => void;
@@ -53,6 +55,7 @@
 		onClose,
 		onSelectTab,
 		onCloseTab,
+		onCloseAll,
 		onPickServer,
 		onShowServers,
 		onShowSessions,
@@ -208,6 +211,15 @@
 						</span>
 					{/if}
 				</button>
+				{#if tabs.length > 1}
+					<button
+						type="button"
+						class="mt-1 w-full h-11 flex items-center justify-center gap-2 rounded-md text-sm text-error active:bg-error/10"
+						onclick={onCloseAll}
+					>
+						<X class="w-4 h-4" /> Close all {tabs.length} terminals
+					</button>
+				{/if}
 			{:else if view === 'files'}
 				<div class="h-[55dvh]">
 					<FileBrowser />

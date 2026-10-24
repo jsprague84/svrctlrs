@@ -5,6 +5,13 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Added
+- **Close several tabs at once.** A `⋯` menu in the desktop tab bar closes the other tabs, the
+  tabs to the right, or all of them; the palette has *Close Other Tabs* and *Close All Tabs*;
+  the phone's tab list has *Close all*. One confirmation names how many live shells end,
+  instead of one per tab. A middle click on a tab closes it. The UI sweep closes three live
+  shells on the phone and the desktop with one confirmation.
+
 ## [4.0.0] - 2026-10-21
 
 4.0 marks SvrCtlRS as complete for one person's daily use: a self-hosted SSH terminal

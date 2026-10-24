@@ -8,6 +8,7 @@
 	import * as serversState from '#lib/state/servers.svelte.js';
 	import * as themeState from '#lib/state/theme.svelte.js';
 	import * as terminalState from '#lib/state/terminal.svelte.js';
+	import type { CloseScope } from '#lib/utils/tabClose.js';
 
 	interface PaletteItem {
 		id: string;
@@ -31,6 +32,9 @@
 		onConnectServer?: (serverId: number, serverName: string) => void;
 		onNewTab?: () => void;
 		onCloseTab?: () => void;
+		/** Close several tabs behind one confirmation; offered when more than one is open */
+		onCloseMany?: (scope: CloseScope) => void;
+		tabCount?: number;
 		onOpenPrefs?: () => void;
 		onOpenServers?: () => void;
 		onOpenSessions?: () => void;
@@ -51,6 +55,8 @@
 		onConnectServer,
 		onNewTab,
 		onCloseTab,
+		onCloseMany,
+		tabCount = 0,
 		onOpenPrefs,
 		onOpenServers,
 		onOpenSessions,
@@ -139,6 +145,24 @@
 					}
 				}
 			},
+			...(onCloseMany && tabCount > 1
+				? [
+						{
+							id: 'action-close-other-tabs',
+							name: 'Close Other Tabs',
+							detail: 'Keep the active tab, close the rest (one confirmation)',
+							category: 'action' as const,
+							action: () => onCloseMany('others')
+						},
+						{
+							id: 'action-close-all-tabs',
+							name: 'Close All Tabs',
+							detail: `Close all ${tabCount} terminal tabs (one confirmation)`,
+							category: 'action' as const,
+							action: () => onCloseMany('all')
+						}
+					]
+				: []),
 			{
 				id: 'action-files',
 				name: 'Browse Files',

@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { Plus, X, Columns2, Rows2, LayoutGrid, Square } from '@lucide/svelte';
+	import ActionMenu, { type MenuItem } from '#lib/components/ui/ActionMenu.svelte';
 	import type { TerminalTab, LayoutMode } from '#lib/types/index.js';
+	import type { CloseScope } from '#lib/utils/tabClose.js';
 
 	interface Props {
 		tabs: TerminalTab[];
@@ -8,12 +10,35 @@
 		layout: LayoutMode;
 		onSelectTab: (id: string) => void;
 		onCloseTab: (id: string) => void;
+		/** Close several tabs behind one confirmation */
+		onCloseMany: (scope: CloseScope) => void;
 		onNewTab: () => void;
 		onSetLayout: (mode: LayoutMode) => void;
 	}
 
-	let { tabs, activeTabId, layout, onSelectTab, onCloseTab, onNewTab, onSetLayout }: Props =
-		$props();
+	let {
+		tabs,
+		activeTabId,
+		layout,
+		onSelectTab,
+		onCloseTab,
+		onCloseMany,
+		onNewTab,
+		onSetLayout
+	}: Props = $props();
+
+	let closeItems = $derived.by((): MenuItem[] => {
+		const last = tabs.length > 0 && tabs[tabs.length - 1].id === activeTabId;
+		return [
+			{ label: 'Close other tabs', onSelect: () => onCloseMany('others') },
+			{ label: 'Close tabs to the right', onSelect: () => onCloseMany('right'), disabled: last },
+			{
+				label: `Close all ${tabs.length} tabs`,
+				onSelect: () => onCloseMany('all'),
+				destructive: true
+			}
+		];
+	});
 
 	const statusColors: Record<string, string> = {
 		connected: 'bg-success',
@@ -76,6 +101,13 @@
 				tabindex={tab.id === activeTabId ? 0 : -1}
 				aria-selected={tab.id === activeTabId}
 				onclick={() => onSelectTab(tab.id)}
+				onauxclick={(e) => {
+					// Middle click closes, as in a browser
+					if (e.button === 1) {
+						e.preventDefault();
+						onCloseTab(tab.id);
+					}
+				}}
 				onkeydown={(e) => handleTabKey(e, tab.id)}
 			>
 				<span
@@ -113,6 +145,12 @@
 			<Plus class="w-3.5 h-3.5" />
 		</button>
 	</div>
+
+	{#if tabs.length > 1}
+		<div class="hidden md:flex items-center px-1 border-l border-border">
+			<ActionMenu label="Close tabs" items={closeItems} class="md:w-7 md:h-7" />
+		</div>
+	{/if}
 
 	<!-- Layout buttons -->
 	<div class="hidden md:flex items-center gap-0.5 px-2 border-l border-border">
