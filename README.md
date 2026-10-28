@@ -88,8 +88,8 @@ svrctl onboard --name lab-02 --host 10.0.0.12 --credential "lab password"
 
 `svrctl` is attached to every release (`svrctl-linux-amd64`, `svrctl-linux-arm64`, with
 `svrctl-SHA256SUMS`), is in the image (`docker cp svrctlrs:/app/svrctl .`) and in every build
-(`cargo build --release -p server --bin svrctl`). Piped, it answers one compact JSON line. Hermes adds the skill with
-`hermes skills tap add jsprague84/svrctlrs`; Claude Code finds it in `.claude/skills/` when
+(`cargo build --release -p server --bin svrctl`). Piped, it answers one compact JSON line. Hermes installs the skill with
+`hermes skills install jsprague84/svrctlrs/svrctlrs` (from the GitHub mirror); Claude Code finds it in `.claude/skills/` when
 working in this repository, or copy `skills/svrctlrs/` into `~/.claude/skills/`. The full API
 is in `GET /api/v1/openapi.json`.
 

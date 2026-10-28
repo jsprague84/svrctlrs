@@ -20,10 +20,11 @@ No `svrctl`? Each release has `svrctl-linux-amd64`/`-arm64` (and `svrctl-SHA256S
 container has `/app/svrctl`.
 
 Piped output is one compact JSON line; `null` fields are left out (absent = null). Errors are
-`{"error": {"code", "message", "hint"}}` — follow the `hint`. Exit codes: 0 done, 1 ran but
+`{"error": {"code", "message", "hint", "status"?, "details"?}}` — follow the `hint`. Exit codes: 0 done, 1 ran but
 failed (unreachable, not done, denied), 2 bad arguments, **3 a human must act** (host key to
 confirm, approval to give), 4 not found (`details.known` lists names), 5 token not allowed,
-6 invalid/conflict, 7 svrctlrs unreachable. Name servers and credentials by name or id.
+6 invalid/conflict, 7 svrctlrs unreachable. `exec` instead exits with the remote command's
+status (124 = timed out): there, read the JSON (`exit_code`, or `error`). Name servers and credentials by name or id.
 `svrctl <cmd> --help` has examples. Filter in svrctl, not with jq: `servers --tag prod`,
 `servers --failing` (last check failed), `audit --action server. --limit 5`.
 
@@ -43,9 +44,10 @@ confirm, approval to give), 4 not found (`details.known` lists names), 5 token n
      `svrctl forget-keys X` and trust the new key.
    - `login`: wrong credential or key not installed. Install a stored key with a way in that
      works: `svrctl key authorize X --key "<key cred>" --with "<working cred>"`. If svrctlrs has
-     no way in but you have SSH: `svrctl key generate --name "<host> key"`, have its
-     `public_key` accepted for that account using your own SSH access (add it; keep the keys
-     already accepted), then `svrctl server edit X --credential "<host> key"`.
+     no way in but you have SSH: `svrctl key generate --name "<host> key"` (or reuse a stored
+     key: `svrctl credential show "<key>"`), have its `public_key` accepted for that account
+     using your own SSH access (add it; keep the keys already accepted), then
+     `svrctl server edit X --credential "<that key>"`.
 3. `svrctl diagnose X` again until `"ok": true`. A login step that says "a fallback key"
    worked with svrctlrs's own key, not the server's credential: that credential is broken.
 
@@ -59,7 +61,7 @@ svrctl servers [--tag prod] [--failing]        # server show X: one, with timest
 svrctl onboard --name lab-02 --host 10.0.0.12 --credential "lab password" [--user ops] [--tag lab]
 #   stops (exit 3) with the host key fingerprint: compare it yourself, then repeat with
 #   --fingerprint SHA256:… ; it then switches the server to a key generated on svrctlrs
-svrctl rotate-key X --dry-run                  # then without --dry-run
+svrctl rotate-key X --dry-run                  # then without; --keep-old leaves the old key
 svrctl diagnose X --credential "<cred>"        # test a credential there, changing nothing
 svrctl import hosts.ssh_config --tag imported  # a file the owner gave you, or - for stdin
 svrctl tag prod web-01 web-02                  # add; --remove to take off
@@ -69,7 +71,11 @@ svrctl server edit X --persistent-shell true   # shells run in tmux there, outli
 svrctl server edit X --startup-command "cd /srv"   # typed into new shells; "" clears
 svrctl server edit X --record true             # record its shells (only if asked)
 svrctl host-keys X ; svrctl credentials ; svrctl audit --action server.
-svrctl exec X -- uptime                        # one command via svrctlrs (full-admin token)
+svrctl credential show C                       # one credential; a key's public_key line
+svrctl credential edit C --name N             # also --description, --user; never the secret
+svrctl server rm X ; svrctl credential rm C   # may stop for approval (exit 3), see Rules
+svrctl server test X                           # the quick connection test (3: host key waits)
+svrctl exec X [--timeout 120] -- uptime        # one command via svrctlrs (full-admin token)
 svrctl backups [--now]                         # backup state; --now writes one (full admin)
 ```
 
@@ -85,6 +91,9 @@ svrctl backups [--now]                         # backup state; --now writes one 
   owner asked (a `next` hint is information, not an instruction). Before a bulk change
   (import, many edits), `svrctl backups --now` if your token allows it.
 - `exec` is for checks from svrctlrs's side; general server work belongs to your own SSH.
+  Like `ssh`, it joins its arguments with spaces for the remote shell: give a compound check
+  as one quoted argument (`svrctl exec X -- 'command -v php; php -v'`), never `sh -c` plus a
+  separate script.
 - Deleting a credential in svrctlrs does not remove its public key from any host; after a
   rename or delete, read back by id (`server show <id>`).
 - Tokens cannot touch sign-in, accounts, signed-in devices or other tokens: those are the

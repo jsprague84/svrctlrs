@@ -387,12 +387,58 @@ async fn svrctl_speaks_json_with_stable_exit_codes() {
         .as_str()
         .unwrap()
         .starts_with("ssh-ed25519 "));
+    let public_key = out["public_key"].as_str().unwrap().to_string();
     let (_, out, _) = s.svrctl(Some(&admin), &["credentials"], None);
     assert!(out["credentials"]
         .as_array()
         .unwrap()
         .iter()
         .any(|c| c["name"] == "agent key"));
+    // The public half can be read back later, by any token; never a secret
+    let (code, out, text) = s.svrctl(Some(&reader), &["credential", "show", "AGENT KEY"], None);
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(out["public_key"], public_key.as_str());
+    assert!(!text.contains("PRIVATE"), "{text}");
+    // Rename and describe it; a read-only token may not, and nothing to change is a usage error
+    let (code, out, _) = s.svrctl(
+        Some(&admin),
+        &[
+            "credential",
+            "edit",
+            "agent key",
+            "--name",
+            "lab key",
+            "--description",
+            "for the lab",
+        ],
+        None,
+    );
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(
+        (out["name"].as_str(), out["description"].as_str()),
+        (Some("lab key"), Some("for the lab")),
+        "{out}"
+    );
+    assert_eq!(
+        out["public_key"],
+        public_key.as_str(),
+        "the key is unchanged"
+    );
+    let (code, out, _) = s.svrctl(
+        Some(&reader),
+        &["credential", "edit", "lab key", "--name", "x"],
+        None,
+    );
+    assert_eq!(
+        (code, out["error"]["code"].as_str()),
+        (5, Some("TOKEN_SCOPE"))
+    );
+    let (code, out, _) = s.svrctl(Some(&admin), &["credential", "edit", "lab key"], None);
+    assert_eq!(
+        (code, out["error"]["code"].as_str()),
+        (2, Some("USAGE")),
+        "{out}"
+    );
 
     // Text when asked for, even on a pipe
     let (_, _, text) = s.svrctl(Some(&admin), &["--text", "servers"], None);

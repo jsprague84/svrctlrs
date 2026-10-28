@@ -243,8 +243,9 @@ docker logs svrctlrs-restore-drill 2>&1 | grep -i restored
 ```
 
 Then look at the data through the restored server itself. It has no network, so give its copy
-a read-only token (stop it, add a row to `api_tokens` with `token_hash` = hex SHA-256 of a
-`svr_` + 40 letters/digits secret and `preset` = `read_only`, start it) and ask
+a read-only token (stop it, add a row to `api_tokens` with `user_id` = an account's id, any
+`name` and `prefix`, `token_hash` = hex SHA-256 of a `svr_` + 40 letters/digits secret and
+`preset` = `read_only`, start it) and ask
 `docker exec svrctlrs-restore-drill /app/svrctl --token … status`, `servers` and
 `credentials`: the counts match `restore --check`, and every pasted or generated key shows
 its `SHA256:` fingerprint, which the server can only show after decrypting it (a key given as a
@@ -289,8 +290,8 @@ echo "$NEW" | docker exec -i svrctlrs /app/svrctl reset-password admin --passwor
 ```
 
 It needs no running server and no credentials: whoever can `docker exec` into the container
-already owns the data. The account is signed out everywhere (its browser sessions and app
-tokens end; other accounts are untouched; `--keep-sessions` skips that), and the audit log
+already owns the data. The account is signed out everywhere (its browser and desktop-app
+sign-ins end, its API tokens are untouched; other accounts are untouched; `--keep-sessions` skips that), and the audit log
 records `user.password_reset`. The 12-character minimum still applies. A lost authenticator
 app with no recovery codes left: add `--clear-totp`, which also turns the account's two-factor
 sign-in off (turn it on again under Settings → Access → Sign-in). Outside a container,

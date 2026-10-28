@@ -81,8 +81,10 @@ file).
 
 `server/tests/svrctl.rs` starts the real `server` binary on a temporary database and drives
 the real `svrctl` binary against it: JSON on a pipe, exit codes, errors with hints, token
-presets, `import` from stdin, and a delete held for approval that `--wait` sees through once
-the owner approves.
+presets, `import` from stdin, credentials read back and renamed (`credential show`/`edit`), and
+a delete held for approval that `--wait` sees through once the owner approves; a second test
+backs up, refuses a copy under the wrong key, checks and stages a restore, and restarts onto
+it.
 
 `scripts/eval/hermes/` is the agent eval of ROADMAP item 19: a throwaway svrctlrs and three
 SSH hosts in Docker on the Hermes VM, five tasks run as one-shot Hermes sessions, a grader for

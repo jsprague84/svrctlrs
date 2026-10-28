@@ -5,6 +5,25 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Added
+- **`svrctl credential show` and `credential edit`.** An agent can read a stored key's public
+  half again after `key generate` (to install an existing key on another host itself) and
+  rename a credential or change its description or login user; the secret is still changed
+  only in the web app. `show` works with any token, `edit` with *servers & keys* or more.
+
+### Fixed
+- **Docs and the agent skill caught up with the code.** The skill says that `exec` exits with
+  the remote command's status (an agent read exit 1–7 there as svrctl's own codes), names
+  `server test`, `exec --timeout`, `rotate-key --keep-old` and the two deletes; the user guide
+  says what *servers & keys* really runs (test, diagnose, onboard, rotate key, install a key)
+  and that `exec` needs *full admin*; `reset-password` keeps API tokens (the deployment guide
+  said they end), and the restore drill's token row lists every required column. API.md now
+  documents the sign-in method routes, `persistent_shell`, every audit action and error code
+  the code writes, the WebSocket's host-key and token error codes, and corrects the
+  first-contact host-key behavior (a key is recorded unconfirmed, not trusted), the
+  password-change status (403, not 401) and what `PUT /settings/{key}` checks. `svrctl exec
+  --help` says the words are joined like `ssh` does.
+
 ## [4.0.1] - 2026-10-24
 
 The first fixes from daily use of 4.0: closing many tabs no longer asks once per tab, the

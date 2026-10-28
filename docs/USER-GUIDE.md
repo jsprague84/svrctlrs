@@ -116,7 +116,7 @@ server to it and removes the old public key from the server's `authorized_keys`.
 credential stays under Credentials; delete it once no server uses it.
 
 Agents get the same operations through the API, plus **exec** (one command, output and exit
-status back, audited) and **onboard** (add a server, confirm its key with the fingerprint you
+status back, audited; full-admin tokens only) and **onboard** (add a server, confirm its key with the fingerprint you
 compared, switch it to a generated key); see API.md, "Operations".
 
 ## Audit log
@@ -163,10 +163,15 @@ named, acts as you within its access, and can be revoked on its own, so give eac
 own.
 
 - **New token**: a name (which agent holds it), an access preset and a lifetime.
-  - *Full admin*: everything you can do, terminals and files included.
-  - *Servers & keys*: read everything; add, change and delete servers, credentials and host
-    keys. No terminals or files. The right one for an agent that fixes your server list.
-  - *Read-only*: look, never touch.
+  - *Full admin*: everything you can do, terminals, files, **exec** and "Back up now"
+    included.
+  - *Servers & keys*: read-only, plus add, change and delete servers, credentials and host
+    keys, and the operations that log in with the stored credentials without a shell: test,
+    diagnose, onboard, rotate key, install a key. No terminals, files or exec. The right one
+    for an agent that fixes your server list.
+  - *Read-only*: look at servers, host keys, credentials (never their secrets), settings, the
+    audit log, sessions, recording details and backups; never touch, and no file or recording
+    contents.
 
   No token can create or revoke tokens or manage accounts, whatever its access. Lifetime is
   30 days, 90 days, a year or never. **Ask me before it deletes** (on by default) holds the
@@ -182,7 +187,8 @@ A full-admin token that never expires is as good as your password on every serve
 as it exists; the dialog says so. See SECURITY.md, "API tokens".
 
 Agents use the token with **svrctl** (`export SVRCTLRS_URL=… SVRCTLRS_TOKEN=svr_…`;
-`svrctl --help` lists everything, with examples) and the skill file `skills/svrctlrs/SKILL.md`,
+`svrctl --help` lists everything, with examples; *servers & keys* covers all of it except
+`svrctl exec` and `svrctl backups --now`, which need *full admin*) and the skill file `skills/svrctlrs/SKILL.md`,
 which teaches them the diagnose-and-fix loop and the rules (never a password on a command
 line, never trust a host key without comparing it, approvals are yours).
 

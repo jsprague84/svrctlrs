@@ -2,7 +2,7 @@
 //!
 //! Remote commands talk to a running server with an API token (`SVRCTLRS_URL`,
 //! `SVRCTLRS_TOKEN`): servers, credentials, host keys, diagnose, exec, onboard, rotate-key,
-//! approvals. They never prompt, answer one JSON document when stdout is not a terminal (or
+//! approvals, audit, backups. They never prompt, answer one JSON document when stdout is not a terminal (or
 //! with `--json`), and exit with codes an agent can branch on (see `out::code`). `backup`,
 //! `restore` and `reset-password` run next to the database instead (`docker exec`); `health` needs no token
 //! and is the container's healthcheck.
@@ -21,7 +21,7 @@ use serde_json::{json, Value};
 use svrctlrs_api::approvals::{Approval, HeldForApproval};
 use svrctlrs_api::audit::AuditPage;
 use svrctlrs_api::backups::{BackupCreated, BackupStatus};
-use svrctlrs_api::credentials::{CredentialList, GeneratedKey};
+use svrctlrs_api::credentials::{CredentialDetail, CredentialList, GeneratedKey};
 use svrctlrs_api::ops::{Diagnosis, ExecResult, OnboardResult, OpStep, RotateKeyResult};
 use svrctlrs_api::servers::{
     ConnectionTest, HostKeyList, HostKeyTrusted, HostKeysForgotten, ImportResult, KeyAuthorized,
@@ -151,7 +151,8 @@ enum Command {
         /// Seconds the command may run (1–600)
         #[arg(long, default_value_t = 60)]
         timeout: u64,
-        /// The command, after `--`
+        /// The command, after `--`; like ssh, the words are joined with spaces for the remote
+        /// shell, so quote a compound command as one argument: `-- 'cd /srv && ls'`
         #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
         command: Vec<String>,
     },
@@ -245,7 +246,7 @@ enum Command {
     /// Generate or install SSH keys
     #[command(subcommand)]
     Key(KeyCommand),
-    /// Delete a credential
+    /// Show, rename or delete a credential
     #[command(subcommand)]
     Credential(CredentialCommand),
     /// An approval request; with --wait, wait for the owner's answer
@@ -428,6 +429,21 @@ enum KeyCommand {
 
 #[derive(Subcommand, Debug)]
 enum CredentialCommand {
+    /// One credential, never its secret; an SSH key's `public_key` (the `authorized_keys` line)
+    Show { credential: String },
+    /// Rename a credential or change its description or login user; only what you pass
+    /// changes. The secret itself is changed in the web app, never on a command line
+    Edit {
+        credential: String,
+        #[arg(long)]
+        name: Option<String>,
+        /// Empty clears it
+        #[arg(long)]
+        description: Option<String>,
+        /// The login user servers default to with this credential; empty clears it
+        #[arg(long)]
+        user: Option<String>,
+    },
     /// Delete a credential (refused while a server uses it; may wait for approval)
     Rm {
         credential: String,
@@ -910,6 +926,47 @@ async fn run(api: &Api, out: &Out, command: Command) -> Result<u8, Failure> {
             out.emit(&r, |r| r.message.clone());
             Ok(code::OK)
         }
+        Command::Credential(CredentialCommand::Show { credential }) => {
+            let c = api.credential(&credential).await?;
+            let detail: CredentialDetail = api.get(&format!("/credentials/{}", c.id)).await?;
+            out.emit(&detail, credential_text);
+            Ok(code::OK)
+        }
+        Command::Credential(CredentialCommand::Edit {
+            credential,
+            name,
+            description,
+            user,
+        }) => {
+            let c = api.credential(&credential).await?;
+            // Only what was passed: an absent field keeps its value, "" clears it
+            let mut body = serde_json::Map::new();
+            for (field, value) in [
+                ("name", name),
+                ("description", description),
+                ("username", user),
+            ] {
+                if let Some(v) = value {
+                    body.insert(field.into(), json!(v));
+                }
+            }
+            if body.is_empty() {
+                return Err(Failure::new(
+                    "USAGE",
+                    "Nothing to change: pass --name, --description or --user",
+                ));
+            }
+            let _: IdMessage = api
+                .call(
+                    Method::PUT,
+                    &format!("/credentials/{}", c.id),
+                    Some(&Value::Object(body)),
+                )
+                .await?;
+            let detail: CredentialDetail = api.get(&format!("/credentials/{}", c.id)).await?;
+            out.emit(&detail, credential_text);
+            Ok(code::OK)
+        }
         Command::Credential(CredentialCommand::Rm { credential, wait }) => {
             let c = api.credential(&credential).await?;
             gated::<IdMessage>(
@@ -1259,6 +1316,24 @@ fn servers_text(servers: &[Server]) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn credential_text(c: &CredentialDetail) -> String {
+    let mut lines = vec![format!(
+        "{:>4}  {:<24} {:<9} {}{}",
+        c.id,
+        c.name,
+        c.credential_type,
+        c.username.as_deref().unwrap_or(""),
+        if c.in_use { "  in use" } else { "" }
+    )];
+    if let Some(fp) = &c.fingerprint {
+        lines.push(format!("fingerprint: {fp}"));
+    }
+    if let Some(k) = &c.public_key {
+        lines.push(k.clone());
+    }
+    lines.join("\n")
 }
 
 fn diagnosis_text(d: &Diagnosis) -> String {
