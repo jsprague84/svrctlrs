@@ -44,7 +44,8 @@ flake.nix, packaging/nix/  the desktop app as a Nix package (NixOS; no hashes to
 .forgejo/    CI images and workflows (ci, docker, android, desktop)
 scripts/dev/ the loop (prepush, ci-watch, gates, ci-lint, ci-log, ci-rerun, ci-dispatch on
              forgejo.sh) and the e2e/browser checks (run-e2e.sh, run-phone-check.sh, run-ui-screens.sh)
-scripts/ci/  release helper; scripts/deploy/ docker-vm deploy (forced-command target)
+scripts/ci/  release helper; scripts/deploy/ the forced-command targets: docker-vm deploy,
+             hermes-agent-sync.sh (hermes installs the deployed skill and svrctl)
 skills/      svrctlrs/SKILL.md, the agent skill for svrctl (linked from .claude/skills/)
 ```
 

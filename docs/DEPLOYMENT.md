@@ -278,6 +278,47 @@ The job's `known_hosts` pins docker-vm's ed25519 host key; update it in the work
 host is reinstalled. When the secret is missing the job logs a notice and exits 0, so an image
 still publishes.
 
+## Agent interface on hermes (owner setup, done once)
+
+After every deploy the `agents` job in `.forgejo/workflows/docker.yaml` ("Agent interface on
+hermes") runs `ssh ubuntu@hermes <sha>` with the `HERMES_AGENT_SYNC_KEY` repository secret, so
+the agents there always have the skill and `svrctl` of what is live (`docs/agents.md`, "Kept
+current"). On hermes that key is restricted to a forced command,
+`~/bin/svrctlrs-agent-sync.sh` (= `scripts/deploy/hermes-agent-sync.sh`), which accepts only a
+40-hex SHA and reads nothing from stdin: it refuses unless production's health check reports
+that SHA, takes `svrctl` out of `git.js-node.cc/jsprague/svrctlrs:<sha>` (its revision label
+checked; the pulled image removed again) and the skill and eval harness from the repository's
+archive at that commit, then installs:
+
+- the skill into `~/.hermes/skills/devops/svrctlrs/` (both Hermes profiles share it) and
+  `~/.claude/skills/svrctlrs/` (Claude Code for AgentOS), only where the folder exists, the old
+  one kept as `SKILL.md.bak`. Each copy keeps its own local part in `.deployment.md` beside
+  it, put in before `## Setup`: taken from the installed copy on the first run (Hermes's
+  "## Local deployment and retained notes" section, Claude Code's "This deployment:"
+  paragraph). Change a deployment's notes there, not in `SKILL.md`. Hermes's `references/`
+  folder is never touched;
+- `~/svrctlrs-eval/bin/svrctl` (the old one as `svrctl.prev`), the eval harness and its tasks,
+  a plain skill copy in `~/svrctlrs-eval/skill/`, and last `~/svrctlrs-eval/REVISION`, which
+  `scripts/dev/ci-watch.sh` waits for.
+
+A failed sync turns the job red. When the secret is missing the job logs a notice and exits 0,
+and ci-watch, finding no `REVISION`, does not wait for hermes. Setup, from the laptop:
+
+```bash
+ssh-keygen -t ed25519 -N '' -C svrctlrs-ci-agent-sync -f /tmp/svrctlrs-agent-sync
+scp scripts/deploy/hermes-agent-sync.sh hermes:bin/svrctlrs-agent-sync.sh
+ssh hermes 'chmod 755 ~/bin/svrctlrs-agent-sync.sh && ~/bin/svrctlrs-agent-sync.sh <the sha production runs>'
+#   first run by hand: check the .deployment.md files it wrote beside each SKILL.md
+ssh hermes "echo 'restrict,command=\"/home/ubuntu/bin/svrctlrs-agent-sync.sh\" $(cat /tmp/svrctlrs-agent-sync.pub)' >> ~/.ssh/authorized_keys"
+# the private key becomes the repository secret HERMES_AGENT_SYNC_KEY
+#   (Forgejo → jsprague/svrctlrs → Settings → Actions → Secrets), then:
+rm /tmp/svrctlrs-agent-sync /tmp/svrctlrs-agent-sync.pub
+```
+
+The script is copied by hand on purpose: CI cannot change what its own key may do. After a
+change to it, copy it again the same way. The job's `known_hosts` pins hermes's ed25519 host
+key (`10.10.1.35`).
+
 ## Locked out
 
 If nobody can sign in (a forgotten password, the only account's password changed by someone

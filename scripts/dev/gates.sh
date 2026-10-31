@@ -19,6 +19,7 @@ trap 'rm -rf "${nohome}"' EXIT
 git fetch -q origin master
 step "version";                  scripts/ci/check-version.sh
 step "agent path";               scripts/ci/agent-path.sh "$(git merge-base origin/master HEAD)" HEAD
+step "hermes's skill copies";     scripts/deploy/hermes-agent-sync.sh --check skills/svrctlrs/SKILL.md
 step "fmt, clippy (CI's image)"; scripts/dev/ci-lint.sh
 step "cargo test (empty HOME)";  rust env HOME="${nohome}" CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" cargo test --workspace
 step "cargo audit";              nix shell nixpkgs#cargo nixpkgs#cargo-audit --command cargo audit

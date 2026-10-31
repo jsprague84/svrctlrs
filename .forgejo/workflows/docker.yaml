@@ -7,7 +7,8 @@
 #   - One multi-arch image (linux/amd64 + linux/arm64, cross-compiled, no emulation).
 #   - Every build is tagged with the short and full commit SHA and stamped with
 #     org.opencontainers.image.revision, so a deploy can prove which commit is running.
-#   - master also gets :latest and auto-deploys to docker-vm over a forced-command SSH key.
+#   - master also gets :latest and auto-deploys to docker-vm over a forced-command SSH key;
+#     then hermes installs the skill and svrctl of what was deployed (another forced command).
 #   - A tag publishes :vX.Y.Z (+ :latest) and a Forgejo release, and never deploys: a tag is a
 #     release artifact, not necessarily what should be live.
 
@@ -17,8 +18,13 @@ on:
   push:
     branches: [master]
     tags: ['v*']
+    # prose, but NOT skills/: hermes is sent the skill after each deploy (the agents job).
+    # Named place by place: Forgejo creates no run at all for a paths-ignore with a `!` pattern
+    # (LogosOS, 2026-10-30). scripts/dev/ci-watch.sh has the same list.
     paths-ignore:
-      - '**.md'
+      - '*.md'
+      - '.forgejo/**.md'
+      - 'scripts/eval/hermes/README.md'
       - 'docs/**'
       - '.claude/**'
       - 'LICENSE*'
@@ -183,3 +189,34 @@ jobs:
           echo '192.168.5.172 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIGmOh7GDvBC5lBrP6AQ4J2NMRi5PXAqGC9io/BPO4He8' > ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
             ubuntu@192.168.5.172 "${GITHUB_SHA}"
+
+  # The agent interface on hermes follows each deploy (docs/agents.md, "Kept current"): the
+  # skill copies (Hermes, Claude Code), ~/svrctlrs-eval/bin/svrctl and the eval harness. The key
+  # (HERMES_AGENT_SYNC_KEY) is bound on hermes to a forced command
+  # (scripts/deploy/hermes-agent-sync.sh) and sends the SHA, nothing else: hermes refuses unless
+  # production runs it, and takes svrctl from that commit's image and the skill from the
+  # repository at that commit. Setup: docs/DEPLOYMENT.md, "Agent interface on hermes".
+  agents:
+    name: Agent interface on hermes
+    needs: deploy
+    if: github.ref == 'refs/heads/master'
+    runs-on: build
+    timeout-minutes: 10
+    container:
+      image: catthehacker/ubuntu:act-latest
+    steps:
+      - name: Install on hermes
+        env:
+          SYNC_KEY: ${{ secrets.HERMES_AGENT_SYNC_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SYNC_KEY}" ]; then
+            echo "::notice::HERMES_AGENT_SYNC_KEY is not set (docs/DEPLOYMENT.md); hermes not synced."
+            exit 0
+          fi
+          command -v ssh >/dev/null || { apt-get update -qq && apt-get install -y -qq openssh-client; }
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "${SYNC_KEY}" > ~/.ssh/agent_sync && chmod 600 ~/.ssh/agent_sync
+          echo '10.10.1.35 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIByM+PJdYivB7dgfebxhWQvNeL75Fi7NPvV0s7KCggxd' > ~/.ssh/known_hosts
+          ssh -i ~/.ssh/agent_sync -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            ubuntu@10.10.1.35 "${GITHUB_SHA}" < /dev/null

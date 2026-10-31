@@ -326,14 +326,23 @@ Planned as two sessions: 27–29 (the loop and CI), then 30–31 (the agent surf
     (the four version files and `docs/openapi.json` agree; with a tag, also the tag and a
     CHANGELOG section), run by CI's Lint, prepush and gates, and with the tag by the release
     job instead of its inline Cargo.toml check (80c39c2, 9ac0465, verified live with ci-watch).
-30. **`docs/cli.md`, `docs/agents.md` and the parity test** (L). Every OpenAPI operation
-    has a row in one table: its `svrctl` command, or `api`/`none` with a reason; every
-    command in svrctl's clap tree is in `cli.md` and the skill; the preset named is the
-    least that reaches the call. A cargo test fails a new route with no row (rustRoast
-    `bin/roast/surface.rs` is the model).
-31. **CI keeps hermes current** (M). After a deploy, CI installs the skill and `svrctl` on
-    hermes through a forced-command key, keeping the "This deployment" paragraph, as LogosOS
-    does (cae3bb0). Today they are copied by hand (last 2026-10-25, 4.0.1).
+30. ~~**`docs/cli.md`, `docs/agents.md` and the parity test**~~ Done 2026-10-30:
+    `server/src/bin/svrctl/surface.rs` (from rustRoast) gives each of the 84 operations one
+    row (30 a command, 30 `svrctl api`, 24 none, each with its reason), and `cargo test` fails
+    a route with no row, a command clap does not know or cli.md and the skill do not name, and
+    a preset that cannot make the call or is more than it needs; the preset table moved to
+    `api/src/presets.rs` (unchanged) so svrctl reads the same one. Gaps it found, fixed:
+    no `settings`, `api` or `openapi --find` (the standard §4), and `server show` only in a
+    comment of the skill. `docs/cli.md` and `docs/agents.md` are in CLAUDE.md's "Read first"
+    (740b2e2, 1da854d).
+31. **CI keeps hermes current** (M). Built 2026-10-30: after a deploy, the `agents` job sends
+    the SHA alone over a forced-command key; `scripts/deploy/hermes-agent-sync.sh` on hermes
+    refuses unless production runs it, takes `svrctl` from that commit's image and the skill
+    and eval harness from the repository at that commit, keeps each copy's local part
+    (`.deployment.md`), and writes `~/svrctlrs-eval/REVISION`, which ci-watch waits for;
+    `--check` runs in prepush, gates and Lint, and `docker.yaml` now builds for `skills/`.
+    Live once the owner sets up the key and secret (DEPLOYMENT.md, "Agent interface on
+    hermes"); until then the job skips with a notice.
 
 ## Maybe later
 
@@ -346,6 +355,8 @@ Planned as two sessions: 27–29 (the loop and CI), then 30–31 (the agent surf
 - 2FA on the *target* via keyboard-interactive auth if a server needs it.
 - A **rename or rebrand** if the app is offered publicly, together with roles (above), which
   are already required before that (owner, 2026-10-21).
+- `svrctl` commands for recordings and detached shells, if an agent ever needs them; today
+  `svrctl api` reaches them (the parity table, `docs/agents.md`).
 - Fullscreen with Keyboard Lock so Ctrl+W reaches vim in a Chromium browser, if the desktop
   app (item 22) falls short. (The phone's Paste key is done, 2026-10-21.)
 

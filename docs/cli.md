@@ -37,8 +37,10 @@ a request carrying `Bearer svr_…` reaches the API without the browser sign-in
 
 On hermes, the owner's always-on agent host: the token in `~/svrctl_token.md` (mode 600), the
 binary at `~/svrctlrs-eval/bin/svrctl`, and each installed skill copy (both Hermes profiles,
-`~/.claude/skills/svrctlrs/` for AgentOS) with a "This deployment" paragraph naming the URL and
-both paths. The agent exports `SVRCTLRS_URL` and `SVRCTLRS_TOKEN` in its own subprocess.
+`~/.claude/skills/svrctlrs/` for AgentOS) with its local part naming the URL and both paths.
+The agent exports `SVRCTLRS_URL` and `SVRCTLRS_TOKEN` in its own subprocess. CI reinstalls the
+binary and the skills after every deploy ([`agents.md`](agents.md), "Kept current"): nothing
+to do by hand.
 
 ## Tokens and presets
 

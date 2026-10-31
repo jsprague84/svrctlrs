@@ -387,6 +387,11 @@ before.
   (known weakness 13). Break-glass (`PASSWORD_LOGIN=on`) opens the password form for as long
   as it is on: do it from the LAN or with the proxy chain back on the router. See the CSWSH
   item below for why `ALLOWED_ORIGINS` should stay empty on browser-only deployments.
+- CI's keys are forced commands that take a commit SHA and nothing else (DEPLOYMENT.md): the
+  deploy key on docker-vm, and the agent-sync key on hermes, which installs only the skill and
+  `svrctl` of the revision production already runs, fetched by hermes itself from the
+  registry and the repository at that commit. Whoever holds it can re-install what is
+  deployed, no more; the script on hermes is copied by hand, so CI cannot widen it.
 - Mount a dedicated key directory, not your `~/.ssh`, if you use key-path credentials.
 - Keep `.env` at mode 0600; it holds `ENCRYPTION_KEY` and the bootstrap password.
 - Prefer `ssh_key` credentials with the key material pasted into the credential (stored

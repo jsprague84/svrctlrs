@@ -132,7 +132,21 @@ table and the eval prove it is complete.
 
 ## Kept current
 
-The installed copies on hermes (the skill in both Hermes profiles and in
-`~/.claude/skills/svrctlrs/` for AgentOS, each with its own "This deployment" paragraph, and
-`~/svrctlrs-eval/bin/svrctl`) are refreshed by hand after a release (last 2026-10-25, 4.0.1).
-ROADMAP 31 has CI do it after every deploy.
+The copies agents use on hermes follow `master` as deployed, by themselves (ROADMAP 31). After
+every deploy, CI's job "Agent interface on hermes" (`.forgejo/workflows/docker.yaml`) sends the
+commit's SHA, and nothing else, over a forced-command key to
+`scripts/deploy/hermes-agent-sync.sh` on hermes. It refuses unless production runs that SHA,
+takes `svrctl` from that commit's image and the skill and eval harness from the repository at
+that commit, and installs the skill for Hermes (both profiles) and for Claude Code (AgentOS),
+each keeping its own local part (Hermes's notes and `references/`, Claude Code's "This
+deployment" paragraph; kept beside it in `.deployment.md`), `~/svrctlrs-eval/bin/svrctl`, the
+eval harness with a plain skill copy, and last `~/svrctlrs-eval/REVISION`, which
+`scripts/dev/ci-watch.sh` waits for. Setup and what the key can do: DEPLOYMENT.md, "Agent
+interface on hermes"; SECURITY.md, "Deployment guidance".
+
+So a skill or `svrctl` change reaches the agents the way code reaches production, and an
+installed skill never names a command its binary lacks (Hermes's own notes had warned about
+exactly that). `docker.yaml` builds for a `skills/` change too, so a skill-only push deploys
+and syncs. `--check` runs the same building of the copies in prepush, `gates.sh` and CI's Lint,
+so a skill that would not install fails before the push. A new eval task is ready to run on
+hermes once its commit is live (`scripts/eval/hermes/README.md`).

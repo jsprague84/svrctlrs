@@ -18,6 +18,12 @@ the release workflow uses the matching section as the release notes.
   how an agent makes it (a command, `api` or `none`, with a reason), when a command is missing
   from cli.md or the skill, or when the preset named is not the least that makes the call.
   The preset table moved to `api/src/presets.rs` (unchanged) so `svrctl` reads the same one.
+- **Hermes keeps up by itself.** After every deploy CI has hermes install the deployed
+  revision's skill (for Hermes and for Claude Code, each keeping its own local notes) and
+  `svrctl`, with the eval harness, over a key that sends only the commit's SHA
+  (`scripts/deploy/hermes-agent-sync.sh`; DEPLOYMENT.md, "Agent interface on hermes"). A push
+  that changes only the skill now builds and deploys too. The eval's `run.sh` keeps its own
+  `svrctl` in `eval-bin/` instead of overwriting the deployment's.
 - **`svrctl credential show` and `credential edit`.** An agent can read a stored key's public
   half again after `key generate` (to install an existing key on another host itself) and
   rename a credential or change its description or login user; the secret is still changed

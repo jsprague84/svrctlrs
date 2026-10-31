@@ -59,6 +59,9 @@ jobs:
       - name: Agent path and docs ship with each feature (scripts/ci/agent-path.sh)
         run: scripts/ci/agent-path.sh "${{ github.event.before }}" HEAD
 
+      - name: The skill hermes is sent builds and checks (scripts/deploy/hermes-agent-sync.sh)
+        run: scripts/deploy/hermes-agent-sync.sh --check skills/svrctlrs/SKILL.md
+
       - name: Format check
         run: cargo fmt --all --check
 

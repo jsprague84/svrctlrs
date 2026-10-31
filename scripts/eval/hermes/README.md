@@ -18,15 +18,21 @@ did the agent stay inside the task, did it follow the hints.
 
 ## Run (on the machine where Hermes runs, with Docker)
 
+The harness, its tasks and a plain copy of the skill (`skill/`) are installed in
+`~/svrctlrs-eval` on hermes after every deploy (`scripts/deploy/hermes-agent-sync.sh`;
+`docs/agents.md`, "Kept current"), so a task is ready to run once its commit is live; its
+`REVISION` names the commit. `scp -r scripts/eval/hermes hermes:svrctlrs-eval` is for a harness
+not pushed yet.
+
 ```bash
-scp -r scripts/eval/hermes hermes:svrctlrs-eval
 ssh hermes 'cd ~/svrctlrs-eval && ./run.sh default <image tag> && ./run.sh local-qwen <image tag>'
 ssh hermes 'cd ~/svrctlrs-eval && python3 summarize.py out/default/task*.jsonl'
 ssh hermes 'docker compose -p svrctlrs-eval down -v'       # remove everything it started
 ```
 
 `run.sh` starts a fresh environment per profile (svrctlrs on 127.0.0.1:18990 only, the hosts
-on a private network), copies `svrctl` out of the image, makes a *servers & keys* token
+on a private network), copies `svrctl` out of the image into `eval-bin/` (never over `bin/svrctl`,
+the deployment's), makes a *servers & keys* token
 without approvals, and runs each task as a one-shot Hermes session (`--source tool`, so the
 sessions stay out of the user's list; toolsets terminal, file, skills, todo, so no memory
 writes; no `--yolo`). Hermes needs the skill: `hermes skills install

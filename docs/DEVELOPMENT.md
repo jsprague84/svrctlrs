@@ -46,12 +46,15 @@ scripts/dev/ci-watch.sh     # follows the push to production; 0 = every job gree
 `ci-watch.sh [sha]` follows the commit through every job by the Forgejo API (token in
 `~/.config/forgejo/api-token`) and prints each job as it finishes. It exits 0 only when every
 job the push runs is green and, when the push deploys, production's health check
-(`https://svrctlrs.js-node.app/api/v1/health`) reports that revision; 1 when a job fails,
+(`https://svrctlrs.js-node.app/api/v1/health`) reports that revision and hermes's agent
+interface (`~/svrctlrs-eval/REVISION`, over ssh; skipped when hermes was never synced or cannot
+be reached) is that revision too; 1 when a job fails,
 with the end of each failed job's log; 2 on a timeout (`CI_WATCH_MIN`, default 30). A change
 is not deployed before it exits 0. It knows what a push runs: CI's four jobs on every branch;
-on `master` also the image and the deploy, unless everything changed since the live revision
-is in `docker.yaml`'s `paths-ignore` (`*.md`, `docs/`, `.claude/`, `LICENSE`, `ci.yaml`,
-`desktop.yaml`). That is why a push never ends on a docs-only commit: it builds nothing, and
+on `master` also the image, the deploy and the sync to hermes, unless everything changed since
+the live revision is in `docker.yaml`'s `paths-ignore` (`docs/`, `*.md` at the root and under
+`.forgejo/`, the eval's README, `.claude/`, `LICENSE`, `ci.yaml`, `desktop.yaml`; not
+`skills/`, which hermes is sent). That is why a push never ends on a docs-only commit: it builds nothing, and
 the revision live stays behind `master`. Only `(push)` statuses count, as in the deploy gate.
 
 On the same API (`scripts/dev/forgejo.sh`): `ci-log.sh [sha] [job]` lists a commit's jobs, or
@@ -259,7 +262,7 @@ repository Settings → Mirror settings, or `GET /api/v1/repos/jsprague/svrctlrs
 | Workflow | Trigger | Runner | Does |
 |---|---|---|---|
 | `ci.yaml` | every branch, tags, PRs to master | `rust-high` | one version (`check-version.sh`), the commit check, fmt, clippy, cargo-audit, tests, svelte-check, eslint + prettier, vitest, SPA build, npm audit of every dependency (retried only when npm's audit service errors) |
-| `docker.yaml` | `master`, `v*`, manual | `build` | builds the image with buildx for `linux/amd64` and `linux/arm64` (cross-compiled on the amd64 runner: every `RUN` happens on `$BUILDPLATFORM`, the runtime stage only copies, so no QEMU), pushes `latest`/`sha`/`vX.Y.Z` to the Forgejo registry, in a named buildx builder (`svrctlrs`) that outlives the job so cargo-chef's dependency layer and sccache's cache mount stay warm (cache capped at 20 GB; Forgejo's registry does not keep a BuildKit registry cache, tried 2026-10-21); on tags creates the release; on `master` waits for the commit's CI push run to be green (a PR run on the same commit does not count) and deploys to docker-vm |
+| `docker.yaml` | `master`, `v*`, manual | `build` | builds the image with buildx for `linux/amd64` and `linux/arm64` (cross-compiled on the amd64 runner: every `RUN` happens on `$BUILDPLATFORM`, the runtime stage only copies, so no QEMU), pushes `latest`/`sha`/`vX.Y.Z` to the Forgejo registry, in a named buildx builder (`svrctlrs`) that outlives the job so cargo-chef's dependency layer and sccache's cache mount stay warm (cache capped at 20 GB; Forgejo's registry does not keep a BuildKit registry cache, tried 2026-10-21); on tags creates the release; on `master` waits for the commit's CI push run to be green (a PR run on the same commit does not count), deploys to docker-vm, then has hermes install that revision's skill, `svrctl` and eval harness (the `agents` job; DEPLOYMENT.md, "Agent interface on hermes") |
 | `desktop.yaml` | `v*`, manual | `rust-high` | `.deb`/`.rpm` (gate) and AppImage (best effort), attached to the release; a manual run keeps them as a workflow artifact |
 | `workflows-parked/android.yaml` | — | `android` | parked 2026-10-10 (the Android app is unused; the installable web app replaces it). Move it back to `workflows/` and run `tauri android init` for the `cc.jsnode.svrctlrs` identifier to revive it |
 
@@ -272,7 +275,7 @@ daemon from the runner's DinD sidecar at `tcp://docker:2375` (no socket mounts, 
 
 Secrets: `FORGEJO_REGISTRY_TOKEN_ALL` (user-level, inherited) for the registry;
 repository-level `RELEASE_TOKEN`, `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
-`ANDROID_KEY_PASSWORD`, `DOCKER_VM_DEPLOY_KEY`.
+`ANDROID_KEY_PASSWORD`, `DOCKER_VM_DEPLOY_KEY`, `HERMES_AGENT_SYNC_KEY`.
 
 ### CI images
 
