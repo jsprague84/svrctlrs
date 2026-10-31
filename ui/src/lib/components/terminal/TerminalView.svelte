@@ -1167,6 +1167,13 @@
 				onPaste={() => {
 					if (activeTabId) paneRefs[activeTabId]?.pasteFromClipboard();
 				}}
+				keyboardOpen={mobileKeyboardOpen}
+				onKeyboard={() => {
+					// Inside the tap, or the keyboard does not come up
+					if (!activeTabId) return;
+					if (mobileKeyboardOpen) paneRefs[activeTabId]?.hideKeyboard();
+					else paneRefs[activeTabId]?.focus();
+				}}
 			/>
 		</div>
 	{/if}

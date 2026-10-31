@@ -10,9 +10,17 @@
 	 *
 	 * Paste is the exception to "fire on pointerdown": the browser lets a page read the
 	 * clipboard only during a user gesture, and a touch pointerdown is not one (its pointerup
-	 * and click are). It still swallows pointerdown so the terminal keeps focus.
+	 * and click are). It still swallows pointerdown so the terminal keeps focus. The keyboard key
+	 * waits for the click for the same reason: the soft keyboard comes up only inside a gesture.
 	 */
-	import { Command, ChevronUp, ChevronDown, ClipboardPaste } from '@lucide/svelte';
+	import {
+		Command,
+		ChevronUp,
+		ChevronDown,
+		ClipboardPaste,
+		Keyboard,
+		KeyboardOff
+	} from '@lucide/svelte';
 
 	interface Props {
 		onKeyPress: (sequence: string) => void;
@@ -22,9 +30,19 @@
 		onPalette?: () => void;
 		/** The Paste key: read the clipboard and type it into the terminal */
 		onPaste?: () => void;
+		/** The keyboard key: bring the soft keyboard up, or put it away when `keyboardOpen` */
+		onKeyboard?: () => void;
+		keyboardOpen?: boolean;
 	}
 
-	let { onKeyPress, onModifier, onPalette, onPaste }: Props = $props();
+	let {
+		onKeyPress,
+		onModifier,
+		onPalette,
+		onPaste,
+		onKeyboard,
+		keyboardOpen = false
+	}: Props = $props();
 
 	type Mod = 'ctl' | 'alt';
 	let active = $state<Mod | null>(null);
@@ -256,6 +274,21 @@
 			title="Paste the clipboard"
 		>
 			<ClipboardPaste class="w-3.5 h-3.5" />
+		</button>
+		<button
+			type="button"
+			class="{keyClass} flex items-center justify-center"
+			onpointerdown={(e) => {
+				e.preventDefault();
+				tick();
+			}}
+			onclick={() => onKeyboard?.()}
+			aria-label={keyboardOpen ? 'Hide keyboard' : 'Show keyboard'}
+			title={keyboardOpen ? 'Hide the keyboard' : 'Show the keyboard'}
+		>
+			{#if keyboardOpen}<KeyboardOff class="w-3.5 h-3.5" />{:else}<Keyboard
+					class="w-3.5 h-3.5"
+				/>{/if}
 		</button>
 		<button
 			type="button"

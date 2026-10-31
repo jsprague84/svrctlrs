@@ -414,13 +414,16 @@ terminal colours follow, and so does the sign-in page (always the system's theme
   (the keyboard comes along only if it was up). **Tap** to type (the keyboard comes up) and,
   on the prompt line, to move the cursor there (arrow keys are sent); **long-press** a word to
   select and copy it, **double-tap** for the command palette.
-- **Drag up/down** to read: a shell scrolls its scrollback; a program that reads the mouse
-  (herdr, tmux with `mouse on`, vim with `mouse=a`) gets wheel notches and scrolls the pane
-  under the finger; `less` and `man` get arrow keys. A drag closes the keyboard, so the whole
-  screen is there to read; tap to bring it back.
-- The **extra-keys row** above the keyboard has two rows: CTL, ALT, Esc, Tab, arrows and the
-  palette key, then `^C ^D ^Z ^R`, Home/End, PgUp/PgDn and `| ~ / -` (the chevron hides the
-  second row). Keys fire on touch and repeat while held. **CTL** and **ALT** are sticky for one
+- **Drag up/down** to read: a shell scrolls its scrollback; `less` and `man` get arrow keys. A
+  drag closes the keyboard, so the whole screen is there to read.
+- **In a program that reads the mouse** (herdr, tmux with `mouse on`, vim with `mouse=a`, htop,
+  mc) your finger is the mouse: a drag sends wheel notches and scrolls the pane under it, and a
+  tap is a click there (herdr's tabs, workspaces, machines and panes; tmux's panes and windows)
+  and brings up no keyboard. Use the **keyboard key** in the extra-keys row to type. If a
+  program crashed and left the mouse on, taps print `^[[<0;…` at the prompt: run `reset`.
+- The **extra-keys row** above the keyboard has two rows: CTL, ALT, Esc, Tab, arrows, Paste,
+  the keyboard key (shows or hides the soft keyboard) and the palette key, then `^C ^D ^Z ^R`,
+  Home/End, PgUp/PgDn and `| ~ / -` (the chevron hides the second row). Keys fire on touch and repeat while held. **CTL** and **ALT** are sticky for one
   key — tap CTL then type `d` to send Ctrl+D, or CTL then an arrow — and tapping a modifier
   twice locks it until tapped again.
 - The **Paste** key (clipboard icon, first row) types the clipboard into the shell the way a

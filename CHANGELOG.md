@@ -5,6 +5,13 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Added
+- **A tap is a click in programs that read the mouse.** On a phone, a tap in herdr, tmux with
+  `mouse on`, vim with `mouse=a`, htop or mc is a left click where the finger is: herdr's tabs,
+  workspaces, machines and panes, tmux's panes and windows. It brings up no keyboard; a new
+  **keyboard key** in the extra-keys row shows or hides it, anywhere. Everywhere else a tap
+  types, as before.
+
 ### Fixed
 - **Reading on the phone in herdr, tmux with the mouse on, or vim with `mouse=a`.** A vertical
   drag in a program that reads the mouse now sends it wheel notches (one per three rows of
@@ -13,8 +20,13 @@ the release workflow uses the matching section as the release notes.
   do not read the mouse (`less`, `man`) still get arrows, and a shell still scrolls its own
   scrollback.
 - **The keyboard no longer covers half the screen while reading.** A scroll that starts with
-  the soft keyboard open closes it, and a tap brings it back. A swipe to another tab brings the
+  the soft keyboard open closes it; a tap brings it back (the keyboard key, in a program that
+  reads the mouse). A swipe to another tab brings the
   keyboard up only if it was already up.
+- **Mouse reports in the legacy encoding reach the server.** A program that asks for the mouse
+  without SGR (`\e[?1000h` alone) got no clicks or wheel at all, on the desktop too: xterm
+  hands those reports out as bytes and nothing sent them. Reports up to column and row 95 go
+  now.
 
 ## [4.1.0] - 2026-10-31
 

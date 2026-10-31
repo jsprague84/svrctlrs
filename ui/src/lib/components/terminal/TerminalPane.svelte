@@ -222,6 +222,51 @@
 		}
 	}
 
+	/** The part of xterm's mouse service a tap needs. Not public API: xterm's own mousedown
+	 *  handler would also focus the terminal, and on a phone focus brings up the keyboard. */
+	type MouseReporter = {
+		triggerMouseEvent(e: {
+			col: number;
+			row: number;
+			x: number;
+			y: number;
+			button: number;
+			action: number;
+			ctrl: boolean;
+			alt: boolean;
+			shift: boolean;
+		}): boolean;
+	};
+
+	/**
+	 * Tap in a program that reads the mouse (herdr, tmux with mouse on, htop, vim with
+	 * mouse=a): a left click there, reported the way the program asked, and no keyboard. False
+	 * when the program does not read the mouse (or xterm's internals moved): type instead.
+	 */
+	function clickAt(clientX: number, clientY: number): boolean {
+		if (!terminal || terminal.modes.mouseTrackingMode === 'none') return false;
+		const internals = terminal as unknown as { _core?: { coreMouseService?: MouseReporter } };
+		const mouse = internals._core?.coreMouseService;
+		if (typeof mouse?.triggerMouseEvent !== 'function') return false;
+		const cell = cellAt(clientX, clientY);
+		const screen = terminal.element?.querySelector('.xterm-screen');
+		if (!cell || !screen || !session?.isOpen) return true; // the padding: nothing to click
+		const rect = screen.getBoundingClientRect();
+		const at = {
+			col: cell.col,
+			row: cell.row,
+			x: Math.floor(clientX - rect.left),
+			y: Math.floor(clientY - rect.top),
+			button: 0, // left
+			ctrl: false,
+			alt: false,
+			shift: false
+		};
+		mouse.triggerMouseEvent({ ...at, action: 1 }); // press
+		mouse.triggerMouseEvent({ ...at, action: 0 }); // release
+		return true;
+	}
+
 	/** Controls drawn over the terminal (reconnect overlay, banners) must get their taps. */
 	function isPassthroughTarget(e: Event): boolean {
 		const t = e.target as Element | null;
@@ -317,11 +362,14 @@
 				onOpenPalette?.();
 				lastTapTime = 0;
 			} else {
-				// Single tap → focus now (the keyboard only appears inside the gesture) and place
-				// the cursor; a following double-tap still opens the palette on top.
+				// Single tap → a click in a program that reads the mouse; otherwise focus now (the
+				// keyboard only appears inside the gesture) and place the cursor. A following
+				// double-tap still opens the palette on top.
 				lastTapTime = now;
-				focusForTyping();
-				moveCursorTo(e.clientX, e.clientY);
+				if (!clickAt(e.clientX, e.clientY)) {
+					focusForTyping();
+					moveCursorTo(e.clientX, e.clientY);
+				}
 			}
 		}
 
@@ -540,6 +588,12 @@
 		terminal.onData((data) => {
 			if (session?.isOpen) session.sendInput(applyPendingModifier(data));
 		});
+		// Mouse reports in the legacy encoding (a program that asked for the mouse without SGR)
+		// arrive as bytes. The input message carries text, so a report goes only while it is
+		// ASCII: up to column and row 95.
+		terminal.onBinary((data) => {
+			if (session?.isOpen && !/[^\x00-\x7f]/.test(data)) session.sendInput(data);
+		});
 		terminal.onResize(({ cols, rows }) => session?.sendResize(cols, rows));
 
 		try {
@@ -713,6 +767,11 @@
 
 	export function focus() {
 		focusForTyping();
+	}
+
+	/** The extra-keys row's keyboard key, when the keyboard is up */
+	export function hideKeyboard() {
+		releaseKeyboard();
 	}
 
 	export function search(term: string, caseSensitive = false): boolean {

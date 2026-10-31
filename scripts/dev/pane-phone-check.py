@@ -10,8 +10,9 @@ Covers: first-contact host-key dialog → trust → shell, typing, tap-to-move-c
 copy, a second tab and a swipe between tabs (which brings up no keyboard), that no hidden pane
 resizes its shell, CTL from the extra-keys row (Ctrl+C interrupts `sleep`), the Paste key (two
 lines as one bracketed paste that waits for Enter; a refused clipboard shows a toast and sends
-nothing), a vertical drag in a program that reads the mouse (wheel notches, no arrows, the
-keyboard let go until a tap), predictive echo over a slowed link (typed text drawn ahead of
+nothing), a program that reads the mouse (a drag sends wheel notches, not arrows, and lets go
+of the keyboard; a tap is a click and brings up none; the keyboard key does; a click in the
+legacy encoding gets through too), predictive echo over a slowed link (typed text drawn ahead of
 the echo and cleared after it, nothing drawn at a `read -s` prompt), reload → resume with the
 screen intact, the home-screen shortcut (manifest lists the server,
 `/?connect=<id>` shows its tab), terminal preferences following the account (a change on
@@ -22,7 +23,7 @@ shown, a small CRLF file edited and saved with its line endings, a save refused 
 changed behind the editor, and "Edit in terminal" opening vi on it in a new tab.
 Screenshots land in E2E_OUT (default: a temp dir).
 """
-import json, os, struct, sys, tempfile, time, urllib.parse, urllib.request, http.cookiejar, zlib
+import json, os, re, struct, sys, tempfile, time, urllib.parse, urllib.request, http.cookiejar, zlib
 from playwright.sync_api import sync_playwright
 
 # The app follows the OS theme on a first visit: THEME=light runs the whole check in light mode
@@ -278,8 +279,9 @@ with sync_playwright() as p:
     page.screenshot(path=f"{OUT}/paste.png")
 
     # A program that reads the mouse (herdr, tmux with mouse on) gets wheel notches from a
-    # vertical drag, never arrow keys (herdr hands those to its shell); the drag lets go of the
-    # keyboard so the whole screen is there to read, and a tap brings it back
+    # vertical drag, never arrow keys (herdr hands those to its shell), and a tap is a left
+    # click there. The drag lets go of the keyboard so the whole screen is there to read; a tap
+    # brings up none (it is a click), the extra-keys row's keyboard key does.
     def drag(dy):
         b = shell_box()
         x, y0 = b["x"] + b["width"] / 2, b["y"] + b["height"] * (0.8 if dy < 0 else 0.2)
@@ -290,24 +292,50 @@ with sync_playwright() as p:
         touch("touchEnd")
         page.wait_for_timeout(300)
 
-    page.keyboard.type("printf '\\033[?1049h\\033[?1002h\\033[?1006h'; stty -echo -icanon; timeout 6 cat >/dev/null;"
-                       " stty echo icanon; printf '\\033[?1006l\\033[?1002l\\033[?1049l'; echo mouse-$((2*3))-done")
-    page.keyboard.press("Enter")
-    page.wait_for_timeout(1200)
+    def focused():
+        return page.evaluate("!!document.activeElement?.closest('.xterm')")
+
+    def mouse_program(modes, secs):
+        on = "".join(f"\\033[?{m}h" for m in modes)
+        off = "".join(f"\\033[?{m}l" for m in reversed(modes))
+        page.keyboard.type(f"printf '{on}'; stty -echo -icanon; timeout {secs} cat >/dev/null;"
+                           f" stty echo icanon; printf '{off}'; echo mouse-$((2*3))-done-{secs}")
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(1200)
+
+    def inputs_since(n):
+        return "".join(json.loads(f).get("data", "") for f in sent[n:] if '"input"' in f)
+
+    mouse_program(["1049", "1002", "1006"], 8)
     before_wheel = len(sent)
     drag(-300)  # finger up: further down
-    check("a scroll lets go of the keyboard", not page.evaluate("!!document.activeElement?.closest('.xterm')"))
+    check("a scroll lets go of the keyboard", not focused())
     drag(300)
-    wheel = "".join(json.loads(f).get("data", "") for f in sent[before_wheel:] if '"input"' in f)
-    check("a drag sends wheel-down notches to a mouse program", "\x1b[<65;" in wheel, repr(wheel[:80]))
-    check("and wheel-up notches back", "\x1b[<64;" in wheel, repr(wheel[:80]))
-    check("and no arrow keys", not any(a in wheel for a in ("\x1b[A", "\x1b[B", "\x1bOA", "\x1bOB")),
-        repr(wheel[:80]))
     box = shell_box()
-    tap(box["x"] + box["width"] / 2, box["y"] + box["height"] * 0.85)
+    tap(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.wait_for_timeout(500)
+    got = inputs_since(before_wheel)
+    check("a drag sends wheel-down notches to a mouse program", "\x1b[<65;" in got, repr(got[:80]))
+    check("and wheel-up notches back", "\x1b[<64;" in got, repr(got[:80]))
+    check("and no arrow keys", not any(a in got for a in ("\x1b[A", "\x1b[B", "\x1bOA", "\x1bOB")),
+        repr(got[:80]))
+    check("a tap there is a left click (press and release)",
+        re.search(r"\x1b\[<0;\d+;\d+M\x1b\[<0;\d+;\d+m", got) is not None, repr(got[-40:]))
+    check("and brings up no keyboard", not focused())
+    k = page.get_by_role("button", name="Show keyboard", exact=True).first.bounding_box()
+    tap(k["x"] + k["width"] / 2, k["y"] + k["height"] / 2)
     page.wait_for_timeout(400)
-    check("a tap brings the keyboard back", page.evaluate("!!document.activeElement?.closest('.xterm')"))
-    check("the mouse program ends cleanly", wait_screen("mouse-6-done", 10), screen()[-200:])
+    check("the keyboard key brings the keyboard up", focused())
+    check("the mouse program ends cleanly", wait_screen("mouse-6-done-8", 12), screen()[-200:])
+    # A program that asks for the mouse without SGR gets the legacy bytes (via onBinary)
+    mouse_program(["1000"], 4)
+    before_legacy = len(sent)
+    tap(box["x"] + 30, box["y"] + 30)
+    page.wait_for_timeout(500)
+    got = inputs_since(before_legacy)
+    check("a tap clicks in the legacy encoding too", "\x1b[M " in got, repr(got[:40]))
+    check("which ends cleanly as well", wait_screen("mouse-6-done-4", 10), screen()[-200:])
+    page.wait_for_timeout(1500)  # past the double-tap window
 
     # Predictive echo on a slow link (250 ms on every message back): the default "auto" mode
     # measures the echo, then draws typed characters at once and clears them when they echo
