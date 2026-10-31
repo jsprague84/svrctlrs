@@ -46,7 +46,14 @@ deploys=""
 live=$(live_rev)
 if git merge-base --is-ancestor "${SHA}" origin/master; then
   if [ "${live}" = "${SHA}" ]; then
-    echo "${SHA:0:7}: already live (${HEALTH})"; exit 0
+    agents=$(agents_rev)
+    case "${agents}" in
+      "${SHA}") h="hermes's agent interface too" ;;
+      none) h="hermes never synced" ;;
+      "") h="hermes not reachable from here" ;;
+      *) h="hermes's agent interface is ${agents:0:7}: scripts/dev/ci-rerun.sh ${SHA:0:7} 'Agent interface'" ;;
+    esac
+    echo "${SHA:0:7}: already live (${HEALTH}); ${h}"; exit 0
   elif [ -n "${live}" ] && git merge-base --is-ancestor "${SHA}" "${live}" 2>/dev/null; then
     echo "${SHA:0:7}: production runs ${live:0:7}, which contains it"; exit 0
   elif [ -n "${live}" ] && git merge-base --is-ancestor "${live}" "${SHA}" 2>/dev/null; then

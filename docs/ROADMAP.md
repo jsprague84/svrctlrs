@@ -335,14 +335,17 @@ Planned as two sessions: 27–29 (the loop and CI), then 30–31 (the agent surf
     no `settings`, `api` or `openapi --find` (the standard §4), and `server show` only in a
     comment of the skill. `docs/cli.md` and `docs/agents.md` are in CLAUDE.md's "Read first"
     (740b2e2, 1da854d).
-31. **CI keeps hermes current** (M). Built 2026-10-30: after a deploy, the `agents` job sends
+31. ~~**CI keeps hermes current**~~ Done 2026-10-30: after a deploy, the `agents` job sends
     the SHA alone over a forced-command key; `scripts/deploy/hermes-agent-sync.sh` on hermes
     refuses unless production runs it, takes `svrctl` from that commit's image and the skill
     and eval harness from the repository at that commit, keeps each copy's local part
     (`.deployment.md`), and writes `~/svrctlrs-eval/REVISION`, which ci-watch waits for;
     `--check` runs in prepush, gates and Lint, and `docker.yaml` now builds for `skills/`.
-    Live once the owner sets up the key and secret (DEPLOYMENT.md, "Agent interface on
-    hermes"); until then the job skips with a notice.
+    Set up with the owner's go-ahead the same day (DEPLOYMENT.md, "Agent interface on
+    hermes"): the first sync by hand kept Hermes's notes and Claude Code's paragraph, the key
+    runs nothing but the script (no shell, no forwarding), and a re-run of the CI job synced
+    d189062. Hermes's own notes found the reason for it: a skill naming commands its binary
+    lacked (d189062 and this commit's series).
 
 ## Maybe later
 
