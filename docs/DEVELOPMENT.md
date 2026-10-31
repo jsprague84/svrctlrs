@@ -31,9 +31,46 @@ Open http://localhost:5173 and log in as `admin`/`dev-password-1`. To test the s
 Desktop app against the dev server: `cd ui && npm run tauri:dev`. Android:
 `TAURI_DEV_HOST=<your LAN IP> npm run tauri android dev`.
 
+## The loop
+
+The heavy checks run on epyc-ai after the push, not on the laptop (the dev-space
+agentic-coding standard, §6):
+
+```bash
+scripts/dev/prepush.sh      # seconds: cargo fmt --check; svelte-check + Prettier when ui/ changed
+git push
+scripts/dev/ci-watch.sh     # follows the push to production; 0 = every job green and live
+```
+
+`ci-watch.sh [sha]` follows the commit through every job by the Forgejo API (token in
+`~/.config/forgejo/api-token`) and prints each job as it finishes. It exits 0 only when every
+job the push runs is green and, when the push deploys, production's health check
+(`https://svrctlrs.js-node.app/api/v1/health`) reports that revision; 1 when a job fails,
+with the end of each failed job's log; 2 on a timeout (`CI_WATCH_MIN`, default 30). A change
+is not deployed before it exits 0. It knows what a push runs: CI's four jobs on every branch;
+on `master` also the image and the deploy, unless everything changed since the live revision
+is in `docker.yaml`'s `paths-ignore` (`*.md`, `docs/`, `.claude/`, `LICENSE`, `ci.yaml`,
+`desktop.yaml`). That is why a push never ends on a docs-only commit: it builds nothing, and
+the revision live stays behind `master`. Only `(push)` statuses count, as in the deploy gate.
+
+On the same API (`scripts/dev/forgejo.sh`): `ci-log.sh [sha] [job]` lists a commit's jobs, or
+prints one job's whole log (a green job's warnings too); `ci-rerun.sh [sha] [job]` re-runs the
+failed jobs, and a failed deploy, when the runner was at fault and not the code;
+`ci-dispatch.sh [branch] [docker.yaml|desktop.yaml]` runs the image or desktop build for a
+branch (SHA-tagged images or a workflow artifact only, never a deploy or a release). After a
+Forgejo or runner upgrade, a branch push plus those two dispatches covers all three runner
+labels.
+
+`scripts/dev/gates.sh` runs every CI gate here, stopping at the first failure: for when CI is
+down, or before pushing a migration or security-critical code. `gates.sh --e2e` then runs
+`run-e2e.sh` against hermes (below). Its lint is `scripts/dev/ci-lint.sh`, fmt and clippy in
+CI's own image (`svrctlrs-ci:latest`), because the laptop's nixpkgs clippy is newer than CI's
+and they disagree: green locally is not green in CI. Its tests run with an empty `HOME`, since
+CI has no `~/.ssh` and an SSH plan that finds the laptop's default key passes only here.
+
 ## Quality gates
 
-These are exactly what CI runs; run them before pushing.
+These are exactly what CI runs (and `gates.sh`):
 
 ```bash
 cargo fmt --all --check

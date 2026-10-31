@@ -37,24 +37,29 @@ ui/          SvelteKit 5 SPA (adapter-static → ui/build, served by the server 
 ui/src-tauri/  Tauri 2 desktop + Android (excluded from the Cargo workspace)
 flake.nix, packaging/nix/  the desktop app as a Nix package (NixOS; no hashes to update, check `nix build .#desktop`)
 .forgejo/    CI images and workflows (ci, docker, android, desktop)
+scripts/dev/ the loop (prepush, ci-watch, gates, ci-lint, ci-log, ci-rerun, ci-dispatch on
+             forgejo.sh) and the e2e/browser checks (run-e2e.sh, run-phone-check.sh, run-ui-screens.sh)
 scripts/ci/  release helper; scripts/deploy/ docker-vm deploy (forced-command target)
 skills/      svrctlrs/SKILL.md, the agent skill for svrctl (linked from .claude/skills/)
 ```
 
 ## Commands
 
+The loop (DEVELOPMENT.md, "The loop"): heavy checks run on epyc-ai, not here.
+
 ```bash
-cargo fmt --all --check
-cargo clippy --workspace --all-targets -- -D warnings
-cargo test --workspace
-cd ui && npm ci && npm run check && npm run build
-cd ui && npm run dev            # Vite + HMR, proxies /api and /ws to localhost:8080
-cd ui && npm run tauri:dev      # desktop app against the dev server
+scripts/dev/prepush.sh             # before a push, seconds: fmt; svelte-check + Prettier if ui/ changed
+scripts/dev/ci-watch.sh [sha]      # after it: exits 0 only when every job is green and prod runs the sha
+scripts/dev/ci-log.sh [sha] [job]  # a job's whole log; ci-rerun.sh when the runner failed, not the code
+scripts/dev/gates.sh [--e2e]       # every CI gate locally (CI down, migrations, security code)
+scripts/dev/ci-lint.sh             # fmt + clippy in CI's image: CI's clippy is not yours
+cd ui && npm run dev               # Vite + HMR, proxies /api and /ws to localhost:8080
+cd ui && npm run tauri:dev         # desktop app against the dev server
 ```
 
 No Rust toolchain on the t490 laptop: wrap cargo in
-`nix shell nixpkgs#cargo nixpkgs#rustc nixpkgs#clippy nixpkgs#rustfmt nixpkgs#pkg-config nixpkgs#gcc --command ...`.
-CI's clippy may be older or newer than yours; green locally is not proof.
+`nix shell nixpkgs#cargo nixpkgs#rustc nixpkgs#clippy nixpkgs#rustfmt nixpkgs#pkg-config nixpkgs#gcc --command ...`
+(the scripts do). Lint with `ci-lint.sh`, never the laptop's clippy: green locally is not proof.
 
 ## Conventions
 
@@ -91,7 +96,8 @@ DinD at `tcp://docker:2375`) and `android`. Never `runs-on: docker`, never mount
 socket or TLS certs, share only `/ci-cache/sccache` (plus npm/gradle caches). `ci.yaml` runs on
 every branch; `docker.yaml` publishes `master` to `git.js-node.cc/jsprague/svrctlrs` and
 deploys it to docker-vm through a forced-command key; `v*` tags publish image, APK and desktop
-packages to a Forgejo release. GitHub is retired. Details: `docs/DEVELOPMENT.md`.
+packages to a Forgejo release. GitHub is retired. `docker.yaml` ignores docs-only pushes, so
+never end a push on a docs-only commit. Details: `docs/DEVELOPMENT.md`.
 
 ## Sessions
 
