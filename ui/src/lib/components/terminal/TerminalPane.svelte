@@ -95,6 +95,9 @@
 	const CELL_HEIGHT_FALLBACK = 18;
 	const CELL_WIDTH_FALLBACK = 9;
 	const LONG_PRESS_MS = 500;
+	// A program that reads the mouse (herdr, tmux with mouse on, vim with mouse=a) scrolls about
+	// three lines per wheel notch: one notch per three rows of finger travel keeps pace with it
+	const ROWS_PER_WHEEL = 3;
 	let longPressTimer: ReturnType<typeof setTimeout> | null = null;
 	let longPressFired = false;
 
@@ -192,6 +195,33 @@
 		terminal.scrollToBottom();
 	}
 
+	/** Close the soft keyboard (a scroll is for reading); the next tap brings it back. */
+	function releaseKeyboard() {
+		const ta = terminal?.textarea;
+		if (ta && document.activeElement === ta) ta.blur();
+	}
+
+	/**
+	 * Wheel notches for a program that reads the mouse, as wheel events on xterm's element: xterm
+	 * reports one per event, in the mouse protocol and encoding the program asked for, at the
+	 * cell under the finger (herdr scrolls the pane there). `direction` 1 is down.
+	 */
+	function sendWheel(direction: 1 | -1, notches: number, clientX: number, clientY: number) {
+		const el = terminal?.element;
+		if (!el || !session?.isOpen) return;
+		for (let i = 0; i < notches; i++) {
+			el.dispatchEvent(
+				new WheelEvent('wheel', {
+					deltaY: direction,
+					deltaMode: WheelEvent.DOM_DELTA_LINE,
+					clientX,
+					clientY,
+					cancelable: true
+				})
+			);
+		}
+	}
+
 	/** Controls drawn over the terminal (reconnect overlay, banners) must get their taps. */
 	function isPassthroughTarget(e: Event): boolean {
 		const t = e.target as Element | null;
@@ -233,6 +263,7 @@
 
 			if (ady > adx * AXIS_BIAS) {
 				gestureMode = 'vertical-scroll';
+				releaseKeyboard();
 			} else if (adx > ady * AXIS_BIAS) {
 				gestureMode = 'horizontal-swipe';
 			} else {
@@ -243,11 +274,15 @@
 		if (gestureMode === 'vertical-scroll' && terminal) {
 			// Accumulate sub-cell movement so slow drags still scroll
 			scrollAccum += -(e.clientY - lastY);
-			const cellH = getCellHeight();
-			const lines = Math.trunc(scrollAccum / cellH);
+			const mouseApp = terminal.modes.mouseTrackingMode !== 'none';
+			const step = getCellHeight() * (mouseApp ? ROWS_PER_WHEEL : 1);
+			const lines = Math.trunc(scrollAccum / step);
 			if (lines !== 0) {
-				scrollAccum -= lines * cellH;
-				if (terminal.buffer.active.type === 'alternate') {
+				scrollAccum -= lines * step;
+				if (mouseApp) {
+					// It scrolls itself and reads arrows as typing (herdr hands them to its shell)
+					sendWheel(lines > 0 ? 1 : -1, Math.min(Math.abs(lines), 20), e.clientX, e.clientY);
+				} else if (terminal.buffer.active.type === 'alternate') {
 					// less/man/vim: there is no scrollback, the program scrolls itself
 					const key = lines > 0 ? arrowSeq('B') : arrowSeq('A');
 					injectInput(key.repeat(Math.min(Math.abs(lines), 20)));

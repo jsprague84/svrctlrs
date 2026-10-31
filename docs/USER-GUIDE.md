@@ -59,9 +59,9 @@ for example `cd /srv/app && git status`. It echoes in the terminal like anything
 **Keep shells in tmux.** With this on, every new shell on that server runs inside tmux there,
 so it survives SvrCtlRS restarting (an update or a deploy ends every other shell) and a dropped
 connection to the server: the pane reconnects and you are back in the same shell, programs
-still running. Scrolling back then happens in tmux (its copy mode, or the mouse if your
-`.tmux.conf` turns it on), not in the pane. A server without tmux gets a plain shell and a
-note. Do not also start tmux from the startup command: that would put tmux inside tmux.
+still running. Scrolling back then happens in tmux (its copy mode, or the mouse and a drag on
+a phone if your `.tmux.conf` has `set -g mouse on`), not in the pane. A server without tmux
+gets a plain shell and a note. Do not also start tmux from the startup command: that would put tmux inside tmux.
 
 **Tags and filtering.** Give a server tags (*prod*, *home*, *db*; comma separated in the
 form). Every list — the Servers page, the sidebar, the phone's server picker — shows the tags
@@ -410,9 +410,14 @@ terminal colours follow, and so does the sign-in page (always the system's theme
   server name and one dot per tab — tap it for the **tab list** (switch, close one or all, new terminal),
   the **+** for a server picker, the gear for terminal settings (font size has −/+ buttons).
   The phone's back gesture closes drawers, sheets and the palette instead of leaving the app.
-- **Swipe left/right** on the terminal to move between tabs; a one-time hint explains this.
-  **Tap** the prompt line to move the cursor there (arrow keys are sent), **long-press** a word
-  to select and copy it, **double-tap** for the command palette.
+- **Swipe left/right** on the terminal to move between tabs; a one-time hint explains this
+  (the keyboard comes along only if it was up). **Tap** to type (the keyboard comes up) and,
+  on the prompt line, to move the cursor there (arrow keys are sent); **long-press** a word to
+  select and copy it, **double-tap** for the command palette.
+- **Drag up/down** to read: a shell scrolls its scrollback; a program that reads the mouse
+  (herdr, tmux with `mouse on`, vim with `mouse=a`) gets wheel notches and scrolls the pane
+  under the finger; `less` and `man` get arrow keys. A drag closes the keyboard, so the whole
+  screen is there to read; tap to bring it back.
 - The **extra-keys row** above the keyboard has two rows: CTL, ALT, Esc, Tab, arrows and the
   palette key, then `^C ^D ^Z ^R`, Home/End, PgUp/PgDn and `| ~ / -` (the chevron hides the
   second row). Keys fire on touch and repeat while held. **CTL** and **ALT** are sticky for one

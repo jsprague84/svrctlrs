@@ -651,6 +651,16 @@
 		}
 	}
 
+	/** After a swipe to another tab: keep typing there if the soft keyboard is up, and
+	 *  otherwise bring up no keyboard (the swipe was for looking), only leave the hidden tab. */
+	function followSwipe() {
+		if (mobileKeyboardOpen) {
+			focusTerminal(terminalState.getActiveTabId());
+		} else if (document.activeElement instanceof HTMLElement) {
+			if (document.activeElement.closest('.xterm')) document.activeElement.blur();
+		}
+	}
+
 	function closeTabWithConfirm(id: string) {
 		return closeTabsWithConfirm([id]);
 	}
@@ -954,7 +964,7 @@
 						onBell={terminalState.markBell}
 						onModifierConsumed={() => extraKeysRow?.clearModifiers()}
 						onOpenPalette={() => (paletteOpen = true)}
-						onSwipe={() => focusTerminal(terminalState.getActiveTabId())}
+						onSwipe={followSwipe}
 					/>
 				</div>
 			{/each}

@@ -7,11 +7,13 @@
 uses its DOM renderer and the screen's text can be read back.
 
 Covers: first-contact host-key dialog → trust → shell, typing, tap-to-move-cursor, long-press
-copy, a second tab and a swipe between tabs, that no hidden pane resizes its shell, CTL from
-the extra-keys row (Ctrl+C interrupts `sleep`), the Paste key (two lines as one bracketed paste
-that waits for Enter; a refused clipboard shows a toast and sends nothing), predictive echo over a slowed link (typed text
-drawn ahead of the echo and cleared after it, nothing drawn at a `read -s` prompt), reload →
-resume with the screen intact, the home-screen shortcut (manifest lists the server,
+copy, a second tab and a swipe between tabs (which brings up no keyboard), that no hidden pane
+resizes its shell, CTL from the extra-keys row (Ctrl+C interrupts `sleep`), the Paste key (two
+lines as one bracketed paste that waits for Enter; a refused clipboard shows a toast and sends
+nothing), a vertical drag in a program that reads the mouse (wheel notches, no arrows, the
+keyboard let go until a tap), predictive echo over a slowed link (typed text drawn ahead of
+the echo and cleared after it, nothing drawn at a `read -s` prompt), reload → resume with the
+screen intact, the home-screen shortcut (manifest lists the server,
 `/?connect=<id>` shows its tab), terminal preferences following the account (a change on
 the phone is on the server and in a fresh desktop browser), and quick-command variables
 (`{{name}}` from the server, `{{what:hello}}` asked for in a dialog with a live preview),
@@ -228,6 +230,9 @@ with sync_playwright() as p:
     check("the swiped-to tab shows its own screen", "12X345" in screen(), screen()[-200:])
     tiny = [f for f in sent if '"resize"' in f and json.loads(f)["cols"] < 20]
     check("no hidden pane resizes its shell", not tiny, str(tiny[:3]))
+    # The keyboard was down (no soft keyboard here): the swipe was for looking and brings none up
+    check("a swipe brings up no keyboard",
+        not page.evaluate("!!document.activeElement?.closest('.xterm')"))
 
     # CTL on the extra-keys row turns the next typed key into a control key
     tap(box["x"] + box["width"] / 2, box["y"] + box["height"] * 0.85)
@@ -271,6 +276,38 @@ with sync_playwright() as p:
     check("and sends nothing", not [f for f in sent[before_paste:] if '"input"' in f], str(sent[before_paste:][:3]))
     ctx.grant_permissions(["clipboard-read", "clipboard-write"], origin=BASE)
     page.screenshot(path=f"{OUT}/paste.png")
+
+    # A program that reads the mouse (herdr, tmux with mouse on) gets wheel notches from a
+    # vertical drag, never arrow keys (herdr hands those to its shell); the drag lets go of the
+    # keyboard so the whole screen is there to read, and a tap brings it back
+    def drag(dy):
+        b = shell_box()
+        x, y0 = b["x"] + b["width"] / 2, b["y"] + b["height"] * (0.8 if dy < 0 else 0.2)
+        touch("touchStart", x, y0)
+        for i in range(1, 13):
+            touch("touchMove", x, y0 + dy * i / 12)
+            time.sleep(0.016)
+        touch("touchEnd")
+        page.wait_for_timeout(300)
+
+    page.keyboard.type("printf '\\033[?1049h\\033[?1002h\\033[?1006h'; stty -echo -icanon; timeout 6 cat >/dev/null;"
+                       " stty echo icanon; printf '\\033[?1006l\\033[?1002l\\033[?1049l'; echo mouse-$((2*3))-done")
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(1200)
+    before_wheel = len(sent)
+    drag(-300)  # finger up: further down
+    check("a scroll lets go of the keyboard", not page.evaluate("!!document.activeElement?.closest('.xterm')"))
+    drag(300)
+    wheel = "".join(json.loads(f).get("data", "") for f in sent[before_wheel:] if '"input"' in f)
+    check("a drag sends wheel-down notches to a mouse program", "\x1b[<65;" in wheel, repr(wheel[:80]))
+    check("and wheel-up notches back", "\x1b[<64;" in wheel, repr(wheel[:80]))
+    check("and no arrow keys", not any(a in wheel for a in ("\x1b[A", "\x1b[B", "\x1bOA", "\x1bOB")),
+        repr(wheel[:80]))
+    box = shell_box()
+    tap(box["x"] + box["width"] / 2, box["y"] + box["height"] * 0.85)
+    page.wait_for_timeout(400)
+    check("a tap brings the keyboard back", page.evaluate("!!document.activeElement?.closest('.xterm')"))
+    check("the mouse program ends cleanly", wait_screen("mouse-6-done", 10), screen()[-200:])
 
     # Predictive echo on a slow link (250 ms on every message back): the default "auto" mode
     # measures the echo, then draws typed characters at once and clears them when they echo

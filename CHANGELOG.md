@@ -5,6 +5,17 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+### Fixed
+- **Reading on the phone in herdr, tmux with the mouse on, or vim with `mouse=a`.** A vertical
+  drag in a program that reads the mouse now sends it wheel notches (one per three rows of
+  finger travel), so the pane under the finger scrolls its history. Until now it sent arrow
+  keys, which herdr hands to the shell in the pane (its history, not a scroll). Programs that
+  do not read the mouse (`less`, `man`) still get arrows, and a shell still scrolls its own
+  scrollback.
+- **The keyboard no longer covers half the screen while reading.** A scroll that starts with
+  the soft keyboard open closes it, and a tap brings it back. A swipe to another tab brings the
+  keyboard up only if it was already up.
+
 ## [4.1.0] - 2026-10-31
 
 Agents get the rest of the API. `svrctl` reads and changes settings, shows a key's public half
