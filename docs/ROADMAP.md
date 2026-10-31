@@ -357,7 +357,9 @@ Planned as two sessions: 27–29 (the loop and CI), then 30–31 (the agent surf
     30 (put back to 14 at once; nothing else written). The eval now runs only in eval-only
     profiles with their own token, the repository's skill and no memory, after a preflight
     that proves the session sees the eval server.
-33. **Audit settings changes.** Found by 32: `PUT /settings/{key}` and `PUT /settings` write
+33. ~~**Audit settings changes.**~~ Done 2026-10-31: every settings write that changes a value
+    records `setting.updated` (old → new; a secret one `was_set`/`is_set`), naming the token;
+    tested; the Audit tab's *Changes* chip includes it. Found by 32: `PUT /settings/{key}` and `PUT /settings` write
     no audit row, so production's `backup.keep` going to 30 and back left no trace. A token
     could turn nightly backups off (`backup.keep 0`) or change the approval channel unseen.
     Record `setting.updated` (key, old and new value; a secret one only "changed"), "via

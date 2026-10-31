@@ -442,7 +442,8 @@ Ordered by impact. Each has a ROADMAP entry.
    `Retry-After`; kept in the database since migration 109, so a restart does not reset
    it), new passwords must be at least 12
    characters, and an **audit log** (Settings → Audit, `/api/v1/audit`) records logins,
-   sessions, commands and changes with the client address, kept 180 days.
+   sessions, commands and changes (settings included, old → new; a secret setting only whether
+   it is set) with the client address, kept 180 days.
 9. ~~**`credentials.metadata` is plaintext**~~ — fixed after 3.0.0: metadata (the SSH key
    passphrase) is encrypted like the value, with its own `metadata_encrypted` flag, and the
    start-up pass encrypts any legacy plaintext metadata. `Debug` output redacts it.

@@ -88,7 +88,7 @@ command.
 | `key generate --name N [--comment C]` | generate an ed25519 key on svrctlrs; prints its public half | servers_keys |
 | `key authorize <server> --key K --with C` | install key credential K on the server, logging in once with C, and switch the server to K | servers_keys |
 | `approval <id> [--wait]` | one approval request (from a held call); `--wait` waits for the owner's answer | read_only |
-| `audit [--limit N] [--action server.,token.] [-q TEXT]` | the audit log, newest first; rows a token caused name it | read_only |
+| `audit [--limit N] [--action server.,token.] [-q TEXT]` | the audit log, newest first; rows a token caused name it (`--action setting.`: who changed which setting, old → new) | read_only |
 | `settings [KEY]` | every setting, or one (`backup.keep`, `notification.url`, …); a secret one shows only whether it is set | read_only |
 | `settings set <KEY> <VALUE\|->` | change one setting; `-` reads the value from stdin, so a secret never goes on a command line | full_admin |
 | `backups [--now]` | where the nightly copies go, the last attempt, the copies kept; `--now` has the server write one now (before a bulk change) | read_only; `--now` full_admin |

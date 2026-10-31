@@ -70,6 +70,13 @@ impl NewAuditEntry {
         self
     }
 
+    /// A target known by name only (a setting, by its key)
+    pub fn target_named(mut self, target_type: &str, name: &str) -> Self {
+        self.target_type = Some(target_type.to_string());
+        self.target_name = Some(name.to_string());
+        self
+    }
+
     pub fn details(mut self, details: JsonValue) -> Self {
         self.details = Some(details);
         self

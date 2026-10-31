@@ -6,6 +6,13 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Added
+- **Settings changes are audited.** Every write that changes a setting (`PUT /settings`,
+  `PUT /settings/{key}`, `POST /settings`, so also `svrctl settings set` and the Settings
+  page) records `setting.updated` with the key and the old and new value, naming the token it
+  came in with; a secret setting records only whether it was and is set. A write that changes
+  nothing records no row. `svrctl audit --action setting.` lists them, and the Audit tab's
+  *Changes* chip includes them. Until now a token could turn nightly backups off
+  (`backup.keep 0`) or change the approval channel without a trace.
 - **`svrctl settings`, `svrctl api` and `svrctl openapi --find`.** An agent reads every
   setting or one (`settings backup.keep`; a secret one shows only whether it is set) and
   changes one with a full-admin token (`settings set KEY VALUE`, or `-` to read a secret from

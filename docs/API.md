@@ -463,7 +463,9 @@ count), `server.host_key_trusted` (details: `key_type`,
 `file`, `bytes`, `removed`), `backup.restored` (details: `previous`),
 `token.created` (details: `preset`, `expires_at`, `prefix`, `require_approval`), `token.updated`
 (details: `require_approval`),
-`token.revoked`, `token.deleted`, `approval.requested` (names the token), `approval.approved`,
+`token.revoked`, `token.deleted`, `setting.updated` (target: the setting's key; details: `old`
+and `new`, or for a secret setting only `secret`, `was_set`, `is_set`; a write that changes
+nothing records no row), `approval.requested` (names the token), `approval.approved`,
 `approval.denied` (details: `approval`, `action`, `token`).
 `server.created` and `server.updated` carry `record_sessions` and `persistent_shell` when set
 or changed (a server created by onboard: `{via: "onboard"}`). `session.command` entries from the retired command mode remain

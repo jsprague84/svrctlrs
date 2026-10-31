@@ -58,6 +58,10 @@ eval runs in eval-only profiles, and `run.sh` refuses any other:
 - `skills/devops/svrctlrs` is a link to `~/svrctlrs-eval/skill`, the repository's skill at the
   live commit, and the only skill: none of the deployment's notes (production URL, token file).
   Results from before 2026-10-31 ran with the deployed skill and, for default, its notes.
+- The `agentos-brain` and `agentos-memory` plugins are disabled in both profiles (live since the
+  gateway restart of 2026-10-31): an eval session no longer writes to the brain's daily note.
+- A profile picks up a new token in its `.env` with the next session, no gateway restart
+  (tested 2026-10-31 with two marker values one after the other).
 
 ## Results, 2026-10-19 (image d8fcb23)
 

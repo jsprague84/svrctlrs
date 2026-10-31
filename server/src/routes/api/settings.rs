@@ -4,17 +4,19 @@
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     Json,
 };
+use serde_json::json;
 use svrctlrs_api::settings::{
     NewSetting, Setting, SettingSaved, SettingValue, SettingsList, SettingsUpdate, SettingsUpdated,
 };
 use svrctlrs_api::ErrorBody;
-use svrctlrs_database::queries::settings;
+use svrctlrs_database::{models::NewAuditEntry, queries::settings};
 use tracing::{info, instrument};
 
 use super::ApiError;
+use crate::routes::ui::auth::{client_ip, CurrentUser};
 use crate::state::AppState;
 use utoipa_axum::{router::OpenApiRouter, routes};
 
@@ -78,6 +80,47 @@ fn is_secret(key: &str) -> bool {
     )
 }
 
+/// A setting's stored value, or None when it has never been set
+async fn stored_value(state: &AppState, key: &str) -> Result<Option<String>, ApiError> {
+    match settings::get_setting(&state.pool, key).await {
+        Ok(s) => Ok(Some(s.value)),
+        Err(svrctlrs_core::Error::NotFound(_)) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Record `setting.updated` when a write changed the value: old and new, or for a secret
+/// setting only whether it was and is set. A form resending unchanged values records nothing.
+fn audit_change(
+    state: &AppState,
+    me: i64,
+    headers: &HeaderMap,
+    key: &str,
+    old: Option<String>,
+    new: &str,
+) {
+    if old.as_deref() == Some(new) {
+        return;
+    }
+    let details = if is_secret(key) {
+        json!({
+            "secret": true,
+            "was_set": old.as_deref().is_some_and(|v| !v.is_empty()),
+            "is_set": !new.is_empty(),
+        })
+    } else {
+        json!({ "old": old, "new": new })
+    };
+    crate::audit::record(
+        &state.pool,
+        NewAuditEntry::new("setting.updated")
+            .user(me)
+            .client_ip(Some(client_ip(headers)))
+            .target_named("setting", key)
+            .details(details),
+    );
+}
+
 fn setting_view(s: svrctlrs_database::models::Setting) -> Setting {
     let secret = is_secret(&s.key);
     Setting {
@@ -130,9 +173,11 @@ async fn get_setting(
 /// untouched, so a form can resend everything without knowing the stored token.
 #[utoipa::path(put, path = "/", tag = "settings", request_body = SettingsUpdate,
     responses((status = 200, body = SettingsUpdated), (status = 400, body = ErrorBody)))]
-#[instrument(skip(state, input), fields(keys = input.values.len()))]
+#[instrument(skip(state, headers, input), fields(keys = input.values.len()))]
 async fn update_settings(
     State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Json(input): Json<SettingsUpdate>,
 ) -> Result<Json<SettingsUpdated>, ApiError> {
     // All or nothing: refuse before writing any
@@ -147,7 +192,9 @@ async fn update_settings(
         if is_secret(key) && value.is_empty() {
             continue;
         }
+        let old = stored_value(&state, key).await?;
         settings::set_setting(&state.pool, key, value).await?;
+        audit_change(&state, me, &headers, key, old, value);
         written.push(key.clone());
     }
     info!(count = written.len(), "Settings updated");
@@ -160,9 +207,11 @@ async fn update_settings(
 /// Create a new setting
 #[utoipa::path(post, path = "/", tag = "settings", request_body = NewSetting,
     responses((status = 201, body = SettingSaved), (status = 400, body = ErrorBody)))]
-#[instrument(skip(state, input))]
+#[instrument(skip(state, headers, input))]
 async fn create_setting(
     State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Json(input): Json<NewSetting>,
 ) -> Result<(StatusCode, Json<SettingSaved>), ApiError> {
     info!(key = %input.key, "Creating setting");
@@ -217,6 +266,7 @@ async fn create_setting(
         input.description.as_deref(),
     )
     .await?;
+    audit_change(&state, me, &headers, &input.key, None, &input.value);
 
     info!(key = %input.key, "Setting created successfully");
 
@@ -233,9 +283,11 @@ async fn create_setting(
 #[utoipa::path(put, path = "/{key}", tag = "settings", request_body = SettingValue,
     params(("key" = String, Path, description = "e.g. recording.retention_days")),
     responses((status = 200, body = SettingSaved), (status = 400, body = ErrorBody)))]
-#[instrument(skip(state, input))]
+#[instrument(skip(state, headers, input))]
 async fn update_setting(
     State(state): State<AppState>,
+    CurrentUser(me): CurrentUser,
+    headers: HeaderMap,
     Path(key): Path<String>,
     Json(input): Json<SettingValue>,
 ) -> Result<Json<SettingSaved>, ApiError> {
@@ -243,7 +295,9 @@ async fn update_setting(
     check_value(&key, &input.value)?;
 
     // Use set_setting (upsert) — creates if missing, updates if exists
+    let old = stored_value(&state, &key).await?;
     settings::set_setting(&state.pool, &key, &input.value).await?;
+    audit_change(&state, me, &headers, &key, old, &input.value);
 
     info!(key = %key, "Setting updated successfully");
 
@@ -267,5 +321,107 @@ mod tests {
             assert_eq!(e.status, axum::http::StatusCode::BAD_REQUEST, "{bad}");
         }
         assert!(check_value("notification.url", "anything").is_ok());
+    }
+
+    /// Every settings write that changes a value leaves `setting.updated` with old and new
+    /// (a secret one only whether it is set), naming the token it came in with; a write that
+    /// changes nothing leaves no row.
+    #[tokio::test]
+    async fn setting_changes_are_audited() {
+        use crate::test_support::app::{eventually, AppHarness};
+        use serde_json::Value;
+
+        let h = AppHarness::new().await;
+        let (token_id, secret) = h.token("agent", "full_admin").await;
+
+        let (status, body) = h
+            .with(
+                &secret,
+                "PUT",
+                "/api/v1/settings/backup.keep",
+                Some(json!({ "value": "30" })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let (status, body) = h
+            .owner(
+                "PUT",
+                "/api/v1/settings/backup.keep",
+                Some(json!({ "value": "14" })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        // Unchanged values and an empty secret (left untouched) record nothing; the token does
+        let (status, body) = h
+            .owner(
+                "PUT",
+                "/api/v1/settings",
+                Some(json!({ "values": {
+                    "backup.keep": "14",
+                    "notification.token": "",
+                    "approval.matrix_token": "s3cret-value",
+                } })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        // A refused write records nothing either
+        let (status, _) = h
+            .owner(
+                "PUT",
+                "/api/v1/settings/backup.keep",
+                Some(json!({ "value": "-1" })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        let (status, body) = h
+            .owner(
+                "POST",
+                "/api/v1/settings",
+                Some(json!({ "key": "ui.motd", "value": "hi", "value_type": "string" })),
+            )
+            .await;
+        assert_eq!(status, StatusCode::CREATED, "{body}");
+
+        let pool = h.state.pool.clone();
+        let rows = || async {
+            let mut rows: Vec<_> = svrctlrs_database::queries::audit::list(&pool, 50, None)
+                .await
+                .unwrap()
+                .into_iter()
+                .filter(|e| e.action == "setting.updated")
+                .collect();
+            rows.reverse();
+            rows
+        };
+        assert!(eventually(|| async { rows().await.len() >= 4 }).await);
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        let rows = rows().await;
+        assert_eq!(rows.len(), 4, "{rows:?}");
+        let details = |i: usize| -> Value {
+            serde_json::from_str(rows[i].details.as_deref().unwrap()).unwrap()
+        };
+
+        assert_eq!(rows[0].target_type.as_deref(), Some("setting"));
+        assert_eq!(rows[0].target_name.as_deref(), Some("backup.keep"));
+        assert_eq!(rows[0].token_id, Some(token_id));
+        assert_eq!(rows[0].token_name.as_deref(), Some("agent"));
+        assert_eq!(rows[0].user_id, Some(1));
+        assert_eq!(details(0), json!({ "old": "14", "new": "30" }));
+
+        assert_eq!(rows[1].token_id, None);
+        assert_eq!(details(1), json!({ "old": "30", "new": "14" }));
+
+        assert_eq!(
+            rows[2].target_name.as_deref(),
+            Some("approval.matrix_token")
+        );
+        assert_eq!(
+            details(2),
+            json!({ "secret": true, "was_set": false, "is_set": true })
+        );
+        assert!(!rows[2].details.as_deref().unwrap().contains("s3cret"));
+
+        assert_eq!(rows[3].target_name.as_deref(), Some("ui.motd"));
+        assert_eq!(details(3), json!({ "old": null, "new": "hi" }));
     }
 }

@@ -79,6 +79,7 @@ svrctl exec X [--timeout 120] -- uptime        # one command via svrctlrs (full-
 svrctl backups [--now]                         # backup state; --now writes one (full admin)
 svrctl settings [backup.keep]                  # settings; a secret one shows only if it is set
 svrctl settings set backup.keep 30             # full admin; a secret: `settings set KEY -` from stdin
+svrctl audit --action setting.                 # who changed which setting, old -> new
 ```
 
 No command for it? `svrctl openapi --find <word>` lists the matching API calls, each with

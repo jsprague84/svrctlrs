@@ -17,7 +17,7 @@
 		{ id: 'all', label: 'Everything' },
 		{ id: 'logins', label: 'Logins', action: 'login,logout,device.' },
 		{ id: 'sessions', label: 'Sessions', action: 'session.,recording.' },
-		{ id: 'changes', label: 'Changes', action: 'server.,credential.,user.,token.' }
+		{ id: 'changes', label: 'Changes', action: 'server.,credential.,user.,token.,setting.' }
 	];
 
 	let entries = $state<AuditEntry[]>([]);
@@ -107,9 +107,9 @@
 
 <div class="flex flex-col gap-3">
 	<p class="text-xs text-text-muted">
-		Logins, sessions, commands and changes to servers, credentials, accounts and tokens, kept for
-		180 days. Actions taken with an API token name it under the user. Commands are recorded as
-		typed; keep secrets out of command lines.
+		Logins, sessions, commands and changes to servers, credentials, accounts, tokens and settings,
+		kept for 180 days. Actions taken with an API token name it under the user. Commands are recorded
+		as typed; keep secrets out of command lines.
 	</p>
 
 	<div class="flex flex-wrap items-center gap-2">
