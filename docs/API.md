@@ -139,7 +139,7 @@ operations (diagnose, exec, onboard, rotate-key) are outside it.
 
 | Method | Path | Auth | Response |
 |---|---|---|---|
-| GET | `/health` | no | `{"status":"ok","database":"ok","service":"svrctlrs","version":"4.0.1","revision":"<git sha>"}` — pings the database; `503` with `status: degraded` when it is unreachable. `revision` is baked into the container image; `unknown` outside CI builds |
+| GET | `/health` | no | `{"status":"ok","database":"ok","service":"svrctlrs","version":"4.1.0","revision":"<git sha>"}` — pings the database; `503` with `status: degraded` when it is unreachable. `revision` is baked into the container image; `unknown` outside CI builds |
 | GET | `/status` | yes | `{"status":"running","version":"…","resources":{"servers":<count>}}` |
 
 ## Servers

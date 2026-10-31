@@ -1,6 +1,6 @@
 # CLAUDE.md — AI development guide
 
-**Updated:** 2026-10-30 · **Version:** 4.0.1 · **Default branch:** `master`
+**Updated:** 2026-10-31 · **Version:** 4.1.0 · **Default branch:** `master`
 
 SvrCtlRS is a self-hosted **terminal/SSH management tool**: a Rust (Axum) server with a
 SvelteKit 5 SPA, wrapped by Tauri 2 for Linux desktop and Android. It is *not* the 1.x/2.x

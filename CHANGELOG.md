@@ -5,6 +5,16 @@ the release workflow uses the matching section as the release notes.
 
 ## [Unreleased]
 
+## [4.1.0] - 2026-10-31
+
+Agents get the rest of the API. `svrctl` reads and changes settings, shows a key's public half
+again and edits a credential; `svrctl api` makes any call no command covers and `openapi
+--find` says which command makes a call. A test now fails when an API operation has no way for
+an agent to make it, and every command is documented with the least token preset it needs
+(`docs/cli.md`, `docs/agents.md`). Settings changes are audited, so a token changing
+`backup.keep` or the approval channel shows up in the log. CI keeps the agent interface on
+hermes current after every deploy. No migrations, nothing to change when upgrading.
+
 ### Added
 - **Settings changes are audited.** Every write that changes a setting (`PUT /settings`,
   `PUT /settings/{key}`, `POST /settings`, so also `svrctl settings set` and the Settings

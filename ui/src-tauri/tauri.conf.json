@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "SvrCtlRS",
-  "version": "4.0.1",
+  "version": "4.1.0",
   "identifier": "cc.jsnode.svrctlrs",
   "build": {
     "frontendDist": "../build",
