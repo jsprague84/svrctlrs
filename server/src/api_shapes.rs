@@ -440,6 +440,17 @@ async fn api_shapes_are_unchanged() {
         )
         .await;
     r.keep("DELETE /servers/{id} (held for approval)", status, &held);
+    // The auth layer records a token's use in a spawned task: wait for it, or the token's
+    // shapes below race it (last_used_at null instead of a string, seen in CI 2026-10-30)
+    assert!(
+        eventually(|| async {
+            queries::api_tokens::get(&pool, tid)
+                .await
+                .unwrap()
+                .is_some_and(|t| t.last_used_at.is_some())
+        })
+        .await
+    );
     let (status, body) = h.with(&secret, "GET", "/api/v1/tokens", None).await;
     r.keep("GET /tokens (as a token)", status, &body);
     let aid = held["approval"]["id"].as_str().unwrap().to_string();
