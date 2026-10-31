@@ -2,7 +2,8 @@
 
 ## Toolchain
 
-- Rust stable (CI image: `git.js-node.cc/jsprague/rust-ci`, Docker build: `rust:1.98-bookworm`)
+- Rust stable (CI: `git.js-node.cc/jsprague/rust-ci:latest`, 1.99 since 2026-10-30, updated with
+  the runners; Docker build: `rust:1.98-bookworm`)
 - Node 22.17+ (SvelteKit 3's floor), npm 10+
 - For Tauri: the system deps in `.forgejo/Dockerfile.tauri-desktop` (WebKitGTK 4.1, GTK 3,
   libayatana-appindicator, librsvg) and for Android JDK 17, SDK platform 36, NDK 27.
@@ -64,8 +65,8 @@ labels.
 `scripts/dev/gates.sh` runs every CI gate here, stopping at the first failure: for when CI is
 down, or before pushing a migration or security-critical code. `gates.sh --e2e` then runs
 `run-e2e.sh` against hermes (below). Its lint is `scripts/dev/ci-lint.sh`, fmt and clippy in
-CI's own image (`svrctlrs-ci:latest`), because the laptop's nixpkgs clippy is newer than CI's
-and they disagree: green locally is not green in CI. Its tests run with an empty `HOME`, since
+CI's own image (`rust-ci:latest`), because the laptop's nixpkgs clippy is a different version
+from CI's and they disagree: green locally is not green in CI. Its tests run with an empty `HOME`, since
 CI has no `~/.ssh` and an SSH plan that finds the laptop's default key passes only here.
 
 ## Quality gates
@@ -241,7 +242,8 @@ repository Settings → Mirror settings, or `GET /api/v1/repos/jsprague/svrctlrs
 | `workflows-parked/android.yaml` | — | `android` | parked 2026-10-10 (the Android app is unused; the installable web app replaces it). Move it back to `workflows/` and run `tauri android init` for the `cc.jsnode.svrctlrs` identifier to revive it |
 
 Rules, from the forgejo-ci standard: pick runners by label (`rust-high`, `build`, `android`),
-never `runs-on: docker`; Rust jobs run in `svrctlrs-ci` (rust-ci + Node 22) and clone by hand;
+never `runs-on: docker`; the cargo jobs run in `rust-ci:latest` (so they follow the runners'
+Rust when it is updated), Frontend in `svrctlrs-ci` (rust-ci + Node 22), and all clone by hand;
 image jobs use `catthehacker/ubuntu:act-latest` with the standard Docker actions and get the
 daemon from the runner's DinD sidecar at `tcp://docker:2375` (no socket mounts, no TLS); share
 `/ci-cache/sccache` only for cargo (npm and gradle caches lock properly).
@@ -262,7 +264,8 @@ docker push git.js-node.cc/jsprague/<name>:latest
 ```
 
 `svrctlrs-ci` layers Node on `rust-ci` (from the rsthere repo); the Tauri images layer on
-`svrctlrs-ci`. Build them on epyc-ai or another fast machine, not the laptop.
+`svrctlrs-ci`. Their Rust is the `rust-ci` they were built from: rebuild them when a Tauri
+build needs a newer one. Build them on epyc-ai or another fast machine, not the laptop.
 
 ## Releasing
 

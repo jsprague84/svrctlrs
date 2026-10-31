@@ -91,7 +91,7 @@ No Rust toolchain on the t490 laptop: wrap cargo in
 
 ## CI/CD (Forgejo, dev-space standard)
 
-Runners are the epyc-ai labels `rust-high` (cargo, in `svrctlrs-ci`), `build` (images,
+Runners are the epyc-ai labels `rust-high` (cargo in `rust-ci:latest`, npm in `svrctlrs-ci`), `build` (images,
 DinD at `tcp://docker:2375`) and `android`. Never `runs-on: docker`, never mount a Docker
 socket or TLS certs, share only `/ci-cache/sccache` (plus npm/gradle caches). `ci.yaml` runs on
 every branch; `docker.yaml` publishes `master` to `git.js-node.cc/jsprague/svrctlrs` and

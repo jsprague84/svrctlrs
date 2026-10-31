@@ -619,7 +619,7 @@ impl SessionRegistry {
     pub async fn detach(self: &Arc<Self>, session: &Arc<LiveSession>, ttl: Duration) {
         let left = session
             .attachments
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+            .try_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
                 Some(n.saturating_sub(1))
             })
             .map(|n| n.saturating_sub(1))

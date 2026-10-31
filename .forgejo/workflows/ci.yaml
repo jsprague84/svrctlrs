@@ -1,7 +1,9 @@
 # SvrCtlRS CI — lint, audit, test, frontend.
 #
 # Runs on the epyc-ai `rust-high` runners (dev-space standard: never `runs-on: docker`).
-# The svrctlrs-ci image is rust-ci plus Node 22, so both cargo and npm jobs use it.
+# The cargo jobs run in rust-ci:latest itself, so they follow the runners' Rust when it is
+# updated (1.99 since 2026-10-30); only Frontend needs Node and runs in svrctlrs-ci (rust-ci
+# plus Node 22), whose Rust is whatever rust-ci was when it was last built.
 # Only /ci-cache/sccache is shared between jobs; a shared cargo registry races at
 # concurrency > 1 (see the forgejo-ci standard). The npm cache is safe to share.
 #
@@ -27,7 +29,7 @@ jobs:
     name: Lint
     runs-on: rust-high
     container:
-      image: git.js-node.cc/jsprague/svrctlrs-ci:latest
+      image: git.js-node.cc/jsprague/rust-ci:latest
       volumes:
         - /ci-cache/sccache:/sccache
     steps:
@@ -60,7 +62,7 @@ jobs:
     name: Audit
     runs-on: rust-high
     container:
-      image: git.js-node.cc/jsprague/svrctlrs-ci:latest
+      image: git.js-node.cc/jsprague/rust-ci:latest
       volumes:
         - /ci-cache/sccache:/sccache
     steps:
@@ -88,7 +90,7 @@ jobs:
     runs-on: rust-high
     needs: lint
     container:
-      image: git.js-node.cc/jsprague/svrctlrs-ci:latest
+      image: git.js-node.cc/jsprague/rust-ci:latest
       volumes:
         - /ci-cache/sccache:/sccache
     steps:

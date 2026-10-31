@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# CI's Lint job in CI's own image (svrctlrs-ci, the tag ci.yaml uses), so a local lint uses the
-# clippy CI uses: the laptop's nixpkgs clippy is newer and they disagree (the agentic-coding
+# CI's Lint job in CI's own image (rust-ci:latest, the tag ci.yaml uses), so a local lint uses the
+# clippy CI uses: the laptop's nixpkgs clippy differs (older or newer) and they disagree (the agentic-coding
 # standard §6; rustRoast 2026-10-26, two red pushes). Runs as you, so nothing it writes is
 # root-owned; build cache target/ci-lint, crate downloads ~/.cache/svrctlrs-ci-cargo. Fails
 # when Docker or the image is missing: no fallback.
@@ -8,7 +8,7 @@
 #   scripts/dev/ci-lint.sh
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-IMAGE="${CI_IMAGE:-git.js-node.cc/jsprague/svrctlrs-ci:latest}"
+IMAGE="${CI_IMAGE:-git.js-node.cc/jsprague/rust-ci:latest}"
 command -v docker >/dev/null || { echo "ci-lint: docker is needed to lint with CI's toolchain" >&2; exit 1; }
 docker pull -q "$IMAGE" >/dev/null 2>&1 || docker image inspect "$IMAGE" >/dev/null 2>&1 \
   || { echo "ci-lint: cannot pull $IMAGE (docker login git.js-node.cc?)" >&2; exit 1; }
