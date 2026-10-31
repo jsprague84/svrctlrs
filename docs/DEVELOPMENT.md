@@ -138,7 +138,9 @@ file).
 `server/tests/svrctl.rs` starts the real `server` binary on a temporary database and drives
 the real `svrctl` binary against it: JSON on a pipe, exit codes, errors with hints, token
 presets, `import` from stdin, credentials read back and renamed (`credential show`/`edit`), and
-a delete held for approval that `--wait` sees through once the owner approves; a second test
+a delete held for approval that `--wait` sees through once the owner approves; another reads
+and sets settings (a secret from stdin, never shown), finds a call with `openapi --find` and
+makes calls with `svrctl api` (the preset still decides; a held delete exits 3); a third test
 backs up, refuses a copy under the wrong key, checks and stages a restore, and restarts onto
 it.
 
@@ -164,8 +166,10 @@ tests guard the contract:
 
 A new endpoint: types in `api/src/<module>.rs`, `#[utoipa::path]` on the handler,
 `routes!(handler)` in the module's `routes()`, a line in the preset table in
-`server/src/api_tokens.rs` (or none: tokens are refused by default), a case in
-`api_shapes.rs`, then both regenerations.
+`api/src/presets.rs` (or none: tokens are refused by default), a case in
+`api_shapes.rs`, then both regenerations, and its row in svrctl's parity table
+(`server/src/bin/svrctl/surface.rs`: the command that makes it, or `api`/`none` with a reason;
+`docs/agents.md`, "The parity check"), which fails `cargo test` until it has one.
 
 `scripts/dev/pty-session-e2e.py` drives the SSH and session paths end to end against a locally
 running server and a real SSH target: first-contact host-key confirmation, the connection

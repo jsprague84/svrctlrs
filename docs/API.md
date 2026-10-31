@@ -56,7 +56,8 @@ Refusals use the error envelope:
 | 202 | — | a token set to ask first called `DELETE /servers/{id}`, `DELETE /credentials/{id}` or `DELETE /servers/{id}/host-keys`: `{approval, message, wait_url}` (see "Approvals"); nothing ran yet |
 
 Presets (`full_admin`, `servers_keys`, `read_only`) and exactly what each allows:
-`SECURITY.md`, "API tokens", and the table in `server/src/api_tokens.rs`. No preset reaches
+`SECURITY.md`, "API tokens", and the table in `api/src/presets.rs`; which `svrctl` command
+makes each call, with the least preset it needs: `docs/cli.md`. No preset reaches
 `/tokens`, `POST /users`, `DELETE /users/{id}`, `PUT /users/me/password` or the caller's
 sign-in methods (`/users/me/sign-in`, `/users/me/totp…`, `/users/me/identities/…`), signed-in
 devices (`/users/me/devices…`), `PUT /sessions/keep`, the list of approvals (`GET /approvals`)

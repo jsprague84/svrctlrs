@@ -6,6 +6,18 @@ the release workflow uses the matching section as the release notes.
 ## [Unreleased]
 
 ### Added
+- **`svrctl settings`, `svrctl api` and `svrctl openapi --find`.** An agent reads every
+  setting or one (`settings backup.keep`; a secret one shows only whether it is set) and
+  changes one with a full-admin token (`settings set KEY VALUE`, or `-` to read a secret from
+  stdin). `openapi --find <word>` lists the matching API calls, each with the `svrctl` command
+  that makes it or why there is none; `svrctl api METHOD PATH [--body JSON]` makes any call a
+  command does not cover, with the token, the error handling and approvals of the others.
+- **`docs/cli.md` and `docs/agents.md`, and the parity test.** Every `svrctl` command with the
+  least token preset it needs, and how agents use svrctlrs (tokens, presets, approvals, exit
+  codes, the skill, the eval). `cargo test` now fails when an API operation has no row saying
+  how an agent makes it (a command, `api` or `none`, with a reason), when a command is missing
+  from cli.md or the skill, or when the preset named is not the least that makes the call.
+  The preset table moved to `api/src/presets.rs` (unchanged) so `svrctl` reads the same one.
 - **`svrctl credential show` and `credential edit`.** An agent can read a stored key's public
   half again after `key generate` (to install an existing key on another host itself) and
   rename a credential or change its description or login user; the secret is still changed

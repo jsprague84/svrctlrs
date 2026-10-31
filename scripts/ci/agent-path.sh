@@ -11,8 +11,8 @@
 #     `Agent-path: <reason>`;
 #   - the docs: it touches docs/ or CHANGELOG.md, or says why not in `Docs: <reason>`.
 # It proves the agent path was considered, not that it is complete: the parity test
-# (ROADMAP 30) and the Hermes eval decide that. prepush.sh runs it over the commits not pushed
-# yet, CI's Lint over the pushed range.
+# (server/src/bin/svrctl/surface.rs, docs/agents.md) and the Hermes eval decide that.
+# prepush.sh runs it over the commits not pushed yet, CI's Lint over the pushed range.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 

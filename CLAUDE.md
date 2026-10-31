@@ -15,22 +15,27 @@ schedulers, jobs, HTMX or Askama, it is describing the retired product.
   reintroduce anything on that list; fix items from it when you touch nearby code.
 - `docs/ROADMAP.md` — prioritized gaps. Pick work from here unless told otherwise.
 - `docs/DEVELOPMENT.md` — build, test, CI, release procedure.
+- `docs/agents.md` — agents are first class: `svrctl` + the skill, token presets, approvals,
+  and the parity test every new route must pass. `docs/cli.md` — every `svrctl` command with
+  the preset it needs.
 
 ## Layout
 
 ```
-api/         svrctlrs-api: the REST API's request/response types (+ OpenAPI schemas)
+api/         svrctlrs-api: the REST API's request/response types (+ OpenAPI schemas), presets.rs
+             (what each token preset may call: the auth layer's and svrctl's one table)
 core/        encryption (AES-256-GCM), error type, notification senders
 database/    sqlx models, queries, embedded migrations (migrations/ current, migrations-legacy/ frozen),
              backup.rs (the backup copy and restore, shared by server and svrctl)
 server/      Axum app: main.rs, app.rs (the router stack), ssh.rs (the one SSH client),
              sessions.rs (server-owned PTYs), persistent_shells.rs (shells kept in tmux),
              recordings.rs (opt-in session recording), backups.rs (nightly database copies),
-             api_tokens.rs + approvals.rs (agent tokens: presets, held deletes),
+             api_tokens.rs + approvals.rs (agent tokens: format and check, held deletes),
              diagnose.rs + key_ops.rs + routes/api/ops.rs (diagnose, exec, onboard, rotate-key),
              routes/{api/*, terminal_pty.rs, ui/auth.rs}, health_monitor.rs,
              bin/svrctl/ (the agent CLI over the API + local backup/restore/reset-password;
-             also the container healthcheck), tests/svrctl.rs (both binaries end to end),
+             also the container healthcheck; surface.rs: every API operation's command, the
+             parity test), tests/svrctl.rs (both binaries end to end),
              test_support/ (tests only: loopback SSH server, in-memory database, the full
              app on a temporary database)
 ui/          SvelteKit 5 SPA (adapter-static → ui/build, served by the server at SPA_DIR)
@@ -69,7 +74,9 @@ No Rust toolchain on the t490 laptop: wrap cargo in
   the kind to 404/409/400 and logs anything else as a 500. Responses and request bodies are
   `svrctlrs-api` types (`api/src/`), never `json!`; a handler carries `#[utoipa::path]` and is
   registered with `routes!(…)`; regenerate `docs/openapi.json` and, for a deliberate shape
-  change, `server/testdata/api-shapes.json` (DEVELOPMENT.md, "API types"). Use its constructors
+  change, `server/testdata/api-shapes.json` (DEVELOPMENT.md, "API types"); a new operation
+  gets its row in svrctl's parity table (`server/src/bin/svrctl/surface.rs`: a command, or
+  `api`/`none` with a reason) and, if tokens may call it, a line in `api/src/presets.rs`. Use its constructors
   (`bad_request`, `not_found`, …) only for checks the handler makes itself;
   `#[instrument]` on handlers and queries (skip inputs that hold secrets). Register new API
   routes in `server/src/routes/api/mod.rs::routes()`, never in `main.rs`. Use

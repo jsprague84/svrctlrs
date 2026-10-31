@@ -187,8 +187,9 @@ A full-admin token that never expires is as good as your password on every serve
 as it exists; the dialog says so. See SECURITY.md, "API tokens".
 
 Agents use the token with **svrctl** (`export SVRCTLRS_URL=… SVRCTLRS_TOKEN=svr_…`;
-`svrctl --help` lists everything, with examples; *servers & keys* covers all of it except
-`svrctl exec` and `svrctl backups --now`, which need *full admin*) and the skill file `skills/svrctlrs/SKILL.md`,
+`svrctl --help` lists everything, with examples, and `docs/cli.md` says which access each
+command needs; *servers & keys* covers all of it except `svrctl exec`, `svrctl settings set`
+and `svrctl backups --now`, which need *full admin*) and the skill file `skills/svrctlrs/SKILL.md`,
 which teaches them the diagnose-and-fix loop and the rules (never a password on a command
 line, never trust a host key without comparing it, approvals are yours).
 

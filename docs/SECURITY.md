@@ -147,7 +147,8 @@ other web pages the operator visits (see CSWSH below).
 ## API tokens
 
 Named credentials the owner creates under Settings → Access → Agent tokens
-(`server/src/api_tokens.rs`, `routes/api/tokens.rs`, table `api_tokens`):
+(`server/src/api_tokens.rs`, `routes/api/tokens.rs`, table `api_tokens`; the preset table in
+`api/src/presets.rs`, which `svrctl`'s parity test reads too):
 
 - **Format and storage.** `svr_` plus 40 random letters and digits (about 238 bits from the OS
   RNG). The secret is shown once, in the response that creates it; the database keeps only its

@@ -2,14 +2,17 @@
 //!
 //! Remote commands talk to a running server with an API token (`SVRCTLRS_URL`,
 //! `SVRCTLRS_TOKEN`): servers, credentials, host keys, diagnose, exec, onboard, rotate-key,
-//! approvals, audit, backups. They never prompt, answer one JSON document when stdout is not a terminal (or
-//! with `--json`), and exit with codes an agent can branch on (see `out::code`). `backup`,
-//! `restore` and `reset-password` run next to the database instead (`docker exec`); `health` needs no token
+//! approvals, audit, settings, backups, and `api` for any other call (`surface.rs` says which
+//! command makes each API operation; `docs/cli.md`). They never prompt, answer one JSON
+//! document when stdout is not a terminal (or with `--json`), and exit with codes an agent can
+//! branch on (see `out::code`). `backup`, `restore` and `reset-password` run next to the
+//! database instead (`docker exec`); `health` needs no token
 //! and is the container's healthcheck.
 
 mod api;
 mod local;
 mod out;
+mod surface;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -27,6 +30,7 @@ use svrctlrs_api::servers::{
     ConnectionTest, HostKeyList, HostKeyTrusted, HostKeysForgotten, ImportResult, KeyAuthorized,
     Server, ServerList, ServerOne,
 };
+use svrctlrs_api::settings::{Setting, SettingSaved, SettingsList};
 use svrctlrs_api::system::{Health, Status};
 use svrctlrs_api::IdMessage;
 
@@ -47,6 +51,9 @@ Examples:
   svrctl tag prod web-01 web-02                   # --remove to take it off
   svrctl server rm old-box --wait                 # waits for the owner's approval if needed
   svrctl backups --now                            # a database copy before a bulk change
+  svrctl settings backup.keep ; svrctl settings set backup.keep 30
+  svrctl openapi --find recording                 # which call does it, and the command for it
+  svrctl api GET /recordings                      # any call a command does not cover
 
 Output: one compact JSON line when stdout is not a terminal (or with --json), null fields left
 out; errors are {\"error\": {code, message, hint}}.
@@ -266,8 +273,40 @@ enum Command {
         #[arg(short, long)]
         query: Option<String>,
     },
-    /// Print the API's OpenAPI document
-    Openapi,
+    /// The API's OpenAPI document. With --find, only the operations whose path, id or summary
+    /// contain the text, each with the svrctl command that makes it (or why there is none):
+    /// a short list to find the call for `svrctl api`
+    Openapi {
+        /// e.g. --find recording, --find "host key"
+        #[arg(long)]
+        find: Option<String>,
+    },
+    /// Any API call, with the token and the error handling: `svrctl api GET /sessions`. The
+    /// path is under /api/v1 (a leading /api/v1 is fine too). A call held for approval exits
+    /// 3, or with --wait waits for the owner
+    Api {
+        /// GET, POST, PUT, PATCH or DELETE
+        method: String,
+        /// e.g. /recordings, /servers/3/files?path=/etc
+        path: String,
+        /// A JSON body, or - to read it from stdin
+        #[arg(long)]
+        body: Option<String>,
+        /// Seconds the call may take
+        #[arg(long, default_value_t = 120)]
+        timeout: u64,
+        #[command(flatten)]
+        wait: Wait,
+    },
+    /// svrctlrs's settings (backups, notifications, approvals, recordings): every one, or one
+    /// by key. A secret one (a token, a webhook URL) shows only whether it is set
+    #[command(args_conflicts_with_subcommands = true)]
+    Settings {
+        /// e.g. backup.keep
+        key: Option<String>,
+        #[command(subcommand)]
+        set: Option<SettingsCommand>,
+    },
     /// The server's database backups: where they go, the last one, the copies kept. With
     /// --now, have the server write one now (full-admin token), e.g. before a bulk change
     Backups {
@@ -403,6 +442,13 @@ enum ServerCommand {
     },
     /// The connection test (exit 1 when it fails, 3 when a host key waits)
     Test { server: String },
+}
+
+#[derive(Subcommand, Debug)]
+enum SettingsCommand {
+    /// Change one setting (full-admin token). A VALUE of - is read from stdin: a secret
+    /// (notification.token, approval.matrix_token) never goes on a command line
+    Set { key: String, value: String },
 }
 
 #[derive(Subcommand, Debug)]
@@ -1039,9 +1085,129 @@ async fn run(api: &Api, out: &Out, command: Command) -> Result<u8, Failure> {
             });
             Ok(code::OK)
         }
-        Command::Openapi => {
+        Command::Openapi { find } => {
             let doc: Value = api.get("/openapi.json").await?;
-            println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+            let Some(find) = find else {
+                println!("{}", serde_json::to_string_pretty(&doc).unwrap_or_default());
+                return Ok(code::OK);
+            };
+            let ops = surface::find_operations(&doc, &find);
+            out.emit(&ops, |ops| {
+                if ops.is_empty() {
+                    return format!("No operation matches {find:?}");
+                }
+                ops.iter()
+                    .map(|o| {
+                        format!(
+                            "{:<6} {:<44} {}\n       → {}",
+                            o["method"].as_str().unwrap_or(""),
+                            o["path"].as_str().unwrap_or(""),
+                            o["summary"].as_str().unwrap_or(""),
+                            o["svrctl"].as_str().unwrap_or("?")
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            });
+            Ok(code::OK)
+        }
+        Command::Api {
+            method,
+            path,
+            body,
+            timeout,
+            wait,
+        } => {
+            let method = Method::from_bytes(method.to_ascii_uppercase().as_bytes())
+                .map_err(|_| Failure::new("USAGE", format!("Not an HTTP method: {method}")))?;
+            let body: Option<Value> =
+                match body.as_deref() {
+                    None => None,
+                    Some(text) => {
+                        let text = if text == "-" {
+                            let mut s = String::new();
+                            std::io::Read::read_to_string(&mut std::io::stdin(), &mut s).map_err(
+                                |e| Failure::new("USAGE", format!("Could not read stdin: {e}")),
+                            )?;
+                            s
+                        } else {
+                            text.to_string()
+                        };
+                        Some(serde_json::from_str(&text).map_err(|e| {
+                            Failure::new("USAGE", format!("--body is not JSON: {e}"))
+                        })?)
+                    }
+                };
+            let path = path.strip_prefix("/api/v1").unwrap_or(&path);
+            let path = if path.starts_with('/') {
+                path.to_string()
+            } else {
+                format!("/{path}")
+            };
+            let reply = api
+                .send(
+                    method,
+                    &path,
+                    body.as_ref(),
+                    true,
+                    Duration::from_secs(timeout),
+                )
+                .await?;
+            if reply.status == 202 && reply.body.get("approval").is_some() {
+                return held(api, out, reply.body, wait).await;
+            }
+            out.emit(&reply.body, |b| match b {
+                Value::Null => "done".into(),
+                Value::String(s) => s.clone(),
+                other => serde_json::to_string_pretty(other).unwrap_or_default(),
+            });
+            Ok(code::OK)
+        }
+        Command::Settings {
+            set: Some(SettingsCommand::Set { key, value }),
+            ..
+        } => {
+            let value = if value == "-" {
+                let mut s = String::new();
+                std::io::Read::read_to_string(&mut std::io::stdin(), &mut s)
+                    .map_err(|e| Failure::new("USAGE", format!("Could not read stdin: {e}")))?;
+                s.trim_end_matches(['\r', '\n']).to_string()
+            } else {
+                value
+            };
+            let path = format!("/settings/{}", urlencode(&key));
+            let _: SettingSaved = api
+                .call(Method::PUT, &path, Some(&json!({ "value": value })))
+                .await?;
+            let s: Setting = api.get(&path).await?;
+            out.emit(&slim_setting(&s), |_| setting_text(&s));
+            Ok(code::OK)
+        }
+        Command::Settings { key: Some(key), .. } => {
+            let s: Setting = api.get(&format!("/settings/{}", urlencode(&key))).await?;
+            out.emit(&slim_setting(&s), |_| setting_text(&s));
+            Ok(code::OK)
+        }
+        Command::Settings { .. } => {
+            let list: SettingsList = api.get("/settings").await?;
+            let all: Vec<&Setting> = list.settings.values().flatten().collect();
+            // A list is for finding: one flat list, no timestamps (`settings KEY` has them)
+            let slim: Vec<Value> = all
+                .iter()
+                .map(|s| {
+                    let mut v = slim_setting(s);
+                    if let Some(o) = v.as_object_mut() {
+                        o.remove("updated_at");
+                    }
+                    v
+                })
+                .collect();
+            out.emit(&json!({ "settings": slim }), |_| {
+                all.iter()
+                    .map(|s| setting_text(s))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            });
             Ok(code::OK)
         }
         Command::Backup { .. } | Command::Restore { .. } | Command::ResetPassword { .. } => {
@@ -1229,7 +1395,13 @@ async fn gated<T: serde::de::DeserializeOwned + serde::Serialize>(
         out.emit(&r, human);
         return Ok(code::OK);
     }
-    let held: HeldForApproval = api::decode(reply.body)?;
+    held(api, out, reply.body, wait).await
+}
+
+/// A call svrctlrs held for the owner's approval (its 202 body): printed with exit 3, or with
+/// --wait, waited on.
+async fn held(api: &Api, out: &Out, body: Value, wait: Wait) -> Result<u8, Failure> {
+    let held: HeldForApproval = api::decode(body)?;
     if !wait.wait {
         out.emit(&held, |h| {
             format!(
@@ -1260,6 +1432,38 @@ async fn wait_for(api: &Api, mut a: Approval, wait: Wait) -> Result<Approval, Fa
         a = api.get(&format!("/approvals/{}?wait=25", a.id)).await?;
     }
     Ok(a)
+}
+
+/// A setting for an agent: its key, value (or for a secret, whether it is set), type and
+/// description; the time it changed only in `settings KEY`.
+fn slim_setting(s: &Setting) -> Value {
+    let mut v = serde_json::to_value(s).unwrap_or_default();
+    if let Some(o) = v.as_object_mut() {
+        if s.secret {
+            o.remove("value");
+        } else {
+            o.remove("secret");
+            o.remove("is_set");
+        }
+    }
+    v
+}
+
+fn setting_text(s: &Setting) -> String {
+    let value = if s.secret {
+        if s.is_set {
+            "(secret, set)"
+        } else {
+            "(secret, not set)"
+        }
+        .to_string()
+    } else {
+        s.value.clone()
+    };
+    match &s.description {
+        Some(d) if !d.is_empty() => format!("{} = {value}    # {d}", s.key),
+        _ => format!("{} = {value}", s.key),
+    }
 }
 
 fn approval_code(a: &Approval) -> u8 {

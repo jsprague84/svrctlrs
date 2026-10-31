@@ -13,7 +13,7 @@ through it. You administer it with `svrctl` and an API token from its owner.
 
 ```bash
 export SVRCTLRS_URL=https://svrctlrs.example SVRCTLRS_TOKEN=svr_...
-svrctl status          # version, server count, last backup
+svrctl status          # version, server count, last backup (svrctl health: up? no token)
 ```
 
 No `svrctl`? Each release has `svrctl-linux-amd64`/`-arm64` (and `svrctl-SHA256SUMS`); the
@@ -57,7 +57,7 @@ failure's first failed step and verdict). Don't loop over servers yourself.
 ## Common tasks
 
 ```bash
-svrctl servers [--tag prod] [--failing]        # server show X: one, with timestamps
+svrctl servers [--tag prod] [--failing]        # a list; svrctl server show X: one, in full
 svrctl onboard --name lab-02 --host 10.0.0.12 --credential "lab password" [--user ops] [--tag lab]
 #   stops (exit 3) with the host key fingerprint: compare it yourself, then repeat with
 #   --fingerprint SHA256:… ; it then switches the server to a key generated on svrctlrs
@@ -77,7 +77,13 @@ svrctl server rm X ; svrctl credential rm C   # may stop for approval (exit 3), 
 svrctl server test X                           # the quick connection test (3: host key waits)
 svrctl exec X [--timeout 120] -- uptime        # one command via svrctlrs (full-admin token)
 svrctl backups [--now]                         # backup state; --now writes one (full admin)
+svrctl settings [backup.keep]                  # settings; a secret one shows only if it is set
+svrctl settings set backup.keep 30             # full admin; a secret: `settings set KEY -` from stdin
 ```
+
+No command for it? `svrctl openapi --find <word>` lists the matching API calls, each with
+the command that makes it or why there is none; `svrctl api GET /sessions` (or POST/PUT/DELETE
+with `--body '<json>'`) makes any call with the token. Use it only for what no command covers.
 
 ## Rules
 

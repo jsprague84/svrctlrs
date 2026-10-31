@@ -490,6 +490,100 @@ async fn svrctl_speaks_json_with_stable_exit_codes() {
     assert!(out["paths"]["/api/v1/servers/{id}/diagnose"].is_object());
 }
 
+/// `settings`, `openapi --find` and `api`: what an agent uses when no other command covers it.
+#[tokio::test]
+async fn settings_find_and_api_reach_the_rest() {
+    let s = start().await;
+    let admin = s.token("cli", "full_admin", false).await;
+    let reader = s.token("reader", "read_only", false).await;
+    let asker = s.token("asker", "servers_keys", true).await;
+
+    // Settings: a flat list without timestamps, one by key, set with a full-admin token only
+    let (code, out, text) = s.svrctl(Some(&reader), &["settings"], None);
+    assert_eq!(code, 0, "{out}");
+    assert!(
+        out["settings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|x| x["key"] == "backup.keep"),
+        "{out}"
+    );
+    assert!(!text.contains("updated_at"), "{text}");
+    let (code, out, _) = s.svrctl(Some(&reader), &["settings", "backup.keep"], None);
+    assert_eq!((code, out["value"].as_str()), (0, Some("14")), "{out}");
+    let (code, _, _) = s.svrctl(
+        Some(&reader),
+        &["settings", "set", "backup.keep", "30"],
+        None,
+    );
+    assert_eq!(code, 5, "a read-only token changes no setting");
+    let (code, out, _) = s.svrctl(
+        Some(&admin),
+        &["settings", "set", "backup.keep", "30"],
+        None,
+    );
+    assert_eq!((code, out["value"].as_str()), (0, Some("30")), "{out}");
+    // A secret from stdin: stored, never shown
+    let (code, out, text) = s.svrctl(
+        Some(&admin),
+        &["settings", "set", "notification.token", "-"],
+        Some("s3cret-value\n"),
+    );
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(
+        (out["secret"].as_bool(), out["is_set"].as_bool()),
+        (Some(true), Some(true))
+    );
+    assert!(!text.contains("s3cret"), "{text}");
+
+    // openapi --find names the command for each call it finds
+    let (code, out, _) = s.svrctl(Some(&reader), &["openapi", "--find", "rotate"], None);
+    assert_eq!(code, 0, "{out}");
+    assert_eq!(
+        out[0]["svrctl"], "svrctl rotate-key (servers_keys token)",
+        "{out}"
+    );
+
+    // api: any call with the token, the path with or without /api/v1
+    let (code, out, _) = s.svrctl(Some(&reader), &["api", "GET", "/sessions"], None);
+    assert_eq!(code, 0, "{out}");
+    assert!(out["sessions"].is_array(), "{out}");
+    let (code, out, _) = s.svrctl(Some(&reader), &["api", "get", "/api/v1/status"], None);
+    assert_eq!(
+        (code, out["status"].as_str()),
+        (0, Some("running")),
+        "{out}"
+    );
+    let (code, out, _) = s.svrctl(
+        Some(&asker),
+        &["api", "POST", "/servers", "--body", "-"],
+        Some(r#"{"name": "via-api", "hostname": "192.0.2.1"}"#),
+    );
+    assert_eq!(code, 0, "{out}");
+    let id = out["id"].as_i64().unwrap();
+    // the preset still decides, and a held delete exits 3 as any other command's does
+    let (code, out, _) = s.svrctl(
+        Some(&reader),
+        &["api", "DELETE", &format!("/servers/{id}")],
+        None,
+    );
+    assert_eq!(code, 5, "{out}");
+    let (code, out, _) = s.svrctl(
+        Some(&asker),
+        &["api", "DELETE", &format!("/servers/{id}")],
+        None,
+    );
+    assert_eq!(code, 3, "{out}");
+    assert!(out["approval"]["id"].is_string(), "{out}");
+    let (code, out, _) = s.svrctl(
+        Some(&admin),
+        &["api", "POST", "/servers", "--body", "{not json"],
+        None,
+    );
+    assert_eq!((code, out["error"]["code"].as_str()), (2, Some("USAGE")));
+}
+
 #[tokio::test]
 async fn backup_then_restore_brings_the_data_back() {
     let s = start().await;

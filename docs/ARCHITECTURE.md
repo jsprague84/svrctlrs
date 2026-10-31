@@ -36,10 +36,10 @@ Android app; those talk to a remote server over the same API.
 
 | Crate | Purpose | Key files |
 |---|---|---|
-| `api` (`svrctlrs-api`) | the REST API's request and response types with their OpenAPI schemas; used by the server's handlers and by `svrctl` | `src/*.rs` (one module per resource) |
+| `api` (`svrctlrs-api`) | the REST API's request and response types with their OpenAPI schemas, and the token presets' table (`presets.rs`); used by the server's handlers and auth layer and by `svrctl` | `src/*.rs` (one module per resource), `src/presets.rs` |
 | `core` | AES-256-GCM credential encryption, error type, notification senders, webhook and Matrix posting | `src/encryption.rs`, `src/error.rs`, `src/notifications.rs` |
 | `database` | sqlx models, query modules, embedded migrations, and `backup.rs` (the backup copy, retention, checking and staging a restore; shared by the server and `svrctl`) | `src/models/*.rs`, `src/queries/*.rs`, `migrations/` |
-| `server` | Axum application and the `svrctl` CLI (`src/bin/svrctl/`: the agent CLI over the API with `svrctlrs-api` types, plus the local `backup`, `restore` and `reset-password`); `src/test_support/` (tests only) holds a loopback SSH server, database fixtures and the full app on a temporary database; `tests/svrctl.rs` runs both binaries | `src/main.rs`, `src/routes/**`, `src/bin/svrctl/` |
+| `server` | Axum application and the `svrctl` CLI (`src/bin/svrctl/`: the agent CLI over the API with `svrctlrs-api` types, plus the local `backup`, `restore` and `reset-password`; `surface.rs` maps every API operation to its command, `docs/agents.md`); `src/test_support/` (tests only) holds a loopback SSH server, database fixtures and the full app on a temporary database; `tests/svrctl.rs` runs both binaries | `src/main.rs`, `src/routes/**`, `src/bin/svrctl/` |
 
 `ui/src-tauri` is a separate Cargo project (excluded from the workspace) so the server build
 does not pull in Tauri's GTK/WebKit dependencies.
@@ -123,7 +123,7 @@ does not pull in Tauri's GTK/WebKit dependencies.
 - Credentials: `value` encrypted with AES-256-GCM (`core/src/encryption.rs`). The key comes
   from `ENCRYPTION_KEY` (64 hex chars), else `data/encryption.key`, else is generated.
 - API tokens: `api_tokens` table, SHA-256 of the secret only; presets enforced by
-  `Preset::allows` in the auth layer; never in a URL.
+  `Preset::allows` (`api/src/presets.rs`) in the auth layer; never in a URL.
 - SSH host keys: `server_host_keys` table, one row per `(server_id, key_type)`; `trusted_at`
   NULL is the key seen on first contact, waiting for the user to confirm its fingerprint.
 
