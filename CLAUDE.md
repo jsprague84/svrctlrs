@@ -41,7 +41,7 @@ server/      Axum app: main.rs, app.rs (the router stack), ssh.rs (the one SSH c
 ui/          SvelteKit 5 SPA (adapter-static → ui/build, served by the server at SPA_DIR)
 ui/src-tauri/  Tauri 2 desktop + Android (excluded from the Cargo workspace)
 flake.nix, packaging/nix/  the desktop app as a Nix package (NixOS; no hashes to update, check `nix build .#desktop`)
-.forgejo/    CI images and workflows (ci, docker, android, desktop)
+.forgejo/    CI images and workflows (ci, docker, desktop; android parked in workflows-parked/)
 scripts/dev/ the loop (prepush, ci-watch, gates, ci-lint, ci-log, ci-rerun, ci-dispatch on
              forgejo.sh) and the e2e/browser checks (run-e2e.sh, run-phone-check.sh, run-ui-screens.sh)
 scripts/ci/  release helper; scripts/deploy/ the forced-command targets: docker-vm deploy,
@@ -105,11 +105,11 @@ No Rust toolchain on the t490 laptop: wrap cargo in
 ## CI/CD (Forgejo, dev-space standard)
 
 Runners are the epyc-ai labels `rust-high` (cargo in `rust-ci:latest`, npm in `svrctlrs-ci`), `build` (images,
-DinD at `tcp://docker:2375`) and `android`. Never `runs-on: docker`, never mount a Docker
+DinD at `tcp://docker:2375`) and `android` (unused while the Android workflow is parked). Never `runs-on: docker`, never mount a Docker
 socket or TLS certs, share only `/ci-cache/sccache` (plus npm/gradle caches). `ci.yaml` runs on
 every branch; `docker.yaml` publishes `master` to `git.js-node.cc/jsprague/svrctlrs` and
-deploys it to docker-vm through a forced-command key; `v*` tags publish image, APK and desktop
-packages to a Forgejo release. GitHub is retired. `docker.yaml` ignores docs-only pushes, so
+deploys it to docker-vm through a forced-command key; `v*` tags publish the image, `svrctl` (amd64,
+arm64) and the desktop packages to a Forgejo release. GitHub is retired. `docker.yaml` ignores docs-only pushes, so
 never end a push on a docs-only commit. Details: `docs/DEVELOPMENT.md`.
 
 ## Sessions

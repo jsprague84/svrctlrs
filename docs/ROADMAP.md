@@ -1,6 +1,6 @@
 # Roadmap
 
-**Updated 2026-10-30.** The first part is the live plan: where the app stands against similar
+**Updated 2026-10-31.** The first part is the live plan: where the app stands against similar
 projects, what comes next and in which order, what is parked, and what is deliberately out of
 scope. The second part is the history of the 2026-10 hardening passes, kept because each row
 names the evidence for a fix.
@@ -24,7 +24,12 @@ devices with sign-out per device (item 26): the owner's list from 2026-10-19 is 
 **3.5.0 released 2026-10-21** with all of that. **4.0.0 released 2026-10-21**: the phone's
 Paste key, `svrctl --version`, and a restore drill against production's copy; it marks the app
 complete for one person's daily use, followed by a pause of a week or two of use before more
-changes.
+changes. **4.0.1 released 2026-10-24**: the first fixes from daily use (closing several
+tabs at once, the desktop icon, the Nix package). **4.1.0 released 2026-10-31**: agents get
+the rest of the API (`svrctl settings`, `svrctl api`, `openapi --find`, and a parity test
+that fails when an operation has no way for an agent to make it), settings changes are
+audited (`setting.updated`, item 33), and CI keeps hermes's skill and `svrctl` current (item
+31). No "Next" items are open: what follows is the owner's call.
 
 **Niche.** SvrCtlRS is the *small* one: a self-hosted SSH terminal manager for one person's
 servers, phone-first, with shells that survive the phone. One Rust binary, one SQLite file, an

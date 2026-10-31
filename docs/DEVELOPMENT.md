@@ -309,7 +309,9 @@ build needs a newer one. Build them on epyc-ai or another fast machine, not the 
    `ui/src-tauri/Cargo.toml` and takes its dependencies from the two lockfiles' own checksums
    (`importNpmLock`, `cargoLock.lockFile`), so there is no hash to update. CI does not build
    it: check `nix build .#desktop` where Nix is installed.
-5. The tag publishes the image, the APK and the desktop packages to the Forgejo release. The
+5. The tag publishes the image, `svrctl` for amd64 and arm64 (with `svrctl-SHA256SUMS`) and
+   the desktop packages (.deb, .rpm, AppImage) to the Forgejo release; no APK while the
+   Android workflow is parked (`.forgejo/workflows-parked/`). The
    release job runs `check-version.sh` with the tag first and fails when the tag, a manifest
    or the CHANGELOG section disagree.
 
