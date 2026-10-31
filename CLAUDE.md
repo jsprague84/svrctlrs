@@ -1,6 +1,6 @@
 # CLAUDE.md — AI development guide
 
-**Updated:** 2026-10-24 · **Version:** 4.0.1 · **Default branch:** `master`
+**Updated:** 2026-10-30 · **Version:** 4.0.1 · **Default branch:** `master`
 
 SvrCtlRS is a self-hosted **terminal/SSH management tool**: a Rust (Axum) server with a
 SvelteKit 5 SPA, wrapped by Tauri 2 for Linux desktop and Android. It is *not* the 1.x/2.x
@@ -92,6 +92,17 @@ socket or TLS certs, share only `/ci-cache/sccache` (plus npm/gradle caches). `c
 every branch; `docker.yaml` publishes `master` to `git.js-node.cc/jsprague/svrctlrs` and
 deploys it to docker-vm through a forced-command key; `v*` tags publish image, APK and desktop
 packages to a Forgejo release. GitHub is retired. Details: `docs/DEVELOPMENT.md`.
+
+## Sessions
+
+Work runs in sessions of a few ROADMAP "Next" items, one commit series each. Say unasked, in
+one line ("A new session is best here: …"), when a new session is best: an item or batch has
+shipped and is verified live, the next item is a different kind of work, context is long
+(large reads, a compaction), or the session prompt said a part is a session of its own.
+Before stopping, write the next session's first prompt to the brain note
+`~/brain/spaces/dev/projects/svrctlrs/next-session.md` (what to read, what is live, the
+numbered items, the rules), move the used one to `next-session-<date>.md`, and update
+`hot.md` there.
 
 ## Security posture to keep in mind
 

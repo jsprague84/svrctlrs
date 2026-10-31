@@ -1,6 +1,6 @@
 # Roadmap
 
-**Updated 2026-10-21.** The first part is the live plan: where the app stands against similar
+**Updated 2026-10-30.** The first part is the live plan: where the app stands against similar
 projects, what comes next and in which order, what is parked, and what is deliberately out of
 scope. The second part is the history of the 2026-10 hardening passes, kept because each row
 names the evidence for a fix.
@@ -299,6 +299,36 @@ beside the binary, and what an identity provider does stays optional.
     session, adoption, last use and expiry, presets, a loopback terminal closed with its shell
     kept), the e2e signs a second sign-in out of a real shell on hermes, the screen sweep
     signs one out from the list.
+
+### Catching up to the agentic-coding standard (owner, 2026-10-28)
+
+The owner's words: bring svrctlrs up to the dev-space agentic-coding standard where it is
+behind, copying from rustRoast and LogosOS (no shared code; take whichever copy is newer).
+Planned as two sessions: 27–29 (the loop and CI), then 30–31 (the agent surface).
+
+27. **The loop scripts** (M). `scripts/dev/prepush.sh` (seconds: fmt check, the commit
+    check, `npm run check` when `ui/` changed), `ci-watch.sh [sha]` (follows every job by the
+    Forgejo API, prints failed jobs' log tails, exits 0 only when all are green *and*
+    production's health reports that revision; it replaces the scratchpad Python poller),
+    `gates.sh` (every CI gate locally, stops at the first failure) and `ci-lint.sh` (lint in
+    CI's own image, not the laptop's clippy). Done when DEVELOPMENT.md's loop is prepush →
+    push → ci-watch and the next push in this list was verified with it.
+28. **The commit check** (S). `scripts/ci/agent-path.sh`: a `feat` commit touching app code
+    must also touch the skill or `docs/cli.md`, or carry `Agent-path: <why none>`; and touch
+    `docs/` or `CHANGELOG.md`, or carry `Docs: <why none>`. Run by prepush and by CI's Lint
+    over the pushed range.
+29. **CI hygiene** (S). `npm audit` over all dependencies (a static SPA bundles its
+    devDependencies), cargo-audit ignores with reasons in `.cargo/audit.toml` instead of
+    the `--ignore` flag, `scripts/ci/check-version.sh` for tags (all four version files and
+    a CHANGELOG section) instead of the inline check in `docker.yaml`.
+30. **`docs/cli.md`, `docs/agents.md` and the parity test** (L). Every OpenAPI operation
+    has a row in one table: its `svrctl` command, or `api`/`none` with a reason; every
+    command in svrctl's clap tree is in `cli.md` and the skill; the preset named is the
+    least that reaches the call. A cargo test fails a new route with no row (rustRoast
+    `bin/roast/surface.rs` is the model).
+31. **CI keeps hermes current** (M). After a deploy, CI installs the skill and `svrctl` on
+    hermes through a forced-command key, keeping the "This deployment" paragraph, as LogosOS
+    does (cae3bb0). Today they are copied by hand (last 2026-10-25, 4.0.1).
 
 ## Maybe later
 
