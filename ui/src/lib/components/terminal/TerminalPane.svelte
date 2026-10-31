@@ -592,7 +592,7 @@
 		// arrive as bytes. The input message carries text, so a report goes only while it is
 		// ASCII: up to column and row 95.
 		terminal.onBinary((data) => {
-			if (session?.isOpen && !/[^\x00-\x7f]/.test(data)) session.sendInput(data);
+			if (session?.isOpen && !/[\u0080-\uffff]/.test(data)) session.sendInput(data);
 		});
 		terminal.onResize(({ cols, rows }) => session?.sendResize(cols, rows));
 
