@@ -384,44 +384,47 @@ mod tests {
 
         let pool = h.state.pool.clone();
         let rows = || async {
-            let mut rows: Vec<_> = svrctlrs_database::queries::audit::list(&pool, 50, None)
+            svrctlrs_database::queries::audit::list(&pool, 50, None)
                 .await
                 .unwrap()
                 .into_iter()
                 .filter(|e| e.action == "setting.updated")
-                .collect();
-            rows.reverse();
-            rows
+                .collect::<Vec<_>>()
         };
         assert!(eventually(|| async { rows().await.len() >= 4 }).await);
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         let rows = rows().await;
         assert_eq!(rows.len(), 4, "{rows:?}");
-        let details = |i: usize| -> Value {
-            serde_json::from_str(rows[i].details.as_deref().unwrap()).unwrap()
+        // Each row is written by its own task (`audit::record`), so requests close together may
+        // land in either order: find each by its setting and details
+        let row = |key: &str, details: Value| {
+            rows.iter()
+                .find(|r| {
+                    r.target_name.as_deref() == Some(key)
+                        && r.details
+                            .as_deref()
+                            .and_then(|d| serde_json::from_str::<Value>(d).ok())
+                            .as_ref()
+                            == Some(&details)
+                })
+                .unwrap_or_else(|| panic!("no {key} row with {details}: {rows:?}"))
         };
 
-        assert_eq!(rows[0].target_type.as_deref(), Some("setting"));
-        assert_eq!(rows[0].target_name.as_deref(), Some("backup.keep"));
-        assert_eq!(rows[0].token_id, Some(token_id));
-        assert_eq!(rows[0].token_name.as_deref(), Some("agent"));
-        assert_eq!(rows[0].user_id, Some(1));
-        assert_eq!(details(0), json!({ "old": "14", "new": "30" }));
+        let by_token = row("backup.keep", json!({ "old": "14", "new": "30" }));
+        assert_eq!(by_token.target_type.as_deref(), Some("setting"));
+        assert_eq!(by_token.token_id, Some(token_id));
+        assert_eq!(by_token.token_name.as_deref(), Some("agent"));
+        assert_eq!(by_token.user_id, Some(1));
 
-        assert_eq!(rows[1].token_id, None);
-        assert_eq!(details(1), json!({ "old": "30", "new": "14" }));
+        let by_owner = row("backup.keep", json!({ "old": "30", "new": "14" }));
+        assert_eq!(by_owner.token_id, None);
 
-        assert_eq!(
-            rows[2].target_name.as_deref(),
-            Some("approval.matrix_token")
+        let matrix = row(
+            "approval.matrix_token",
+            json!({ "secret": true, "was_set": false, "is_set": true }),
         );
-        assert_eq!(
-            details(2),
-            json!({ "secret": true, "was_set": false, "is_set": true })
-        );
-        assert!(!rows[2].details.as_deref().unwrap().contains("s3cret"));
+        assert!(!matrix.details.as_deref().unwrap().contains("s3cret"));
 
-        assert_eq!(rows[3].target_name.as_deref(), Some("ui.motd"));
-        assert_eq!(details(3), json!({ "old": null, "new": "hi" }));
+        row("ui.motd", json!({ "old": null, "new": "hi" }));
     }
 }
