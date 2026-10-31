@@ -53,6 +53,9 @@ jobs:
       # an eval task) and the docs, or says why not in a trailer. HEAD, not GITHUB_SHA: a PR
       # run's GITHUB_SHA is a merge commit that is not checked out. A PR or a new branch has
       # no `before`, so only its last commit is checked.
+      - name: One version across every manifest (scripts/ci/check-version.sh)
+        run: scripts/ci/check-version.sh
+
       - name: Agent path and docs ship with each feature (scripts/ci/agent-path.sh)
         run: scripts/ci/agent-path.sh "${{ github.event.before }}" HEAD
 
@@ -87,10 +90,9 @@ jobs:
       - name: Install cargo-audit
         run: cargo audit --version || cargo install cargo-audit --locked
 
-      # Gate on any new advisory. Every `--ignore` needs a reason here and a ROADMAP entry.
-      #   RUSTSEC-2023-0071: rsa Marvin timing attack; transitive via ssh-key, no fixed release.
+      # Fails on any advisory not ignored, with its reason, in .cargo/audit.toml
       - name: Cargo audit
-        run: cargo audit --ignore RUSTSEC-2023-0071
+        run: cargo audit
 
   test:
     name: Test
@@ -152,12 +154,14 @@ jobs:
       - name: Build
         run: cd ui && npm run build
 
-      - name: npm audit (production dependencies)
-        # A finding fails at once; only an outage of npm's audit service is retried
+      - name: npm audit (every dependency)
+        # Dev dependencies too: a static SPA is built from them (vite, its bundler, the Svelte
+        # compiler), so they are what ships. High and above fail at once; only an outage of
+        # npm's audit service is retried.
         run: |
           cd ui
           for attempt in 1 2 3; do
-            if npm audit --omit=dev --audit-level=high > /tmp/audit.log 2>&1; then cat /tmp/audit.log; exit 0; fi
+            if npm audit --audit-level=high > /tmp/audit.log 2>&1; then cat /tmp/audit.log; exit 0; fi
             cat /tmp/audit.log
             grep -q "audit endpoint returned an error" /tmp/audit.log || exit 1
             echo "npm's audit service failed (attempt $attempt); retrying in 60 s"

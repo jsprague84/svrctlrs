@@ -315,14 +315,17 @@ Planned as two sessions: 27–29 (the loop and CI), then 30–31 (the agent surf
     on a shared `forgejo.sh` (5027235). Its first watch caught a race in the API-shapes test
     (8c3da76). The runners moved to Rust 1.99 the same day; the cargo jobs now run in
     `rust-ci:latest` so they follow it (f00b40c, verified live with ci-watch).
-28. **The commit check** (S). `scripts/ci/agent-path.sh`: a `feat` commit touching app code
-    must also touch the skill or `docs/cli.md`, or carry `Agent-path: <why none>`; and touch
-    `docs/` or `CHANGELOG.md`, or carry `Docs: <why none>`. Run by prepush and by CI's Lint
-    over the pushed range.
-29. **CI hygiene** (S). `npm audit` over all dependencies (a static SPA bundles its
-    devDependencies), cargo-audit ignores with reasons in `.cargo/audit.toml` instead of
-    the `--ignore` flag, `scripts/ci/check-version.sh` for tags (all four version files and
-    a CHANGELOG section) instead of the inline check in `docker.yaml`.
+28. ~~**The commit check**~~ Done 2026-10-30: `scripts/ci/agent-path.sh` (from rustRoast): a
+    `feat` commit changing `server/src`, `api/src`, `core/src`, `database/` or `ui/src` touches
+    the skill, `docs/cli.md`, `docs/agents.md` or an eval task, and `docs/` or `CHANGELOG.md`,
+    or carries an `Agent-path:` / `Docs:` trailer. prepush and gates run it over the commits
+    not pushed, CI's Lint over the pushed range (115563b, verified live with ci-watch).
+29. ~~**CI hygiene**~~ Done 2026-10-30: `npm audit --audit-level=high` over every dependency
+    (it found vite 8.3.2's dev-server advisories: vite 8.3.5), the `rsa` ignore in
+    `.cargo/audit.toml` with why it does not reach svrctlrs, and `scripts/ci/check-version.sh`
+    (the four version files and `docs/openapi.json` agree; with a tag, also the tag and a
+    CHANGELOG section), run by CI's Lint, prepush and gates, and with the tag by the release
+    job instead of its inline Cargo.toml check.
 30. **`docs/cli.md`, `docs/agents.md` and the parity test** (L). Every OpenAPI operation
     has a row in one table: its `svrctl` command, or `api`/`none` with a reason; every
     command in svrctl's clap tree is in `cli.md` and the skill; the preset named is the

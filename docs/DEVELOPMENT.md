@@ -84,13 +84,19 @@ CI has no `~/.ssh` and an SSH plan that finds the laptop's default key passes on
 These are exactly what CI runs (and `gates.sh`):
 
 ```bash
+scripts/ci/check-version.sh                   # one version in every manifest
 scripts/ci/agent-path.sh "$(git merge-base origin/master HEAD)" HEAD
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
-cargo audit                                   # cargo install cargo-audit
-cd ui && npm run check && npm run lint && npm run test && npm run build && npm audit --omit=dev --audit-level=high
+cargo audit                                   # ignores, each with its reason: .cargo/audit.toml
+cd ui && npm run check && npm run lint && npm run test && npm run build && npm audit --audit-level=high
 ```
+
+The npm audit covers every dependency, dev ones too: the SPA is static, so what ships is built
+by them (vite, its bundler, the Svelte compiler). A `cargo audit` finding is fixed by an
+upgrade, or ignored in `.cargo/audit.toml` with why it does not reach svrctlrs (or why the
+risk is accepted) and what would lift it; never with `--ignore` on the command line.
 
 `npm run format` applies Prettier (tabs, single quotes, 100 columns); `npm run lint` is ESLint
 (JS + typescript-eslint + eslint-plugin-svelte, Prettier-compatible) plus a Prettier check.
@@ -247,7 +253,7 @@ repository Settings → Mirror settings, or `GET /api/v1/repos/jsprague/svrctlrs
 
 | Workflow | Trigger | Runner | Does |
 |---|---|---|---|
-| `ci.yaml` | every branch, tags, PRs to master | `rust-high` | fmt, clippy, cargo-audit, tests, svelte-check, eslint + prettier, vitest, SPA build, npm audit (retried only when npm's audit service errors) |
+| `ci.yaml` | every branch, tags, PRs to master | `rust-high` | one version (`check-version.sh`), the commit check, fmt, clippy, cargo-audit, tests, svelte-check, eslint + prettier, vitest, SPA build, npm audit of every dependency (retried only when npm's audit service errors) |
 | `docker.yaml` | `master`, `v*`, manual | `build` | builds the image with buildx for `linux/amd64` and `linux/arm64` (cross-compiled on the amd64 runner: every `RUN` happens on `$BUILDPLATFORM`, the runtime stage only copies, so no QEMU), pushes `latest`/`sha`/`vX.Y.Z` to the Forgejo registry, in a named buildx builder (`svrctlrs`) that outlives the job so cargo-chef's dependency layer and sccache's cache mount stay warm (cache capped at 20 GB; Forgejo's registry does not keep a BuildKit registry cache, tried 2026-10-21); on tags creates the release; on `master` waits for the commit's CI push run to be green (a PR run on the same commit does not count) and deploys to docker-vm |
 | `desktop.yaml` | `v*`, manual | `rust-high` | `.deb`/`.rpm` (gate) and AppImage (best effort), attached to the release; a manual run keeps them as a workflow artifact |
 | `workflows-parked/android.yaml` | — | `android` | parked 2026-10-10 (the Android app is unused; the installable web app replaces it). Move it back to `workflows/` and run `tauri android init` for the `cc.jsnode.svrctlrs` identifier to revive it |
@@ -286,13 +292,17 @@ build needs a newer one. Build them on epyc-ai or another fast machine, not the 
    `cargo update --workspace` so `Cargo.lock` follows, and regenerate `docs/openapi.json`
    (`UPDATE_OPENAPI=1 cargo test -p server openapi_document`), which carries the version.
 3. Add a `## [X.Y.Z] - YYYY-MM-DD` section to `CHANGELOG.md`; the release job uses it as notes.
+   `scripts/ci/check-version.sh vX.Y.Z` checks steps 2 and 3 (every manifest, the OpenAPI
+   document, the section); CI's Lint runs it without the tag on every push, so a bump that
+   misses a file is red before it is tagged.
 4. Commit, make sure CI is green, then `git tag vX.Y.Z && git push origin vX.Y.Z`.
    The Nix flake (`flake.nix`, `packaging/nix/desktop.nix`) reads the version from
    `ui/src-tauri/Cargo.toml` and takes its dependencies from the two lockfiles' own checksums
    (`importNpmLock`, `cargoLock.lockFile`), so there is no hash to update. CI does not build
    it: check `nix build .#desktop` where Nix is installed.
 5. The tag publishes the image, the APK and the desktop packages to the Forgejo release. The
-   release job fails if the tag does not equal `v` + the `Cargo.toml` version.
+   release job runs `check-version.sh` with the tag first and fails when the tag, a manifest
+   or the CHANGELOG section disagree.
 
 `master` auto-deploys to docker-vm; tags never deploy. To ship a release to docker-vm, merge it
 to `master` (or run `deploy.sh <sha>` on docker-vm).

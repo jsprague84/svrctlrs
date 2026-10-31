@@ -100,14 +100,9 @@ jobs:
       - name: Checkout
         uses: https://code.forgejo.org/actions/checkout@v4
 
-      - name: Tag must match the workspace version
-        run: |
-          set -euo pipefail
-          CARGO_VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
-          [ "v${CARGO_VERSION}" = "${GITHUB_REF_NAME}" ] || {
-            echo "tag ${GITHUB_REF_NAME} does not match Cargo.toml version ${CARGO_VERSION}" >&2
-            exit 1
-          }
+      # The tag equals every manifest's version and CHANGELOG.md has its section (the notes)
+      - name: Tag, manifests and CHANGELOG agree
+        run: scripts/ci/check-version.sh "${GITHUB_REF_NAME}"
 
       - name: Log in to the Forgejo container registry
         uses: https://github.com/docker/login-action@v3

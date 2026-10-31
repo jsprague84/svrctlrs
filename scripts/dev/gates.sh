@@ -17,10 +17,11 @@ nohome=$(mktemp -d)
 trap 'rm -rf "${nohome}"' EXIT
 
 git fetch -q origin master
+step "version";                  scripts/ci/check-version.sh
 step "agent path";               scripts/ci/agent-path.sh "$(git merge-base origin/master HEAD)" HEAD
 step "fmt, clippy (CI's image)"; scripts/dev/ci-lint.sh
 step "cargo test (empty HOME)";  rust env HOME="${nohome}" CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" cargo test --workspace
-step "cargo audit";              nix shell nixpkgs#cargo nixpkgs#cargo-audit --command cargo audit --ignore RUSTSEC-2023-0071
+step "cargo audit";              nix shell nixpkgs#cargo nixpkgs#cargo-audit --command cargo audit
 (
   cd ui
   step "ui: install";            npm ci --no-audit --no-fund
@@ -28,7 +29,7 @@ step "cargo audit";              nix shell nixpkgs#cargo nixpkgs#cargo-audit --c
   step "ui: lint";               npm run lint
   step "ui: test";               npm run test
   step "ui: build";              npm run build
-  step "ui: audit";              npm audit --omit=dev --audit-level=high
+  step "ui: audit";              npm audit --audit-level=high
 )
 if [ "${1:-}" = --e2e ]; then
   step "e2e against ${E2E_SSH_HOST:-10.10.1.35}"

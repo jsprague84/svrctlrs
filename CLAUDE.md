@@ -85,8 +85,9 @@ No Rust toolchain on the t490 laptop: wrap cargo in
   Use `extractErrorMessage()` from `#lib/utils/error` in every catch. Mobile breakpoint is
   `md:` (768 px) plus `isMobile()` for JS. Tailwind v4 tokens live in `ui/src/app.css`.
 - **Versions**: one number in `Cargo.toml` (workspace), `ui/package.json`,
-  `ui/src-tauri/tauri.conf.json` and `ui/src-tauri/Cargo.toml`. The release job fails if the
-  tag disagrees with `Cargo.toml`. Bump all four together; add a `CHANGELOG.md` section.
+  `ui/src-tauri/tauri.conf.json` and `ui/src-tauri/Cargo.toml`. Bump all four together (and
+  `docs/openapi.json`); add a `CHANGELOG.md` section. `scripts/ci/check-version.sh [vX.Y.Z]`
+  checks them, in CI's Lint on every push and with the tag in the release job.
 - **Docs**: when behavior changes, update the doc that describes it in the same commit.
 - **Commits**: Conventional Commits. A `feat` commit that changes app code also touches the
   agent path (`skills/svrctlrs/`, `docs/cli.md`, `docs/agents.md`, an eval task) and `docs/` or

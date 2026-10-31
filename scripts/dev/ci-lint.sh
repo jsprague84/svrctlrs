@@ -24,5 +24,6 @@ exec docker run --rm --user "$(id -u):$(id -g)" \
     mkdir -p /tmp/cargo && ln -sfn /ci-cargo/registry /tmp/cargo/registry && ln -sfn /ci-cargo/git /tmp/cargo/git
     export CARGO_HOME=/tmp/cargo PATH="$CARGO_HOME_IMAGE/bin:$PATH"
     echo "CI toolchain: $(rustc -V), $(cargo clippy -V)"
+    scripts/ci/check-version.sh
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- -D warnings'

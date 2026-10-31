@@ -1,0 +1,15 @@
+# cargo audit (CI job "Audit", and scripts/dev/gates.sh). Every ignore says why it does not
+# reach svrctlrs, or why the risk is accepted, and what would lift it. Re-check each when a
+# dependency on its path is upgraded.
+[advisories]
+ignore = [
+  # rsa (Marvin attack): a timing side channel in RSA private-key operations; no fixed release
+  # (rsa 0.9.9 and 0.10.0-rc both affected). Reaches the binary through russh and ssh-key: an
+  # RSA key credential signs the SSH login, once per connection a signed-in user (or a token)
+  # opens; RSA host keys and OIDC ID tokens are only verified, with public keys. Recovering a
+  # key needs very many precisely timed private-key operations; an attacker cannot make
+  # svrctlrs sign at will, the signing happens beside the network latency of an SSH
+  # handshake, and keys svrctlrs generates are Ed25519. sqlx-mysql's copy is never compiled
+  # (sqlite only). Lift when rsa ships a constant-time release and russh/ssh-key take it.
+  "RUSTSEC-2023-0071",
+]
