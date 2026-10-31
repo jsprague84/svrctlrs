@@ -325,7 +325,7 @@ Planned as two sessions: 27–29 (the loop and CI), then 30–31 (the agent surf
     `.cargo/audit.toml` with why it does not reach svrctlrs, and `scripts/ci/check-version.sh`
     (the four version files and `docs/openapi.json` agree; with a tag, also the tag and a
     CHANGELOG section), run by CI's Lint, prepush and gates, and with the tag by the release
-    job instead of its inline Cargo.toml check.
+    job instead of its inline Cargo.toml check (80c39c2, 9ac0465, verified live with ci-watch).
 30. **`docs/cli.md`, `docs/agents.md` and the parity test** (L). Every OpenAPI operation
     has a row in one table: its `svrctl` command, or `api`/`none` with a reason; every
     command in svrctl's clap tree is in `cli.md` and the skill; the preset named is the

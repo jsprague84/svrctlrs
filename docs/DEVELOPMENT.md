@@ -58,7 +58,8 @@ On the same API (`scripts/dev/forgejo.sh`): `ci-log.sh [sha] [job]` lists a comm
 prints one job's whole log (a green job's warnings too); `ci-rerun.sh [sha] [job]` re-runs the
 failed jobs, and a failed deploy, when the runner was at fault and not the code;
 `ci-dispatch.sh [branch] [docker.yaml|desktop.yaml]` runs the image or desktop build for a
-branch (SHA-tagged images or a workflow artifact only, never a deploy or a release). After a
+branch (SHA-tagged images or a workflow artifact only, never a deploy or a release), or
+docker.yaml on `master` to build and deploy a push it skipped (only `ci.yaml` changed). After a
 Forgejo or runner upgrade, a branch push plus those two dispatches covers all three runner
 labels.
 
