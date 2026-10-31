@@ -197,7 +197,7 @@ pub async fn require_auth(session: Session, mut request: Request, next: Next) ->
             if let Some(token) = &owner.token {
                 // Minted with a token: the upgrade gets that token's access, and only while
                 // the token is still good (it may have been revoked since).
-                if !token.preset.allows(request.method(), &path) {
+                if !token.preset.allows(request.method().as_str(), &path) {
                     return token_outside_preset(token, request.method(), &path);
                 }
                 let valid = match &pool {
@@ -336,7 +336,7 @@ async fn token_auth(
                     }
                 });
             }
-            if !token.preset.allows(request.method(), path) {
+            if !token.preset.allows(request.method().as_str(), path) {
                 return token_outside_preset(&token, request.method(), path);
             }
             // The few destructive calls a token may make only with its owner's yes

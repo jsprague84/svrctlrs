@@ -432,7 +432,7 @@ async fn run(state: &AppState, a: &Approval) -> (StatusCode, String) {
     let Ok(method) = a.method.parse::<Method>() else {
         return gone("The held call is not valid; nothing was done");
     };
-    if !preset.allows(&method, &a.path) {
+    if !preset.allows(method.as_str(), &a.path) {
         return gone("The token's access no longer covers this call; nothing was done");
     }
     let Some(router) = state.api_router.get().cloned() else {
