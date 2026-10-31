@@ -49,6 +49,13 @@ jobs:
             git checkout --detach "${GITHUB_SHA}"
           fi
 
+      # Every feat commit pushed that changes app code touches the agent path (skill, cli.md,
+      # an eval task) and the docs, or says why not in a trailer. HEAD, not GITHUB_SHA: a PR
+      # run's GITHUB_SHA is a merge commit that is not checked out. A PR or a new branch has
+      # no `before`, so only its last commit is checked.
+      - name: Agent path and docs ship with each feature (scripts/ci/agent-path.sh)
+        run: scripts/ci/agent-path.sh "${{ github.event.before }}" HEAD
+
       - name: Format check
         run: cargo fmt --all --check
 

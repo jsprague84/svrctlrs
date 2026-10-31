@@ -306,13 +306,15 @@ The owner's words: bring svrctlrs up to the dev-space agentic-coding standard wh
 behind, copying from rustRoast and LogosOS (no shared code; take whichever copy is newer).
 Planned as two sessions: 27–29 (the loop and CI), then 30–31 (the agent surface).
 
-27. **The loop scripts** (M). `scripts/dev/prepush.sh` (seconds: fmt check, the commit
-    check, `npm run check` when `ui/` changed), `ci-watch.sh [sha]` (follows every job by the
-    Forgejo API, prints failed jobs' log tails, exits 0 only when all are green *and*
-    production's health reports that revision; it replaces the scratchpad Python poller),
-    `gates.sh` (every CI gate locally, stops at the first failure) and `ci-lint.sh` (lint in
-    CI's own image, not the laptop's clippy). Done when DEVELOPMENT.md's loop is prepush →
-    push → ci-watch and the next push in this list was verified with it.
+27. ~~**The loop scripts**~~ Done 2026-10-30: `scripts/dev/prepush.sh` (fmt; svelte-check and
+    Prettier when `ui/` changed), `ci-watch.sh [sha]` (every "(push)" job by the Forgejo API,
+    failed jobs' log tails, then production's health revision; judges docker.yaml's
+    paths-ignore over everything since the live revision, as Forgejo does), `gates.sh [--e2e]`
+    (every gate, tests with an empty `HOME`, optionally `run-e2e.sh` against hermes),
+    `ci-lint.sh` (CI's image), and from LogosOS `ci-log.sh`, `ci-rerun.sh`, `ci-dispatch.sh`
+    on a shared `forgejo.sh` (5027235). Its first watch caught a race in the API-shapes test
+    (8c3da76). The runners moved to Rust 1.99 the same day; the cargo jobs now run in
+    `rust-ci:latest` so they follow it (f00b40c, verified live with ci-watch).
 28. **The commit check** (S). `scripts/ci/agent-path.sh`: a `feat` commit touching app code
     must also touch the skill or `docs/cli.md`, or carry `Agent-path: <why none>`; and touch
     `docs/` or `CHANGELOG.md`, or carry `Docs: <why none>`. Run by prepush and by CI's Lint

@@ -62,6 +62,16 @@ branch (SHA-tagged images or a workflow artifact only, never a deploy or a relea
 Forgejo or runner upgrade, a branch push plus those two dispatches covers all three runner
 labels.
 
+**The commit check** (`scripts/ci/agent-path.sh [before] [after]`, run by `prepush.sh` over
+the commits not pushed yet and by CI's Lint over the pushed range). Commits are Conventional
+Commits. Every `feat` commit that changes app code (`server/src/`, `api/src/`, `core/src/`,
+`database/src/`, `database/migrations/`, `ui/src/`) must also touch the agent path (the skill
+`skills/svrctlrs/`, `docs/cli.md`, `docs/agents.md` or a Hermes eval task in
+`scripts/eval/hermes/tasks/`) or carry a trailer `Agent-path: <why none>`, and touch `docs/` or
+`CHANGELOG.md` or carry `Docs: <why none>`. It proves the agent path was considered, not that
+it is complete; the parity test and the eval do that. A web-app-only feature an agent has no
+use for says so: `Agent-path: a UI layout change; no route or command changed`.
+
 `scripts/dev/gates.sh` runs every CI gate here, stopping at the first failure: for when CI is
 down, or before pushing a migration or security-critical code. `gates.sh --e2e` then runs
 `run-e2e.sh` against hermes (below). Its lint is `scripts/dev/ci-lint.sh`, fmt and clippy in
@@ -74,6 +84,7 @@ CI has no `~/.ssh` and an SSH plan that finds the laptop's default key passes on
 These are exactly what CI runs (and `gates.sh`):
 
 ```bash
+scripts/ci/agent-path.sh "$(git merge-base origin/master HEAD)" HEAD
 cargo fmt --all --check
 cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace

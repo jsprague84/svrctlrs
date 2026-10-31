@@ -88,6 +88,10 @@ No Rust toolchain on the t490 laptop: wrap cargo in
   `ui/src-tauri/tauri.conf.json` and `ui/src-tauri/Cargo.toml`. The release job fails if the
   tag disagrees with `Cargo.toml`. Bump all four together; add a `CHANGELOG.md` section.
 - **Docs**: when behavior changes, update the doc that describes it in the same commit.
+- **Commits**: Conventional Commits. A `feat` commit that changes app code also touches the
+  agent path (`skills/svrctlrs/`, `docs/cli.md`, `docs/agents.md`, an eval task) and `docs/` or
+  `CHANGELOG.md`, or says why not in an `Agent-path: …` / `Docs: …` trailer;
+  `scripts/ci/agent-path.sh` checks it in prepush and CI (DEVELOPMENT.md, "The commit check").
 
 ## CI/CD (Forgejo, dev-space standard)
 

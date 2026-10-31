@@ -16,6 +16,8 @@ rust() { nix shell nixpkgs#cargo nixpkgs#rustc nixpkgs#clippy nixpkgs#rustfmt ni
 nohome=$(mktemp -d)
 trap 'rm -rf "${nohome}"' EXIT
 
+git fetch -q origin master
+step "agent path";               scripts/ci/agent-path.sh "$(git merge-base origin/master HEAD)" HEAD
 step "fmt, clippy (CI's image)"; scripts/dev/ci-lint.sh
 step "cargo test (empty HOME)";  rust env HOME="${nohome}" CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" cargo test --workspace
 step "cargo audit";              nix shell nixpkgs#cargo nixpkgs#cargo-audit --command cargo audit --ignore RUSTSEC-2023-0071
