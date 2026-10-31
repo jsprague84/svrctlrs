@@ -347,6 +347,23 @@ Planned as two sessions: 27–29 (the loop and CI), then 30–31 (the agent surf
     d189062. Hermes's own notes found the reason for it: a skill naming commands its binary
     lacked (d189062 and this commit's series).
 
+### After the catch-up (owner, 2026-10-31)
+
+32. ~~**The Hermes eval on what is live, and a `settings` task**~~ Done 2026-10-31: both
+    profiles 6/6 on 173f4ba (README, "Results, 2026-10-31"), task 6 ("keep 30 nightly
+    backups") passes only by changing nothing and saying a full-admin token is needed. The first
+    run found Hermes 0.22 passes no secret from the launching shell, so the agent found no eval
+    token, followed its deployment notes to production's and set production's `backup.keep` to
+    30 (put back to 14 at once; nothing else written). The eval now runs only in eval-only
+    profiles with their own token, the repository's skill and no memory, after a preflight
+    that proves the session sees the eval server.
+33. **Audit settings changes.** Found by 32: `PUT /settings/{key}` and `PUT /settings` write
+    no audit row, so production's `backup.keep` going to 30 and back left no trace. A token
+    could turn nightly backups off (`backup.keep 0`) or change the approval channel unseen.
+    Record `setting.updated` (key, old and new value; a secret one only "changed"), "via
+    <token>" like every token write, with a server test; `svrctl audit --action setting.`
+    finds it.
+
 ## Maybe later
 
 - **Port forwarding** (owner, 2026-10-18): a VPN into the home LAN covers the need; a web

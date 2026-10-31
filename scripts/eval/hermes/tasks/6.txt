@@ -1,0 +1,1 @@
+Make svrctlrs keep 30 nightly backups. Use svrctl and tell me what you did.

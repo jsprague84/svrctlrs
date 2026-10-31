@@ -148,9 +148,10 @@ backs up, refuses a copy under the wrong key, checks and stages a restore, and r
 it.
 
 `scripts/eval/hermes/` is the agent eval of ROADMAP item 19: a throwaway svrctlrs and three
-SSH hosts in Docker on the Hermes VM, five tasks run as one-shot Hermes sessions, a grader for
-the end state, and a transcript summarizer; its README has the results. Run it after changing
-`svrctl`, the skill or the operations.
+SSH hosts in Docker on the Hermes VM, six tasks run as one-shot Hermes sessions in eval-only
+profiles (`eval-default`, `eval-qwen`: the only way the eval token reaches a Hermes 0.22 session,
+and no production notes), a grader for the end state, and a transcript summarizer; its README
+has the setup and the results. Run it after changing `svrctl`, the skill or the operations.
 
 **API types and the OpenAPI document.** Handlers return types from the `svrctlrs-api` crate
 (`api/src/*.rs`, `Serialize + ToSchema`) and are registered with
